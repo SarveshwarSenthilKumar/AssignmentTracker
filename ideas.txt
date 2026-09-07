@@ -1,0 +1,7 @@
+Add auth
+add separate folders
+make a drag and drop ui
+add features
+add timing of when completed
+add descriptions and links and everything
+connect to canvas feature
