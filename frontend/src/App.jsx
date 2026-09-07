@@ -119,48 +119,77 @@ function App() {
             <p className="text-slate-400 text-lg">No todos yet. Add one above!</p>
           </div>
         ) : (
-          <div className="space-y-3">
-            {todos.map((todo) => (
-              <div
-                key={todo._id}
-                className={cn(
-                  "group flex items-center gap-4 p-4 rounded-xl transition-all",
-                  todo.completed
-                    ? "bg-white/5 border border-white/5"
-                    : "bg-white/10 border border-white/10 hover:bg-white/15"
-                )}
-              >
-                <button
-                  onClick={() => toggleTodo(todo._id)}
-                  className={cn(
-                    "flex-shrink-0 w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all",
-                    todo.completed
-                      ? "bg-green-500 border-green-500 text-white"
-                      : "border-slate-400 hover:border-primary-500"
-                  )}
-                >
-                  {todo.completed && <Check size={16} />}
-                </button>
+          <div className="space-y-8">
+            {/* Active Tasks */}
+            {todos.filter(t => !t.completed).length > 0 && (
+              <div>
+                <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
+                  <span className="w-2 h-2 bg-primary-500 rounded-full"></span>
+                  Active Tasks ({todos.filter(t => !t.completed).length})
+                </h2>
+                <div className="space-y-3">
+                  {todos.filter(t => !t.completed).map((todo) => (
+                    <div
+                      key={todo._id}
+                      className="group flex items-center gap-4 p-4 rounded-xl transition-all bg-white/10 border border-white/10 hover:bg-white/15"
+                    >
+                      <button
+                        onClick={() => toggleTodo(todo._id)}
+                        className="flex-shrink-0 w-8 h-8 rounded-full border-2 border-slate-400 hover:border-primary-500 flex items-center justify-center transition-all"
+                      >
+                      </button>
 
-                <span
-                  className={cn(
-                    "flex-1 text-lg transition-all",
-                    todo.completed
-                      ? "text-slate-500 line-through"
-                      : "text-white"
-                  )}
-                >
-                  {todo.text}
-                </span>
+                      <span className="flex-1 text-lg text-white transition-all">
+                        {todo.text}
+                      </span>
 
-                <button
-                  onClick={() => deleteTodo(todo._id)}
-                  className="opacity-0 group-hover:opacity-100 p-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"
-                >
-                  <Trash2 size={20} />
-                </button>
+                      <button
+                        onClick={() => deleteTodo(todo._id)}
+                        className="opacity-0 group-hover:opacity-100 p-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"
+                      >
+                        <Trash2 size={20} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </div>
-            ))}
+            )}
+
+            {/* Completed Tasks */}
+            {todos.filter(t => t.completed).length > 0 && (
+              <div>
+                <h2 className="text-xl font-semibold text-slate-400 mb-4 flex items-center gap-2">
+                  <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                  Completed ({todos.filter(t => t.completed).length})
+                </h2>
+                <div className="space-y-3">
+                  {todos.filter(t => t.completed).map((todo) => (
+                    <div
+                      key={todo._id}
+                      className="group flex items-center gap-4 p-4 rounded-xl transition-all bg-white/5 border border-white/5"
+                    >
+                      <button
+                        onClick={() => toggleTodo(todo._id)}
+                        className="flex-shrink-0 w-8 h-8 rounded-full border-2 bg-green-500 border-green-500 text-white flex items-center justify-center transition-all"
+                      >
+                        <Check size={16} />
+                      </button>
+
+                      <span className="flex-1 text-lg text-slate-500 line-through transition-all">
+                        {todo.text}
+                      </span>
+
+                      <button
+                        onClick={() => deleteTodo(todo._id)}
+                        className="opacity-0 group-hover:opacity-100 p-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"
+                      >
+                        <Trash2 size={20} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
