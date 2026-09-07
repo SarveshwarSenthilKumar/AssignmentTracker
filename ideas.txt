@@ -5,3 +5,5 @@ add features
 add timing of when completed
 add descriptions and links and everything
 connect to canvas feature
+add undo button
+update and add keyboard shortcuts

@@ -253,16 +253,16 @@ function App() {
             </p>
           </div>
         ) : (
-          <div className="space-y-8">
+          <div className="grid grid-cols-2 gap-6">
             {/* Active Tasks */}
-            {filteredTodos.filter(t => !t.completed).length > 0 && (
-              <div>
-                <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
-                  <span className="w-2 h-2 bg-primary-500 rounded-full"></span>
-                  Active Tasks ({filteredTodos.filter(t => !t.completed).length})
-                </h2>
-                <div className="space-y-3">
-                  {filteredTodos.filter(t => !t.completed).map((todo) => (
+            <div>
+              <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
+                <span className="w-2 h-2 bg-primary-500 rounded-full"></span>
+                Active Tasks ({filteredTodos.filter(t => !t.completed).length})
+              </h2>
+              <div className="space-y-3">
+                {filteredTodos.filter(t => !t.completed).length > 0 ? (
+                  filteredTodos.filter(t => !t.completed).map((todo) => (
                     <div
                       key={todo._id}
                       className="group flex items-center gap-4 p-4 rounded-xl transition-all bg-white/10 border border-white/10 hover:bg-white/15"
@@ -284,20 +284,24 @@ function App() {
                         <Trash2 size={20} />
                       </button>
                     </div>
-                  ))}
-                </div>
+                  ))
+                ) : (
+                  <div className="text-center py-8 text-slate-500">
+                    No active tasks
+                  </div>
+                )}
               </div>
-            )}
+            </div>
 
             {/* Completed Tasks */}
-            {filteredTodos.filter(t => t.completed).length > 0 && (
-              <div>
-                <h2 className="text-xl font-semibold text-slate-400 mb-4 flex items-center gap-2">
-                  <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                  Completed ({filteredTodos.filter(t => t.completed).length})
-                </h2>
-                <div className="space-y-3">
-                  {filteredTodos.filter(t => t.completed).map((todo) => (
+            <div>
+              <h2 className="text-xl font-semibold text-slate-400 mb-4 flex items-center gap-2">
+                <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                Completed ({filteredTodos.filter(t => t.completed).length})
+              </h2>
+              <div className="space-y-3">
+                {filteredTodos.filter(t => t.completed).length > 0 ? (
+                  filteredTodos.filter(t => t.completed).map((todo) => (
                     <div
                       key={todo._id}
                       className="group flex items-center gap-4 p-4 rounded-xl transition-all bg-white/5 border border-white/5"
@@ -320,10 +324,14 @@ function App() {
                         <Trash2 size={20} />
                       </button>
                     </div>
-                  ))}
-                </div>
+                  ))
+                ) : (
+                  <div className="text-center py-8 text-slate-500">
+                    No completed tasks
+                  </div>
+                )}
               </div>
-            )}
+            </div>
           </div>
         )}
 
