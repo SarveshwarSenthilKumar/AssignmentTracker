@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react'
-import { Plus, Trash2, Check, X, Loader2, FolderPlus, Folder } from 'lucide-react'
+import { Plus, Trash2, Check, X, Loader2, FolderPlus, Folder, LogOut } from 'lucide-react'
 import { cn } from './lib/utils'
+import { useAuth } from './contexts/AuthContext'
+import Auth from './components/Auth'
 
 function App() {
+  const { isAuthenticated, token, logout, user, loading: authLoading } = useAuth()
   const [todos, setTodos] = useState([])
   const [folders, setFolders] = useState([])
   const [selectedFolder, setSelectedFolder] = useState(null)
@@ -14,13 +17,19 @@ function App() {
   const [newFolderColor, setNewFolderColor] = useState('#0ea5e9')
 
   useEffect(() => {
-    fetchTodos()
-    fetchFolders()
-  }, [])
+    if (isAuthenticated) {
+      fetchTodos()
+      fetchFolders()
+    }
+  }, [isAuthenticated])
 
   const fetchTodos = async () => {
     try {
-      const response = await fetch('/api/todos')
+      const response = await fetch('/api/todos', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
       if (!response.ok) throw new Error('Failed to fetch todos')
       const data = await response.json()
       setTodos(data)
@@ -33,7 +42,11 @@ function App() {
 
   const fetchFolders = async () => {
     try {
-      const response = await fetch('/api/folders')
+      const response = await fetch('/api/folders', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
       if (!response.ok) throw new Error('Failed to fetch folders')
       const data = await response.json()
       setFolders(data)
@@ -49,7 +62,10 @@ function App() {
     try {
       const response = await fetch('/api/todos', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({ text: input.trim(), folder: selectedFolder }),
       })
       if (!response.ok) throw new Error('Failed to add todo')
@@ -66,7 +82,10 @@ function App() {
       const todo = todos.find(t => t._id === id)
       const response = await fetch(`/api/todos/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({ completed: !todo.completed }),
       })
       if (!response.ok) throw new Error('Failed to update todo')
@@ -81,6 +100,9 @@ function App() {
     try {
       const response = await fetch(`/api/todos/${id}`, {
         method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
       })
       if (!response.ok) throw new Error('Failed to delete todo')
       setTodos(todos.filter(t => t._id !== id))
@@ -96,7 +118,10 @@ function App() {
     try {
       const response = await fetch('/api/folders', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({ name: newFolderName.trim(), color: newFolderColor }),
       })
       if (!response.ok) throw new Error('Failed to create folder')
@@ -113,6 +138,9 @@ function App() {
     try {
       const response = await fetch(`/api/folders/${id}`, {
         method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
       })
       if (!response.ok) throw new Error('Failed to delete folder')
       setFolders(folders.filter(f => f._id !== id))
@@ -127,16 +155,37 @@ function App() {
     ? todos.filter(t => t.folder === selectedFolder)
     : todos.filter(t => !t.folder)
 
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="animate-spin text-primary-500" size={40} />
+      </div>
+    )
+  }
+
+  if (!isAuthenticated) {
+    return <Auth />
+  }
+
   return (
     <div className="min-h-screen py-12 px-4">
       <div className="max-w-2xl mx-auto">
-        <div className="text-center mb-8">
-          <h1 className="text-5xl font-bold text-white mb-2 tracking-tight">
-            Todo App
-          </h1>
-          <p className="text-slate-400 text-lg">
-            Stay organized, get things done
-          </p>
+        <div className="flex items-center justify-between mb-8">
+          <div className="text-center">
+            <h1 className="text-5xl font-bold text-white mb-2 tracking-tight">
+              Todo App
+            </h1>
+            <p className="text-slate-400 text-lg">
+              Stay organized, get things done
+            </p>
+          </div>
+          <button
+            onClick={logout}
+            className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-all flex items-center gap-2"
+          >
+            <LogOut size={18} />
+            <span className="hidden sm:inline">Logout</span>
+          </button>
         </div>
 
         {error && (
