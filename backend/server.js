@@ -73,9 +73,10 @@ const todoSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
-  completed: {
-    type: Boolean,
-    default: false,
+  status: {
+    type: String,
+    enum: ['todo', 'in-progress', 'completed'],
+    default: 'todo',
   },
   folder: {
     type: mongoose.Schema.Types.ObjectId,
@@ -218,10 +219,10 @@ app.post('/api/todos', authenticateToken, async (req, res) => {
 // Update a todo
 app.put('/api/todos/:id', authenticateToken, async (req, res) => {
   try {
-    const { completed } = req.body;
+    const { status } = req.body;
     const todo = await Todo.findOneAndUpdate(
       { _id: req.params.id, user: req.user.userId },
-      { completed },
+      { status },
       { new: true }
     );
     if (!todo) {

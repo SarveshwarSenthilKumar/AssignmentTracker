@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, Trash2, Check, X, Loader2, FolderPlus, Folder, LogOut } from 'lucide-react'
+import { Plus, Trash2, Check, X, Loader2, FolderPlus, Folder, LogOut, Sparkles } from 'lucide-react'
 import { cn } from './lib/utils'
 import { useAuth } from './contexts/AuthContext'
 import Auth from './components/Auth'
@@ -15,6 +15,8 @@ function App() {
   const [showFolderModal, setShowFolderModal] = useState(false)
   const [newFolderName, setNewFolderName] = useState('')
   const [newFolderColor, setNewFolderColor] = useState('#0ea5e9')
+  const [draggedTodo, setDraggedTodo] = useState(null)
+  const [celebration, setCelebration] = useState(null)
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -77,22 +79,64 @@ function App() {
     }
   }
 
-  const toggleTodo = async (id) => {
+  const updateTodoStatus = async (id, newStatus) => {
     try {
-      const todo = todos.find(t => t._id === id)
       const response = await fetch(`/api/todos/${id}`, {
         method: 'PUT',
         headers: { 
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ completed: !todo.completed }),
+        body: JSON.stringify({ status: newStatus }),
       })
       if (!response.ok) throw new Error('Failed to update todo')
       const updatedTodo = await response.json()
       setTodos(todos.map(t => t._id === id ? updatedTodo : t))
+      
+      // Celebration when completing a task
+      if (newStatus === 'completed') {
+        triggerCelebration()
+      }
     } catch (err) {
       setError(err.message)
+    }
+  }
+
+  const cycleTodoStatus = async (id) => {
+    const todo = todos.find(t => t._id === id)
+    const statusOrder = ['todo', 'in-progress', 'completed']
+    const currentIndex = statusOrder.indexOf(todo.status)
+    const nextStatus = statusOrder[(currentIndex + 1) % statusOrder.length]
+    await updateTodoStatus(id, nextStatus)
+  }
+
+  const triggerCelebration = () => {
+    const celebrations = ['🎉', '✨', '🌟', '💫', '🎊']
+    const randomCelebration = celebrations[Math.floor(Math.random() * celebrations.length)]
+    setCelebration(randomCelebration)
+    setTimeout(() => setCelebration(null), 1500)
+  }
+
+  const handleDragStart = (e, todo) => {
+    setDraggedTodo(todo)
+    e.dataTransfer.effectAllowed = 'move'
+    e.target.style.opacity = '0.5'
+  }
+
+  const handleDragEnd = (e) => {
+    e.target.style.opacity = '1'
+    setDraggedTodo(null)
+  }
+
+  const handleDragOver = (e) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+  }
+
+  const handleDrop = async (e, newStatus) => {
+    e.preventDefault()
+    if (draggedTodo && draggedTodo.status !== newStatus) {
+      await updateTodoStatus(draggedTodo._id, newStatus)
     }
   }
 
@@ -278,13 +322,13 @@ function App() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder={`Add task to ${selectedFolder ? folders.find(f => f._id === selectedFolder)?.name : 'Inbox'}...`}
-              className="flex-1 px-5 py-4 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
+              className="flex-1 px-5 py-4 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all focus:scale-105"
             />
             <button
               type="submit"
-              className="px-6 py-4 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-medium transition-all hover:scale-105 active:scale-95 flex items-center gap-2"
+              className="px-6 py-4 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-medium transition-all hover:scale-110 active:scale-95 flex items-center gap-2 shadow-lg shadow-primary-500/30 hover:shadow-primary-500/50"
             >
-              <Plus size={20} />
+              <Plus size={20} className="animate-pulse" />
               Add
             </button>
           </div>
@@ -302,23 +346,34 @@ function App() {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-6">
-            {/* Active Tasks */}
-            <div>
+          <div className="grid grid-cols-3 gap-4">
+            {/* Todo Tasks */}
+            <div
+              onDragOver={handleDragOver}
+              onDrop={(e) => handleDrop(e, 'todo')}
+              className={cn(
+                "transition-all duration-300 rounded-2xl p-4",
+                draggedTodo?.status !== 'todo' && "bg-primary-500/10 border-2 border-dashed border-primary-500/30"
+              )}
+            >
               <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
-                <span className="w-2 h-2 bg-primary-500 rounded-full"></span>
-                Active Tasks ({filteredTodos.filter(t => !t.completed).length})
+                <span className="w-2 h-2 bg-primary-500 rounded-full animate-pulse"></span>
+                To Do ({filteredTodos.filter(t => t.status === 'todo').length})
               </h2>
               <div className="space-y-3">
-                {filteredTodos.filter(t => !t.completed).length > 0 ? (
-                  filteredTodos.filter(t => !t.completed).map((todo) => (
+                {filteredTodos.filter(t => t.status === 'todo').length > 0 ? (
+                  filteredTodos.filter(t => t.status === 'todo').map((todo) => (
                     <div
                       key={todo._id}
-                      className="group flex items-center gap-4 p-4 rounded-xl transition-all bg-white/10 border border-white/10 hover:bg-white/15"
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, todo)}
+                      onDragEnd={handleDragEnd}
+                      className="group flex items-center gap-4 p-4 rounded-xl transition-all bg-white/10 border border-white/10 hover:bg-white/15 hover:scale-105 hover:shadow-lg cursor-grab active:cursor-grabbing"
                     >
                       <button
-                        onClick={() => toggleTodo(todo._id)}
-                        className="flex-shrink-0 w-8 h-8 rounded-full border-2 border-slate-400 hover:border-primary-500 flex items-center justify-center transition-all"
+                        onClick={() => cycleTodoStatus(todo._id)}
+                        className="flex-shrink-0 w-8 h-8 rounded-full border-2 border-slate-400 hover:border-primary-500 flex items-center justify-center transition-all hover:scale-110"
+                        title="Click to move to In Progress"
                       >
                       </button>
 
@@ -328,55 +383,117 @@ function App() {
 
                       <button
                         onClick={() => deleteTodo(todo._id)}
-                        className="opacity-0 group-hover:opacity-100 p-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"
+                        className="opacity-0 group-hover:opacity-100 p-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all hover:scale-110"
                       >
                         <Trash2 size={20} />
                       </button>
                     </div>
                   ))
                 ) : (
-                  <div className="text-center py-8 text-slate-500">
-                    No active tasks
+                  <div className="text-center py-8 text-slate-500 border-2 border-dashed border-slate-700 rounded-xl">
+                    Drop tasks here
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* In Progress Tasks */}
+            <div
+              onDragOver={handleDragOver}
+              onDrop={(e) => handleDrop(e, 'in-progress')}
+              className={cn(
+                "transition-all duration-300 rounded-2xl p-4",
+                draggedTodo?.status !== 'in-progress' && "bg-yellow-500/10 border-2 border-dashed border-yellow-500/30"
+              )}
+            >
+              <h2 className="text-xl font-semibold text-yellow-400 mb-4 flex items-center gap-2">
+                <span className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></span>
+                In Progress ({filteredTodos.filter(t => t.status === 'in-progress').length})
+              </h2>
+              <div className="space-y-3">
+                {filteredTodos.filter(t => t.status === 'in-progress').length > 0 ? (
+                  filteredTodos.filter(t => t.status === 'in-progress').map((todo) => (
+                    <div
+                      key={todo._id}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, todo)}
+                      onDragEnd={handleDragEnd}
+                      className="group flex items-center gap-4 p-4 rounded-xl transition-all bg-yellow-500/10 border border-yellow-500/20 hover:bg-yellow-500/15 hover:scale-105 hover:shadow-lg cursor-grab active:cursor-grabbing"
+                    >
+                      <button
+                        onClick={() => cycleTodoStatus(todo._id)}
+                        className="flex-shrink-0 w-8 h-8 rounded-full border-2 border-yellow-500 hover:border-yellow-400 flex items-center justify-center transition-all hover:scale-110"
+                        title="Click to move to Completed"
+                      >
+                        <div className="w-3 h-3 bg-yellow-500 rounded-full animate-pulse" />
+                      </button>
+
+                      <span className="flex-1 text-lg text-white transition-all">
+                        {todo.text}
+                      </span>
+
+                      <button
+                        onClick={() => deleteTodo(todo._id)}
+                        className="opacity-0 group-hover:opacity-100 p-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all hover:scale-110"
+                      >
+                        <Trash2 size={20} />
+                      </button>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-8 text-slate-500 border-2 border-dashed border-slate-700 rounded-xl">
+                    Drop tasks here
                   </div>
                 )}
               </div>
             </div>
 
             {/* Completed Tasks */}
-            <div>
-              <h2 className="text-xl font-semibold text-slate-400 mb-4 flex items-center gap-2">
-                <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                Completed ({filteredTodos.filter(t => t.completed).length})
+            <div
+              onDragOver={handleDragOver}
+              onDrop={(e) => handleDrop(e, 'completed')}
+              className={cn(
+                "transition-all duration-300 rounded-2xl p-4",
+                draggedTodo?.status !== 'completed' && "bg-green-500/10 border-2 border-dashed border-green-500/30"
+              )}
+            >
+              <h2 className="text-xl font-semibold text-green-400 mb-4 flex items-center gap-2">
+                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                Completed ({filteredTodos.filter(t => t.status === 'completed').length})
               </h2>
               <div className="space-y-3">
-                {filteredTodos.filter(t => t.completed).length > 0 ? (
-                  filteredTodos.filter(t => t.completed).map((todo) => (
+                {filteredTodos.filter(t => t.status === 'completed').length > 0 ? (
+                  filteredTodos.filter(t => t.status === 'completed').map((todo) => (
                     <div
                       key={todo._id}
-                      className="group flex items-center gap-4 p-4 rounded-xl transition-all bg-white/5 border border-white/5"
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, todo)}
+                      onDragEnd={handleDragEnd}
+                      className="group flex items-center gap-4 p-4 rounded-xl transition-all bg-green-500/10 border border-green-500/20 hover:bg-green-500/15 hover:scale-105 hover:shadow-lg cursor-grab active:cursor-grabbing"
                     >
                       <button
-                        onClick={() => toggleTodo(todo._id)}
-                        className="flex-shrink-0 w-8 h-8 rounded-full border-2 bg-green-500 border-green-500 text-white flex items-center justify-center transition-all"
+                        onClick={() => cycleTodoStatus(todo._id)}
+                        className="flex-shrink-0 w-8 h-8 rounded-full border-2 bg-green-500 border-green-500 text-white flex items-center justify-center transition-all hover:bg-green-600 hover:scale-110"
+                        title="Click to move back to To Do"
                       >
                         <Check size={16} />
                       </button>
 
-                      <span className="flex-1 text-lg text-slate-500 line-through transition-all">
+                      <span className="flex-1 text-lg text-slate-400 line-through transition-all">
                         {todo.text}
                       </span>
 
                       <button
                         onClick={() => deleteTodo(todo._id)}
-                        className="opacity-0 group-hover:opacity-100 p-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"
+                        className="opacity-0 group-hover:opacity-100 p-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all hover:scale-110"
                       >
                         <Trash2 size={20} />
                       </button>
                     </div>
                   ))
                 ) : (
-                  <div className="text-center py-8 text-slate-500">
-                    No completed tasks
+                  <div className="text-center py-8 text-slate-500 border-2 border-dashed border-slate-700 rounded-xl">
+                    Drop tasks here
                   </div>
                 )}
               </div>
@@ -386,7 +503,14 @@ function App() {
 
         {filteredTodos.length > 0 && (
           <div className="mt-6 text-center text-slate-400 text-sm">
-            {filteredTodos.filter(t => t.completed).length} of {filteredTodos.length} completed
+            {filteredTodos.filter(t => t.status === 'completed').length} of {filteredTodos.length} completed
+          </div>
+        )}
+
+        {/* Celebration Overlay */}
+        {celebration && (
+          <div className="fixed inset-0 pointer-events-none flex items-center justify-center z-50">
+            <div className="text-9xl animate-bounce">{celebration}</div>
           </div>
         )}
 
