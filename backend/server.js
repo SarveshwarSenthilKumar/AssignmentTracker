@@ -73,6 +73,14 @@ const todoSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  description: {
+    type: String,
+    default: '',
+  },
+  links: {
+    type: [String],
+    default: [],
+  },
   status: {
     type: String,
     enum: ['todo', 'in-progress', 'completed'],
@@ -219,10 +227,16 @@ app.post('/api/todos', authenticateToken, async (req, res) => {
 // Update a todo
 app.put('/api/todos/:id', authenticateToken, async (req, res) => {
   try {
-    const { status } = req.body;
+    const { status, description, links, text } = req.body;
+    const updateData = {};
+    if (status !== undefined) updateData.status = status;
+    if (description !== undefined) updateData.description = description;
+    if (links !== undefined) updateData.links = links;
+    if (text !== undefined) updateData.text = text;
+    
     const todo = await Todo.findOneAndUpdate(
       { _id: req.params.id, user: req.user.userId },
-      { status },
+      updateData,
       { new: true }
     );
     if (!todo) {

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, Trash2, Check, X, Loader2, FolderPlus, Folder, LogOut, Sparkles } from 'lucide-react'
+import { Plus, Trash2, Check, X, Loader2, FolderPlus, Folder, LogOut, Sparkles, Link2, ChevronDown, ChevronUp, Edit2, Save } from 'lucide-react'
 import { cn } from './lib/utils'
 import { useAuth } from './contexts/AuthContext'
 import Auth from './components/Auth'
@@ -17,6 +17,9 @@ function App() {
   const [newFolderColor, setNewFolderColor] = useState('#0ea5e9')
   const [draggedTodo, setDraggedTodo] = useState(null)
   const [celebration, setCelebration] = useState(null)
+  const [expandedTodos, setExpandedTodos] = useState(new Set())
+  const [editingTodos, setEditingTodos] = useState(new Set())
+  const [editData, setEditData] = useState({})
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -138,6 +141,229 @@ function App() {
     if (draggedTodo && draggedTodo.status !== newStatus) {
       await updateTodoStatus(draggedTodo._id, newStatus)
     }
+  }
+
+  const toggleExpand = (id) => {
+    const newExpanded = new Set(expandedTodos)
+    if (newExpanded.has(id)) {
+      newExpanded.delete(id)
+    } else {
+      newExpanded.add(id)
+    }
+    setExpandedTodos(newExpanded)
+  }
+
+  const startEditing = (todo) => {
+    setEditingTodos(new Set([...editingTodos, todo._id]))
+    setEditData({
+      ...editData,
+      [todo._id]: {
+        text: todo.text,
+        description: todo.description || '',
+        links: todo.links?.join('\n') || ''
+      }
+    })
+  }
+
+  const cancelEditing = (id) => {
+    const newEditing = new Set(editingTodos)
+    newEditing.delete(id)
+    setEditingTodos(newEditing)
+    const newEditData = { ...editData }
+    delete newEditData[id]
+    setEditData(newEditData)
+  }
+
+  const saveEdit = async (id) => {
+    const data = editData[id]
+    const linksArray = data.links.split('\n').filter(link => link.trim()).map(link => link.trim())
+    
+    try {
+      const response = await fetch(`/api/todos/${id}`, {
+        method: 'PUT',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          text: data.text,
+          description: data.description,
+          links: linksArray
+        }),
+      })
+      if (!response.ok) throw new Error('Failed to update todo')
+      const updatedTodo = await response.json()
+      setTodos(todos.map(t => t._id === id ? updatedTodo : t))
+      cancelEditing(id)
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  const renderTaskCard = (todo, statusColor) => {
+    const isExpanded = expandedTodos.has(todo._id)
+    const isEditing = editingTodos.has(todo._id)
+    const hasDetails = todo.description || (todo.links && todo.links.length > 0)
+
+    return (
+      <div
+        key={todo._id}
+        draggable
+        onDragStart={(e) => handleDragStart(e, todo)}
+        onDragEnd={handleDragEnd}
+        className="group"
+      >
+        <div
+          className={cn(
+            "flex items-center gap-4 p-4 rounded-xl transition-all cursor-grab active:cursor-grabbing",
+            statusColor.bg,
+            statusColor.border,
+            "hover:scale-105 hover:shadow-lg"
+          )}
+        >
+          <button
+            onClick={() => cycleTodoStatus(todo._id)}
+            className={cn(
+              "flex-shrink-0 w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all hover:scale-110",
+              statusColor.button
+            )}
+            title="Click to change status"
+          >
+            {statusColor.icon}
+          </button>
+
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              {isEditing ? (
+                <input
+                  type="text"
+                  value={editData[todo._id]?.text || todo.text}
+                  onChange={(e) => setEditData({
+                    ...editData,
+                    [todo._id]: { ...editData[todo._id], text: e.target.value }
+                  })}
+                  className="flex-1 bg-white/10 border border-white/20 rounded px-2 py-1 text-white text-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  autoFocus
+                />
+              ) : (
+                <span className={cn("text-lg transition-all truncate", statusColor.text)}>
+                  {todo.text}
+                </span>
+              )}
+              
+              {hasDetails && !isEditing && (
+                <button
+                  onClick={() => toggleExpand(todo._id)}
+                  className="flex-shrink-0 p-1 text-slate-400 hover:text-white transition-all"
+                >
+                  {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {isEditing ? (
+              <>
+                <button
+                  onClick={() => saveEdit(todo._id)}
+                  className="p-2 text-green-400 hover:bg-green-500/10 rounded-lg transition-all hover:scale-110"
+                  title="Save"
+                >
+                  <Save size={18} />
+                </button>
+                <button
+                  onClick={() => cancelEditing(todo._id)}
+                  className="p-2 text-slate-400 hover:bg-white/10 rounded-lg transition-all hover:scale-110"
+                  title="Cancel"
+                >
+                  <X size={18} />
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={() => startEditing(todo)}
+                  className="opacity-0 group-hover:opacity-100 p-2 text-slate-400 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-all hover:scale-110"
+                  title="Edit"
+                >
+                  <Edit2 size={18} />
+                </button>
+                <button
+                  onClick={() => deleteTodo(todo._id)}
+                  className="opacity-0 group-hover:opacity-100 p-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all hover:scale-110"
+                  title="Delete"
+                >
+                  <Trash2 size={18} />
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Expanded Details */}
+        {(isExpanded || isEditing) && (
+          <div className="mt-2 ml-16 p-4 rounded-xl bg-white/5 border border-white/10 space-y-3">
+            {isEditing ? (
+              <>
+                <div>
+                  <label className="block text-slate-400 text-sm mb-1">Description</label>
+                  <textarea
+                    value={editData[todo._id]?.description || ''}
+                    onChange={(e) => setEditData({
+                      ...editData,
+                      [todo._id]: { ...editData[todo._id], description: e.target.value }
+                    })}
+                    placeholder="Add a description..."
+                    className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
+                    rows={2}
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-400 text-sm mb-1">Links (one per line)</label>
+                  <textarea
+                    value={editData[todo._id]?.links || ''}
+                    onChange={(e) => setEditData({
+                      ...editData,
+                      [todo._id]: { ...editData[todo._id], links: e.target.value }
+                    })}
+                    placeholder="https://example.com&#10;https://another-link.com"
+                    className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none font-mono text-sm"
+                    rows={3}
+                  />
+                </div>
+              </>
+            ) : (
+              <>
+                {todo.description && (
+                  <p className="text-slate-300 text-sm leading-relaxed">{todo.description}</p>
+                )}
+                {todo.links && todo.links.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-slate-400 text-sm">
+                      <Link2 size={14} />
+                      <span>Links</span>
+                    </div>
+                    {todo.links.map((link, idx) => (
+                      <a
+                        key={idx}
+                        href={link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 text-primary-400 hover:text-primary-300 text-sm transition-colors hover:underline"
+                      >
+                        <Link2 size={12} />
+                        {link}
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    )
   }
 
   const deleteTodo = async (id) => {
@@ -362,33 +588,15 @@ function App() {
               </h2>
               <div className="space-y-3">
                 {filteredTodos.filter(t => t.status === 'todo').length > 0 ? (
-                  filteredTodos.filter(t => t.status === 'todo').map((todo) => (
-                    <div
-                      key={todo._id}
-                      draggable
-                      onDragStart={(e) => handleDragStart(e, todo)}
-                      onDragEnd={handleDragEnd}
-                      className="group flex items-center gap-4 p-4 rounded-xl transition-all bg-white/10 border border-white/10 hover:bg-white/15 hover:scale-105 hover:shadow-lg cursor-grab active:cursor-grabbing"
-                    >
-                      <button
-                        onClick={() => cycleTodoStatus(todo._id)}
-                        className="flex-shrink-0 w-8 h-8 rounded-full border-2 border-slate-400 hover:border-primary-500 flex items-center justify-center transition-all hover:scale-110"
-                        title="Click to move to In Progress"
-                      >
-                      </button>
-
-                      <span className="flex-1 text-lg text-white transition-all">
-                        {todo.text}
-                      </span>
-
-                      <button
-                        onClick={() => deleteTodo(todo._id)}
-                        className="opacity-0 group-hover:opacity-100 p-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all hover:scale-110"
-                      >
-                        <Trash2 size={20} />
-                      </button>
-                    </div>
-                  ))
+                  filteredTodos.filter(t => t.status === 'todo').map((todo) => 
+                    renderTaskCard(todo, {
+                      bg: 'bg-white/10',
+                      border: 'border border-white/10 hover:bg-white/15',
+                      button: 'border-slate-400 hover:border-primary-500',
+                      icon: null,
+                      text: 'text-white'
+                    })
+                  )
                 ) : (
                   <div className="text-center py-8 text-slate-500 border-2 border-dashed border-slate-700 rounded-xl">
                     Drop tasks here
@@ -412,34 +620,15 @@ function App() {
               </h2>
               <div className="space-y-3">
                 {filteredTodos.filter(t => t.status === 'in-progress').length > 0 ? (
-                  filteredTodos.filter(t => t.status === 'in-progress').map((todo) => (
-                    <div
-                      key={todo._id}
-                      draggable
-                      onDragStart={(e) => handleDragStart(e, todo)}
-                      onDragEnd={handleDragEnd}
-                      className="group flex items-center gap-4 p-4 rounded-xl transition-all bg-yellow-500/10 border border-yellow-500/20 hover:bg-yellow-500/15 hover:scale-105 hover:shadow-lg cursor-grab active:cursor-grabbing"
-                    >
-                      <button
-                        onClick={() => cycleTodoStatus(todo._id)}
-                        className="flex-shrink-0 w-8 h-8 rounded-full border-2 border-yellow-500 hover:border-yellow-400 flex items-center justify-center transition-all hover:scale-110"
-                        title="Click to move to Completed"
-                      >
-                        <div className="w-3 h-3 bg-yellow-500 rounded-full animate-pulse" />
-                      </button>
-
-                      <span className="flex-1 text-lg text-white transition-all">
-                        {todo.text}
-                      </span>
-
-                      <button
-                        onClick={() => deleteTodo(todo._id)}
-                        className="opacity-0 group-hover:opacity-100 p-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all hover:scale-110"
-                      >
-                        <Trash2 size={20} />
-                      </button>
-                    </div>
-                  ))
+                  filteredTodos.filter(t => t.status === 'in-progress').map((todo) => 
+                    renderTaskCard(todo, {
+                      bg: 'bg-yellow-500/10',
+                      border: 'border border-yellow-500/20 hover:bg-yellow-500/15',
+                      button: 'border-yellow-500 hover:border-yellow-400',
+                      icon: <div className="w-3 h-3 bg-yellow-500 rounded-full animate-pulse" />,
+                      text: 'text-white'
+                    })
+                  )
                 ) : (
                   <div className="text-center py-8 text-slate-500 border-2 border-dashed border-slate-700 rounded-xl">
                     Drop tasks here
@@ -463,34 +652,15 @@ function App() {
               </h2>
               <div className="space-y-3">
                 {filteredTodos.filter(t => t.status === 'completed').length > 0 ? (
-                  filteredTodos.filter(t => t.status === 'completed').map((todo) => (
-                    <div
-                      key={todo._id}
-                      draggable
-                      onDragStart={(e) => handleDragStart(e, todo)}
-                      onDragEnd={handleDragEnd}
-                      className="group flex items-center gap-4 p-4 rounded-xl transition-all bg-green-500/10 border border-green-500/20 hover:bg-green-500/15 hover:scale-105 hover:shadow-lg cursor-grab active:cursor-grabbing"
-                    >
-                      <button
-                        onClick={() => cycleTodoStatus(todo._id)}
-                        className="flex-shrink-0 w-8 h-8 rounded-full border-2 bg-green-500 border-green-500 text-white flex items-center justify-center transition-all hover:bg-green-600 hover:scale-110"
-                        title="Click to move back to To Do"
-                      >
-                        <Check size={16} />
-                      </button>
-
-                      <span className="flex-1 text-lg text-slate-400 line-through transition-all">
-                        {todo.text}
-                      </span>
-
-                      <button
-                        onClick={() => deleteTodo(todo._id)}
-                        className="opacity-0 group-hover:opacity-100 p-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all hover:scale-110"
-                      >
-                        <Trash2 size={20} />
-                      </button>
-                    </div>
-                  ))
+                  filteredTodos.filter(t => t.status === 'completed').map((todo) => 
+                    renderTaskCard(todo, {
+                      bg: 'bg-green-500/10',
+                      border: 'border border-green-500/20 hover:bg-green-500/15',
+                      button: 'bg-green-500 border-green-500 text-white hover:bg-green-600',
+                      icon: <Check size={16} />,
+                      text: 'text-slate-400 line-through'
+                    })
+                  )
                 ) : (
                   <div className="text-center py-8 text-slate-500 border-2 border-dashed border-slate-700 rounded-xl">
                     Drop tasks here
