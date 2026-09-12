@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, Trash2, Check, X, Loader2, FolderPlus, Folder, LogOut, Sparkles, Link2, ChevronDown, ChevronUp, Edit2, Save } from 'lucide-react'
+import { Plus, Trash2, Check, X, Loader2, FolderPlus, Folder, LogOut, Sparkles, Link2, ChevronDown, ChevronUp, Edit2, Save, User, Trophy, Target, Calendar } from 'lucide-react'
 import { cn } from './lib/utils'
 import { useAuth } from './contexts/AuthContext'
 import Auth from './components/Auth'
@@ -13,6 +13,7 @@ function App() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [showFolderModal, setShowFolderModal] = useState(false)
+  const [showProfileModal, setShowProfileModal] = useState(false)
   const [newFolderName, setNewFolderName] = useState('')
   const [newFolderColor, setNewFolderColor] = useState('#0ea5e9')
   const [draggedTodo, setDraggedTodo] = useState(null)
@@ -198,6 +199,16 @@ function App() {
     } catch (err) {
       setError(err.message)
     }
+  }
+
+  const getUserStats = () => {
+    const total = todos.length
+    const completed = todos.filter(t => t.status === 'completed').length
+    const inProgress = todos.filter(t => t.status === 'in-progress').length
+    const todoCount = todos.filter(t => t.status === 'todo').length
+    const completionRate = total > 0 ? Math.round((completed / total) * 100) : 0
+    
+    return { total, completed, inProgress, todoCount, completionRate }
   }
 
   const renderTaskCard = (todo, statusColor) => {
@@ -449,13 +460,22 @@ function App() {
               Stay organized, get things done
             </p>
           </div>
-          <button
-            onClick={logout}
-            className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-all flex items-center gap-2"
-          >
-            <LogOut size={18} />
-            <span className="hidden sm:inline">Logout</span>
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowProfileModal(true)}
+              className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition-all flex items-center gap-2 shadow-lg shadow-primary-500/30 hover:scale-105"
+            >
+              <User size={18} />
+              <span className="hidden sm:inline">Profile</span>
+            </button>
+            <button
+              onClick={logout}
+              className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-all flex items-center gap-2"
+            >
+              <LogOut size={18} />
+              <span className="hidden sm:inline">Logout</span>
+            </button>
+          </div>
         </div>
 
         {error && (
@@ -696,7 +716,7 @@ function App() {
                     type="text"
                     value={newFolderName}
                     onChange={(e) => setNewFolderName(e.target.value)}
-                    placeholder="e.g., Work, Personal, Shopping"
+                    placeholder="My Awesome Folder"
                     className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
                     autoFocus
                   />
@@ -734,6 +754,87 @@ function App() {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* Profile Modal */}
+        {showProfileModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-slate-900 border border-white/10 rounded-2xl p-6 w-full max-w-md">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-2xl font-bold text-white">Your Profile</h3>
+                <button
+                  onClick={() => setShowProfileModal(false)}
+                  className="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition-all"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* User Info */}
+              <div className="flex items-center gap-4 mb-6 p-4 bg-gradient-to-r from-primary-500/20 to-purple-500/20 rounded-xl">
+                <div className="w-16 h-16 bg-gradient-to-br from-primary-500 to-purple-500 rounded-full flex items-center justify-center text-white text-2xl font-bold">
+                  {user?.username?.charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <h4 className="text-xl font-bold text-white">{user?.username}</h4>
+                  <p className="text-slate-400 text-sm">{user?.email}</p>
+                </div>
+              </div>
+
+              {/* Stats */}
+              <div className="grid grid-cols-2 gap-4 mb-6">
+                <div className="p-4 bg-white/5 rounded-xl border border-white/10">
+                  <div className="flex items-center gap-2 text-slate-400 text-sm mb-1">
+                    <Target size={16} />
+                    <span>Total Tasks</span>
+                  </div>
+                  <p className="text-3xl font-bold text-white">{getUserStats().total}</p>
+                </div>
+                <div className="p-4 bg-green-500/10 rounded-xl border border-green-500/20">
+                  <div className="flex items-center gap-2 text-green-400 text-sm mb-1">
+                    <Trophy size={16} />
+                    <span>Completed</span>
+                  </div>
+                  <p className="text-3xl font-bold text-green-400">{getUserStats().completed}</p>
+                </div>
+                <div className="p-4 bg-yellow-500/10 rounded-xl border border-yellow-500/20">
+                  <div className="flex items-center gap-2 text-yellow-400 text-sm mb-1">
+                    <Sparkles size={16} />
+                    <span>In Progress</span>
+                  </div>
+                  <p className="text-3xl font-bold text-yellow-400">{getUserStats().inProgress}</p>
+                </div>
+                <div className="p-4 bg-primary-500/10 rounded-xl border border-primary-500/20">
+                  <div className="flex items-center gap-2 text-primary-400 text-sm mb-1">
+                    <Calendar size={16} />
+                    <span>To Do</span>
+                  </div>
+                  <p className="text-3xl font-bold text-primary-400">{getUserStats().todoCount}</p>
+                </div>
+              </div>
+
+              {/* Completion Rate */}
+              <div className="p-4 bg-white/5 rounded-xl border border-white/10 mb-6">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-slate-400 text-sm">Completion Rate</span>
+                  <span className="text-white font-bold">{getUserStats().completionRate}%</span>
+                </div>
+                <div className="w-full bg-white/10 rounded-full h-3">
+                  <div
+                    className="bg-gradient-to-r from-primary-500 to-green-500 h-3 rounded-full transition-all duration-500"
+                    style={{ width: `${getUserStats().completionRate}%` }}
+                  />
+                </div>
+              </div>
+
+              <button
+                onClick={() => setShowProfileModal(false)}
+                className="w-full px-4 py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-xl transition-all font-medium"
+              >
+                Close
+              </button>
             </div>
           </div>
         )}
