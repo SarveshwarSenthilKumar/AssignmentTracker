@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Plus, Trash2, Check, X, Loader2, FolderPlus, Folder, LogOut, Sparkles, Link2, ChevronDown, ChevronUp, Edit2, Save, User, Trophy, Target, Calendar } from 'lucide-react'
 import { cn } from './lib/utils'
 import { useAuth } from './contexts/AuthContext'
@@ -21,6 +21,7 @@ function App() {
   const [expandedTodos, setExpandedTodos] = useState(new Set())
   const [editingTodos, setEditingTodos] = useState(new Set())
   const [editData, setEditData] = useState({})
+  const editRefs = useRef({})
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -28,6 +29,54 @@ function App() {
       fetchFolders()
     }
   }, [isAuthenticated])
+
+  // Click outside to save edit
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      editingTodos.forEach((id) => {
+        const ref = editRefs.current[id]
+        if (ref && !ref.contains(event.target)) {
+          // Call saveEdit directly here to avoid dependency issues
+          const data = editData[id]
+          if (data) {
+            const linksArray = data.links.split('\n').filter(link => link.trim()).map(link => link.trim())
+            
+            fetch(`/api/todos/${id}`, {
+              method: 'PUT',
+              headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({
+                text: data.text,
+                description: data.description,
+                links: linksArray
+              }),
+            })
+            .then(res => {
+              if (!res.ok) throw new Error('Failed to update todo')
+              return res.json()
+            })
+            .then(updatedTodo => {
+              setTodos(todos.map(t => t._id === id ? updatedTodo : t))
+              const newEditing = new Set(editingTodos)
+              newEditing.delete(id)
+              setEditingTodos(newEditing)
+              const newEditData = { ...editData }
+              delete newEditData[id]
+              setEditData(newEditData)
+            })
+            .catch(err => setError(err.message))
+          }
+        }
+      })
+    }
+
+    if (editingTodos.size > 0) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [editingTodos, editData, token, todos])
 
   const fetchTodos = async () => {
     try {
@@ -223,6 +272,7 @@ function App() {
         onDragStart={(e) => handleDragStart(e, todo)}
         onDragEnd={handleDragEnd}
         className="group"
+        ref={(el) => { if (isEditing) editRefs.current[todo._id] = el }}
       >
         <div
           className={cn(
