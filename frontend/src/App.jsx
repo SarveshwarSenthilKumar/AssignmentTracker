@@ -22,6 +22,7 @@ function App() {
   const [editingTodos, setEditingTodos] = useState(new Set())
   const [editData, setEditData] = useState({})
   const editRefs = useRef({})
+  const [selectedTask, setSelectedTask] = useState(null)
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -260,6 +261,10 @@ function App() {
     return { total, completed, inProgress, todoCount, completionRate }
   }
 
+  const openTaskDetail = (todo) => {
+    setSelectedTask(todo)
+  }
+
   const renderTaskCard = (todo, statusColor) => {
     const isExpanded = expandedTodos.has(todo._id)
     const isEditing = editingTodos.has(todo._id)
@@ -275,6 +280,7 @@ function App() {
         ref={(el) => { if (isEditing) editRefs.current[todo._id] = el }}
       >
         <div
+          onClick={() => !isEditing && openTaskDetail(todo)}
           className={cn(
             "flex items-center gap-3 p-3 rounded-xl transition-all cursor-grab active:cursor-grabbing",
             statusColor.bg,
@@ -283,7 +289,7 @@ function App() {
           )}
         >
           <button
-            onClick={() => cycleTodoStatus(todo._id)}
+            onClick={(e) => { e.stopPropagation(); cycleTodoStatus(todo._id) }}
             className={cn(
               "flex-shrink-0 w-7 h-7 rounded-full border-2 flex items-center justify-center transition-all hover:scale-110",
               statusColor.button
@@ -303,6 +309,7 @@ function App() {
                     ...editData,
                     [todo._id]: { ...editData[todo._id], text: e.target.value }
                   })}
+                  onClick={(e) => e.stopPropagation()}
                   className="flex-1 bg-white/10 border border-white/20 rounded px-2 py-1 text-white text-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                   autoFocus
                 />
@@ -314,7 +321,7 @@ function App() {
               
               {hasDetails && !isEditing && (
                 <button
-                  onClick={() => toggleExpand(todo._id)}
+                  onClick={(e) => { e.stopPropagation(); toggleExpand(todo._id) }}
                   className="flex-shrink-0 p-1 text-slate-400 hover:text-white transition-all"
                 >
                   {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
@@ -327,14 +334,14 @@ function App() {
             {isEditing ? (
               <>
                 <button
-                  onClick={() => saveEdit(todo._id)}
+                  onClick={(e) => { e.stopPropagation(); saveEdit(todo._id) }}
                   className="p-2 text-green-400 hover:bg-green-500/10 rounded-lg transition-all hover:scale-110"
                   title="Save"
                 >
                   <Save size={18} />
                 </button>
                 <button
-                  onClick={() => cancelEditing(todo._id)}
+                  onClick={(e) => { e.stopPropagation(); cancelEditing(todo._id) }}
                   className="p-2 text-slate-400 hover:bg-white/10 rounded-lg transition-all hover:scale-110"
                   title="Cancel"
                 >
@@ -344,14 +351,14 @@ function App() {
             ) : (
               <>
                 <button
-                  onClick={() => startEditing(todo)}
+                  onClick={(e) => { e.stopPropagation(); startEditing(todo) }}
                   className="opacity-0 group-hover:opacity-100 p-2 text-slate-400 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-all hover:scale-110"
                   title="Edit"
                 >
                   <Edit2 size={18} />
                 </button>
                 <button
-                  onClick={() => deleteTodo(todo._id)}
+                  onClick={(e) => { e.stopPropagation(); deleteTodo(todo._id) }}
                   className="opacity-0 group-hover:opacity-100 p-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all hover:scale-110"
                   title="Delete"
                 >
@@ -888,6 +895,119 @@ function App() {
             </div>
           </div>
         )}
+
+        {/* Task Detail Modal */}
+        {selectedTask && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-slate-900 border border-white/10 rounded-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-2xl font-bold text-white">Task Details</h3>
+                <button
+                  onClick={() => setSelectedTask(null)}
+                  className="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition-all"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* Task Title */}
+              <div className="mb-6">
+                <label className="block text-slate-400 text-sm mb-2">Task Name</label>
+                <p className="text-xl text-white font-medium">{selectedTask.text}</p>
+              </div>
+
+              {/* Status */}
+              <div className="mb-6">
+                <label className="block text-slate-400 text-sm mb-2">Status</label>
+                <div className="flex gap-2">
+                  {['todo', 'in-progress', 'completed'].map((status) => (
+                    <button
+                      key={status}
+                      onClick={() => {
+                        updateTodoStatus(selectedTask._id, status)
+                        setSelectedTask({ ...selectedTask, status })
+                      }}
+                      className={cn(
+                        "px-4 py-2 rounded-lg transition-all text-sm font-medium",
+                        selectedTask.status === status
+                          ? status === 'todo' && 'bg-primary-600 text-white'
+                          || status === 'in-progress' && 'bg-yellow-500 text-white'
+                          || status === 'completed' && 'bg-green-500 text-white'
+                          : 'bg-white/10 text-slate-400 hover:bg-white/20'
+                      )}
+                    >
+                      {status === 'todo' && 'To Do'}
+                      {status === 'in-progress' && 'In Progress'}
+                      {status === 'completed' && 'Completed'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Description */}
+              <div className="mb-6">
+                <label className="block text-slate-400 text-sm mb-2">Description</label>
+                <p className="text-slate-300 text-sm leading-relaxed whitespace-pre-wrap">
+                  {selectedTask.description || 'No description'}
+                </p>
+              </div>
+
+              {/* Links */}
+              {selectedTask.links && selectedTask.links.length > 0 && (
+                <div className="mb-6">
+                  <label className="block text-slate-400 text-sm mb-2">Links</label>
+                  <div className="space-y-2">
+                    {selectedTask.links.map((link, idx) => (
+                      <a
+                        key={idx}
+                        href={link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 text-primary-400 hover:text-primary-300 text-sm transition-colors hover:underline"
+                      >
+                        <Link2 size={14} />
+                        {link}
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Created Date */}
+              <div className="mb-6">
+                <label className="block text-slate-400 text-sm mb-2">Created</label>
+                <p className="text-slate-300 text-sm">
+                  {new Date(selectedTask.createdAt).toLocaleDateString()} at {new Date(selectedTask.createdAt).toLocaleTimeString()}
+                </p>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setSelectedTask(null)
+                    startEditing(selectedTask)
+                  }}
+                  className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-all flex items-center justify-center gap-2"
+                >
+                  <Edit2 size={18} />
+                  Edit
+                </button>
+                <button
+                  onClick={() => {
+                    deleteTodo(selectedTask._id)
+                    setSelectedTask(null)
+                  }}
+                  className="flex-1 px-4 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl transition-all flex items-center justify-center gap-2"
+                >
+                  <Trash2 size={18} />
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
       </div>
     </div>
   )
