@@ -276,7 +276,7 @@ function App() {
       >
         <div
           className={cn(
-            "flex items-center gap-4 p-4 rounded-xl transition-all cursor-grab active:cursor-grabbing",
+            "flex items-center gap-3 p-3 rounded-xl transition-all cursor-grab active:cursor-grabbing",
             statusColor.bg,
             statusColor.border,
             "hover:scale-105 hover:shadow-lg"
@@ -285,7 +285,7 @@ function App() {
           <button
             onClick={() => cycleTodoStatus(todo._id)}
             className={cn(
-              "flex-shrink-0 w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all hover:scale-110",
+              "flex-shrink-0 w-7 h-7 rounded-full border-2 flex items-center justify-center transition-all hover:scale-110",
               statusColor.button
             )}
             title="Click to change status"
@@ -307,7 +307,7 @@ function App() {
                   autoFocus
                 />
               ) : (
-                <span className={cn("text-lg transition-all truncate", statusColor.text)}>
+                <span className={cn("text-base transition-all truncate", statusColor.text)}>
                   {todo.text}
                 </span>
               )}
@@ -364,11 +364,11 @@ function App() {
 
         {/* Expanded Details */}
         {(isExpanded || isEditing) && (
-          <div className="mt-2 ml-16 p-4 rounded-xl bg-white/5 border border-white/10 space-y-3">
+          <div className="mt-2 ml-12 p-3 rounded-xl bg-white/5 border border-white/10 space-y-2">
             {isEditing ? (
               <>
                 <div>
-                  <label className="block text-slate-400 text-sm mb-1">Description</label>
+                  <label className="block text-slate-400 text-xs mb-1">Description</label>
                   <textarea
                     value={editData[todo._id]?.description || ''}
                     onChange={(e) => setEditData({
@@ -376,12 +376,12 @@ function App() {
                       [todo._id]: { ...editData[todo._id], description: e.target.value }
                     })}
                     placeholder="Add a description..."
-                    className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
+                    className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none text-sm"
                     rows={2}
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-400 text-sm mb-1">Links (one per line)</label>
+                  <label className="block text-slate-400 text-xs mb-1">Links (one per line)</label>
                   <textarea
                     value={editData[todo._id]?.links || ''}
                     onChange={(e) => setEditData({
@@ -389,7 +389,7 @@ function App() {
                       [todo._id]: { ...editData[todo._id], links: e.target.value }
                     })}
                     placeholder="https://example.com&#10;https://another-link.com"
-                    className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none font-mono text-sm"
+                    className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none font-mono text-xs"
                     rows={3}
                   />
                 </div>
@@ -397,12 +397,12 @@ function App() {
             ) : (
               <>
                 {todo.description && (
-                  <p className="text-slate-300 text-sm leading-relaxed">{todo.description}</p>
+                  <p className="text-slate-300 text-xs leading-relaxed">{todo.description}</p>
                 )}
                 {todo.links && todo.links.length > 0 && (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-slate-400 text-sm">
-                      <Link2 size={14} />
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 text-slate-400 text-xs">
+                      <Link2 size={12} />
                       <span>Links</span>
                     </div>
                     {todo.links.map((link, idx) => (
@@ -411,9 +411,9 @@ function App() {
                         href={link}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center gap-2 text-primary-400 hover:text-primary-300 text-sm transition-colors hover:underline"
+                        className="flex items-center gap-2 text-primary-400 hover:text-primary-300 text-xs transition-colors hover:underline"
                       >
-                        <Link2 size={12} />
+                        <Link2 size={10} />
                         {link}
                       </a>
                     ))}
@@ -499,14 +499,14 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen py-12 px-4">
+    <div className="min-h-screen py-8 px-4">
       <div className="w-[95%] mx-auto">
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between mb-6">
           <div className="text-center">
-            <h1 className="text-5xl font-bold text-white mb-2 tracking-tight">
+            <h1 className="text-3xl font-bold text-white mb-2 tracking-tight">
               Todo App
             </h1>
-            <p className="text-slate-400 text-lg">
+            <p className="text-slate-400 text-sm">
               Stay organized, get things done
             </p>
           </div>
@@ -535,14 +535,14 @@ function App() {
         )}
 
         {/* Folders Section */}
-        <div className="mb-12">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold text-white">Folders</h2>
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-semibold text-white">Folders</h2>
             <button
               onClick={() => setShowFolderModal(true)}
-              className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-all flex items-center gap-2"
+              className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-all flex items-center gap-2 text-sm"
             >
-              <FolderPlus size={18} />
+              <FolderPlus size={16} />
               New Folder
             </button>
           </div>
@@ -553,13 +553,13 @@ function App() {
             <button
               onClick={() => setSelectedFolder(null)}
               className={cn(
-                "flex-shrink-0 px-6 py-3 rounded-xl transition-all flex items-center gap-3",
+                "flex-shrink-0 px-4 py-2 rounded-xl transition-all flex items-center gap-2 text-sm",
                 selectedFolder === null
                   ? "bg-primary-600 text-white shadow-lg shadow-primary-500/30"
                   : "bg-white/5 text-slate-400 hover:bg-white/10"
               )}
             >
-              <Folder size={20} />
+              <Folder size={16} />
               <span className="font-medium">Inbox</span>
               <span className={cn(
                 "px-2 py-0.5 rounded-full text-xs",
@@ -577,7 +577,7 @@ function App() {
                 key={folder._id}
                 onClick={() => setSelectedFolder(folder._id)}
                 className={cn(
-                  "flex-shrink-0 px-6 py-3 rounded-xl transition-all flex items-center gap-3 group",
+                  "flex-shrink-0 px-4 py-2 rounded-xl transition-all flex items-center gap-2 group text-sm",
                   selectedFolder === folder._id
                     ? "text-white shadow-lg"
                     : "bg-white/5 text-slate-400 hover:bg-white/10"
@@ -587,7 +587,7 @@ function App() {
                   boxShadow: selectedFolder === folder._id ? `0 10px 30px -10px ${folder.color}40` : undefined,
                 }}
               >
-                <Folder size={20} />
+                <Folder size={16} />
                 <span className="font-medium">{folder.name}</span>
                 <span className={cn(
                   "px-2 py-0.5 rounded-full text-xs",
@@ -604,27 +604,27 @@ function App() {
                   }}
                   className="opacity-0 group-hover:opacity-100 p-1 hover:bg-white/20 rounded transition-all"
                 >
-                  <X size={14} />
+                  <X size={12} />
                 </button>
               </button>
             ))}
           </div>
         </div>
 
-        <form onSubmit={addTodo} className="mb-8">
+        <form onSubmit={addTodo} className="mb-6">
           <div className="flex gap-3">
             <input
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder={`Add task to ${selectedFolder ? folders.find(f => f._id === selectedFolder)?.name : 'Inbox'}...`}
-              className="flex-1 px-5 py-4 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all focus:scale-105"
+              className="flex-1 px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all focus:scale-105 text-sm"
             />
             <button
               type="submit"
-              className="px-6 py-4 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-medium transition-all hover:scale-110 active:scale-95 flex items-center gap-2 shadow-lg shadow-primary-500/30 hover:shadow-primary-500/50"
+              className="px-5 py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-medium transition-all hover:scale-110 active:scale-95 flex items-center gap-2 shadow-lg shadow-primary-500/30 hover:shadow-primary-500/50 text-sm"
             >
-              <Plus size={20} className="animate-pulse" />
+              <Plus size={16} className="animate-pulse" />
               Add
             </button>
           </div>
@@ -648,15 +648,15 @@ function App() {
               onDragOver={handleDragOver}
               onDrop={(e) => handleDrop(e, 'todo')}
               className={cn(
-                "transition-all duration-300 rounded-2xl p-4 min-h-[200px]",
+                "transition-all duration-300 rounded-2xl p-3 min-h-[150px]",
                 draggedTodo?.status !== 'todo' && "bg-primary-500/10 border-2 border-dashed border-primary-500/30"
               )}
             >
-              <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
+              <h2 className="text-base font-semibold text-white mb-3 flex items-center gap-2">
                 <span className="w-2 h-2 bg-primary-500 rounded-full animate-pulse"></span>
                 To Do ({filteredTodos.filter(t => t.status === 'todo').length})
               </h2>
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {filteredTodos.filter(t => t.status === 'todo').length > 0 ? (
                   filteredTodos.filter(t => t.status === 'todo').map((todo) => 
                     renderTaskCard(todo, {
@@ -668,7 +668,7 @@ function App() {
                     })
                   )
                 ) : (
-                  <div className="text-center py-8 text-slate-500 border-2 border-dashed border-slate-700 rounded-xl">
+                  <div className="text-center py-6 text-slate-500 border-2 border-dashed border-slate-700 rounded-xl text-sm">
                     Drop tasks here
                   </div>
                 )}
@@ -680,15 +680,15 @@ function App() {
               onDragOver={handleDragOver}
               onDrop={(e) => handleDrop(e, 'in-progress')}
               className={cn(
-                "transition-all duration-300 rounded-2xl p-4 min-h-[200px]",
+                "transition-all duration-300 rounded-2xl p-3 min-h-[150px]",
                 draggedTodo?.status !== 'in-progress' && "bg-yellow-500/10 border-2 border-dashed border-yellow-500/30"
               )}
             >
-              <h2 className="text-xl font-semibold text-yellow-400 mb-4 flex items-center gap-2">
+              <h2 className="text-base font-semibold text-yellow-400 mb-3 flex items-center gap-2">
                 <span className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></span>
                 In Progress ({filteredTodos.filter(t => t.status === 'in-progress').length})
               </h2>
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {filteredTodos.filter(t => t.status === 'in-progress').length > 0 ? (
                   filteredTodos.filter(t => t.status === 'in-progress').map((todo) => 
                     renderTaskCard(todo, {
@@ -700,7 +700,7 @@ function App() {
                     })
                   )
                 ) : (
-                  <div className="text-center py-8 text-slate-500 border-2 border-dashed border-slate-700 rounded-xl">
+                  <div className="text-center py-6 text-slate-500 border-2 border-dashed border-slate-700 rounded-xl text-sm">
                     Drop tasks here
                   </div>
                 )}
@@ -712,15 +712,15 @@ function App() {
               onDragOver={handleDragOver}
               onDrop={(e) => handleDrop(e, 'completed')}
               className={cn(
-                "transition-all duration-300 rounded-2xl p-4 min-h-[200px]",
+                "transition-all duration-300 rounded-2xl p-3 min-h-[150px]",
                 draggedTodo?.status !== 'completed' && "bg-green-500/10 border-2 border-dashed border-green-500/30"
               )}
             >
-              <h2 className="text-xl font-semibold text-green-400 mb-4 flex items-center gap-2">
+              <h2 className="text-base font-semibold text-green-400 mb-3 flex items-center gap-2">
                 <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
                 Completed ({filteredTodos.filter(t => t.status === 'completed').length})
               </h2>
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {filteredTodos.filter(t => t.status === 'completed').length > 0 ? (
                   filteredTodos.filter(t => t.status === 'completed').map((todo) => 
                     renderTaskCard(todo, {
@@ -732,7 +732,7 @@ function App() {
                     })
                   )
                 ) : (
-                  <div className="text-center py-8 text-slate-500 border-2 border-dashed border-slate-700 rounded-xl">
+                  <div className="text-center py-6 text-slate-500 border-2 border-dashed border-slate-700 rounded-xl text-sm">
                     Drop tasks here
                   </div>
                 )}
