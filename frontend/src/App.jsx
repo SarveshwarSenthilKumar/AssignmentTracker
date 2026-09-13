@@ -500,7 +500,7 @@ function App() {
 
   return (
     <div className="min-h-screen py-12 px-4">
-      <div className="max-w-2xl mx-auto">
+      <div className="max-w-7xl mx-auto">
         <div className="flex items-center justify-between mb-8">
           <div className="text-center">
             <h1 className="text-5xl font-bold text-white mb-2 tracking-tight">
@@ -642,13 +642,13 @@ function App() {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Todo Tasks */}
             <div
               onDragOver={handleDragOver}
               onDrop={(e) => handleDrop(e, 'todo')}
               className={cn(
-                "transition-all duration-300 rounded-2xl p-4",
+                "transition-all duration-300 rounded-2xl p-4 min-h-[200px]",
                 draggedTodo?.status !== 'todo' && "bg-primary-500/10 border-2 border-dashed border-primary-500/30"
               )}
             >
@@ -680,7 +680,7 @@ function App() {
               onDragOver={handleDragOver}
               onDrop={(e) => handleDrop(e, 'in-progress')}
               className={cn(
-                "transition-all duration-300 rounded-2xl p-4",
+                "transition-all duration-300 rounded-2xl p-4 min-h-[200px]",
                 draggedTodo?.status !== 'in-progress' && "bg-yellow-500/10 border-2 border-dashed border-yellow-500/30"
               )}
             >
@@ -712,7 +712,7 @@ function App() {
               onDragOver={handleDragOver}
               onDrop={(e) => handleDrop(e, 'completed')}
               className={cn(
-                "transition-all duration-300 rounded-2xl p-4",
+                "transition-all duration-300 rounded-2xl p-4 min-h-[200px]",
                 draggedTodo?.status !== 'completed' && "bg-green-500/10 border-2 border-dashed border-green-500/30"
               )}
             >
