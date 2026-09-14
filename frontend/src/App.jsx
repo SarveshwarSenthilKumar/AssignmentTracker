@@ -23,6 +23,7 @@ function App() {
   const [editData, setEditData] = useState({})
   const editRefs = useRef({})
   const [selectedTask, setSelectedTask] = useState(null)
+  const inputRef = useRef(null)
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -92,6 +93,25 @@ function App() {
       return () => document.removeEventListener('mousedown', handleClickOutside)
     }
   }, [selectedTask])
+
+  // Keyboard shortcut for "/" to focus input
+  useEffect(() => {
+    const handleKeyPress = (event) => {
+      if (event.key === '/' && !event.ctrlKey && !event.metaKey) {
+        const activeElement = document.activeElement
+        const isInputFocused = activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA'
+        
+        if (!isInputFocused && inputRef.current) {
+          event.preventDefault()
+          inputRef.current.focus()
+          setInput('')
+        }
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyPress)
+    return () => document.removeEventListener('keydown', handleKeyPress)
+  }, [])
 
   const fetchTodos = async () => {
     try {
@@ -635,6 +655,7 @@ function App() {
         <form onSubmit={addTodo} className="mb-6">
           <div className="flex gap-3">
             <input
+              ref={inputRef}
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
