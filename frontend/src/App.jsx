@@ -79,6 +79,20 @@ function App() {
     }
   }, [editingTodos, editData, token, todos])
 
+  // Click outside to close task detail modal
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (selectedTask && event.target.closest('.task-detail-modal') === null) {
+        setSelectedTask(null)
+      }
+    }
+
+    if (selectedTask) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [selectedTask])
+
   const fetchTodos = async () => {
     try {
       const response = await fetch('/api/todos', {
@@ -899,7 +913,7 @@ function App() {
         {/* Task Detail Modal */}
         {selectedTask && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-slate-900 border border-white/10 rounded-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="task-detail-modal bg-slate-900 border border-white/10 rounded-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-2xl font-bold text-white">Task Details</h3>
                 <button
