@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Trash2, Check, X, Loader2, FolderPlus, Folder, LogOut, Sparkles, Link2, ChevronDown, ChevronUp, Edit2, Save, User, Trophy, Target, Calendar } from 'lucide-react'
+import { Plus, Trash2, Check, X, Loader2, FolderPlus, Folder, LogOut, Sparkles, Link2, ChevronDown, ChevronUp, Edit2, Save, User, Trophy, Target, Calendar, ArrowUpDown } from 'lucide-react'
 import { cn } from './lib/utils'
 import { useAuth } from './contexts/AuthContext'
 import Auth from './components/Auth'
@@ -24,6 +24,8 @@ function App() {
   const editRefs = useRef({})
   const [selectedTask, setSelectedTask] = useState(null)
   const inputRef = useRef(null)
+  const [sortBy, setSortBy] = useState('createdAt')
+  const [sortOrder, setSortOrder] = useState('desc')
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -299,6 +301,25 @@ function App() {
     setSelectedTask(todo)
   }
 
+  const getSortedTodos = (todosToSort) => {
+    const sorted = [...todosToSort]
+    sorted.sort((a, b) => {
+      let comparison = 0
+      
+      if (sortBy === 'createdAt') {
+        comparison = new Date(a.createdAt) - new Date(b.createdAt)
+      } else if (sortBy === 'text') {
+        comparison = a.text.localeCompare(b.text)
+      } else if (sortBy === 'status') {
+        const statusOrder = { 'todo': 0, 'in-progress': 1, 'completed': 2 }
+        comparison = statusOrder[a.status] - statusOrder[b.status]
+      }
+      
+      return sortOrder === 'asc' ? comparison : -comparison
+    })
+    return sorted
+  }
+
   const renderTaskCard = (todo, statusColor) => {
     const isExpanded = expandedTodos.has(todo._id)
     const isEditing = editingTodos.has(todo._id)
@@ -523,9 +544,11 @@ function App() {
     }
   }
 
-  const filteredTodos = selectedFolder
-    ? todos.filter(t => t.folder === selectedFolder)
-    : todos.filter(t => !t.folder)
+  const filteredTodos = getSortedTodos(
+    selectedFolder
+      ? todos.filter(t => t.folder === selectedFolder)
+      : todos.filter(t => !t.folder)
+  )
 
   if (authLoading) {
     return (
@@ -671,6 +694,30 @@ function App() {
             </button>
           </div>
         </form>
+
+        {/* Sort Controls */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <ArrowUpDown size={16} className="text-slate-400" />
+            <span className="text-slate-400 text-sm">Sort by:</span>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="bg-white/10 border border-white/10 rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+            >
+              <option value="createdAt">Date Created</option>
+              <option value="text">Name</option>
+              <option value="status">Status</option>
+            </select>
+            <button
+              onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+              className="p-1.5 bg-white/10 hover:bg-white/20 rounded-lg transition-all text-slate-400 hover:text-white"
+              title="Toggle sort order"
+            >
+              {sortOrder === 'asc' ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            </button>
+          </div>
+        </div>
 
         {loading ? (
           <div className="flex justify-center py-12">
