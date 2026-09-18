@@ -100,6 +100,10 @@ const todoSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
+  completedAt: {
+    type: Date,
+    default: null,
+  },
 });
 
 const Todo = mongoose.model('Todo', todoSchema);
@@ -229,7 +233,15 @@ app.put('/api/todos/:id', authenticateToken, async (req, res) => {
   try {
     const { status, description, links, text } = req.body;
     const updateData = {};
-    if (status !== undefined) updateData.status = status;
+    if (status !== undefined) {
+      updateData.status = status;
+      // Set completedAt when status changes to 'completed', clear it otherwise
+      if (status === 'completed') {
+        updateData.completedAt = new Date();
+      } else {
+        updateData.completedAt = null;
+      }
+    }
     if (description !== undefined) updateData.description = description;
     if (links !== undefined) updateData.links = links;
     if (text !== undefined) updateData.text = text;

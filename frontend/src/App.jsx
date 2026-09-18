@@ -308,6 +308,10 @@ function App() {
       
       if (sortBy === 'createdAt') {
         comparison = new Date(a.createdAt) - new Date(b.createdAt)
+      } else if (sortBy === 'completedAt') {
+        const aCompleted = a.completedAt ? new Date(a.completedAt).getTime() : 0
+        const bCompleted = b.completedAt ? new Date(b.completedAt).getTime() : 0
+        comparison = aCompleted - bCompleted
       } else if (sortBy === 'text') {
         comparison = a.text.localeCompare(b.text)
       } else if (sortBy === 'status') {
@@ -706,6 +710,7 @@ function App() {
               className="bg-white/10 border border-white/10 rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             >
               <option value="createdAt">Date Created</option>
+              <option value="completedAt">Date Completed</option>
               <option value="text">Name</option>
               <option value="status">Status</option>
             </select>
@@ -1062,6 +1067,16 @@ function App() {
                   {new Date(selectedTask.createdAt).toLocaleDateString()} at {new Date(selectedTask.createdAt).toLocaleTimeString()}
                 </p>
               </div>
+
+              {/* Completed Date */}
+              {selectedTask.completedAt && (
+                <div className="mb-6">
+                  <label className="block text-slate-400 text-sm mb-2">Completed</label>
+                  <p className="text-green-400 text-sm">
+                    {new Date(selectedTask.completedAt).toLocaleDateString()} at {new Date(selectedTask.completedAt).toLocaleTimeString()}
+                  </p>
+                </div>
+              )}
 
               {/* Actions */}
               <div className="flex gap-3">
