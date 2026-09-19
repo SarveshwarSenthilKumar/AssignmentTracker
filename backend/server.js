@@ -245,11 +245,11 @@ app.get('/api/todos', authenticateToken, async (req, res) => {
 // Create a new todo
 app.post('/api/todos', authenticateToken, async (req, res) => {
   try {
-    const { text, folder } = req.body;
+    const { text, folder, dueDate } = req.body;
     if (!text) {
       return res.status(400).json({ message: 'Text is required' });
     }
-    const todo = new Todo({ text, folder, user: req.user.userId });
+    const todo = new Todo({ text, folder, user: req.user.userId, dueDate });
     await todo.save();
     res.status(201).json(todo);
   } catch (error) {
@@ -260,7 +260,7 @@ app.post('/api/todos', authenticateToken, async (req, res) => {
 // Update a todo
 app.put('/api/todos/:id', authenticateToken, async (req, res) => {
   try {
-    const { status, description, links, text } = req.body;
+    const { status, description, links, text, dueDate } = req.body;
     const updateData = {};
     if (status !== undefined) {
       updateData.status = status;
@@ -274,6 +274,7 @@ app.put('/api/todos/:id', authenticateToken, async (req, res) => {
     if (description !== undefined) updateData.description = description;
     if (links !== undefined) updateData.links = links;
     if (text !== undefined) updateData.text = text;
+    if (dueDate !== undefined) updateData.dueDate = dueDate;
     
     const todo = await Todo.findOneAndUpdate(
       { _id: req.params.id, user: req.user.userId },

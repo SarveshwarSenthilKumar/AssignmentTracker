@@ -36,6 +36,7 @@ function App() {
   const [syncing, setSyncing] = useState(false)
   const [testing, setTesting] = useState(false)
   const [icsFile, setIcsFile] = useState(null)
+  const [dueDate, setDueDate] = useState('')
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -183,12 +184,17 @@ function App() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ text: input.trim(), folder: selectedFolder === 'all' ? null : selectedFolder }),
+        body: JSON.stringify({ 
+          text: input.trim(), 
+          folder: selectedFolder === 'all' ? null : selectedFolder,
+          dueDate: dueDate ? new Date(dueDate).toISOString() : null
+        }),
       })
       if (!response.ok) throw new Error('Failed to add todo')
       const newTodo = await response.json()
       setTodos([...todos, newTodo])
       setInput('')
+      setDueDate('')
     } catch (err) {
       setError(err.message)
     }
@@ -300,7 +306,8 @@ function App() {
         body: JSON.stringify({
           text: data.text,
           description: data.description,
-          links: linksArray
+          links: linksArray,
+          dueDate: data.dueDate ? new Date(data.dueDate).toISOString() : null
         }),
       })
       if (!response.ok) throw new Error('Failed to update todo')
@@ -333,6 +340,10 @@ function App() {
       
       if (sortBy === 'createdAt') {
         comparison = new Date(a.createdAt) - new Date(b.createdAt)
+      } else if (sortBy === 'dueDate') {
+        const aDue = a.dueDate ? new Date(a.dueDate).getTime() : Infinity
+        const bDue = b.dueDate ? new Date(b.dueDate).getTime() : Infinity
+        comparison = aDue - bDue
       } else if (sortBy === 'completedAt') {
         const aCompleted = a.completedAt ? new Date(a.completedAt).getTime() : 0
         const bCompleted = b.completedAt ? new Date(b.completedAt).getTime() : 0
@@ -498,6 +509,18 @@ function App() {
                     rows={3}
                   />
                 </div>
+                <div>
+                  <label className="block text-slate-400 text-xs mb-1">Due Date</label>
+                  <input
+                    type="datetime-local"
+                    value={editData[todo._id]?.dueDate || ''}
+                    onChange={(e) => setEditData({
+                      ...editData,
+                      [todo._id]: { ...editData[todo._id], dueDate: e.target.value }
+                    })}
+                    className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                  />
+                </div>
               </>
             ) : (
               <>
@@ -522,6 +545,12 @@ function App() {
                         {link}
                       </a>
                     ))}
+                  </div>
+                )}
+                {todo.dueDate && (
+                  <div className="flex items-center gap-2 text-slate-400 text-xs">
+                    <Calendar size={12} />
+                    <span>Due: {new Date(todo.dueDate).toLocaleDateString()}</span>
                   </div>
                 )}
               </>
@@ -988,6 +1017,12 @@ function App() {
               placeholder={`Add task to ${selectedFolder === 'all' ? 'Inbox' : selectedFolder ? folders.find(f => f._id === selectedFolder)?.name : 'Inbox'}...`}
               className="flex-1 px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all focus:scale-105 text-sm"
             />
+            <input
+              type="datetime-local"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+              className="px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+            />
             <button
               type="submit"
               className="px-5 py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-medium transition-all hover:scale-110 active:scale-95 flex items-center gap-2 shadow-lg shadow-primary-500/30 hover:shadow-primary-500/50 text-sm"
@@ -1009,6 +1044,7 @@ function App() {
               className="bg-white/10 border border-white/10 rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             >
               <option value="createdAt">Date Created</option>
+              <option value="dueDate">Due Date</option>
               <option value="completedAt">Date Completed</option>
               <option value="text">Name</option>
               <option value="status">Status</option>
@@ -1392,6 +1428,16 @@ function App() {
                 <label className="block text-slate-400 text-sm mb-2">Description</label>
                 <p className="text-slate-300 text-sm leading-relaxed whitespace-pre-wrap">
                   {selectedTask.description || 'No description'}
+                </p>
+              </div>
+
+              {/* Due Date */}
+              <div className="mb-6">
+                <label className="block text-slate-400 text-sm mb-2">Due Date</label>
+                <p className="text-slate-300 text-sm">
+                  {selectedTask.dueDate 
+                    ? new Date(selectedTask.dueDate).toLocaleDateString() + ' at ' + new Date(selectedTask.dueDate).toLocaleTimeString()
+                    : 'No due date'}
                 </p>
               </div>
 
