@@ -171,11 +171,11 @@ function App() {
     try {
       const response = await fetch('/api/todos', {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ text: input.trim(), folder: selectedFolder }),
+        body: JSON.stringify({ text: input.trim(), folder: selectedFolder === 'all' ? null : selectedFolder }),
       })
       if (!response.ok) throw new Error('Failed to add todo')
       const newTodo = await response.json()
@@ -623,9 +623,11 @@ function App() {
   }
 
   const filteredTodos = getSortedTodos(
-    selectedFolder
-      ? todos.filter(t => t.folder === selectedFolder)
-      : todos.filter(t => !t.folder)
+    selectedFolder === 'all'
+      ? todos
+      : selectedFolder
+        ? todos.filter(t => t.folder === selectedFolder)
+        : todos.filter(t => !t.folder)
   )
 
   if (authLoading) {
@@ -697,6 +699,28 @@ function App() {
 
           {/* Horizontal Folders */}
           <div className="flex gap-3 overflow-x-auto pb-2">
+            {/* All Tasks */}
+            <button
+              onClick={() => setSelectedFolder('all')}
+              className={cn(
+                "flex-shrink-0 px-4 py-2 rounded-xl transition-all flex items-center gap-2 group text-sm",
+                selectedFolder === 'all'
+                  ? "bg-gradient-to-r from-primary-600 to-purple-600 text-white shadow-lg"
+                  : "bg-white/10 text-slate-400 hover:bg-white/20"
+              )}
+            >
+              <Sparkles size={16} />
+              <span className="font-medium">All Tasks</span>
+              <span className={cn(
+                "px-2 py-0.5 rounded-full text-xs",
+                selectedFolder === 'all'
+                  ? "bg-white/20 text-white"
+                  : "bg-white/10 text-slate-400"
+              )}>
+                {todos.length}
+              </span>
+            </button>
+
             {/* Inbox */}
             <div
               onContextMenu={(e) => handleContextMenu(e, null, true)}
@@ -797,7 +821,7 @@ function App() {
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder={`Add task to ${selectedFolder ? folders.find(f => f._id === selectedFolder)?.name : 'Inbox'}...`}
+              placeholder={`Add task to ${selectedFolder === 'all' ? 'Inbox' : selectedFolder ? folders.find(f => f._id === selectedFolder)?.name : 'Inbox'}...`}
               className="flex-1 px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all focus:scale-105 text-sm"
             />
             <button
@@ -843,7 +867,7 @@ function App() {
           <div className="text-center py-12">
             <div className="text-6xl mb-4">📝</div>
             <p className="text-slate-400 text-lg">
-              {selectedFolder ? 'No tasks in this folder yet' : 'No todos yet. Add one above!'}
+              {selectedFolder === 'all' ? 'No tasks yet. Add one above!' : selectedFolder ? 'No tasks in this folder yet' : 'No todos yet. Add one above!'}
             </p>
           </div>
         ) : (
