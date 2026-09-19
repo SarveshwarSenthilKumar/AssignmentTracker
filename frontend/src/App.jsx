@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Trash2, Check, X, Loader2, FolderPlus, Folder, LogOut, Sparkles, Link2, ChevronDown, ChevronUp, Edit2, Save, User, Trophy, Target, Calendar, ArrowUpDown, RefreshCw } from 'lucide-react'
+import { Plus, Trash2, Check, X, Loader2, FolderPlus, Folder, LogOut, Sparkles, Link2, ChevronDown, ChevronUp, Edit2, Save, User, Trophy, Target, Calendar, ArrowUpDown, RefreshCw, Terminal } from 'lucide-react'
 import { cn } from './lib/utils'
 import { useAuth } from './contexts/AuthContext'
 import Auth from './components/Auth'
@@ -24,6 +24,7 @@ function App() {
   const editRefs = useRef({})
   const [selectedTask, setSelectedTask] = useState(null)
   const inputRef = useRef(null)
+  const commandInputRef = useRef(null)
   const [sortBy, setSortBy] = useState('createdAt')
   const [sortOrder, setSortOrder] = useState('desc')
   const [editingFolder, setEditingFolder] = useState(null)
@@ -37,6 +38,8 @@ function App() {
   const [testing, setTesting] = useState(false)
   const [icsFile, setIcsFile] = useState(null)
   const [dueDate, setDueDate] = useState('')
+  const [showCommandMenu, setShowCommandMenu] = useState(false)
+  const [commandInput, setCommandInput] = useState('')
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -45,6 +48,23 @@ function App() {
       fetchCanvasStatus()
     }
   }, [isAuthenticated])
+
+  // Tab key listener for command menu
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Tab' && !e.shiftKey) {
+        e.preventDefault()
+        setShowCommandMenu(true)
+        setTimeout(() => commandInputRef.current?.focus(), 0)
+      }
+      if (e.key === 'Escape' && showCommandMenu) {
+        setShowCommandMenu(false)
+        setCommandInput('')
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [showCommandMenu])
 
   // Click outside to save edit
   useEffect(() => {
@@ -358,6 +378,96 @@ function App() {
       return sortOrder === 'asc' ? comparison : -comparison
     })
     return sorted
+  }
+
+  const executeCommand = (cmd) => {
+    const parts = cmd.trim().split(' ')
+    const command = parts[0].toLowerCase()
+    const args = parts.slice(1)
+    
+    switch (command) {
+      case 'help':
+        setError('Available commands: help, clear, sort [date/due/name/status], folder [name], all, inbox, del [x]')
+        break
+      case 'clear':
+        setError(null)
+        break
+      case 'sort':
+        if (args[0]) {
+          const sortMap = { 'date': 'createdAt', 'due': 'dueDate', 'name': 'text', 'status': 'status' }
+          if (sortMap[args[0]]) {
+            setSortBy(sortMap[args[0]])
+            setError(`Sorted by ${args[0]}`)
+          } else {
+            setError('Invalid sort option. Use: date, due, name, status')
+          }
+        }
+        break
+      case 'folder':
+        if (args[0]) {
+          const folder = folders.find(f => f.name.toLowerCase() === args[0].toLowerCase())
+          if (folder) {
+            setSelectedFolder(folder._id)
+            setError(`Switched to folder: ${folder.name}`)
+          } else {
+            setError('Folder not found')
+          }
+        }
+        break
+      case 'all':
+        setSelectedFolder('all')
+        setError('Showing all tasks')
+        break
+      case 'inbox':
+        setSelectedFolder(null)
+        setError('Showing inbox')
+        break
+      case 'del':
+        if (args[0] && !isNaN(args[0])) {
+          const count = parseInt(args[0])
+          if (count > 0) {
+            const currentTodos = getSortedTodos(
+              selectedFolder === 'all'
+                ? todos
+                : selectedFolder
+                  ? todos.filter(t => t.folder === selectedFolder)
+                  : todos.filter(t => !t.folder)
+            )
+            const toDelete = currentTodos.slice(0, count)
+            if (toDelete.length > 0) {
+              // Delete all tasks
+              Promise.all(toDelete.map(todo => fetch(`/api/todos/${todo._id}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+              }))).then(() => {
+                fetchTodos()
+                setError(`Deleted ${toDelete.length} task(s)`)
+              }).catch(err => {
+                setError('Error deleting tasks')
+              })
+            } else {
+              setError('No tasks to delete')
+            }
+          } else {
+            setError('Please enter a positive number')
+          }
+        } else {
+          setError('Please specify a number. Usage: del [x]')
+        }
+        break
+      default:
+        setError('Unknown command. Type "help" for available commands.')
+    }
+    
+    setShowCommandMenu(false)
+    setCommandInput('')
+  }
+
+  const handleCommandSubmit = (e) => {
+    e.preventDefault()
+    if (commandInput.trim()) {
+      executeCommand(commandInput)
+    }
   }
 
   const renderTaskCard = (todo, statusColor) => {
@@ -840,6 +950,14 @@ function App() {
             </p>
           </div>
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowCommandMenu(true)}
+              className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-all flex items-center gap-2 shadow-lg"
+              title="Command Menu (Press Tab)"
+            >
+              <Terminal size={18} />
+              <span className="hidden sm:inline">Commands</span>
+            </button>
             <button
               onClick={() => setShowCanvasModal(true)}
               className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-all flex items-center gap-2 shadow-lg shadow-purple-500/30 hover:scale-105"
@@ -1371,6 +1489,58 @@ function App() {
                   To export your Canvas calendar: Go to Canvas → Calendar → Export Calendar
                 </p>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Command Menu */}
+        {showCommandMenu && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-slate-900 border border-white/10 rounded-2xl p-6 w-full max-w-md">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-2xl font-bold text-white">Command Menu</h3>
+                <button
+                  onClick={() => setShowCommandMenu(false)}
+                  className="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition-all"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <form onSubmit={handleCommandSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-slate-400 text-sm mb-2">Enter Command</label>
+                  <input
+                    ref={commandInputRef}
+                    type="text"
+                    value={commandInput}
+                    onChange={(e) => setCommandInput(e.target.value)}
+                    placeholder="Type 'help' for available commands"
+                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    autoComplete="off"
+                  />
+                </div>
+
+                <div className="bg-white/5 rounded-xl p-4">
+                  <p className="text-slate-400 text-xs mb-2 font-medium">Available Commands:</p>
+                  <ul className="text-slate-300 text-xs space-y-1">
+                    <li><code className="text-purple-400">help</code> - Show all commands</li>
+                    <li><code className="text-purple-400">clear</code> - Clear error messages</li>
+                    <li><code className="text-purple-400">sort [date/due/name/status]</code> - Sort tasks</li>
+                    <li><code className="text-purple-400">folder [name]</code> - Switch to folder</li>
+                    <li><code className="text-purple-400">all</code> - Show all tasks</li>
+                    <li><code className="text-purple-400">inbox</code> - Show inbox</li>
+                    <li><code className="text-purple-400">del [x]</code> - Delete last x tasks</li>
+                  </ul>
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl transition-all font-medium"
+                >
+                  Execute
+                </button>
+              </form>
             </div>
           </div>
         )}
