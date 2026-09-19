@@ -597,8 +597,14 @@ function App() {
         </div>
 
         {error && (
-          <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-lg">
+          <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-lg flex items-center justify-between">
             <p className="text-red-400 text-sm">{error}</p>
+            <button
+              onClick={() => setError(null)}
+              className="p-1 text-red-400 hover:text-red-300 hover:bg-red-500/20 rounded transition-all"
+            >
+              <X size={16} />
+            </button>
           </div>
         )}
 
