@@ -412,13 +412,13 @@ app.post('/api/canvas/test', authenticateToken, async (req, res) => {
     console.log('Canvas URL:', canvasUrl);
 
     try {
-      // Test with a simple endpoint that should always work
-      const testResponse = await fetchFromCanvas(canvasUrl, canvasToken, '/api/v1/courses?per_page=1');
+      // Test with calendar endpoint instead (may have different permissions)
+      const testResponse = await fetchFromCanvas(canvasUrl, canvasToken, '/api/v1/calendar_events?per_page=1');
       console.log('Test response:', testResponse);
       res.json({ 
         success: true, 
         message: 'Canvas connection successful',
-        response: Array.isArray(testResponse) ? `Found ${testResponse.length} courses` : 'Response received'
+        response: Array.isArray(testResponse) ? `Found ${testResponse.length} calendar events` : 'Response received'
       });
     } catch (e) {
       console.log('Test fetch error:', e);
