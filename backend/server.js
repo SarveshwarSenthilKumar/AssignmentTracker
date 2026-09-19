@@ -398,6 +398,42 @@ app.get('/api/user/canvas', authenticateToken, async (req, res) => {
   }
 });
 
+// Test Canvas connection
+app.post('/api/canvas/test', authenticateToken, async (req, res) => {
+  try {
+    const { canvasUrl, canvasToken } = req.body;
+    
+    if (!canvasUrl || !canvasToken) {
+      console.log('Test failed: Canvas credentials not provided in request');
+      return res.status(400).json({ success: false, error: 'Canvas credentials not provided' });
+    }
+
+    console.log('Testing Canvas connection with provided credentials');
+    console.log('Canvas URL:', canvasUrl);
+
+    try {
+      // Test with a simple endpoint that should always work
+      const testResponse = await fetchFromCanvas(canvasUrl, canvasToken, '/api/v1/courses?per_page=1');
+      console.log('Test response:', testResponse);
+      res.json({ 
+        success: true, 
+        message: 'Canvas connection successful',
+        response: Array.isArray(testResponse) ? `Found ${testResponse.length} courses` : 'Response received'
+      });
+    } catch (e) {
+      console.log('Test fetch error:', e);
+      res.status(400).json({ 
+        success: false, 
+        message: 'Canvas connection failed',
+        error: e.message
+      });
+    }
+  } catch (error) {
+    console.log('Test endpoint error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Helper function to fetch from Canvas API
 const fetchFromCanvas = (canvasUrl, canvasToken, endpoint) => {
   return new Promise((resolve, reject) => {

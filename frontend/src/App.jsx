@@ -34,6 +34,7 @@ function App() {
   const [canvasToken, setCanvasToken] = useState('')
   const [canvasStatus, setCanvasStatus] = useState(null)
   const [syncing, setSyncing] = useState(false)
+  const [testing, setTesting] = useState(false)
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -710,6 +711,35 @@ function App() {
     }
   }
 
+  const testCanvasConnection = async () => {
+    if (!canvasUrl || !canvasToken) {
+      setError('Please enter Canvas URL and token first')
+      return
+    }
+    
+    setTesting(true)
+    try {
+      const response = await fetch('/api/canvas/test', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ canvasUrl, canvasToken })
+      })
+      const data = await response.json()
+      if (data.success) {
+        setError(`Canvas connection successful: ${data.response}`)
+      } else {
+        setError(`Canvas connection failed: ${data.error || 'Unknown error'}`)
+      }
+    } catch (err) {
+      setError(`Test failed: ${err.message}`)
+    } finally {
+      setTesting(false)
+    }
+  }
+
   const filteredTodos = getSortedTodos(
     selectedFolder === 'all'
       ? todos
@@ -1320,6 +1350,25 @@ function App() {
                     className="w-full px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl transition-all font-medium"
                   >
                     Connect Canvas
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={testCanvasConnection}
+                    disabled={testing}
+                    className="w-full px-4 py-3 bg-white/10 hover:bg-white/20 disabled:bg-white/5 text-white rounded-xl transition-all font-medium flex items-center justify-center gap-2"
+                  >
+                    {testing ? (
+                      <>
+                        <Loader2 className="animate-spin" size={18} />
+                        Testing...
+                      </>
+                    ) : (
+                      <>
+                        <Check size={18} />
+                        Test Connection
+                      </>
+                    )}
                   </button>
                 </form>
               )}
