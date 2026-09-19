@@ -420,15 +420,28 @@ const fetchFromCanvas = (canvasUrl, canvasToken, endpoint) => {
         res.on('data', chunk => data += chunk);
         res.on('end', () => {
           console.log(`Canvas response status: ${res.statusCode}`);
+          console.log(`Canvas response length: ${data.length} bytes`);
+          
           if (res.statusCode >= 400) {
-            reject(new Error(`Canvas API returned status ${res.statusCode}: ${data}`));
+            reject(new Error(`Canvas API returned status ${res.statusCode}: ${data.substring(0, 200)}`));
             return;
           }
+          
+          if (!data || data.trim().length === 0) {
+            reject(new Error('Canvas returned empty response. Check API token permissions.'));
+            return;
+          }
+          
           try {
             const parsed = JSON.parse(data);
             resolve(parsed);
           } catch (e) {
-            reject(new Error(`Failed to parse Canvas response: ${e.message}`));
+            // Check if response is HTML (authentication error)
+            if (data.toLowerCase().includes('<html') || data.toLowerCase().includes('<!doctype')) {
+              reject(new Error('Canvas returned HTML instead of JSON. API token may be invalid or expired.'));
+            } else {
+              reject(new Error(`Failed to parse Canvas response: ${e.message}. Response: ${data.substring(0, 200)}`));
+            }
           }
         });
       }).on('error', (e) => {
