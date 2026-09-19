@@ -299,6 +299,28 @@ app.post('/api/folders', authenticateToken, async (req, res) => {
   }
 });
 
+// Update a folder
+app.put('/api/folders/:id', authenticateToken, async (req, res) => {
+  try {
+    const { name, color } = req.body;
+    const updateData = {};
+    if (name !== undefined) updateData.name = name;
+    if (color !== undefined) updateData.color = color;
+    
+    const folder = await Folder.findOneAndUpdate(
+      { _id: req.params.id, user: req.user.userId },
+      updateData,
+      { new: true }
+    );
+    if (!folder) {
+      return res.status(404).json({ message: 'Folder not found' });
+    }
+    res.json(folder);
+  } catch (error) {
+    res.status(500).json({ message: 'Error updating folder', error: error.message });
+  }
+});
+
 // Delete a folder
 app.delete('/api/folders/:id', authenticateToken, async (req, res) => {
   try {

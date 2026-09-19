@@ -26,6 +26,9 @@ function App() {
   const inputRef = useRef(null)
   const [sortBy, setSortBy] = useState('createdAt')
   const [sortOrder, setSortOrder] = useState('desc')
+  const [editingFolder, setEditingFolder] = useState(null)
+  const [editFolderName, setEditFolderName] = useState('')
+  const [contextMenu, setContextMenu] = useState(null)
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -95,6 +98,20 @@ function App() {
       return () => document.removeEventListener('mousedown', handleClickOutside)
     }
   }, [selectedTask])
+
+  // Click outside to close context menu
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (contextMenu && !event.target.closest('.context-menu')) {
+        setContextMenu(null)
+      }
+    }
+
+    if (contextMenu) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [contextMenu])
 
   // Keyboard shortcut for "/" to focus input
   useEffect(() => {
@@ -543,9 +560,45 @@ function App() {
       setFolders(folders.filter(f => f._id !== id))
       setTodos(todos.filter(t => t.folder !== id))
       if (selectedFolder === id) setSelectedFolder(null)
+      setContextMenu(null)
     } catch (err) {
       setError(err.message)
     }
+  }
+
+  const updateFolder = async (id) => {
+    try {
+      const response = await fetch(`/api/folders/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ name: editFolderName.trim() })
+      })
+      if (!response.ok) throw new Error('Failed to update folder')
+      const updatedFolder = await response.json()
+      setFolders(folders.map(f => f._id === id ? updatedFolder : f))
+      setEditingFolder(null)
+      setEditFolderName('')
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  const handleContextMenu = (e, folder) => {
+    e.preventDefault()
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      folder
+    })
+  }
+
+  const startEditingFolder = (folder) => {
+    setEditingFolder(folder._id)
+    setEditFolderName(folder.name)
+    setContextMenu(null)
   }
 
   const filteredTodos = getSortedTodos(
@@ -647,40 +700,66 @@ function App() {
 
             {/* Custom Folders */}
             {folders.map((folder) => (
-              <button
+              <div
                 key={folder._id}
-                onClick={() => setSelectedFolder(folder._id)}
-                className={cn(
-                  "flex-shrink-0 px-4 py-2 rounded-xl transition-all flex items-center gap-2 group text-sm",
-                  selectedFolder === folder._id
-                    ? "text-white shadow-lg"
-                    : "bg-white/5 text-slate-400 hover:bg-white/10"
-                )}
-                style={{
-                  backgroundColor: selectedFolder === folder._id ? folder.color : undefined,
-                  boxShadow: selectedFolder === folder._id ? `0 10px 30px -10px ${folder.color}40` : undefined,
-                }}
+                onContextMenu={(e) => handleContextMenu(e, folder)}
+                className="flex-shrink-0"
               >
-                <Folder size={16} />
-                <span className="font-medium">{folder.name}</span>
-                <span className={cn(
-                  "px-2 py-0.5 rounded-full text-xs",
-                  selectedFolder === folder._id
-                    ? "bg-white/20 text-white"
-                    : "bg-white/10 text-slate-400"
-                )}>
-                  {todos.filter(t => t.folder === folder._id).length}
-                </span>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    deleteFolder(folder._id)
-                  }}
-                  className="opacity-0 group-hover:opacity-100 p-1 hover:bg-white/20 rounded transition-all"
-                >
-                  <X size={12} />
-                </button>
-              </button>
+                {editingFolder === folder._id ? (
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/10">
+                    <Folder size={16} className="text-slate-400" />
+                    <input
+                      type="text"
+                      value={editFolderName}
+                      onChange={(e) => setEditFolderName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') updateFolder(folder._id)
+                        if (e.key === 'Escape') {
+                          setEditingFolder(null)
+                          setEditFolderName('')
+                        }
+                      }}
+                      onBlur={() => updateFolder(folder._id)}
+                      className="flex-1 bg-transparent text-white text-sm focus:outline-none"
+                      autoFocus
+                    />
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setSelectedFolder(folder._id)}
+                    className={cn(
+                      "flex-shrink-0 px-4 py-2 rounded-xl transition-all flex items-center gap-2 group text-sm",
+                      selectedFolder === folder._id
+                        ? "text-white shadow-lg"
+                        : "bg-white/5 text-slate-400 hover:bg-white/10"
+                    )}
+                    style={{
+                      backgroundColor: selectedFolder === folder._id ? folder.color : undefined,
+                      boxShadow: selectedFolder === folder._id ? `0 10px 30px -10px ${folder.color}40` : undefined,
+                    }}
+                  >
+                    <Folder size={16} />
+                    <span className="font-medium">{folder.name}</span>
+                    <span className={cn(
+                      "px-2 py-0.5 rounded-full text-xs",
+                      selectedFolder === folder._id
+                        ? "bg-white/20 text-white"
+                        : "bg-white/10 text-slate-400"
+                    )}>
+                      {todos.filter(t => t.folder === folder._id).length}
+                    </span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        deleteFolder(folder._id)
+                      }}
+                      className="opacity-0 group-hover:opacity-100 p-1 hover:bg-white/20 rounded transition-all"
+                    >
+                      <X size={12} />
+                    </button>
+                  </button>
+                )}
+              </div>
             ))}
           </div>
         </div>
@@ -1108,6 +1187,32 @@ function App() {
                 </button>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Context Menu */}
+        {contextMenu && (
+          <div
+            className="context-menu fixed bg-slate-800 border border-white/10 rounded-lg shadow-xl z-50 py-1 min-w-[150px]"
+            style={{
+              left: contextMenu.x,
+              top: contextMenu.y
+            }}
+          >
+            <button
+              onClick={() => startEditingFolder(contextMenu.folder)}
+              className="w-full px-4 py-2 text-left text-sm text-white hover:bg-white/10 flex items-center gap-2 transition-colors"
+            >
+              <Edit2 size={14} />
+              Rename
+            </button>
+            <button
+              onClick={() => deleteFolder(contextMenu.folder._id)}
+              className="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-red-500/10 flex items-center gap-2 transition-colors"
+            >
+              <Trash2 size={14} />
+              Delete
+            </button>
           </div>
         )}
 
