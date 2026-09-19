@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const https = require('https');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -35,6 +36,18 @@ const userSchema = new mongoose.Schema({
   password: {
     type: String,
     required: true,
+  },
+  canvasUrl: {
+    type: String,
+    default: null,
+  },
+  canvasToken: {
+    type: String,
+    default: null,
+  },
+  lastCanvasSync: {
+    type: Date,
+    default: null,
   },
   createdAt: {
     type: Date,
@@ -102,6 +115,19 @@ const todoSchema = new mongoose.Schema({
   },
   completedAt: {
     type: Date,
+    default: null,
+  },
+  dueDate: {
+    type: Date,
+    default: null,
+  },
+  canvasId: {
+    type: String,
+    default: null,
+  },
+  canvasType: {
+    type: String,
+    enum: ['assignment', 'calendar_event', null],
     default: null,
   },
 });
@@ -333,6 +359,160 @@ app.delete('/api/folders/:id', authenticateToken, async (req, res) => {
     res.json({ message: 'Folder deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: 'Error deleting folder', error: error.message });
+  }
+});
+
+// Canvas Integration Routes
+// Update Canvas credentials
+app.put('/api/user/canvas', authenticateToken, async (req, res) => {
+  try {
+    const { canvasUrl, canvasToken } = req.body;
+    const user = await User.findOneAndUpdate(
+      { _id: req.user.userId },
+      { canvasUrl, canvasToken },
+      { new: true }
+    );
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    res.json({ canvasUrl: user.canvasUrl, lastCanvasSync: user.lastCanvasSync });
+  } catch (error) {
+    res.status(500).json({ message: 'Error updating Canvas credentials', error: error.message });
+  }
+});
+
+// Get Canvas credentials status
+app.get('/api/user/canvas', authenticateToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    res.json({ 
+      hasCredentials: !!user.canvasToken, 
+      canvasUrl: user.canvasUrl,
+      lastCanvasSync: user.lastCanvasSync 
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching Canvas status', error: error.message });
+  }
+});
+
+// Helper function to fetch from Canvas API
+const fetchFromCanvas = (canvasUrl, canvasToken, endpoint) => {
+  return new Promise((resolve, reject) => {
+    const url = new URL(endpoint, canvasUrl);
+    const options = {
+      headers: {
+        'Authorization': `Bearer ${canvasToken}`
+      }
+    };
+    
+    https.get(url, options, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        try {
+          resolve(JSON.parse(data));
+        } catch (e) {
+          reject(e);
+        }
+      });
+    }).on('error', reject);
+  });
+};
+
+// Sync Canvas data
+app.post('/api/canvas/sync', authenticateToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId);
+    if (!user || !user.canvasUrl || !user.canvasToken) {
+      return res.status(400).json({ message: 'Canvas credentials not configured' });
+    }
+
+    // Fetch assignments
+    const assignments = await fetchFromCanvas(user.canvasUrl, user.canvasToken, '/api/v1/courses?include[]=term&per_page=100');
+    
+    let syncedCount = 0;
+    
+    for (const course of assignments) {
+      try {
+        // Fetch assignments for this course
+        const courseAssignments = await fetchFromCanvas(
+          user.canvasUrl, 
+          user.canvasToken, 
+          `/api/v1/courses/${course.id}/assignments?per_page=100`
+        );
+        
+        for (const assignment of courseAssignments) {
+          if (!assignment.due_at) continue;
+          
+          const existingTodo = await Todo.findOne({ 
+            canvasId: String(assignment.id),
+            user: req.user.userId 
+          });
+          
+          if (!existingTodo) {
+            const todo = new Todo({
+              text: assignment.name,
+              description: assignment.description || '',
+              links: assignment.html_url ? [assignment.html_url] : [],
+              status: new Date(assignment.due_at) < new Date() ? 'todo' : 'todo',
+              user: req.user.userId,
+              dueDate: new Date(assignment.due_at),
+              canvasId: String(assignment.id),
+              canvasType: 'assignment'
+            });
+            await todo.save();
+            syncedCount++;
+          }
+        }
+      } catch (e) {
+        console.error(`Error fetching assignments for course ${course.id}:`, e);
+      }
+    }
+
+    // Fetch calendar events
+    try {
+      const calendarEvents = await fetchFromCanvas(
+        user.canvasUrl,
+        user.canvasToken,
+        '/api/v1/calendar_events?type=assignment&per_page=100'
+      );
+      
+      for (const event of calendarEvents) {
+        if (!event.start_at) continue;
+        
+        const existingTodo = await Todo.findOne({ 
+          canvasId: String(event.id),
+          user: req.user.userId 
+        });
+        
+        if (!existingTodo) {
+          const todo = new Todo({
+            text: event.title,
+            description: event.description || '',
+            links: event.html_url ? [event.html_url] : [],
+            status: new Date(event.start_at) < new Date() ? 'todo' : 'todo',
+            user: req.user.userId,
+            dueDate: new Date(event.start_at),
+            canvasId: String(event.id),
+            canvasType: 'calendar_event'
+          });
+          await todo.save();
+          syncedCount++;
+        }
+      }
+    } catch (e) {
+      console.error('Error fetching calendar events:', e);
+    }
+
+    // Update last sync time
+    await User.findByIdAndUpdate(req.user.userId, { lastCanvasSync: new Date() });
+
+    res.json({ message: `Synced ${syncedCount} items from Canvas`, syncedCount });
+  } catch (error) {
+    res.status(500).json({ message: 'Error syncing Canvas data', error: error.message });
   }
 });
 
