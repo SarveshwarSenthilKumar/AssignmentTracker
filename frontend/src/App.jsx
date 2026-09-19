@@ -345,6 +345,7 @@ function App() {
     const isExpanded = expandedTodos.has(todo._id)
     const isEditing = editingTodos.has(todo._id)
     const hasDetails = todo.description || (todo.links && todo.links.length > 0)
+    const folder = todo.folder ? folders.find(f => f._id === todo.folder) : null
 
     return (
       <div
@@ -392,6 +393,19 @@ function App() {
               ) : (
                 <span className={cn("text-base transition-all truncate", statusColor.text)}>
                   {todo.text}
+                </span>
+              )}
+              
+              {selectedFolder === 'all' && !isEditing && (
+                <span
+                  className="flex-shrink-0 px-2 py-0.5 rounded-full text-xs"
+                  style={{
+                    backgroundColor: folder ? folder.color + '40' : 'rgba(255,255,255,0.1)',
+                    color: folder ? folder.color : 'rgba(255,255,255,0.6)',
+                    border: folder ? `1px solid ${folder.color}60` : '1px solid rgba(255,255,255,0.2)'
+                  }}
+                >
+                  {folder ? folder.name : 'Inbox'}
                 </span>
               )}
               
