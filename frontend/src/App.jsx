@@ -586,12 +586,13 @@ function App() {
     }
   }
 
-  const handleContextMenu = (e, folder) => {
+  const handleContextMenu = (e, folder, isInbox = false) => {
     e.preventDefault()
     setContextMenu({
       x: e.clientX,
       y: e.clientY,
-      folder
+      folder,
+      isInbox
     })
   }
 
@@ -599,6 +600,26 @@ function App() {
     setEditingFolder(folder._id)
     setEditFolderName(folder.name)
     setContextMenu(null)
+  }
+
+  const clearInbox = async () => {
+    try {
+      const inboxTodos = todos.filter(t => !t.folder)
+      await Promise.all(
+        inboxTodos.map(todo =>
+          fetch(`/api/todos/${todo._id}`, {
+            method: 'DELETE',
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          })
+        )
+      )
+      setTodos(todos.filter(t => t.folder))
+      setContextMenu(null)
+    } catch (err) {
+      setError(err.message)
+    }
   }
 
   const filteredTodos = getSortedTodos(
@@ -676,27 +697,32 @@ function App() {
 
           {/* Horizontal Folders */}
           <div className="flex gap-3 overflow-x-auto pb-2">
-            {/* All Tasks (Inbox) */}
-            <button
-              onClick={() => setSelectedFolder(null)}
-              className={cn(
-                "flex-shrink-0 px-4 py-2 rounded-xl transition-all flex items-center gap-2 text-sm",
-                selectedFolder === null
-                  ? "bg-primary-600 text-white shadow-lg shadow-primary-500/30"
-                  : "bg-white/5 text-slate-400 hover:bg-white/10"
-              )}
+            {/* Inbox */}
+            <div
+              onContextMenu={(e) => handleContextMenu(e, null, true)}
+              className="flex-shrink-0"
             >
-              <Folder size={16} />
-              <span className="font-medium">Inbox</span>
-              <span className={cn(
-                "px-2 py-0.5 rounded-full text-xs",
-                selectedFolder === null
-                  ? "bg-white/20 text-white"
-                  : "bg-white/10 text-slate-400"
-              )}>
-                {todos.filter(t => !t.folder).length}
-              </span>
-            </button>
+              <button
+                onClick={() => setSelectedFolder(null)}
+                className={cn(
+                  "flex-shrink-0 px-4 py-2 rounded-xl transition-all flex items-center gap-2 group text-sm",
+                  selectedFolder === null
+                    ? "bg-white/20 text-white"
+                    : "bg-white/10 text-slate-400"
+                )}
+              >
+                <Folder size={16} />
+                <span className="font-medium">Inbox</span>
+                <span className={cn(
+                  "px-2 py-0.5 rounded-full text-xs",
+                  selectedFolder === null
+                    ? "bg-white/20 text-white"
+                    : "bg-white/10 text-slate-400"
+                )}>
+                  {todos.filter(t => !t.folder).length}
+                </span>
+              </button>
+            </div>
 
             {/* Custom Folders */}
             {folders.map((folder) => (
@@ -1199,20 +1225,32 @@ function App() {
               top: contextMenu.y
             }}
           >
-            <button
-              onClick={() => startEditingFolder(contextMenu.folder)}
-              className="w-full px-4 py-2 text-left text-sm text-white hover:bg-white/10 flex items-center gap-2 transition-colors"
-            >
-              <Edit2 size={14} />
-              Rename
-            </button>
-            <button
-              onClick={() => deleteFolder(contextMenu.folder._id)}
-              className="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-red-500/10 flex items-center gap-2 transition-colors"
-            >
-              <Trash2 size={14} />
-              Delete
-            </button>
+            {contextMenu.isInbox ? (
+              <button
+                onClick={clearInbox}
+                className="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-red-500/10 flex items-center gap-2 transition-colors"
+              >
+                <Trash2 size={14} />
+                Clear Inbox
+              </button>
+            ) : (
+              <>
+                <button
+                  onClick={() => startEditingFolder(contextMenu.folder)}
+                  className="w-full px-4 py-2 text-left text-sm text-white hover:bg-white/10 flex items-center gap-2 transition-colors"
+                >
+                  <Edit2 size={14} />
+                  Rename
+                </button>
+                <button
+                  onClick={() => deleteFolder(contextMenu.folder._id)}
+                  className="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-red-500/10 flex items-center gap-2 transition-colors"
+                >
+                  <Trash2 size={14} />
+                  Delete
+                </button>
+              </>
+            )}
           </div>
         )}
 
