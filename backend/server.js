@@ -626,19 +626,28 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Server is running' });
 });
 
-// Import ICS calendar file
+// Import ICS calendar from file
 app.post('/api/calendar/import', authenticateToken, upload.single('icsFile'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ message: 'No file uploaded' });
     }
 
+    console.log('Importing calendar from file:', req.file.originalname);
     const icsContent = req.file.buffer.toString('utf-8');
+    console.log('ICS content length:', icsContent.length);
+    
     const events = parseICS(icsContent);
+    console.log('Parsed events:', events.length);
     
     let importedCount = 0;
     
     for (const event of events) {
+      if (!event.summary || !event.startDate) {
+        console.log('Skipping event without summary or date:', event);
+        continue;
+      }
+      
       // Check if event already exists by combining summary and date
       const existingTodo = await Todo.findOne({
         user: req.user.userId,
@@ -658,12 +667,15 @@ app.post('/api/calendar/import', authenticateToken, upload.single('icsFile'), as
         });
         await todo.save();
         importedCount++;
+        console.log('Imported event:', event.summary);
       }
     }
     
+    console.log('Import complete, imported:', importedCount);
     res.json({ message: `Imported ${importedCount} events from calendar`, importedCount });
   } catch (error) {
-    res.status(500).json({ message: 'Error importing calendar', error: error.message });
+    console.error('Calendar import error:', error);
+    res.status(500).json({ message: `Error importing calendar: ${error.message}` });
   }
 });
 
@@ -704,16 +716,27 @@ function parseICS(icsContent) {
 
 // Parse ICS date format
 function parseICSDate(icsDate) {
-  // Format: 20240915T143000Z or 20240915T143000
-  const cleanDate = icsDate.replace(/Z$/, '');
-  const year = parseInt(cleanDate.substring(0, 4));
-  const month = parseInt(cleanDate.substring(4, 6)) - 1;
-  const day = parseInt(cleanDate.substring(6, 8));
-  const hour = parseInt(cleanDate.substring(9, 11));
-  const minute = parseInt(cleanDate.substring(11, 13));
-  const second = parseInt(cleanDate.substring(13, 15)) || 0;
-  
-  return new Date(year, month, day, hour, minute, second);
+  try {
+    // Format: 20240915T143000Z or 20240915T143000
+    const cleanDate = icsDate.replace(/Z$/, '');
+    
+    if (cleanDate.length < 15) {
+      console.log('Invalid ICS date format:', icsDate);
+      return new Date(); // Return current date if invalid
+    }
+    
+    const year = parseInt(cleanDate.substring(0, 4));
+    const month = parseInt(cleanDate.substring(4, 6)) - 1;
+    const day = parseInt(cleanDate.substring(6, 8));
+    const hour = parseInt(cleanDate.substring(9, 11));
+    const minute = parseInt(cleanDate.substring(11, 13));
+    const second = parseInt(cleanDate.substring(13, 15)) || 0;
+    
+    return new Date(year, month, day, hour, minute, second);
+  } catch (e) {
+    console.error('Error parsing ICS date:', icsDate, e);
+    return new Date();
+  }
 }
 
 app.listen(PORT, () => {

@@ -1307,7 +1307,7 @@ function App() {
                     required
                   />
                   <p className="text-slate-500 text-xs mt-1">
-                    Export your Canvas calendar as an ICS file from Calendar → Calendar Feed
+                    Export your Canvas calendar as an ICS file from Canvas → Calendar → Export
                   </p>
                 </div>
 
@@ -1332,7 +1332,7 @@ function App() {
 
               <div className="mt-4 pt-4 border-t border-white/10">
                 <p className="text-slate-400 text-xs text-center">
-                  To get your Canvas calendar: Go to Canvas → Calendar → Calendar Feed → Export
+                  To export your Canvas calendar: Go to Canvas → Calendar → Export Calendar
                 </p>
               </div>
             </div>
