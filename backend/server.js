@@ -4,7 +4,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const https = require('https');
+const multer = require('multer');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -12,6 +12,9 @@ const PORT = process.env.PORT || 5000;
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// File upload configuration
+const upload = multer({ storage: multer.memoryStorage() });
 
 // MongoDB Connection
 mongoose.connect(process.env.MONGODB_URI)
@@ -622,6 +625,96 @@ app.post('/api/canvas/sync', authenticateToken, async (req, res) => {
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Server is running' });
 });
+
+// Import ICS calendar file
+app.post('/api/calendar/import', authenticateToken, upload.single('icsFile'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded' });
+    }
+
+    const icsContent = req.file.buffer.toString('utf-8');
+    const events = parseICS(icsContent);
+    
+    let importedCount = 0;
+    
+    for (const event of events) {
+      // Check if event already exists by combining summary and date
+      const existingTodo = await Todo.findOne({
+        user: req.user.userId,
+        text: event.summary,
+        dueDate: event.startDate
+      });
+      
+      if (!existingTodo) {
+        const todo = new Todo({
+          text: event.summary,
+          description: event.description || '',
+          links: event.url ? [event.url] : [],
+          status: new Date(event.startDate) < new Date() ? 'todo' : 'todo',
+          user: req.user.userId,
+          dueDate: new Date(event.startDate),
+          canvasType: 'calendar_event'
+        });
+        await todo.save();
+        importedCount++;
+      }
+    }
+    
+    res.json({ message: `Imported ${importedCount} events from calendar`, importedCount });
+  } catch (error) {
+    res.status(500).json({ message: 'Error importing calendar', error: error.message });
+  }
+});
+
+// Parse ICS file content
+function parseICS(icsContent) {
+  const events = [];
+  const lines = icsContent.split('\n');
+  let currentEvent = null;
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    
+    if (line === 'BEGIN:VEVENT') {
+      currentEvent = {};
+    } else if (line === 'END:VEVENT' && currentEvent) {
+      events.push(currentEvent);
+      currentEvent = null;
+    } else if (currentEvent) {
+      if (line.startsWith('SUMMARY:')) {
+        currentEvent.summary = line.substring(8).replace(/\\/g, '');
+      } else if (line.startsWith('DESCRIPTION:')) {
+        currentEvent.description = line.substring(12).replace(/\\/g, '').replace(/\\n/g, '\n');
+      } else if (line.startsWith('DTSTART:')) {
+        currentEvent.startDate = parseICSDate(line.substring(8));
+      } else if (line.startsWith('DTSTART;')) {
+        const dateMatch = line.match(/DTSTART[^:]*:(.+)/);
+        if (dateMatch) {
+          currentEvent.startDate = parseICSDate(dateMatch[1]);
+        }
+      } else if (line.startsWith('URL:')) {
+        currentEvent.url = line.substring(4);
+      }
+    }
+  }
+  
+  return events;
+}
+
+// Parse ICS date format
+function parseICSDate(icsDate) {
+  // Format: 20240915T143000Z or 20240915T143000
+  const cleanDate = icsDate.replace(/Z$/, '');
+  const year = parseInt(cleanDate.substring(0, 4));
+  const month = parseInt(cleanDate.substring(4, 6)) - 1;
+  const day = parseInt(cleanDate.substring(6, 8));
+  const hour = parseInt(cleanDate.substring(9, 11));
+  const minute = parseInt(cleanDate.substring(11, 13));
+  const second = parseInt(cleanDate.substring(13, 15)) || 0;
+  
+  return new Date(year, month, day, hour, minute, second);
+}
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

@@ -35,6 +35,7 @@ function App() {
   const [canvasStatus, setCanvasStatus] = useState(null)
   const [syncing, setSyncing] = useState(false)
   const [testing, setTesting] = useState(false)
+  const [icsFile, setIcsFile] = useState(null)
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -740,6 +741,43 @@ function App() {
     }
   }
 
+  const importCalendar = async (e) => {
+    e.preventDefault()
+    if (!icsFile) {
+      setError('Please select an ICS file')
+      return
+    }
+
+    setSyncing(true)
+    try {
+      const formData = new FormData()
+      formData.append('icsFile', icsFile)
+
+      const response = await fetch('/api/calendar/import', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.message || 'Failed to import calendar')
+      }
+
+      const data = await response.json()
+      await fetchTodos()
+      setError(`Successfully imported ${data.importedCount} events from calendar`)
+      setIcsFile(null)
+      setShowCanvasModal(false)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setSyncing(false)
+    }
+  }
+
   const filteredTodos = getSortedTodos(
     selectedFolder === 'all'
       ? todos
@@ -1249,7 +1287,7 @@ function App() {
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <div className="bg-slate-900 border border-white/10 rounded-2xl p-6 w-full max-w-md">
               <div className="flex items-center justify-between mb-6">
-                <h3 className="text-2xl font-bold text-white">Canvas Integration</h3>
+                <h3 className="text-2xl font-bold text-white">Import Calendar</h3>
                 <button
                   onClick={() => setShowCanvasModal(false)}
                   className="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition-all"
@@ -1258,120 +1296,45 @@ function App() {
                 </button>
               </div>
 
-              {canvasStatus?.hasCredentials ? (
-                <div className="space-y-4">
-                  <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-xl">
-                    <div className="flex items-center gap-2 text-green-400 mb-2">
-                      <Check size={16} />
-                      <span className="font-medium">Connected to Canvas</span>
-                    </div>
-                    <p className="text-slate-400 text-sm">
-                      Last sync: {canvasStatus.lastCanvasSync 
-                        ? new Date(canvasStatus.lastCanvasSync).toLocaleString()
-                        : 'Never'}
-                    </p>
-                  </div>
-
-                  <button
-                    onClick={syncCanvas}
-                    disabled={syncing}
-                    className="w-full px-4 py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 text-white rounded-xl transition-all font-medium flex items-center justify-center gap-2"
-                  >
-                    {syncing ? (
-                      <>
-                        <Loader2 className="animate-spin" size={18} />
-                        Syncing...
-                      </>
-                    ) : (
-                      <>
-                        <RefreshCw size={18} />
-                        Sync Now
-                      </>
-                    )}
-                  </button>
-
-                  <button
-                    onClick={async () => {
-                      try {
-                        await fetch('/api/user/canvas', {
-                          method: 'PUT',
-                          headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${token}`
-                          },
-                          body: JSON.stringify({ canvasUrl: '', canvasToken: '' })
-                        })
-                        setCanvasUrl('')
-                        setCanvasToken('')
-                        await fetchCanvasStatus()
-                      } catch (err) {
-                        setError(err.message)
-                      }
-                    }}
-                    className="w-full px-4 py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl transition-all font-medium"
-                  >
-                    Disconnect Canvas
-                  </button>
+              <form onSubmit={importCalendar} className="space-y-4">
+                <div>
+                  <label className="block text-slate-400 text-sm mb-2">ICS Calendar File</label>
+                  <input
+                    type="file"
+                    accept=".ics"
+                    onChange={(e) => setIcsFile(e.target.files[0])}
+                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    required
+                  />
+                  <p className="text-slate-500 text-xs mt-1">
+                    Export your Canvas calendar as an ICS file from Calendar → Calendar Feed
+                  </p>
                 </div>
-              ) : (
-                <form onSubmit={saveCanvasCredentials} className="space-y-4">
-                  <div>
-                    <label className="block text-slate-400 text-sm mb-2">Canvas URL</label>
-                    <input
-                      type="text"
-                      value={canvasUrl}
-                      onChange={(e) => setCanvasUrl(e.target.value)}
-                      placeholder="https://your-school.instructure.com"
-                      className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                      required
-                    />
-                    <p className="text-slate-500 text-xs mt-1">
-                      Your school's Canvas URL (e.g., https://canvas.instructure.com)
-                    </p>
-                  </div>
 
-                  <div>
-                    <label className="block text-slate-400 text-sm mb-2">Canvas API Token</label>
-                    <input
-                      type="password"
-                      value={canvasToken}
-                      onChange={(e) => setCanvasToken(e.target.value)}
-                      placeholder="Enter your Canvas API token"
-                      className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                      required
-                    />
-                    <p className="text-slate-500 text-xs mt-1">
-                      Generate a token in Canvas Settings → Approved Integrations
-                    </p>
-                  </div>
+                <button
+                  type="submit"
+                  disabled={syncing}
+                  className="w-full px-4 py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 text-white rounded-xl transition-all font-medium flex items-center justify-center gap-2"
+                >
+                  {syncing ? (
+                    <>
+                      <Loader2 className="animate-spin" size={18} />
+                      Importing...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw size={18} />
+                      Import Calendar
+                    </>
+                  )}
+                </button>
+              </form>
 
-                  <button
-                    type="submit"
-                    className="w-full px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl transition-all font-medium"
-                  >
-                    Connect Canvas
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={testCanvasConnection}
-                    disabled={testing}
-                    className="w-full px-4 py-3 bg-white/10 hover:bg-white/20 disabled:bg-white/5 text-white rounded-xl transition-all font-medium flex items-center justify-center gap-2"
-                  >
-                    {testing ? (
-                      <>
-                        <Loader2 className="animate-spin" size={18} />
-                        Testing...
-                      </>
-                    ) : (
-                      <>
-                        <Check size={18} />
-                        Test Connection
-                      </>
-                    )}
-                  </button>
-                </form>
-              )}
+              <div className="mt-4 pt-4 border-t border-white/10">
+                <p className="text-slate-400 text-xs text-center">
+                  To get your Canvas calendar: Go to Canvas → Calendar → Calendar Feed → Export
+                </p>
+              </div>
             </div>
           </div>
         )}
