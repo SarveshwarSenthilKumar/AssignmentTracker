@@ -450,6 +450,7 @@ const fetchFromCanvas = (canvasUrl, canvasToken, endpoint) => {
       };
       
       console.log(`Fetching from Canvas: ${url.href}`);
+      console.log(`Token length: ${canvasToken.length} characters`);
       
       https.get(url, options, (res) => {
         let data = '';
@@ -457,6 +458,7 @@ const fetchFromCanvas = (canvasUrl, canvasToken, endpoint) => {
         res.on('end', () => {
           console.log(`Canvas response status: ${res.statusCode}`);
           console.log(`Canvas response length: ${data.length} bytes`);
+          console.log(`Canvas response headers:`, res.headers);
           
           if (res.statusCode >= 400) {
             reject(new Error(`Canvas API returned status ${res.statusCode}: ${data.substring(0, 200)}`));
@@ -464,12 +466,13 @@ const fetchFromCanvas = (canvasUrl, canvasToken, endpoint) => {
           }
           
           if (!data || data.trim().length === 0) {
-            reject(new Error('Canvas returned empty response. Check API token permissions.'));
+            reject(new Error('Canvas returned empty response. Your API token may not have permission to access courses. Please regenerate the token with proper scopes.'));
             return;
           }
           
           try {
             const parsed = JSON.parse(data);
+            console.log(`Successfully parsed JSON, type: ${Array.isArray(parsed) ? 'array' : typeof parsed}`);
             resolve(parsed);
           } catch (e) {
             // Check if response is HTML (authentication error)
