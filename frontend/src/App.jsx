@@ -29,11 +29,17 @@ function App() {
   const [editingFolder, setEditingFolder] = useState(null)
   const [editFolderName, setEditFolderName] = useState('')
   const [contextMenu, setContextMenu] = useState(null)
+  const [showCanvasModal, setShowCanvasModal] = useState(false)
+  const [canvasUrl, setCanvasUrl] = useState('')
+  const [canvasToken, setCanvasToken] = useState('')
+  const [canvasStatus, setCanvasStatus] = useState(null)
+  const [syncing, setSyncing] = useState(false)
 
   useEffect(() => {
     if (isAuthenticated) {
       fetchTodos()
       fetchFolders()
+      fetchCanvasStatus()
     }
   }, [isAuthenticated])
 
@@ -636,6 +642,74 @@ function App() {
     }
   }
 
+  const fetchCanvasStatus = async () => {
+    try {
+      const response = await fetch('/api/user/canvas', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      if (response.ok) {
+        const data = await response.json()
+        setCanvasStatus(data)
+        setCanvasUrl(data.canvasUrl || '')
+      }
+    } catch (err) {
+      console.error('Error fetching Canvas status:', err)
+    }
+  }
+
+  const saveCanvasCredentials = async (e) => {
+    e.preventDefault()
+    try {
+      const response = await fetch('/api/user/canvas', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ canvasUrl, canvasToken })
+      })
+      if (!response.ok) throw new Error('Failed to save Canvas credentials')
+      await fetchCanvasStatus()
+      setShowCanvasModal(false)
+      setCanvasToken('')
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  const syncCanvas = async () => {
+    setSyncing(true)
+    try {
+      const response = await fetch('/api/canvas/sync', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.message || 'Failed to sync Canvas')
+      }
+      const data = await response.json()
+      await fetchTodos()
+      await fetchCanvasStatus()
+      setError(null)
+      
+      // Show success message
+      if (data.errors && data.errors.length > 0) {
+        setError(`Synced ${data.syncedCount} items with ${data.errors.length} errors: ${data.errors.join(', ')}`)
+      } else {
+        setError(`Successfully synced ${data.syncedCount} items from Canvas`)
+      }
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setSyncing(false)
+    }
+  }
+
   const filteredTodos = getSortedTodos(
     selectedFolder === 'all'
       ? todos
@@ -669,6 +743,14 @@ function App() {
             </p>
           </div>
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowCanvasModal(true)}
+              className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-all flex items-center gap-2 shadow-lg shadow-purple-500/30 hover:scale-105"
+              title="Canvas Integration"
+            >
+              <RefreshCw size={18} />
+              <span className="hidden sm:inline">Canvas</span>
+            </button>
             <button
               onClick={() => setShowProfileModal(true)}
               className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition-all flex items-center gap-2 shadow-lg shadow-primary-500/30 hover:scale-105"
@@ -1128,6 +1210,119 @@ function App() {
               >
                 Close
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* Canvas Integration Modal */}
+        {showCanvasModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-slate-900 border border-white/10 rounded-2xl p-6 w-full max-w-md">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-2xl font-bold text-white">Canvas Integration</h3>
+                <button
+                  onClick={() => setShowCanvasModal(false)}
+                  className="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition-all"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {canvasStatus?.hasCredentials ? (
+                <div className="space-y-4">
+                  <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-xl">
+                    <div className="flex items-center gap-2 text-green-400 mb-2">
+                      <Check size={16} />
+                      <span className="font-medium">Connected to Canvas</span>
+                    </div>
+                    <p className="text-slate-400 text-sm">
+                      Last sync: {canvasStatus.lastCanvasSync 
+                        ? new Date(canvasStatus.lastCanvasSync).toLocaleString()
+                        : 'Never'}
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={syncCanvas}
+                    disabled={syncing}
+                    className="w-full px-4 py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 text-white rounded-xl transition-all font-medium flex items-center justify-center gap-2"
+                  >
+                    {syncing ? (
+                      <>
+                        <Loader2 className="animate-spin" size={18} />
+                        Syncing...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw size={18} />
+                        Sync Now
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    onClick={async () => {
+                      try {
+                        await fetch('/api/user/canvas', {
+                          method: 'PUT',
+                          headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                          },
+                          body: JSON.stringify({ canvasUrl: '', canvasToken: '' })
+                        })
+                        setCanvasUrl('')
+                        setCanvasToken('')
+                        await fetchCanvasStatus()
+                      } catch (err) {
+                        setError(err.message)
+                      }
+                    }}
+                    className="w-full px-4 py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl transition-all font-medium"
+                  >
+                    Disconnect Canvas
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={saveCanvasCredentials} className="space-y-4">
+                  <div>
+                    <label className="block text-slate-400 text-sm mb-2">Canvas URL</label>
+                    <input
+                      type="text"
+                      value={canvasUrl}
+                      onChange={(e) => setCanvasUrl(e.target.value)}
+                      placeholder="https://your-school.instructure.com"
+                      className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      required
+                    />
+                    <p className="text-slate-500 text-xs mt-1">
+                      Your school's Canvas URL (e.g., https://canvas.instructure.com)
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-400 text-sm mb-2">Canvas API Token</label>
+                    <input
+                      type="password"
+                      value={canvasToken}
+                      onChange={(e) => setCanvasToken(e.target.value)}
+                      placeholder="Enter your Canvas API token"
+                      className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      required
+                    />
+                    <p className="text-slate-500 text-xs mt-1">
+                      Generate a token in Canvas Settings → Approved Integrations
+                    </p>
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl transition-all font-medium"
+                  >
+                    Connect Canvas
+                  </button>
+                </form>
+              )}
             </div>
           </div>
         )}

@@ -401,24 +401,44 @@ app.get('/api/user/canvas', authenticateToken, async (req, res) => {
 // Helper function to fetch from Canvas API
 const fetchFromCanvas = (canvasUrl, canvasToken, endpoint) => {
   return new Promise((resolve, reject) => {
-    const url = new URL(endpoint, canvasUrl);
-    const options = {
-      headers: {
-        'Authorization': `Bearer ${canvasToken}`
-      }
-    };
-    
-    https.get(url, options, (res) => {
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => {
-        try {
-          resolve(JSON.parse(data));
-        } catch (e) {
-          reject(e);
+    try {
+      // Ensure canvasUrl doesn't have trailing slash
+      const cleanUrl = canvasUrl.replace(/\/$/, '');
+      const url = new URL(endpoint, cleanUrl);
+      
+      const options = {
+        headers: {
+          'Authorization': `Bearer ${canvasToken}`,
+          'Accept': 'application/json'
         }
+      };
+      
+      console.log(`Fetching from Canvas: ${url.href}`);
+      
+      https.get(url, options, (res) => {
+        let data = '';
+        res.on('data', chunk => data += chunk);
+        res.on('end', () => {
+          console.log(`Canvas response status: ${res.statusCode}`);
+          if (res.statusCode >= 400) {
+            reject(new Error(`Canvas API returned status ${res.statusCode}: ${data}`));
+            return;
+          }
+          try {
+            const parsed = JSON.parse(data);
+            resolve(parsed);
+          } catch (e) {
+            reject(new Error(`Failed to parse Canvas response: ${e.message}`));
+          }
+        });
+      }).on('error', (e) => {
+        console.error('Canvas fetch error:', e);
+        reject(new Error(`Canvas API request failed: ${e.message}`));
       });
-    }).on('error', reject);
+    } catch (e) {
+      console.error('Canvas URL error:', e);
+      reject(new Error(`Invalid Canvas URL: ${e.message}`));
+    }
   });
 };
 
@@ -430,55 +450,74 @@ app.post('/api/canvas/sync', authenticateToken, async (req, res) => {
       return res.status(400).json({ message: 'Canvas credentials not configured' });
     }
 
-    // Fetch assignments
-    const assignments = await fetchFromCanvas(user.canvasUrl, user.canvasToken, '/api/v1/courses?include[]=term&per_page=100');
-    
+    console.log('Starting Canvas sync for user:', req.user.userId);
     let syncedCount = 0;
-    
-    for (const course of assignments) {
-      try {
-        // Fetch assignments for this course
-        const courseAssignments = await fetchFromCanvas(
-          user.canvasUrl, 
-          user.canvasToken, 
-          `/api/v1/courses/${course.id}/assignments?per_page=100`
-        );
-        
-        for (const assignment of courseAssignments) {
-          if (!assignment.due_at) continue;
+    let errors = [];
+
+    // Fetch courses first
+    try {
+      console.log('Fetching courses...');
+      const courses = await fetchFromCanvas(user.canvasUrl, user.canvasToken, '/api/v1/courses?per_page=100');
+      console.log(`Found ${courses.length} courses`);
+      
+      for (const course of courses) {
+        try {
+          console.log(`Fetching assignments for course: ${course.name} (ID: ${course.id})`);
+          // Fetch assignments for this course
+          const courseAssignments = await fetchFromCanvas(
+            user.canvasUrl, 
+            user.canvasToken, 
+            `/api/v1/courses/${course.id}/assignments?per_page=100`
+          );
           
-          const existingTodo = await Todo.findOne({ 
-            canvasId: String(assignment.id),
-            user: req.user.userId 
-          });
+          console.log(`Found ${courseAssignments.length} assignments for ${course.name}`);
           
-          if (!existingTodo) {
-            const todo = new Todo({
-              text: assignment.name,
-              description: assignment.description || '',
-              links: assignment.html_url ? [assignment.html_url] : [],
-              status: new Date(assignment.due_at) < new Date() ? 'todo' : 'todo',
-              user: req.user.userId,
-              dueDate: new Date(assignment.due_at),
+          for (const assignment of courseAssignments) {
+            if (!assignment.due_at) continue;
+            
+            const existingTodo = await Todo.findOne({ 
               canvasId: String(assignment.id),
-              canvasType: 'assignment'
+              user: req.user.userId 
             });
-            await todo.save();
-            syncedCount++;
+            
+            if (!existingTodo) {
+              const todo = new Todo({
+                text: assignment.name,
+                description: assignment.description || '',
+                links: assignment.html_url ? [assignment.html_url] : [],
+                status: new Date(assignment.due_at) < new Date() ? 'todo' : 'todo',
+                user: req.user.userId,
+                dueDate: new Date(assignment.due_at),
+                canvasId: String(assignment.id),
+                canvasType: 'assignment'
+              });
+              await todo.save();
+              syncedCount++;
+              console.log(`Synced assignment: ${assignment.name}`);
+            } else {
+              console.log(`Skipping duplicate assignment: ${assignment.name}`);
+            }
           }
+        } catch (e) {
+          console.error(`Error fetching assignments for course ${course.id}:`, e);
+          errors.push(`Course ${course.name}: ${e.message}`);
         }
-      } catch (e) {
-        console.error(`Error fetching assignments for course ${course.id}:`, e);
       }
+    } catch (e) {
+      console.error('Error fetching courses:', e);
+      errors.push(`Courses: ${e.message}`);
     }
 
     // Fetch calendar events
     try {
+      console.log('Fetching calendar events...');
       const calendarEvents = await fetchFromCanvas(
         user.canvasUrl,
         user.canvasToken,
-        '/api/v1/calendar_events?type=assignment&per_page=100'
+        '/api/v1/calendar_events?per_page=100'
       );
+      
+      console.log(`Found ${calendarEvents.length} calendar events`);
       
       for (const event of calendarEvents) {
         if (!event.start_at) continue;
@@ -501,17 +540,28 @@ app.post('/api/canvas/sync', authenticateToken, async (req, res) => {
           });
           await todo.save();
           syncedCount++;
+          console.log(`Synced calendar event: ${event.title}`);
+        } else {
+          console.log(`Skipping duplicate calendar event: ${event.title}`);
         }
       }
     } catch (e) {
       console.error('Error fetching calendar events:', e);
+      errors.push(`Calendar events: ${e.message}`);
     }
 
     // Update last sync time
     await User.findByIdAndUpdate(req.user.userId, { lastCanvasSync: new Date() });
 
-    res.json({ message: `Synced ${syncedCount} items from Canvas`, syncedCount });
+    console.log(`Canvas sync complete. Synced ${syncedCount} items. Errors: ${errors.length}`);
+    
+    res.json({ 
+      message: `Synced ${syncedCount} items from Canvas`, 
+      syncedCount,
+      errors: errors.length > 0 ? errors : undefined
+    });
   } catch (error) {
+    console.error('Canvas sync error:', error);
     res.status(500).json({ message: 'Error syncing Canvas data', error: error.message });
   }
 });
