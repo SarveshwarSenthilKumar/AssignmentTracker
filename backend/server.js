@@ -642,11 +642,44 @@ app.post('/api/calendar/import', authenticateToken, upload.single('icsFile'), as
     console.log('Parsed events:', events.length);
     
     let importedCount = 0;
+    const courseFolders = new Map(); // Map course name to folder ID
     
     for (const event of events) {
       if (!event.summary || !event.startDate) {
         console.log('Skipping event without summary or date:', event);
         continue;
+      }
+      
+      // Extract course name from summary or description
+      const courseName = extractCourseName(event.summary, event.description);
+      
+      // Get or create folder for this course
+      let folderId = null;
+      if (courseName) {
+        if (courseFolders.has(courseName)) {
+          folderId = courseFolders.get(courseName);
+        } else {
+          // Create a new folder for this course
+          const existingFolder = await Folder.findOne({ 
+            user: req.user.userId, 
+            name: courseName 
+          });
+          
+          if (existingFolder) {
+            folderId = existingFolder._id;
+            courseFolders.set(courseName, folderId);
+          } else {
+            const newFolder = new Folder({
+              name: courseName,
+              color: generateCourseColor(courseName),
+              user: req.user.userId
+            });
+            await newFolder.save();
+            folderId = newFolder._id;
+            courseFolders.set(courseName, folderId);
+            console.log('Created folder for course:', courseName);
+          }
+        }
       }
       
       // Check if event already exists by combining summary and date
@@ -664,11 +697,12 @@ app.post('/api/calendar/import', authenticateToken, upload.single('icsFile'), as
           status: new Date(event.startDate) < new Date() ? 'todo' : 'todo',
           user: req.user.userId,
           dueDate: new Date(event.startDate),
+          folder: folderId,
           canvasType: 'calendar_event'
         });
         await todo.save();
         importedCount++;
-        console.log('Imported event:', event.summary);
+        console.log(`Imported event: ${event.summary} -> ${courseName || 'Inbox'}`);
       }
     }
     
@@ -679,6 +713,44 @@ app.post('/api/calendar/import', authenticateToken, upload.single('icsFile'), as
     res.status(500).json({ message: `Error importing calendar: ${error.message}` });
   }
 });
+
+// Extract course name from event summary or description
+function extractCourseName(summary, description) {
+  // Try to extract from summary (common Canvas format: "Assignment: CS101 - Homework")
+  const summaryMatch = summary.match(/([A-Z]{2,4}\d{3,4})/);
+  if (summaryMatch) return summaryMatch[0];
+  
+  // Try to extract from description
+  if (description) {
+    const descMatch = description.match(/([A-Z]{2,4}\d{3,4})/);
+    if (descMatch) return descMatch[0];
+  }
+  
+  // Try common course patterns
+  const patterns = [
+    /([A-Z]{2,4}\s?\d{3,4})/,
+    /([A-Z]{2,4}-\d{3,4})/,
+    /Course:\s*([^\n]+)/,
+    /Class:\s*([^\n]+)/
+  ];
+  
+  for (const pattern of patterns) {
+    const match = summary.match(pattern) || (description && description.match(pattern));
+    if (match) return match[1].trim();
+  }
+  
+  return null;
+}
+
+// Generate consistent color for course name
+function generateCourseColor(courseName) {
+  const colors = ['#0ea5e9', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#ef4444', '#6366f1', '#14b8a6'];
+  let hash = 0;
+  for (let i = 0; i < courseName.length; i++) {
+    hash = courseName.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return colors[Math.abs(hash) % colors.length];
+}
 
 // Parse ICS file content
 function parseICS(icsContent) {
