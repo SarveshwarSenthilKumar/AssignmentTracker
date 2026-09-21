@@ -907,6 +907,7 @@ function App() {
 
       const data = await response.json()
       await fetchTodos()
+      await fetchFolders()
       setError(`Successfully imported ${data.importedCount} events from calendar`)
       setIcsFile(null)
       setShowCanvasModal(false)
