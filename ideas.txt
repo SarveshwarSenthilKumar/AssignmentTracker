@@ -7,3 +7,14 @@ update and add keyboard shortcuts
 add connector to canvas
 add calendar and assignment functionality
 add ability to create tasks by date
+
+resume job tailor:
+Get job by links
+read job descriptions
+keep data of resume
+tailor resume
+check website of company
+check online search of company
+check skills and tailor
+connect to github  and linkedin
+base projects off github and linkedin
