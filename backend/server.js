@@ -306,7 +306,11 @@ app.delete('/api/todos/:id', authenticateToken, async (req, res) => {
 // Delete all todos in a folder
 app.delete('/api/todos/folder/:folderId', authenticateToken, async (req, res) => {
   try {
-    const result = await Todo.deleteMany({ folder: req.params.folderId, user: req.user.userId });
+    const { status } = req.query;
+    const filter = { folder: req.params.folderId, user: req.user.userId };
+    if (status) filter.status = status;
+    
+    const result = await Todo.deleteMany(filter);
     res.json({ message: `Deleted ${result.deletedCount} tasks from folder`, deletedCount: result.deletedCount });
   } catch (error) {
     res.status(500).json({ message: 'Error deleting folder tasks', error: error.message });
@@ -316,7 +320,11 @@ app.delete('/api/todos/folder/:folderId', authenticateToken, async (req, res) =>
 // Clear inbox (delete all todos without a folder)
 app.delete('/api/todos/clear-inbox', authenticateToken, async (req, res) => {
   try {
-    const result = await Todo.deleteMany({ folder: null, user: req.user.userId });
+    const { status } = req.query;
+    const filter = { folder: null, user: req.user.userId };
+    if (status) filter.status = status;
+    
+    const result = await Todo.deleteMany(filter);
     res.json({ message: `Cleared ${result.deletedCount} tasks from inbox`, deletedCount: result.deletedCount });
   } catch (error) {
     res.status(500).json({ message: 'Error clearing inbox', error: error.message });

@@ -850,9 +850,13 @@ function App() {
     }
   }
 
-  const deleteAllTasksInFolder = async (folderId) => {
+  const deleteAllTasksInFolder = async (folderId, status = null) => {
     try {
-      const response = await fetch(`/api/todos/folder/${folderId}`, {
+      const url = status 
+        ? `/api/todos/folder/${folderId}?status=${status}`
+        : `/api/todos/folder/${folderId}`
+      
+      const response = await fetch(url, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -932,9 +936,13 @@ function App() {
     setContextMenu(null)
   }
 
-  const clearInbox = async () => {
+  const clearInbox = async (status = null) => {
     try {
-      const response = await fetch('/api/todos/clear-inbox', {
+      const url = status 
+        ? `/api/todos/clear-inbox?status=${status}`
+        : '/api/todos/clear-inbox'
+      
+      const response = await fetch(url, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -1925,17 +1933,42 @@ function App() {
             className="context-menu fixed bg-slate-800 border border-white/10 rounded-lg shadow-xl z-50 py-1 min-w-[150px]"
             style={{
               left: contextMenu.x,
-              top: contextMenu.y
+              top: contextMenu.y,
+              maxHeight: '80vh',
+              overflowY: 'auto'
             }}
           >
             {contextMenu.isInbox ? (
-              <button
-                onClick={clearInbox}
-                className="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-red-500/10 flex items-center gap-2 transition-colors"
-              >
-                <Trash2 size={14} />
-                Clear Inbox
-              </button>
+              <>
+                <button
+                  onClick={() => clearInbox(null)}
+                  className="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-red-500/10 flex items-center gap-2 transition-colors"
+                >
+                  <Trash2 size={14} />
+                  Clear All
+                </button>
+                <button
+                  onClick={() => clearInbox('todo')}
+                  className="w-full px-4 py-2 text-left text-sm text-slate-300 hover:bg-white/10 flex items-center gap-2 transition-colors"
+                >
+                  <Trash2 size={14} />
+                  Clear To Do
+                </button>
+                <button
+                  onClick={() => clearInbox('in-progress')}
+                  className="w-full px-4 py-2 text-left text-sm text-yellow-400 hover:bg-yellow-500/10 flex items-center gap-2 transition-colors"
+                >
+                  <Trash2 size={14} />
+                  Clear In Progress
+                </button>
+                <button
+                  onClick={() => clearInbox('completed')}
+                  className="w-full px-4 py-2 text-left text-sm text-green-400 hover:bg-green-500/10 flex items-center gap-2 transition-colors"
+                >
+                  <Trash2 size={14} />
+                  Clear Completed
+                </button>
+              </>
             ) : (
               <>
                 <button
@@ -1946,18 +1979,39 @@ function App() {
                   Rename
                 </button>
                 <button
-                  onClick={() => deleteAllTasksInFolder(contextMenu.folder._id)}
+                  onClick={() => deleteAllTasksInFolder(contextMenu.folder._id, null)}
                   className="w-full px-4 py-2 text-left text-sm text-orange-400 hover:bg-orange-500/10 flex items-center gap-2 transition-colors"
                 >
                   <Trash2 size={14} />
-                  Clear Tasks
+                  Clear All
+                </button>
+                <button
+                  onClick={() => deleteAllTasksInFolder(contextMenu.folder._id, 'todo')}
+                  className="w-full px-4 py-2 text-left text-sm text-slate-300 hover:bg-white/10 flex items-center gap-2 transition-colors"
+                >
+                  <Trash2 size={14} />
+                  Clear To Do
+                </button>
+                <button
+                  onClick={() => deleteAllTasksInFolder(contextMenu.folder._id, 'in-progress')}
+                  className="w-full px-4 py-2 text-left text-sm text-yellow-400 hover:bg-yellow-500/10 flex items-center gap-2 transition-colors"
+                >
+                  <Trash2 size={14} />
+                  Clear In Progress
+                </button>
+                <button
+                  onClick={() => deleteAllTasksInFolder(contextMenu.folder._id, 'completed')}
+                  className="w-full px-4 py-2 text-left text-sm text-green-400 hover:bg-green-500/10 flex items-center gap-2 transition-colors"
+                >
+                  <Trash2 size={14} />
+                  Clear Completed
                 </button>
                 <button
                   onClick={() => deleteFolder(contextMenu.folder._id)}
                   className="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-red-500/10 flex items-center gap-2 transition-colors"
                 >
                   <Trash2 size={14} />
-                  Delete
+                  Delete Folder
                 </button>
               </>
             )}
