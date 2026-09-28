@@ -40,6 +40,7 @@ function App() {
   const [dueDate, setDueDate] = useState('')
   const [showCommandMenu, setShowCommandMenu] = useState(false)
   const [commandInput, setCommandInput] = useState('')
+  const [errorDetails, setErrorDetails] = useState(null)
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -168,11 +169,15 @@ function App() {
           'Authorization': `Bearer ${token}`
         }
       })
-      if (!response.ok) throw new Error('Failed to fetch todos')
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || errorData.error || 'Failed to fetch todos')
+      }
       const data = await response.json()
       setTodos(data)
     } catch (err) {
       setError(err.message)
+      setErrorDetails(err.stack || err.toString())
     } finally {
       setLoading(false)
     }
@@ -185,11 +190,15 @@ function App() {
           'Authorization': `Bearer ${token}`
         }
       })
-      if (!response.ok) throw new Error('Failed to fetch folders')
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || errorData.error || 'Failed to fetch folders')
+      }
       const data = await response.json()
       setFolders(data)
     } catch (err) {
       setError(err.message)
+      setErrorDetails(err.stack || err.toString())
     }
   }
 
@@ -210,13 +219,17 @@ function App() {
           dueDate: dueDate ? new Date(dueDate).toISOString() : null
         }),
       })
-      if (!response.ok) throw new Error('Failed to add todo')
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || errorData.error || 'Failed to add todo')
+      }
       const newTodo = await response.json()
       setTodos([...todos, newTodo])
       setInput('')
       setDueDate('')
     } catch (err) {
       setError(err.message)
+      setErrorDetails(err.stack || err.toString())
     }
   }
 
@@ -230,7 +243,10 @@ function App() {
         },
         body: JSON.stringify({ status: newStatus }),
       })
-      if (!response.ok) throw new Error('Failed to update todo')
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || errorData.error || 'Failed to update todo')
+      }
       const updatedTodo = await response.json()
       setTodos(todos.map(t => t._id === id ? updatedTodo : t))
       
@@ -240,6 +256,7 @@ function App() {
       }
     } catch (err) {
       setError(err.message)
+      setErrorDetails(err.stack || err.toString())
     }
   }
 
@@ -330,12 +347,16 @@ function App() {
           dueDate: data.dueDate ? new Date(data.dueDate).toISOString() : null
         }),
       })
-      if (!response.ok) throw new Error('Failed to update todo')
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || errorData.error || 'Failed to update todo')
+      }
       const updatedTodo = await response.json()
       setTodos(todos.map(t => t._id === id ? updatedTodo : t))
       cancelEditing(id)
     } catch (err) {
       setError(err.message)
+      setErrorDetails(err.stack || err.toString())
     }
   }
 
@@ -679,10 +700,14 @@ function App() {
           'Authorization': `Bearer ${token}`
         }
       })
-      if (!response.ok) throw new Error('Failed to delete todo')
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || errorData.error || 'Failed to delete todo')
+      }
       setTodos(todos.filter(t => t._id !== id))
     } catch (err) {
       setError(err.message)
+      setErrorDetails(err.stack || err.toString())
     }
   }
 
@@ -699,13 +724,17 @@ function App() {
         },
         body: JSON.stringify({ name: newFolderName.trim(), color: newFolderColor }),
       })
-      if (!response.ok) throw new Error('Failed to create folder')
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || errorData.error || 'Failed to create folder')
+      }
       const newFolder = await response.json()
       setFolders([...folders, newFolder])
       setNewFolderName('')
       setShowFolderModal(false)
     } catch (err) {
       setError(err.message)
+      setErrorDetails(err.stack || err.toString())
     }
   }
 
@@ -717,13 +746,17 @@ function App() {
           'Authorization': `Bearer ${token}`
         }
       })
-      if (!response.ok) throw new Error('Failed to delete folder')
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || errorData.error || 'Failed to delete folder')
+      }
       setFolders(folders.filter(f => f._id !== id))
       setTodos(todos.filter(t => t.folder !== id))
       if (selectedFolder === id) setSelectedFolder(null)
       setContextMenu(null)
     } catch (err) {
       setError(err.message)
+      setErrorDetails(err.stack || err.toString())
     }
   }
 
@@ -737,13 +770,17 @@ function App() {
         },
         body: JSON.stringify({ name: editFolderName.trim() })
       })
-      if (!response.ok) throw new Error('Failed to update folder')
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || errorData.error || 'Failed to update folder')
+      }
       const updatedFolder = await response.json()
       setFolders(folders.map(f => f._id === id ? updatedFolder : f))
       setEditingFolder(null)
       setEditFolderName('')
     } catch (err) {
       setError(err.message)
+      setErrorDetails(err.stack || err.toString())
     }
   }
 
@@ -765,21 +802,21 @@ function App() {
 
   const clearInbox = async () => {
     try {
-      const inboxTodos = todos.filter(t => !t.folder)
-      await Promise.all(
-        inboxTodos.map(todo =>
-          fetch(`/api/todos/${todo._id}`, {
-            method: 'DELETE',
-            headers: {
-              'Authorization': `Bearer ${token}`
-            }
-          })
-        )
-      )
+      const response = await fetch('/api/todos/clear-inbox', {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || errorData.error || 'Failed to clear inbox')
+      }
       setTodos(todos.filter(t => t.folder))
       setContextMenu(null)
     } catch (err) {
       setError(err.message)
+      setErrorDetails(err.stack || err.toString())
     }
   }
 
@@ -802,21 +839,31 @@ function App() {
 
   const saveCanvasCredentials = async (e) => {
     e.preventDefault()
+    if (!canvasUrl || !canvasToken) {
+      setError('Please enter both Canvas URL and token')
+      return
+    }
+
+    setSyncing(true)
     try {
       const response = await fetch('/api/user/canvas', {
-        method: 'PUT',
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({ canvasUrl, canvasToken })
       })
-      if (!response.ok) throw new Error('Failed to save Canvas credentials')
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || errorData.error || 'Failed to save Canvas credentials')
+      }
       await fetchCanvasStatus()
       setShowCanvasModal(false)
       setCanvasToken('')
     } catch (err) {
       setError(err.message)
+      setErrorDetails(err.stack || err.toString())
     }
   }
 
@@ -830,8 +877,8 @@ function App() {
         }
       })
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.message || 'Failed to sync Canvas')
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || errorData.error || 'Failed to sync Canvas')
       }
       const data = await response.json()
       await fetchTodos()
@@ -846,6 +893,7 @@ function App() {
       }
     } catch (err) {
       setError(err.message)
+      setErrorDetails(err.stack || err.toString())
     } finally {
       setSyncing(false)
     }
@@ -875,6 +923,7 @@ function App() {
       }
     } catch (err) {
       setError(`Test failed: ${err.message}`)
+      setErrorDetails(err.stack || err.toString())
     } finally {
       setTesting(false)
     }
@@ -901,8 +950,8 @@ function App() {
       })
 
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.message || 'Failed to import calendar')
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || errorData.error || 'Failed to import calendar')
       }
 
       const data = await response.json()
@@ -913,6 +962,7 @@ function App() {
       setShowCanvasModal(false)
     } catch (err) {
       setError(err.message)
+      setErrorDetails(err.stack || err.toString())
     } finally {
       setSyncing(false)
     }
@@ -977,14 +1027,23 @@ function App() {
         </div>
 
         {error && (
-          <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-lg flex items-center justify-between">
-            <p className="text-red-400 text-sm">{error}</p>
-            <button
-              onClick={() => setError(null)}
-              className="p-1 text-red-400 hover:text-red-300 hover:bg-red-500/20 rounded transition-all"
-            >
-              <X size={16} />
-            </button>
+          <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-lg">
+            <div className="flex items-center justify-between">
+              <p className="text-red-400 text-sm cursor-pointer hover:text-red-300" onClick={() => setErrorDetails(errorDetails ? null : (error.stack || error.toString()))}>
+                {error} {errorDetails ? '(Click to hide details)' : '(Click for details)'}
+              </p>
+              <button
+                onClick={() => { setError(null); setErrorDetails(null); }}
+                className="p-1 text-red-400 hover:text-red-300 hover:bg-red-500/20 rounded transition-all"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            {errorDetails && (
+              <pre className="mt-3 text-red-300 text-xs bg-red-500/5 p-3 rounded overflow-auto max-h-40 font-mono">
+                {errorDetails}
+              </pre>
+            )}
           </div>
         )}
 
