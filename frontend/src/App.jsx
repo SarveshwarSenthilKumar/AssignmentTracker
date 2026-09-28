@@ -850,6 +850,38 @@ function App() {
     }
   }
 
+  const deleteAllTasksInFolder = async (folderId) => {
+    try {
+      const response = await fetch(`/api/todos/folder/${folderId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        const errorMessage = errorData.message || errorData.error || 'Failed to delete folder tasks'
+        if (errorMessage === 'Invalid or expired token') {
+          logout()
+          return
+        }
+        throw new Error(errorMessage)
+      }
+      const data = await response.json()
+      await fetchTodos()
+      setError(`Deleted ${data.deletedCount} tasks from folder`)
+      setContextMenu(null)
+    } catch (err) {
+      if (err.message === 'Invalid or expired token') {
+        logout()
+      } else {
+        setError(err.message)
+        setErrorDetails(err.stack || err.toString())
+        setShowErrorDetails(false)
+      }
+    }
+  }
+
   const updateFolder = async (id) => {
     try {
       const response = await fetch(`/api/folders/${id}`, {
@@ -917,7 +949,9 @@ function App() {
         }
         throw new Error(errorMessage)
       }
-      setTodos(todos.filter(t => t.folder))
+      const data = await response.json()
+      await fetchTodos()
+      setError(`Cleared ${data.deletedCount} tasks from inbox`)
       setContextMenu(null)
     } catch (err) {
       if (err.message === 'Invalid or expired token') {
@@ -1910,6 +1944,13 @@ function App() {
                 >
                   <Edit2 size={14} />
                   Rename
+                </button>
+                <button
+                  onClick={() => deleteAllTasksInFolder(contextMenu.folder._id)}
+                  className="w-full px-4 py-2 text-left text-sm text-orange-400 hover:bg-orange-500/10 flex items-center gap-2 transition-colors"
+                >
+                  <Trash2 size={14} />
+                  Clear Tasks
                 </button>
                 <button
                   onClick={() => deleteFolder(contextMenu.folder._id)}
