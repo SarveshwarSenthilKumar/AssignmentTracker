@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Trash2, Check, X, Loader2, FolderPlus, Folder, LogOut, Sparkles, Link2, ChevronDown, ChevronUp, Edit2, Save, User, Trophy, Target, Calendar, ArrowUpDown, RefreshCw, Terminal } from 'lucide-react'
+import { Plus, Trash2, Check, X, Loader2, FolderPlus, Folder, LogOut, Sparkles, Link2, ChevronDown, ChevronUp, Edit2, Save, User, Trophy, Target, Calendar, ArrowUpDown, RefreshCw, Terminal, ChevronRight } from 'lucide-react'
 import { cn } from './lib/utils'
 import { useAuth } from './contexts/AuthContext'
 import Auth from './components/Auth'
@@ -41,6 +41,7 @@ function App() {
   const [showCommandMenu, setShowCommandMenu] = useState(false)
   const [commandInput, setCommandInput] = useState('')
   const [errorDetails, setErrorDetails] = useState(null)
+  const [showErrorDetails, setShowErrorDetails] = useState(false)
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -178,6 +179,7 @@ function App() {
     } catch (err) {
       setError(err.message)
       setErrorDetails(err.stack || err.toString())
+      setShowErrorDetails(false)
     } finally {
       setLoading(false)
     }
@@ -199,6 +201,7 @@ function App() {
     } catch (err) {
       setError(err.message)
       setErrorDetails(err.stack || err.toString())
+      setShowErrorDetails(false)
     }
   }
 
@@ -230,6 +233,7 @@ function App() {
     } catch (err) {
       setError(err.message)
       setErrorDetails(err.stack || err.toString())
+      setShowErrorDetails(false)
     }
   }
 
@@ -257,6 +261,7 @@ function App() {
     } catch (err) {
       setError(err.message)
       setErrorDetails(err.stack || err.toString())
+      setShowErrorDetails(false)
     }
   }
 
@@ -357,6 +362,7 @@ function App() {
     } catch (err) {
       setError(err.message)
       setErrorDetails(err.stack || err.toString())
+      setShowErrorDetails(false)
     }
   }
 
@@ -409,9 +415,12 @@ function App() {
     switch (command) {
       case 'help':
         setError('Available commands: help, clear, sort [date/due/name/status], folder [name], all, inbox, del [x]')
+        setShowErrorDetails(false)
         break
       case 'clear':
         setError(null)
+        setErrorDetails(null)
+        setShowErrorDetails(false)
         break
       case 'sort':
         if (args[0]) {
@@ -423,6 +432,7 @@ function App() {
             setError('Invalid sort option. Use: date, due, name, status')
           }
         }
+        setShowErrorDetails(false)
         break
       case 'folder':
         if (args[0]) {
@@ -434,14 +444,17 @@ function App() {
             setError('Folder not found')
           }
         }
+        setShowErrorDetails(false)
         break
       case 'all':
         setSelectedFolder('all')
         setError('Showing all tasks')
+        setShowErrorDetails(false)
         break
       case 'inbox':
         setSelectedFolder(null)
         setError('Showing inbox')
+        setShowErrorDetails(false)
         break
       case 'del':
         if (args[0] && !isNaN(args[0])) {
@@ -475,9 +488,11 @@ function App() {
         } else {
           setError('Please specify a number. Usage: del [x]')
         }
+        setShowErrorDetails(false)
         break
       default:
         setError('Unknown command. Type "help" for available commands.')
+        setShowErrorDetails(false)
     }
     
     setShowCommandMenu(false)
@@ -708,6 +723,7 @@ function App() {
     } catch (err) {
       setError(err.message)
       setErrorDetails(err.stack || err.toString())
+      setShowErrorDetails(false)
     }
   }
 
@@ -735,6 +751,7 @@ function App() {
     } catch (err) {
       setError(err.message)
       setErrorDetails(err.stack || err.toString())
+      setShowErrorDetails(false)
     }
   }
 
@@ -757,6 +774,7 @@ function App() {
     } catch (err) {
       setError(err.message)
       setErrorDetails(err.stack || err.toString())
+      setShowErrorDetails(false)
     }
   }
 
@@ -781,6 +799,7 @@ function App() {
     } catch (err) {
       setError(err.message)
       setErrorDetails(err.stack || err.toString())
+      setShowErrorDetails(false)
     }
   }
 
@@ -817,6 +836,7 @@ function App() {
     } catch (err) {
       setError(err.message)
       setErrorDetails(err.stack || err.toString())
+      setShowErrorDetails(false)
     }
   }
 
@@ -864,6 +884,7 @@ function App() {
     } catch (err) {
       setError(err.message)
       setErrorDetails(err.stack || err.toString())
+      setShowErrorDetails(false)
     }
   }
 
@@ -894,6 +915,7 @@ function App() {
     } catch (err) {
       setError(err.message)
       setErrorDetails(err.stack || err.toString())
+      setShowErrorDetails(false)
     } finally {
       setSyncing(false)
     }
@@ -924,6 +946,7 @@ function App() {
     } catch (err) {
       setError(`Test failed: ${err.message}`)
       setErrorDetails(err.stack || err.toString())
+      setShowErrorDetails(false)
     } finally {
       setTesting(false)
     }
@@ -963,6 +986,7 @@ function App() {
     } catch (err) {
       setError(err.message)
       setErrorDetails(err.stack || err.toString())
+      setShowErrorDetails(false)
     } finally {
       setSyncing(false)
     }
@@ -1029,17 +1053,24 @@ function App() {
         {error && (
           <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-lg">
             <div className="flex items-center justify-between">
-              <p className="text-red-400 text-sm cursor-pointer hover:text-red-300" onClick={() => setErrorDetails(errorDetails ? null : (error.stack || error.toString()))}>
-                {error} {errorDetails ? '(Click to hide details)' : '(Click for details)'}
-              </p>
-              <button
-                onClick={() => { setError(null); setErrorDetails(null); }}
-                className="p-1 text-red-400 hover:text-red-300 hover:bg-red-500/20 rounded transition-all"
-              >
-                <X size={16} />
-              </button>
+              <p className="text-red-400 text-sm flex-1">{error}</p>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowErrorDetails(!showErrorDetails)}
+                  className="p-1 text-red-400 hover:text-red-300 hover:bg-red-500/20 rounded transition-all"
+                  title="Toggle error details"
+                >
+                  <ChevronRight size={16} className={cn("transition-transform", showErrorDetails && "rotate-90")} />
+                </button>
+                <button
+                  onClick={() => { setError(null); setErrorDetails(null); setShowErrorDetails(false); }}
+                  className="p-1 text-red-400 hover:text-red-300 hover:bg-red-500/20 rounded transition-all"
+                >
+                  <X size={16} />
+                </button>
+              </div>
             </div>
-            {errorDetails && (
+            {showErrorDetails && errorDetails && (
               <pre className="mt-3 text-red-300 text-xs bg-red-500/5 p-3 rounded overflow-auto max-h-40 font-mono">
                 {errorDetails}
               </pre>
