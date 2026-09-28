@@ -172,14 +172,23 @@ function App() {
       })
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || errorData.error || 'Failed to fetch todos')
+        const errorMessage = errorData.message || errorData.error || 'Failed to fetch todos'
+        if (errorMessage === 'Invalid or expired token') {
+          logout()
+          return
+        }
+        throw new Error(errorMessage)
       }
       const data = await response.json()
       setTodos(data)
     } catch (err) {
-      setError(err.message)
-      setErrorDetails(err.stack || err.toString())
-      setShowErrorDetails(false)
+      if (err.message === 'Invalid or expired token') {
+        logout()
+      } else {
+        setError(err.message)
+        setErrorDetails(err.stack || err.toString())
+        setShowErrorDetails(false)
+      }
     } finally {
       setLoading(false)
     }
@@ -194,14 +203,23 @@ function App() {
       })
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || errorData.error || 'Failed to fetch folders')
+        const errorMessage = errorData.message || errorData.error || 'Failed to fetch folders'
+        if (errorMessage === 'Invalid or expired token') {
+          logout()
+          return
+        }
+        throw new Error(errorMessage)
       }
       const data = await response.json()
       setFolders(data)
     } catch (err) {
-      setError(err.message)
-      setErrorDetails(err.stack || err.toString())
-      setShowErrorDetails(false)
+      if (err.message === 'Invalid or expired token') {
+        logout()
+      } else {
+        setError(err.message)
+        setErrorDetails(err.stack || err.toString())
+        setShowErrorDetails(false)
+      }
     }
   }
 
@@ -224,16 +242,25 @@ function App() {
       })
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || errorData.error || 'Failed to add todo')
+        const errorMessage = errorData.message || errorData.error || 'Failed to add todo'
+        if (errorMessage === 'Invalid or expired token') {
+          logout()
+          return
+        }
+        throw new Error(errorMessage)
       }
       const newTodo = await response.json()
       setTodos([...todos, newTodo])
       setInput('')
       setDueDate('')
     } catch (err) {
-      setError(err.message)
-      setErrorDetails(err.stack || err.toString())
-      setShowErrorDetails(false)
+      if (err.message === 'Invalid or expired token') {
+        logout()
+      } else {
+        setError(err.message)
+        setErrorDetails(err.stack || err.toString())
+        setShowErrorDetails(false)
+      }
     }
   }
 
@@ -249,7 +276,12 @@ function App() {
       })
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || errorData.error || 'Failed to update todo')
+        const errorMessage = errorData.message || errorData.error || 'Failed to update todo'
+        if (errorMessage === 'Invalid or expired token') {
+          logout()
+          return
+        }
+        throw new Error(errorMessage)
       }
       const updatedTodo = await response.json()
       setTodos(todos.map(t => t._id === id ? updatedTodo : t))
@@ -259,9 +291,13 @@ function App() {
         triggerCelebration()
       }
     } catch (err) {
-      setError(err.message)
-      setErrorDetails(err.stack || err.toString())
-      setShowErrorDetails(false)
+      if (err.message === 'Invalid or expired token') {
+        logout()
+      } else {
+        setError(err.message)
+        setErrorDetails(err.stack || err.toString())
+        setShowErrorDetails(false)
+      }
     }
   }
 
@@ -354,15 +390,24 @@ function App() {
       })
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || errorData.error || 'Failed to update todo')
+        const errorMessage = errorData.message || errorData.error || 'Failed to update todo'
+        if (errorMessage === 'Invalid or expired token') {
+          logout()
+          return
+        }
+        throw new Error(errorMessage)
       }
       const updatedTodo = await response.json()
       setTodos(todos.map(t => t._id === id ? updatedTodo : t))
       cancelEditing(id)
     } catch (err) {
-      setError(err.message)
-      setErrorDetails(err.stack || err.toString())
-      setShowErrorDetails(false)
+      if (err.message === 'Invalid or expired token') {
+        logout()
+      } else {
+        setError(err.message)
+        setErrorDetails(err.stack || err.toString())
+        setShowErrorDetails(false)
+      }
     }
   }
 
@@ -717,13 +762,22 @@ function App() {
       })
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || errorData.error || 'Failed to delete todo')
+        const errorMessage = errorData.message || errorData.error || 'Failed to delete todo'
+        if (errorMessage === 'Invalid or expired token') {
+          logout()
+          return
+        }
+        throw new Error(errorMessage)
       }
       setTodos(todos.filter(t => t._id !== id))
     } catch (err) {
-      setError(err.message)
-      setErrorDetails(err.stack || err.toString())
-      setShowErrorDetails(false)
+      if (err.message === 'Invalid or expired token') {
+        logout()
+      } else {
+        setError(err.message)
+        setErrorDetails(err.stack || err.toString())
+        setShowErrorDetails(false)
+      }
     }
   }
 
@@ -742,16 +796,25 @@ function App() {
       })
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || errorData.error || 'Failed to create folder')
+        const errorMessage = errorData.message || errorData.error || 'Failed to create folder'
+        if (errorMessage === 'Invalid or expired token') {
+          logout()
+          return
+        }
+        throw new Error(errorMessage)
       }
       const newFolder = await response.json()
       setFolders([...folders, newFolder])
       setNewFolderName('')
       setShowFolderModal(false)
     } catch (err) {
-      setError(err.message)
-      setErrorDetails(err.stack || err.toString())
-      setShowErrorDetails(false)
+      if (err.message === 'Invalid or expired token') {
+        logout()
+      } else {
+        setError(err.message)
+        setErrorDetails(err.stack || err.toString())
+        setShowErrorDetails(false)
+      }
     }
   }
 
@@ -765,16 +828,25 @@ function App() {
       })
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || errorData.error || 'Failed to delete folder')
+        const errorMessage = errorData.message || errorData.error || 'Failed to delete folder'
+        if (errorMessage === 'Invalid or expired token') {
+          logout()
+          return
+        }
+        throw new Error(errorMessage)
       }
       setFolders(folders.filter(f => f._id !== id))
       setTodos(todos.filter(t => t.folder !== id))
       if (selectedFolder === id) setSelectedFolder(null)
       setContextMenu(null)
     } catch (err) {
-      setError(err.message)
-      setErrorDetails(err.stack || err.toString())
-      setShowErrorDetails(false)
+      if (err.message === 'Invalid or expired token') {
+        logout()
+      } else {
+        setError(err.message)
+        setErrorDetails(err.stack || err.toString())
+        setShowErrorDetails(false)
+      }
     }
   }
 
@@ -790,16 +862,25 @@ function App() {
       })
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || errorData.error || 'Failed to update folder')
+        const errorMessage = errorData.message || errorData.error || 'Failed to update folder'
+        if (errorMessage === 'Invalid or expired token') {
+          logout()
+          return
+        }
+        throw new Error(errorMessage)
       }
       const updatedFolder = await response.json()
       setFolders(folders.map(f => f._id === id ? updatedFolder : f))
       setEditingFolder(null)
       setEditFolderName('')
     } catch (err) {
-      setError(err.message)
-      setErrorDetails(err.stack || err.toString())
-      setShowErrorDetails(false)
+      if (err.message === 'Invalid or expired token') {
+        logout()
+      } else {
+        setError(err.message)
+        setErrorDetails(err.stack || err.toString())
+        setShowErrorDetails(false)
+      }
     }
   }
 
@@ -829,14 +910,23 @@ function App() {
       })
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || errorData.error || 'Failed to clear inbox')
+        const errorMessage = errorData.message || errorData.error || 'Failed to clear inbox'
+        if (errorMessage === 'Invalid or expired token') {
+          logout()
+          return
+        }
+        throw new Error(errorMessage)
       }
       setTodos(todos.filter(t => t.folder))
       setContextMenu(null)
     } catch (err) {
-      setError(err.message)
-      setErrorDetails(err.stack || err.toString())
-      setShowErrorDetails(false)
+      if (err.message === 'Invalid or expired token') {
+        logout()
+      } else {
+        setError(err.message)
+        setErrorDetails(err.stack || err.toString())
+        setShowErrorDetails(false)
+      }
     }
   }
 
@@ -853,7 +943,11 @@ function App() {
         setCanvasUrl(data.canvasUrl || '')
       }
     } catch (err) {
-      console.error('Error fetching Canvas status:', err)
+      if (err.message === 'Invalid or expired token') {
+        logout()
+      } else {
+        console.error('Error fetching Canvas status:', err)
+      }
     }
   }
 
@@ -876,15 +970,24 @@ function App() {
       })
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || errorData.error || 'Failed to save Canvas credentials')
+        const errorMessage = errorData.message || errorData.error || 'Failed to save Canvas credentials'
+        if (errorMessage === 'Invalid or expired token') {
+          logout()
+          return
+        }
+        throw new Error(errorMessage)
       }
       await fetchCanvasStatus()
       setShowCanvasModal(false)
       setCanvasToken('')
     } catch (err) {
-      setError(err.message)
-      setErrorDetails(err.stack || err.toString())
-      setShowErrorDetails(false)
+      if (err.message === 'Invalid or expired token') {
+        logout()
+      } else {
+        setError(err.message)
+        setErrorDetails(err.stack || err.toString())
+        setShowErrorDetails(false)
+      }
     }
   }
 
@@ -899,7 +1002,12 @@ function App() {
       })
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || errorData.error || 'Failed to sync Canvas')
+        const errorMessage = errorData.message || errorData.error || 'Failed to sync Canvas'
+        if (errorMessage === 'Invalid or expired token') {
+          logout()
+          return
+        }
+        throw new Error(errorMessage)
       }
       const data = await response.json()
       await fetchTodos()
@@ -913,9 +1021,13 @@ function App() {
         setError(`Successfully synced ${data.syncedCount} items from Canvas`)
       }
     } catch (err) {
-      setError(err.message)
-      setErrorDetails(err.stack || err.toString())
-      setShowErrorDetails(false)
+      if (err.message === 'Invalid or expired token') {
+        logout()
+      } else {
+        setError(err.message)
+        setErrorDetails(err.stack || err.toString())
+        setShowErrorDetails(false)
+      }
     } finally {
       setSyncing(false)
     }
@@ -944,9 +1056,13 @@ function App() {
         setError(`Canvas connection failed: ${data.error || 'Unknown error'}`)
       }
     } catch (err) {
-      setError(`Test failed: ${err.message}`)
-      setErrorDetails(err.stack || err.toString())
-      setShowErrorDetails(false)
+      if (err.message === 'Invalid or expired token') {
+        logout()
+      } else {
+        setError(`Test failed: ${err.message}`)
+        setErrorDetails(err.stack || err.toString())
+        setShowErrorDetails(false)
+      }
     } finally {
       setTesting(false)
     }
@@ -974,7 +1090,12 @@ function App() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || errorData.error || 'Failed to import calendar')
+        const errorMessage = errorData.message || errorData.error || 'Failed to import calendar'
+        if (errorMessage === 'Invalid or expired token') {
+          logout()
+          return
+        }
+        throw new Error(errorMessage)
       }
 
       const data = await response.json()
@@ -984,9 +1105,13 @@ function App() {
       setIcsFile(null)
       setShowCanvasModal(false)
     } catch (err) {
-      setError(err.message)
-      setErrorDetails(err.stack || err.toString())
-      setShowErrorDetails(false)
+      if (err.message === 'Invalid or expired token') {
+        logout()
+      } else {
+        setError(err.message)
+        setErrorDetails(err.stack || err.toString())
+        setShowErrorDetails(false)
+      }
     } finally {
       setSyncing(false)
     }
