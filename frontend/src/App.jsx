@@ -952,14 +952,6 @@ function App() {
           </div>
           <div className="flex items-center gap-3">
             <button
-              onClick={() => setShowCommandMenu(true)}
-              className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-all flex items-center gap-2 shadow-lg"
-              title="Command Menu (Press Tab)"
-            >
-              <Terminal size={18} />
-              <span className="hidden sm:inline">Commands</span>
-            </button>
-            <button
               onClick={() => setShowCanvasModal(true)}
               className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-all flex items-center gap-2 shadow-lg shadow-purple-500/30 hover:scale-105"
               title="Canvas Integration"
