@@ -5,6 +5,7 @@ const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const multer = require('multer');
+const https = require('https');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -136,6 +137,46 @@ const todoSchema = new mongoose.Schema({
 });
 
 const Todo = mongoose.model('Todo', todoSchema);
+
+// PDF Schema
+const pdfSchema = new mongoose.Schema({
+  name: {
+    type: String,
+    required: true,
+  },
+  originalName: {
+    type: String,
+    required: true,
+  },
+  pdfData: {
+    type: Buffer,
+    required: true,
+  },
+  annotations: {
+    type: Array,
+    default: [],
+  },
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true,
+  },
+  todo: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Todo',
+    default: null,
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now,
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now,
+  },
+});
+
+const PDF = mongoose.model('PDF', pdfSchema);
 
 // Auth Middleware
 const authenticateToken = (req, res, next) => {
@@ -647,6 +688,98 @@ app.post('/api/canvas/sync', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Canvas sync error:', error);
     res.status(500).json({ message: 'Error syncing Canvas data', error: error.message });
+  }
+});
+
+// PDF Routes
+// Get all PDFs for user
+app.get('/api/pdfs', authenticateToken, async (req, res) => {
+  try {
+    const pdfs = await PDF.find({ user: req.user.userId }).sort({ createdAt: -1 });
+    res.json(pdfs);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching PDFs', error: error.message });
+  }
+});
+
+// Get a single PDF
+app.get('/api/pdfs/:id', authenticateToken, async (req, res) => {
+  try {
+    const pdf = await PDF.findOne({ _id: req.params.id, user: req.user.userId });
+    if (!pdf) {
+      return res.status(404).json({ message: 'PDF not found' });
+    }
+    res.json(pdf);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching PDF', error: error.message });
+  }
+});
+
+// Upload a new PDF
+app.post('/api/pdfs', authenticateToken, upload.single('pdfFile'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded' });
+    }
+
+    const { name, todoId } = req.body;
+    const pdf = new PDF({
+      name: name || req.file.originalname,
+      originalName: req.file.originalname,
+      pdfData: req.file.buffer,
+      user: req.user.userId,
+      todo: todoId || null,
+    });
+    await pdf.save();
+    res.status(201).json(pdf);
+  } catch (error) {
+    res.status(500).json({ message: 'Error uploading PDF', error: error.message });
+  }
+});
+
+// Update PDF annotations
+app.put('/api/pdfs/:id/annotations', authenticateToken, async (req, res) => {
+  try {
+    const { annotations } = req.body;
+    const pdf = await PDF.findOneAndUpdate(
+      { _id: req.params.id, user: req.user.userId },
+      { annotations, updatedAt: new Date() },
+      { new: true }
+    );
+    if (!pdf) {
+      return res.status(404).json({ message: 'PDF not found' });
+    }
+    res.json(pdf);
+  } catch (error) {
+    res.status(500).json({ message: 'Error updating annotations', error: error.message });
+  }
+});
+
+// Download a PDF
+app.get('/api/pdfs/:id/download', authenticateToken, async (req, res) => {
+  try {
+    const pdf = await PDF.findOne({ _id: req.params.id, user: req.user.userId });
+    if (!pdf) {
+      return res.status(404).json({ message: 'PDF not found' });
+    }
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${pdf.originalName}"`);
+    res.send(pdf.pdfData);
+  } catch (error) {
+    res.status(500).json({ message: 'Error downloading PDF', error: error.message });
+  }
+});
+
+// Delete a PDF
+app.delete('/api/pdfs/:id', authenticateToken, async (req, res) => {
+  try {
+    const pdf = await PDF.findOneAndDelete({ _id: req.params.id, user: req.user.userId });
+    if (!pdf) {
+      return res.status(404).json({ message: 'PDF not found' });
+    }
+    res.json({ message: 'PDF deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error deleting PDF', error: error.message });
   }
 });
 

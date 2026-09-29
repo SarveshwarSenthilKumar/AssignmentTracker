@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Trash2, Check, X, Loader2, FolderPlus, Folder, LogOut, Sparkles, Link2, ChevronDown, ChevronUp, Edit2, Save, User, Trophy, Target, Calendar, ArrowUpDown, RefreshCw, Terminal, ChevronRight } from 'lucide-react'
+import { Plus, Trash2, Check, X, Loader2, FolderPlus, Folder, LogOut, Sparkles, Link2, ChevronDown, ChevronUp, Edit2, Save, User, Trophy, Target, Calendar, ArrowUpDown, RefreshCw, Terminal, ChevronRight, FileText } from 'lucide-react'
 import { cn } from './lib/utils'
 import { useAuth } from './contexts/AuthContext'
 import Auth from './components/Auth'
+import PDFEditor from './components/PDFEditor'
+import PDFUploadModal from './components/PDFUploadModal'
 
 function App() {
   const { isAuthenticated, token, logout, user, loading: authLoading } = useAuth()
@@ -42,12 +44,16 @@ function App() {
   const [commandInput, setCommandInput] = useState('')
   const [errorDetails, setErrorDetails] = useState(null)
   const [showErrorDetails, setShowErrorDetails] = useState(false)
+  const [showPDFUploadModal, setShowPDFUploadModal] = useState(false)
+  const [selectedPDF, setSelectedPDF] = useState(null)
+  const [pdfs, setPdfs] = useState([])
 
   useEffect(() => {
     if (isAuthenticated) {
       fetchTodos()
       fetchFolders()
       fetchCanvasStatus()
+      fetchPDFs()
     }
   }, [isAuthenticated])
 
@@ -221,6 +227,38 @@ function App() {
         setShowErrorDetails(false)
       }
     }
+  }
+
+  const fetchPDFs = async () => {
+    try {
+      const response = await fetch('/api/pdfs', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        const errorMessage = errorData.message || errorData.error || 'Failed to fetch PDFs'
+        if (errorMessage === 'Invalid or expired token') {
+          logout()
+          return
+        }
+        throw new Error(errorMessage)
+      }
+      const data = await response.json()
+      setPdfs(data)
+    } catch (err) {
+      if (err.message === 'Invalid or expired token') {
+        logout()
+      } else {
+        console.error('Error fetching PDFs:', err)
+      }
+    }
+  }
+
+  const handlePDFUploadSuccess = (uploadedPDF) => {
+    setPdfs([uploadedPDF, ...pdfs])
+    setSelectedPDF(uploadedPDF._id)
   }
 
   const addTodo = async (e) => {
@@ -1193,6 +1231,14 @@ function App() {
           </div>
           <div className="flex items-center gap-3">
             <button
+              onClick={() => setShowPDFUploadModal(true)}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all flex items-center gap-2 shadow-lg shadow-blue-500/30 hover:scale-105"
+              title="PDF Editor"
+            >
+              <FileText size={18} />
+              <span className="hidden sm:inline">PDF</span>
+            </button>
+            <button
               onClick={() => setShowCanvasModal(true)}
               className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-all flex items-center gap-2 shadow-lg shadow-purple-500/30 hover:scale-105"
               title="Canvas Integration"
@@ -1242,6 +1288,30 @@ function App() {
                 {errorDetails}
               </pre>
             )}
+          </div>
+        )}
+
+        {/* PDFs Section */}
+        {pdfs.length > 0 && (
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-semibold text-white">PDF Documents</h2>
+            </div>
+            <div className="flex gap-3 overflow-x-auto pb-2">
+              {pdfs.map((pdf) => (
+                <button
+                  key={pdf._id}
+                  onClick={() => setSelectedPDF(pdf._id)}
+                  className="flex-shrink-0 px-4 py-3 bg-blue-500/10 border border-blue-500/20 hover:bg-blue-500/20 rounded-xl transition-all flex items-center gap-2 group"
+                >
+                  <FileText size={20} className="text-blue-400" />
+                  <div className="text-left">
+                    <p className="text-white text-sm font-medium truncate max-w-[150px]">{pdf.name}</p>
+                    <p className="text-slate-400 text-xs">{new Date(pdf.createdAt).toLocaleDateString()}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
@@ -2016,6 +2086,24 @@ function App() {
               </>
             )}
           </div>
+        )}
+
+        {/* PDF Upload Modal */}
+        {showPDFUploadModal && (
+          <PDFUploadModal
+            onClose={() => setShowPDFUploadModal(false)}
+            token={token}
+            onUploadSuccess={handlePDFUploadSuccess}
+          />
+        )}
+
+        {/* PDF Editor */}
+        {selectedPDF && (
+          <PDFEditor
+            pdfId={selectedPDF}
+            onClose={() => setSelectedPDF(null)}
+            token={token}
+          />
         )}
 
       </div>
