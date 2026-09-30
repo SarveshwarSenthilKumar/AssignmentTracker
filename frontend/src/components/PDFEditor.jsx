@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Document, Page, pdfjs } from 'react-pdf'
+import 'react-pdf/dist/Page/AnnotationLayer.css'
+import 'react-pdf/dist/Page/TextLayer.css'
 import { X, Save, Download, Upload, Trash2, Pen, Highlighter, Eraser, ZoomIn, ZoomOut, RotateCw, Settings, Tag, Folder, Check, Loader2, Undo } from 'lucide-react'
 import { cn } from '../lib/utils'
 
@@ -28,6 +30,7 @@ export default function PDFEditor({ pdfId, onClose, token }) {
   const [pdfError, setPdfError] = useState(null)
   const [drawingPaths, setDrawingPaths] = useState([])
   const [currentPath, setCurrentPath] = useState([])
+  const [pageDimensions, setPageDimensions] = useState({ width: 0, height: 0 })
   const canvasRef = useRef(null)
   const annotationLayerRef = useRef(null)
 
@@ -135,16 +138,12 @@ export default function PDFEditor({ pdfId, onClose, token }) {
     setPdfError(`Failed to load PDF: ${error.message || 'Unknown error'}`)
   }
 
-  const onPageLoadSuccess = () => {
-    console.log('Page loaded successfully')
-    // Resize canvas to match page
-    setTimeout(() => {
-      const pageElement = document.querySelector('.react-pdf__Page')
-      if (pageElement && canvasRef.current) {
-        canvasRef.current.width = pageElement.offsetWidth
-        canvasRef.current.height = pageElement.offsetHeight
-      }
-    }, 100)
+  const onPageLoadSuccess = (page) => {
+    console.log('Page loaded successfully', page.width, page.height)
+    setPageDimensions({
+      width: page.width,
+      height: page.height
+    })
   }
 
   const onPageLoadError = (error) => {
@@ -154,17 +153,17 @@ export default function PDFEditor({ pdfId, onClose, token }) {
   const handleCanvasMouseDown = (e) => {
     if (currentTool === 'eraser') return
     setIsDrawing(true)
-    const rect = canvasRef.current.getBoundingClientRect()
-    const x = (e.clientX - rect.left) / scale
-    const y = (e.clientY - rect.top) / scale
+    const rect = annotationLayerRef.current.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const y = e.clientY - rect.top
     setCurrentPath([{ x, y }])
   }
 
   const handleCanvasMouseMove = (e) => {
     if (!isDrawing) return
-    const rect = canvasRef.current.getBoundingClientRect()
-    const x = (e.clientX - rect.left) / scale
-    const y = (e.clientY - rect.top) / scale
+    const rect = annotationLayerRef.current.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const y = e.clientY - rect.top
     setCurrentPath(prev => [...prev, { x, y }])
   }
 
@@ -465,7 +464,8 @@ export default function PDFEditor({ pdfId, onClose, token }) {
                 width: '100%',
                 height: '100%',
                 pointerEvents: currentTool === 'eraser' ? 'none' : 'auto',
-                cursor: currentTool === 'pen' || currentTool === 'highlighter' ? 'crosshair' : 'default'
+                cursor: currentTool === 'pen' || currentTool === 'highlighter' ? 'crosshair' : 'default',
+                zIndex: 10
               }}
               onMouseDown={handleCanvasMouseDown}
               onMouseMove={handleCanvasMouseMove}
