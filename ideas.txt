@@ -2,6 +2,9 @@ add features
 add undo button
 update and add keyboard shortcuts
 add calendar and assignment functionality
+update the create folder feature for pdf to work properly
+add move and delete files features
+add compatibility for different file types
 
 resume job tailor:
 Get job by links
