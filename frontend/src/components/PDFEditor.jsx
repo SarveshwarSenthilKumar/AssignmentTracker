@@ -3,7 +3,7 @@ import { Document, Page, pdfjs } from 'react-pdf'
 import { X, Save, Download, Upload, Trash2, Pen, Highlighter, Eraser, ZoomIn, ZoomOut, RotateCw, Settings, Tag, Folder, Check, Loader2 } from 'lucide-react'
 import { cn } from '../lib/utils'
 
-// Set up PDF.js worker
+// Set up PDF.js worker for react-pdf v7
 pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`
 
 export default function PDFEditor({ pdfId, onClose, token }) {
@@ -129,7 +129,15 @@ export default function PDFEditor({ pdfId, onClose, token }) {
 
   const onDocumentLoadError = (error) => {
     console.error('PDF load error:', error)
-    setPdfError(`Failed to load PDF: ${error.message}`)
+    setPdfError(`Failed to load PDF: ${error.message || 'Unknown error'}`)
+  }
+
+  const onPageLoadSuccess = () => {
+    console.log('Page loaded successfully')
+  }
+
+  const onPageLoadError = (error) => {
+    console.error('Page load error:', error)
   }
 
   const handleZoomIn = () => {
@@ -362,14 +370,18 @@ export default function PDFEditor({ pdfId, onClose, token }) {
               file={pdfFile}
               onLoadSuccess={onDocumentLoadSuccess}
               onLoadError={onDocumentLoadError}
+              loading={<div className="text-white">Loading PDF...</div>}
+              error={<div className="text-red-400">Failed to load PDF document</div>}
               className="shadow-2xl"
             >
               <Page
                 pageNumber={pageNumber}
                 scale={scale}
                 rotation={rotation}
-                renderTextLayer={false}
-                renderAnnotationLayer={false}
+                onLoadSuccess={onPageLoadSuccess}
+                onLoadError={onPageLoadError}
+                loading={<div className="text-white">Loading page...</div>}
+                error={<div className="text-red-400">Failed to load page</div>}
                 className="border border-white/10"
               />
             </Document>
