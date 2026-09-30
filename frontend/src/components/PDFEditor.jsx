@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { Document, Page, pdfjs } from 'react-pdf'
-import { X, Save, Download, Upload, Trash2, Pen, Highlighter, Eraser, ZoomIn, ZoomOut, RotateCw, Settings, Tag, Folder, Check, Loader2 } from 'lucide-react'
+import { X, Save, Download, Upload, Trash2, Pen, Highlighter, Eraser, ZoomIn, ZoomOut, RotateCw, Settings, Tag, Folder, Check, Loader2, Undo } from 'lucide-react'
 import { cn } from '../lib/utils'
 
 // Set up PDF.js worker for react-pdf v7
@@ -26,6 +26,8 @@ export default function PDFEditor({ pdfId, onClose, token }) {
   const [pdfFolders, setPdfFolders] = useState([])
   const [savingMetadata, setSavingMetadata] = useState(false)
   const [pdfError, setPdfError] = useState(null)
+  const [drawingPaths, setDrawingPaths] = useState([])
+  const [currentPath, setCurrentPath] = useState([])
   const canvasRef = useRef(null)
   const annotationLayerRef = useRef(null)
 
@@ -62,6 +64,7 @@ export default function PDFEditor({ pdfId, onClose, token }) {
         }
         
         setAnnotations(data.annotations || [])
+        setDrawingPaths(data.annotations || [])
         setEditName(data.name || '')
         setEditTags(data.tags?.join(', ') || '')
         setEditFolder(data.pdfFolder || '')
@@ -134,10 +137,60 @@ export default function PDFEditor({ pdfId, onClose, token }) {
 
   const onPageLoadSuccess = () => {
     console.log('Page loaded successfully')
+    // Resize canvas to match page
+    setTimeout(() => {
+      const pageElement = document.querySelector('.react-pdf__Page')
+      if (pageElement && canvasRef.current) {
+        canvasRef.current.width = pageElement.offsetWidth
+        canvasRef.current.height = pageElement.offsetHeight
+      }
+    }, 100)
   }
 
   const onPageLoadError = (error) => {
     console.error('Page load error:', error)
+  }
+
+  const handleCanvasMouseDown = (e) => {
+    if (currentTool === 'eraser') return
+    setIsDrawing(true)
+    const rect = canvasRef.current.getBoundingClientRect()
+    const x = (e.clientX - rect.left) / scale
+    const y = (e.clientY - rect.top) / scale
+    setCurrentPath([{ x, y }])
+  }
+
+  const handleCanvasMouseMove = (e) => {
+    if (!isDrawing) return
+    const rect = canvasRef.current.getBoundingClientRect()
+    const x = (e.clientX - rect.left) / scale
+    const y = (e.clientY - rect.top) / scale
+    setCurrentPath(prev => [...prev, { x, y }])
+  }
+
+  const handleCanvasMouseUp = () => {
+    if (!isDrawing) return
+    setIsDrawing(false)
+    if (currentPath.length > 0) {
+      const newPath = {
+        points: currentPath,
+        color: currentColor,
+        strokeWidth: currentTool === 'highlighter' ? strokeWidth * 3 : strokeWidth,
+        tool: currentTool,
+        page: pageNumber
+      }
+      setDrawingPaths(prev => [...prev, newPath])
+      setCurrentPath([])
+    }
+  }
+
+  const handleClearCanvas = () => {
+    setDrawingPaths([])
+    setCurrentPath([])
+  }
+
+  const handleDeleteLastPath = () => {
+    setDrawingPaths(prev => prev.slice(0, -1))
   }
 
   const handleZoomIn = () => {
@@ -160,10 +213,12 @@ export default function PDFEditor({ pdfId, onClose, token }) {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ annotations })
+        body: JSON.stringify({ annotations: drawingPaths }),
       })
       if (response.ok) {
         alert('Annotations saved successfully!')
+      } else {
+        throw new Error('Failed to save annotations')
       }
     } catch (err) {
       console.error('Error saving annotations:', err)
@@ -241,6 +296,20 @@ export default function PDFEditor({ pdfId, onClose, token }) {
           </span>
         </div>
         <div className="flex items-center gap-3">
+          <button
+            onClick={handleDeleteLastPath}
+            className="p-2 text-orange-400 hover:bg-orange-500/10 rounded-lg transition-all"
+            title="Undo Last Stroke"
+          >
+            <Undo size={20} />
+          </button>
+          <button
+            onClick={handleClearCanvas}
+            className="p-2 text-red-400 hover:bg-red-500/10 rounded-lg transition-all"
+            title="Clear All Annotations"
+          >
+            <Trash2 size={20} />
+          </button>
           <button
             onClick={() => setShowSettings(true)}
             className="p-2 text-slate-400 hover:bg-white/10 rounded-lg transition-all"
@@ -386,26 +455,63 @@ export default function PDFEditor({ pdfId, onClose, token }) {
               />
             </Document>
 
-            {/* Annotation Layer */}
+            {/* Drawing Canvas Overlay */}
             <div
               ref={annotationLayerRef}
-              className="absolute inset-0 pointer-events-none"
-              style={{ transform: `scale(${scale}) rotate(${rotation}deg)` }}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                pointerEvents: currentTool === 'eraser' ? 'none' : 'auto',
+                cursor: currentTool === 'pen' || currentTool === 'highlighter' ? 'crosshair' : 'default'
+              }}
+              onMouseDown={handleCanvasMouseDown}
+              onMouseMove={handleCanvasMouseMove}
+              onMouseUp={handleCanvasMouseUp}
+              onMouseLeave={handleCanvasMouseUp}
             >
-              {annotations.map((annotation, idx) => (
-                <div
-                  key={idx}
-                  className="absolute pointer-events-auto cursor-move"
-                  style={{
-                    left: annotation.x,
-                    top: annotation.y,
-                    width: annotation.width,
-                    height: annotation.height,
-                    backgroundColor: annotation.type === 'highlighter' ? `${annotation.color}40` : 'transparent',
-                    borderBottom: annotation.type === 'pen' ? `${annotation.strokeWidth}px solid ${annotation.color}` : 'none',
-                  }}
-                />
-              ))}
+              <svg
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '100%',
+                  pointerEvents: 'none'
+                }}
+              >
+                {drawingPaths
+                  .filter(path => path.page === pageNumber)
+                  .map((path, idx) => (
+                    <path
+                      key={idx}
+                      d={path.points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')}
+                      stroke={path.color}
+                      strokeWidth={path.strokeWidth}
+                      fill="none"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      style={{
+                        opacity: path.tool === 'highlighter' ? 0.3 : 1
+                      }}
+                    />
+                  ))}
+                {currentPath.length > 0 && (
+                  <path
+                    d={currentPath.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')}
+                    stroke={currentColor}
+                    strokeWidth={currentTool === 'highlighter' ? strokeWidth * 3 : strokeWidth}
+                    fill="none"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    style={{
+                      opacity: currentTool === 'highlighter' ? 0.3 : 1
+                    }}
+                  />
+                )}
+              </svg>
             </div>
           </div>
         ) : (
