@@ -156,6 +156,15 @@ const pdfSchema = new mongoose.Schema({
     type: Array,
     default: [],
   },
+  tags: {
+    type: [String],
+    default: [],
+  },
+  pdfFolder: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'PDFFolder',
+    default: null,
+  },
   user: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
@@ -177,6 +186,33 @@ const pdfSchema = new mongoose.Schema({
 });
 
 const PDF = mongoose.model('PDF', pdfSchema);
+
+// PDF Folder Schema
+const pdfFolderSchema = new mongoose.Schema({
+  name: {
+    type: String,
+    required: true,
+  },
+  color: {
+    type: String,
+    default: '#3b82f6',
+  },
+  description: {
+    type: String,
+    default: '',
+  },
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true,
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now,
+  },
+});
+
+const PDFFolder = mongoose.model('PDFFolder', pdfFolderSchema);
 
 // Auth Middleware
 const authenticateToken = (req, res, next) => {
@@ -722,13 +758,15 @@ app.post('/api/pdfs', authenticateToken, upload.single('pdfFile'), async (req, r
       return res.status(400).json({ message: 'No file uploaded' });
     }
 
-    const { name, todoId } = req.body;
+    const { name, todoId, pdfFolderId, tags } = req.body;
     const pdf = new PDF({
       name: name || req.file.originalname,
       originalName: req.file.originalname,
       pdfData: req.file.buffer,
       user: req.user.userId,
       todo: todoId || null,
+      pdfFolder: pdfFolderId || null,
+      tags: tags ? JSON.parse(tags) : [],
     });
     await pdf.save();
     res.status(201).json(pdf);
@@ -752,6 +790,30 @@ app.put('/api/pdfs/:id/annotations', authenticateToken, async (req, res) => {
     res.json(pdf);
   } catch (error) {
     res.status(500).json({ message: 'Error updating annotations', error: error.message });
+  }
+});
+
+// Update PDF metadata (tags, folder, name)
+app.put('/api/pdfs/:id', authenticateToken, async (req, res) => {
+  try {
+    const { name, tags, pdfFolder } = req.body;
+    const updateData = {};
+    if (name !== undefined) updateData.name = name;
+    if (tags !== undefined) updateData.tags = tags;
+    if (pdfFolder !== undefined) updateData.pdfFolder = pdfFolder;
+    updateData.updatedAt = new Date();
+
+    const pdf = await PDF.findOneAndUpdate(
+      { _id: req.params.id, user: req.user.userId },
+      updateData,
+      { new: true }
+    );
+    if (!pdf) {
+      return res.status(404).json({ message: 'PDF not found' });
+    }
+    res.json(pdf);
+  } catch (error) {
+    res.status(500).json({ message: 'Error updating PDF', error: error.message });
   }
 });
 
@@ -780,6 +842,78 @@ app.delete('/api/pdfs/:id', authenticateToken, async (req, res) => {
     res.json({ message: 'PDF deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: 'Error deleting PDF', error: error.message });
+  }
+});
+
+// PDF Folder Routes
+// Get all PDF folders
+app.get('/api/pdf-folders', authenticateToken, async (req, res) => {
+  try {
+    const folders = await PDFFolder.find({ user: req.user.userId }).sort({ createdAt: 1 });
+    res.json(folders);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching PDF folders', error: error.message });
+  }
+});
+
+// Create a new PDF folder
+app.post('/api/pdf-folders', authenticateToken, async (req, res) => {
+  try {
+    const { name, color, description } = req.body;
+    if (!name) {
+      return res.status(400).json({ message: 'Name is required' });
+    }
+    const folder = new PDFFolder({
+      name,
+      color: color || '#3b82f6',
+      description: description || '',
+      user: req.user.userId,
+    });
+    await folder.save();
+    res.status(201).json(folder);
+  } catch (error) {
+    res.status(500).json({ message: 'Error creating PDF folder', error: error.message });
+  }
+});
+
+// Update a PDF folder
+app.put('/api/pdf-folders/:id', authenticateToken, async (req, res) => {
+  try {
+    const { name, color, description } = req.body;
+    const updateData = {};
+    if (name !== undefined) updateData.name = name;
+    if (color !== undefined) updateData.color = color;
+    if (description !== undefined) updateData.description = description;
+
+    const folder = await PDFFolder.findOneAndUpdate(
+      { _id: req.params.id, user: req.user.userId },
+      updateData,
+      { new: true }
+    );
+    if (!folder) {
+      return res.status(404).json({ message: 'PDF folder not found' });
+    }
+    res.json(folder);
+  } catch (error) {
+    res.status(500).json({ message: 'Error updating PDF folder', error: error.message });
+  }
+});
+
+// Delete a PDF folder
+app.delete('/api/pdf-folders/:id', authenticateToken, async (req, res) => {
+  try {
+    const folder = await PDFFolder.findOneAndDelete({ _id: req.params.id, user: req.user.userId });
+    if (!folder) {
+      return res.status(404).json({ message: 'PDF folder not found' });
+    }
+    // Move all PDFs in this folder to uncategorized
+    await PDF.updateMany(
+      { pdfFolder: req.params.id, user: req.user.userId },
+      { pdfFolder: null }
+    );
+    res.json({ message: 'PDF folder deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error deleting PDF folder', error: error.message });
   }
 });
 

@@ -47,6 +47,9 @@ function App() {
   const [showPDFUploadModal, setShowPDFUploadModal] = useState(false)
   const [selectedPDF, setSelectedPDF] = useState(null)
   const [pdfs, setPdfs] = useState([])
+  const [pdfFolders, setPdfFolders] = useState([])
+  const [selectedPDFFolder, setSelectedPDFFolder] = useState('all')
+  const [pdfSearchQuery, setPdfSearchQuery] = useState('')
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -54,6 +57,7 @@ function App() {
       fetchFolders()
       fetchCanvasStatus()
       fetchPDFs()
+      fetchPDFFolders()
     }
   }, [isAuthenticated])
 
@@ -259,6 +263,129 @@ function App() {
   const handlePDFUploadSuccess = (uploadedPDF) => {
     setPdfs([uploadedPDF, ...pdfs])
     setSelectedPDF(uploadedPDF._id)
+  }
+
+  const fetchPDFFolders = async () => {
+    try {
+      const response = await fetch('/api/pdf-folders', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        const errorMessage = errorData.message || errorData.error || 'Failed to fetch PDF folders'
+        if (errorMessage === 'Invalid or expired token') {
+          logout()
+          return
+        }
+        throw new Error(errorMessage)
+      }
+      const data = await response.json()
+      setPdfFolders(data)
+    } catch (err) {
+      if (err.message === 'Invalid or expired token') {
+        logout()
+      } else {
+        console.error('Error fetching PDF folders:', err)
+      }
+    }
+  }
+
+  const createPDFFolder = async (name, color, description) => {
+    try {
+      const response = await fetch('/api/pdf-folders', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ name, color, description })
+      })
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        const errorMessage = errorData.message || errorData.error || 'Failed to create PDF folder'
+        if (errorMessage === 'Invalid or expired token') {
+          logout()
+          return
+        }
+        throw new Error(errorMessage)
+      }
+      const newFolder = await response.json()
+      setPdfFolders([...pdfFolders, newFolder])
+      return newFolder
+    } catch (err) {
+      if (err.message === 'Invalid or expired token') {
+        logout()
+      } else {
+        setError(err.message)
+        setErrorDetails(err.stack || err.toString())
+        setShowErrorDetails(false)
+      }
+    }
+  }
+
+  const deletePDFFolder = async (folderId) => {
+    try {
+      const response = await fetch(`/api/pdf-folders/${folderId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        const errorMessage = errorData.message || errorData.error || 'Failed to delete PDF folder'
+        if (errorMessage === 'Invalid or expired token') {
+          logout()
+          return
+        }
+        throw new Error(errorMessage)
+      }
+      setPdfFolders(pdfFolders.filter(f => f._id !== folderId))
+      setPdfs(pdfs.map(p => p.pdfFolder === folderId ? { ...p, pdfFolder: null } : p))
+      if (selectedPDFFolder === folderId) setSelectedPDFFolder('all')
+    } catch (err) {
+      if (err.message === 'Invalid or expired token') {
+        logout()
+      } else {
+        setError(err.message)
+        setErrorDetails(err.stack || err.toString())
+        setShowErrorDetails(false)
+      }
+    }
+  }
+
+  const updatePDFMetadata = async (pdfId, metadata) => {
+    try {
+      const response = await fetch(`/api/pdfs/${pdfId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(metadata)
+      })
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        const errorMessage = errorData.message || errorData.error || 'Failed to update PDF'
+        if (errorMessage === 'Invalid or expired token') {
+          logout()
+          return
+        }
+        throw new Error(errorMessage)
+      }
+      const updatedPDF = await response.json()
+      setPdfs(pdfs.map(p => p._id === pdfId ? updatedPDF : p))
+    } catch (err) {
+      if (err.message === 'Invalid or expired token') {
+        logout()
+      } else {
+        setError(err.message)
+        setErrorDetails(err.stack || err.toString())
+        setShowErrorDetails(false)
+      }
+    }
   }
 
   const addTodo = async (e) => {
@@ -1292,28 +1419,198 @@ function App() {
         )}
 
         {/* PDFs Section */}
-        {pdfs.length > 0 && (
-          <div className="mb-8">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-lg font-semibold text-white">PDF Documents</h2>
-            </div>
-            <div className="flex gap-3 overflow-x-auto pb-2">
-              {pdfs.map((pdf) => (
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-semibold text-white">PDF Documents</h2>
+            <button
+              onClick={() => {
+                const name = prompt('Enter folder name:')
+                if (name) createPDFFolder(name, '#3b82f6', '')
+              }}
+              className="px-3 py-1.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded-lg transition-all flex items-center gap-2 text-sm"
+            >
+              <FolderPlus size={16} />
+              New Folder
+            </button>
+          </div>
+
+          {/* PDF Folder Navigation */}
+          <div className="flex gap-3 overflow-x-auto pb-2 mb-4">
+            <button
+              onClick={() => setSelectedPDFFolder('all')}
+              className={cn(
+                "flex-shrink-0 px-4 py-2 rounded-xl transition-all flex items-center gap-2 text-sm",
+                selectedPDFFolder === 'all'
+                  ? "bg-blue-600 text-white shadow-lg"
+                  : "bg-white/10 text-slate-400 hover:bg-white/20"
+              )}
+            >
+              <Sparkles size={16} />
+              <span className="font-medium">All PDFs</span>
+              <span className={cn(
+                "px-2 py-0.5 rounded-full text-xs",
+                selectedPDFFolder === 'all'
+                  ? "bg-white/20 text-white"
+                  : "bg-white/10 text-slate-400"
+              )}>
+                {pdfs.length}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setSelectedPDFFolder(null)}
+              className={cn(
+                "flex-shrink-0 px-4 py-2 rounded-xl transition-all flex items-center gap-2 text-sm",
+                selectedPDFFolder === null
+                  ? "bg-white/20 text-white"
+                  : "bg-white/10 text-slate-400"
+              )}
+            >
+              <Folder size={16} />
+              <span className="font-medium">Uncategorized</span>
+              <span className={cn(
+                "px-2 py-0.5 rounded-full text-xs",
+                selectedPDFFolder === null
+                  ? "bg-white/20 text-white"
+                  : "bg-white/10 text-slate-400"
+              )}>
+                {pdfs.filter(p => !p.pdfFolder).length}
+              </span>
+            </button>
+
+            {pdfFolders.map((folder) => (
+              <button
+                key={folder._id}
+                onClick={() => setSelectedPDFFolder(folder._id)}
+                className={cn(
+                  "flex-shrink-0 px-4 py-2 rounded-xl transition-all flex items-center gap-2 text-sm group",
+                  selectedPDFFolder === folder._id
+                    ? "text-white shadow-lg"
+                    : "bg-white/5 text-slate-400 hover:bg-white/10"
+                )}
+                style={{
+                  backgroundColor: selectedPDFFolder === folder._id ? folder.color : undefined,
+                  boxShadow: selectedPDFFolder === folder._id ? `0 10px 30px -10px ${folder.color}40` : undefined,
+                }}
+              >
+                <Folder size={16} />
+                <span className="font-medium">{folder.name}</span>
+                <span className={cn(
+                  "px-2 py-0.5 rounded-full text-xs",
+                  selectedPDFFolder === folder._id
+                    ? "bg-white/20 text-white"
+                    : "bg-white/10 text-slate-400"
+                )}>
+                  {pdfs.filter(p => p.pdfFolder === folder._id).length}
+                </span>
                 <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    if (confirm(`Delete folder "${folder.name}"? PDFs will be moved to Uncategorized.`)) {
+                      deletePDFFolder(folder._id)
+                    }
+                  }}
+                  className="opacity-0 group-hover:opacity-100 p-1 hover:bg-white/20 rounded transition-all"
+                >
+                  <X size={12} />
+                </button>
+              </button>
+            ))}
+          </div>
+
+          {/* Search Bar */}
+          <div className="mb-4">
+            <input
+              type="text"
+              value={pdfSearchQuery}
+              onChange={(e) => setPdfSearchQuery(e.target.value)}
+              placeholder="Search PDFs by name or tags..."
+              className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            />
+          </div>
+
+          {/* PDF Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {pdfs
+              .filter(pdf => {
+                const matchesFolder = selectedPDFFolder === 'all' 
+                  ? true 
+                  : selectedPDFFolder === null 
+                    ? !pdf.pdfFolder 
+                    : pdf.pdfFolder === selectedPDFFolder
+                const matchesSearch = pdfSearchQuery === '' || 
+                  pdf.name.toLowerCase().includes(pdfSearchQuery.toLowerCase()) ||
+                  pdf.tags?.some(tag => tag.toLowerCase().includes(pdfSearchQuery.toLowerCase()))
+                return matchesFolder && matchesSearch
+              })
+              .map((pdf) => (
+                <div
                   key={pdf._id}
                   onClick={() => setSelectedPDF(pdf._id)}
-                  className="flex-shrink-0 px-4 py-3 bg-blue-500/10 border border-blue-500/20 hover:bg-blue-500/20 rounded-xl transition-all flex items-center gap-2 group"
+                  className="bg-slate-800/50 border border-white/10 hover:border-blue-500/50 rounded-xl p-4 cursor-pointer transition-all hover:scale-105 group"
                 >
-                  <FileText size={20} className="text-blue-400" />
-                  <div className="text-left">
-                    <p className="text-white text-sm font-medium truncate max-w-[150px]">{pdf.name}</p>
-                    <p className="text-slate-400 text-xs">{new Date(pdf.createdAt).toLocaleDateString()}</p>
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <FileText size={20} className="text-blue-400" />
+                      <p className="text-white font-medium truncate">{pdf.name}</p>
+                    </div>
+                    <span className="text-slate-400 text-xs">
+                      {new Date(pdf.createdAt).toLocaleDateString()}
+                    </span>
                   </div>
-                </button>
+                  
+                  {pdf.tags && pdf.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {pdf.tags.slice(0, 3).map((tag, idx) => (
+                        <span
+                          key={idx}
+                          className="px-2 py-0.5 bg-blue-500/20 text-blue-300 rounded-full text-xs"
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                      {pdf.tags.length > 3 && (
+                        <span className="px-2 py-0.5 bg-slate-500/20 text-slate-300 rounded-full text-xs">
+                          +{pdf.tags.length - 3}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {pdf.pdfFolder && (
+                    <div className="mt-2">
+                      <span
+                        className="px-2 py-0.5 rounded-full text-xs"
+                        style={{
+                          backgroundColor: pdfFolders.find(f => f._id === pdf.pdfFolder)?.color + '40',
+                          color: pdfFolders.find(f => f._id === pdf.pdfFolder)?.color
+                        }}
+                      >
+                        {pdfFolders.find(f => f._id === pdf.pdfFolder)?.name}
+                      </span>
+                    </div>
+                  )}
+                </div>
               ))}
-            </div>
           </div>
-        )}
+
+          {pdfs.filter(pdf => {
+            const matchesFolder = selectedPDFFolder === 'all' 
+              ? true 
+              : selectedPDFFolder === null 
+                ? !pdf.pdfFolder 
+                : pdf.pdfFolder === selectedPDFFolder
+            const matchesSearch = pdfSearchQuery === '' || 
+              pdf.name.toLowerCase().includes(pdfSearchQuery.toLowerCase()) ||
+              pdf.tags?.some(tag => tag.toLowerCase().includes(pdfSearchQuery.toLowerCase()))
+            return matchesFolder && matchesSearch
+          }).length === 0 && (
+            <div className="text-center py-8 text-slate-400">
+              <FileText size={48} className="mx-auto mb-2 opacity-50" />
+              <p>No PDFs found</p>
+            </div>
+          )}
+        </div>
 
         {/* Folders Section */}
         <div className="mb-8">
@@ -2094,6 +2391,7 @@ function App() {
             onClose={() => setShowPDFUploadModal(false)}
             token={token}
             onUploadSuccess={handlePDFUploadSuccess}
+            pdfFolders={pdfFolders}
           />
         )}
 

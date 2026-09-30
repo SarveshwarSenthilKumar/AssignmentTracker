@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { Document, Page, pdfjs } from 'react-pdf'
-import { X, Save, Download, Upload, Trash2, Pen, Highlighter, Eraser, ZoomIn, ZoomOut, RotateCw } from 'lucide-react'
+import { X, Save, Download, Upload, Trash2, Pen, Highlighter, Eraser, ZoomIn, ZoomOut, RotateCw, Settings, Tag, Folder, Check, Loader2 } from 'lucide-react'
 import { cn } from '../lib/utils'
 
 // Set up PDF.js worker
@@ -18,12 +18,19 @@ export default function PDFEditor({ pdfId, onClose, token }) {
   const [currentColor, setCurrentColor] = useState('#ef4444')
   const [strokeWidth, setStrokeWidth] = useState(2)
   const [loading, setLoading] = useState(true)
+  const [showSettings, setShowSettings] = useState(false)
+  const [editTags, setEditTags] = useState('')
+  const [editFolder, setEditFolder] = useState('')
+  const [editName, setEditName] = useState('')
+  const [pdfFolders, setPdfFolders] = useState([])
+  const [savingMetadata, setSavingMetadata] = useState(false)
   const canvasRef = useRef(null)
   const annotationLayerRef = useRef(null)
 
   useEffect(() => {
     if (pdfId) {
       fetchPDF()
+      fetchPDFFolders()
     }
   }, [pdfId])
 
@@ -38,11 +45,57 @@ export default function PDFEditor({ pdfId, onClose, token }) {
         const data = await response.json()
         setPdfData(data)
         setAnnotations(data.annotations || [])
+        setEditName(data.name || '')
+        setEditTags(data.tags?.join(', ') || '')
+        setEditFolder(data.pdfFolder || '')
       }
     } catch (err) {
       console.error('Error fetching PDF:', err)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchPDFFolders = async () => {
+    try {
+      const response = await fetch('/api/pdf-folders', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      if (response.ok) {
+        const data = await response.json()
+        setPdfFolders(data)
+      }
+    } catch (err) {
+      console.error('Error fetching PDF folders:', err)
+    }
+  }
+
+  const handleSaveMetadata = async () => {
+    setSavingMetadata(true)
+    try {
+      const response = await fetch(`/api/pdfs/${pdfId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          name: editName,
+          tags: editTags.split(',').map(t => t.trim()).filter(t => t),
+          pdfFolder: editFolder
+        })
+      })
+      if (response.ok) {
+        const data = await response.json()
+        setPdfData(data)
+        setShowSettings(false)
+      }
+    } catch (err) {
+      console.error('Error saving metadata:', err)
+    } finally {
+      setSavingMetadata(false)
     }
   }
 
@@ -150,7 +203,14 @@ export default function PDFEditor({ pdfId, onClose, token }) {
             Page {pageNumber} of {numPages}
           </span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowSettings(true)}
+            className="p-2 text-slate-400 hover:bg-white/10 rounded-lg transition-all"
+            title="PDF Settings"
+          >
+            <Settings size={20} />
+          </button>
           <button
             onClick={handleSave}
             className="p-2 text-green-400 hover:bg-green-500/10 rounded-lg transition-all"
@@ -327,6 +387,108 @@ export default function PDFEditor({ pdfId, onClose, token }) {
           Next
         </button>
       </div>
+
+      {/* Settings Modal */}
+      {showSettings && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-900 border border-white/10 rounded-2xl p-6 w-full max-w-md">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-bold text-white">PDF Settings</h3>
+              <button
+                onClick={() => setShowSettings(false)}
+                className="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition-all"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* PDF Name */}
+              <div>
+                <label className="block text-slate-400 text-sm mb-2">PDF Name</label>
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* Folder Selection */}
+              <div>
+                <label className="block text-slate-400 text-sm mb-2">Folder</label>
+                <div className="relative">
+                  <select
+                    value={editFolder}
+                    onChange={(e) => setEditFolder(e.target.value)}
+                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none"
+                  >
+                    <option value="">Uncategorized</option>
+                    {pdfFolders.map((folder) => (
+                      <option key={folder._id} value={folder._id}>{folder.name}</option>
+                    ))}
+                  </select>
+                  <Folder size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                </div>
+              </div>
+
+              {/* Tags */}
+              <div>
+                <label className="block text-slate-400 text-sm mb-2">Tags (comma-separated)</label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={editTags}
+                    onChange={(e) => setEditTags(e.target.value)}
+                    placeholder="homework, important, chapter1"
+                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 pl-10"
+                  />
+                  <Tag size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                </div>
+                {pdfData?.tags && pdfData.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {pdfData.tags.map((tag, idx) => (
+                      <span
+                        key={idx}
+                        className="px-2 py-0.5 bg-blue-500/20 text-blue-300 rounded-full text-xs"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Buttons */}
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => setShowSettings(false)}
+                  className="flex-1 px-4 py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveMetadata}
+                  disabled={savingMetadata}
+                  className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 text-white rounded-xl transition-all flex items-center justify-center gap-2"
+                >
+                  {savingMetadata ? (
+                    <>
+                      <Loader2 className="animate-spin" size={18} />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Check size={18} />
+                      Save Changes
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -1,11 +1,12 @@
-import { useState } from 'react'
-import { X, Upload, FileText, Loader2 } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { X, Upload, FileText, Loader2, Tag, Folder } from 'lucide-react'
 import { cn } from '../lib/utils'
 
-export default function PDFUploadModal({ onClose, token, onUploadSuccess }) {
+export default function PDFUploadModal({ onClose, token, onUploadSuccess, pdfFolders }) {
   const [pdfFile, setPdfFile] = useState(null)
   const [pdfName, setPdfName] = useState('')
-  const [selectedTodo, setSelectedTodo] = useState('')
+  const [selectedFolder, setSelectedFolder] = useState('')
+  const [tags, setTags] = useState('')
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
 
@@ -34,8 +35,11 @@ export default function PDFUploadModal({ onClose, token, onUploadSuccess }) {
       const formData = new FormData()
       formData.append('pdfFile', pdfFile)
       formData.append('name', pdfName)
-      if (selectedTodo) {
-        formData.append('todoId', selectedTodo)
+      if (selectedFolder) {
+        formData.append('pdfFolderId', selectedFolder)
+      }
+      if (tags) {
+        formData.append('tags', JSON.stringify(tags.split(',').map(t => t.trim()).filter(t => t)))
       }
 
       const response = await fetch('/api/pdfs', {
@@ -56,7 +60,8 @@ export default function PDFUploadModal({ onClose, token, onUploadSuccess }) {
       onClose()
       setPdfFile(null)
       setPdfName('')
-      setSelectedTodo('')
+      setSelectedFolder('')
+      setTags('')
     } catch (err) {
       setError(err.message)
     } finally {
@@ -93,12 +98,12 @@ export default function PDFUploadModal({ onClose, token, onUploadSuccess }) {
                 htmlFor="pdf-upload"
                 className={cn(
                   "flex items-center justify-center gap-3 px-4 py-8 border-2 border-dashed rounded-xl cursor-pointer transition-all",
-                  pdfFile ? "border-primary-500 bg-primary-500/10" : "border-slate-600 hover:border-slate-500 hover:bg-slate-800"
+                  pdfFile ? "border-blue-500 bg-blue-500/10" : "border-slate-600 hover:border-slate-500 hover:bg-slate-800"
                 )}
               >
                 {pdfFile ? (
                   <>
-                    <FileText size={32} className="text-primary-400" />
+                    <FileText size={32} className="text-blue-400" />
                     <div className="text-left">
                       <p className="text-white font-medium">{pdfFile.name}</p>
                       <p className="text-slate-400 text-sm">{(pdfFile.size / 1024 / 1024).toFixed(2)} MB</p>
@@ -125,9 +130,42 @@ export default function PDFUploadModal({ onClose, token, onUploadSuccess }) {
               value={pdfName}
               onChange={(e) => setPdfName(e.target.value)}
               placeholder="My Document"
-              className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
+              className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
               required
             />
+          </div>
+
+          {/* Folder Selection */}
+          <div>
+            <label className="block text-slate-400 text-sm mb-2">Folder (Optional)</label>
+            <div className="relative">
+              <select
+                value={selectedFolder}
+                onChange={(e) => setSelectedFolder(e.target.value)}
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none"
+              >
+                <option value="">Uncategorized</option>
+                {pdfFolders.map((folder) => (
+                  <option key={folder._id} value={folder._id}>{folder.name}</option>
+                ))}
+              </select>
+              <Folder size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            </div>
+          </div>
+
+          {/* Tags */}
+          <div>
+            <label className="block text-slate-400 text-sm mb-2">Tags (comma-separated)</label>
+            <div className="relative">
+              <input
+                type="text"
+                value={tags}
+                onChange={(e) => setTags(e.target.value)}
+                placeholder="homework, important, chapter1"
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 pl-10"
+              />
+              <Tag size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+            </div>
           </div>
 
           {/* Error */}
@@ -149,7 +187,7 @@ export default function PDFUploadModal({ onClose, token, onUploadSuccess }) {
             <button
               type="submit"
               disabled={uploading || !pdfFile}
-              className="flex-1 px-4 py-3 bg-primary-600 hover:bg-primary-700 disabled:bg-primary-800 text-white rounded-xl transition-all flex items-center justify-center gap-2"
+              className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 text-white rounded-xl transition-all flex items-center justify-center gap-2"
             >
               {uploading ? (
                 <>
