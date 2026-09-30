@@ -745,7 +745,12 @@ app.get('/api/pdfs/:id', authenticateToken, async (req, res) => {
     if (!pdf) {
       return res.status(404).json({ message: 'PDF not found' });
     }
-    res.json(pdf);
+    // Convert PDF buffer to base64 for JSON transmission
+    const pdfResponse = {
+      ...pdf.toObject(),
+      pdfData: pdf.pdfData.toString('base64')
+    };
+    res.json(pdfResponse);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching PDF', error: error.message });
   }

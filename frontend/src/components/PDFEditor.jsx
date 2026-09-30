@@ -8,6 +8,7 @@ pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/$
 
 export default function PDFEditor({ pdfId, onClose, token }) {
   const [pdfData, setPdfData] = useState(null)
+  const [pdfFile, setPdfFile] = useState(null)
   const [numPages, setNumPages] = useState(null)
   const [pageNumber, setPageNumber] = useState(1)
   const [scale, setScale] = useState(1.0)
@@ -24,6 +25,7 @@ export default function PDFEditor({ pdfId, onClose, token }) {
   const [editName, setEditName] = useState('')
   const [pdfFolders, setPdfFolders] = useState([])
   const [savingMetadata, setSavingMetadata] = useState(false)
+  const [pdfError, setPdfError] = useState(null)
   const canvasRef = useRef(null)
   const annotationLayerRef = useRef(null)
 
@@ -43,14 +45,35 @@ export default function PDFEditor({ pdfId, onClose, token }) {
       })
       if (response.ok) {
         const data = await response.json()
+        console.log('PDF data received:', { hasData: !!data.pdfData, dataLength: data.pdfData?.length })
         setPdfData(data)
+        
+        // Convert base64 to blob for react-pdf
+        if (data.pdfData) {
+          const byteCharacters = atob(data.pdfData)
+          const byteNumbers = new Array(byteCharacters.length)
+          for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i)
+          }
+          const byteArray = new Uint8Array(byteNumbers)
+          const blob = new Blob([byteArray], { type: 'application/pdf' })
+          const file = new File([blob], data.name || 'document.pdf', { type: 'application/pdf' })
+          setPdfFile(file)
+        }
+        
         setAnnotations(data.annotations || [])
         setEditName(data.name || '')
         setEditTags(data.tags?.join(', ') || '')
         setEditFolder(data.pdfFolder || '')
+        setPdfError(null)
+      } else {
+        const errorData = await response.json().catch(() => ({}))
+        setPdfError(errorData.message || 'Failed to fetch PDF')
+        console.error('PDF fetch error:', errorData)
       }
     } catch (err) {
       console.error('Error fetching PDF:', err)
+      setPdfError(err.message)
     } finally {
       setLoading(false)
     }
@@ -100,7 +123,13 @@ export default function PDFEditor({ pdfId, onClose, token }) {
   }
 
   const onDocumentLoadSuccess = ({ numPages }) => {
+    console.log('PDF loaded successfully, pages:', numPages)
     setNumPages(numPages)
+  }
+
+  const onDocumentLoadError = (error) => {
+    console.error('PDF load error:', error)
+    setPdfError(`Failed to load PDF: ${error.message}`)
   }
 
   const handleZoomIn = () => {
@@ -321,13 +350,18 @@ export default function PDFEditor({ pdfId, onClose, token }) {
 
       {/* PDF Viewer */}
       <div className="flex-1 overflow-auto bg-slate-950 p-8 flex items-start justify-center">
-        {pdfData?.pdfData ? (
+        {pdfError ? (
+          <div className="text-center py-12">
+            <div className="text-6xl mb-4">❌</div>
+            <p className="text-red-400 text-lg">{pdfError}</p>
+            <p className="text-slate-400 text-sm mt-2">Please check the console for more details</p>
+          </div>
+        ) : pdfFile ? (
           <div className="relative">
             <Document
-              file={`data:application/pdf;base64,${btoa(
-                new Uint8Array(pdfData.pdfData).reduce((data, byte) => data + String.fromCharCode(byte), '')
-              )}`}
+              file={pdfFile}
               onLoadSuccess={onDocumentLoadSuccess}
+              onLoadError={onDocumentLoadError}
               className="shadow-2xl"
             >
               <Page
