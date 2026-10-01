@@ -1483,7 +1483,7 @@ function App() {
                 key={folder._id}
                 onClick={() => setSelectedPDFFolder(folder._id)}
                 className={cn(
-                  "flex-shrink-0 px-4 py-2 rounded-xl transition-all flex items-center gap-2 text-sm group",
+                  "flex-shrink-0 px-4 py-2 rounded-xl transition-all flex items-center gap-2 text-sm group max-w-[200px]",
                   selectedPDFFolder === folder._id
                     ? "text-white shadow-lg"
                     : "bg-white/5 text-slate-400 hover:bg-white/10"
@@ -1494,9 +1494,9 @@ function App() {
                 }}
               >
                 <Folder size={16} />
-                <span className="font-medium">{folder.name}</span>
+                <span className="font-medium truncate">{folder.name}</span>
                 <span className={cn(
-                  "px-2 py-0.5 rounded-full text-xs",
+                  "px-2 py-0.5 rounded-full text-xs flex-shrink-0",
                   selectedPDFFolder === folder._id
                     ? "bg-white/20 text-white"
                     : "bg-white/10 text-slate-400"
