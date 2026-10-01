@@ -1550,11 +1550,11 @@ function App() {
                   className="bg-slate-800/50 border border-white/10 hover:border-blue-500/50 rounded-xl p-4 cursor-pointer transition-all hover:scale-105 group"
                 >
                   <div className="flex items-start justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <FileText size={20} className="text-blue-400" />
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <FileText size={20} className="text-blue-400 flex-shrink-0" />
                       <p className="text-white font-medium truncate">{pdf.name}</p>
                     </div>
-                    <span className="text-slate-400 text-xs">
+                    <span className="text-slate-400 text-xs flex-shrink-0">
                       {new Date(pdf.createdAt).toLocaleDateString()}
                     </span>
                   </div>
