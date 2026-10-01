@@ -33,6 +33,7 @@ export default function PDFEditor({ pdfId, onClose, token }) {
   const [currentPath, setCurrentPath] = useState([])
   const [pageDimensions, setPageDimensions] = useState({ width: 0, height: 0 })
   const [autoSaving, setAutoSaving] = useState(false)
+  const [usePressure, setUsePressure] = useState(true)
   const canvasRef = useRef(null)
   const annotationLayerRef = useRef(null)
 
@@ -202,7 +203,8 @@ export default function PDFEditor({ pdfId, onClose, token }) {
     const rect = annotationLayerRef.current.getBoundingClientRect()
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
-    setCurrentPath([{ x, y }])
+    const pressure = e.pressure || 0.5
+    setCurrentPath([{ x, y, pressure }])
   }
 
   const handleCanvasMouseMove = (e) => {
@@ -210,7 +212,8 @@ export default function PDFEditor({ pdfId, onClose, token }) {
     const rect = annotationLayerRef.current.getBoundingClientRect()
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
-    setCurrentPath(prev => [...prev, { x, y }])
+    const pressure = e.pressure || 0.5
+    setCurrentPath(prev => [...prev, { x, y, pressure }])
   }
 
   const handleCanvasMouseUp = () => {
@@ -445,6 +448,16 @@ export default function PDFEditor({ pdfId, onClose, token }) {
             <Trash2 size={20} />
           </button>
           <button
+            onClick={() => setUsePressure(!usePressure)}
+            className={cn(
+              "p-2 rounded-lg transition-all",
+              usePressure ? "text-green-400 bg-green-500/10" : "text-slate-400 hover:bg-white/10"
+            )}
+            title="Toggle Pressure Sensitivity"
+          >
+            <Pen size={20} />
+          </button>
+          <button
             onClick={() => setShowSettings(true)}
             className="p-2 text-slate-400 hover:bg-white/10 rounded-lg transition-all"
             title="PDF Settings"
@@ -600,12 +613,13 @@ export default function PDFEditor({ pdfId, onClose, token }) {
                 height: '100%',
                 pointerEvents: currentTool === 'eraser' ? 'none' : 'auto',
                 cursor: currentTool === 'pen' || currentTool === 'highlighter' ? 'crosshair' : 'default',
-                zIndex: 10
+                zIndex: 10,
+                touchAction: 'none'
               }}
-              onMouseDown={handleCanvasMouseDown}
-              onMouseMove={handleCanvasMouseMove}
-              onMouseUp={handleCanvasMouseUp}
-              onMouseLeave={handleCanvasMouseUp}
+              onPointerDown={handleCanvasMouseDown}
+              onPointerMove={handleCanvasMouseMove}
+              onPointerUp={handleCanvasMouseUp}
+              onPointerLeave={handleCanvasMouseUp}
             >
               <svg
                 style={{
@@ -619,32 +633,63 @@ export default function PDFEditor({ pdfId, onClose, token }) {
               >
                 {drawingPaths
                   .filter(path => path.page === pageNumber)
-                  .map((path, idx) => (
-                    <path
-                      key={idx}
-                      d={path.points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')}
-                      stroke={path.color}
-                      strokeWidth={path.strokeWidth}
-                      fill="none"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      style={{
-                        opacity: path.tool === 'highlighter' ? 0.3 : 1
-                      }}
-                    />
+                  .map((path, pathIdx) => (
+                    <g key={pathIdx}>
+                      {path.points.map((p, i) => {
+                        if (i === 0) return null
+                        const prev = path.points[i - 1]
+                        const pointPressure = p.pressure || 0.5
+                        const prevPressure = prev.pressure || 0.5
+                        const avgPressure = (pointPressure + prevPressure) / 2
+                        const dynamicStrokeWidth = usePressure 
+                          ? (path.strokeWidth * avgPressure)
+                          : path.strokeWidth
+                        return (
+                          <line
+                            key={`${pathIdx}-${i}`}
+                            x1={prev.x}
+                            y1={prev.y}
+                            x2={p.x}
+                            y2={p.y}
+                            stroke={path.color}
+                            strokeWidth={dynamicStrokeWidth}
+                            strokeLinecap="round"
+                            style={{
+                              opacity: path.tool === 'highlighter' ? 0.3 : 1
+                            }}
+                          />
+                        )
+                      })}
+                    </g>
                   ))}
                 {currentPath.length > 0 && (
-                  <path
-                    d={currentPath.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')}
-                    stroke={currentColor}
-                    strokeWidth={currentTool === 'highlighter' ? strokeWidth * 3 : strokeWidth}
-                    fill="none"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    style={{
-                      opacity: currentTool === 'highlighter' ? 0.3 : 1
-                    }}
-                  />
+                  <g>
+                    {currentPath.map((p, i) => {
+                      if (i === 0) return null
+                      const prev = currentPath[i - 1]
+                      const pointPressure = p.pressure || 0.5
+                      const prevPressure = prev.pressure || 0.5
+                      const avgPressure = (pointPressure + prevPressure) / 2
+                      const dynamicStrokeWidth = usePressure 
+                        ? ((currentTool === 'highlighter' ? strokeWidth * 3 : strokeWidth) * avgPressure)
+                        : (currentTool === 'highlighter' ? strokeWidth * 3 : strokeWidth)
+                      return (
+                        <line
+                          key={`current-${i}`}
+                          x1={prev.x}
+                          y1={prev.y}
+                          x2={p.x}
+                          y2={p.y}
+                          stroke={currentColor}
+                          strokeWidth={dynamicStrokeWidth}
+                          strokeLinecap="round"
+                          style={{
+                            opacity: currentTool === 'highlighter' ? 0.3 : 1
+                          }}
+                        />
+                      )
+                    })}
+                  </g>
                 )}
               </svg>
             </div>
