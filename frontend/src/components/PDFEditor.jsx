@@ -32,6 +32,7 @@ export default function PDFEditor({ pdfId, onClose, token }) {
   const [drawingPaths, setDrawingPaths] = useState([])
   const [currentPath, setCurrentPath] = useState([])
   const [pageDimensions, setPageDimensions] = useState({ width: 0, height: 0 })
+  const [autoSaving, setAutoSaving] = useState(false)
   const canvasRef = useRef(null)
   const annotationLayerRef = useRef(null)
 
@@ -41,6 +42,34 @@ export default function PDFEditor({ pdfId, onClose, token }) {
       fetchPDFFolders()
     }
   }, [pdfId])
+
+  // Autosave annotations whenever drawingPaths changes
+  useEffect(() => {
+    const autoSaveTimer = setTimeout(async () => {
+      if (drawingPaths.length > 0 && !autoSaving) {
+        setAutoSaving(true)
+        try {
+          const response = await fetch(`/api/pdfs/${pdfId}/annotations`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ annotations: drawingPaths }),
+          })
+          if (response.ok) {
+            console.log('Annotations auto-saved')
+          }
+        } catch (err) {
+          console.error('Error auto-saving annotations:', err)
+        } finally {
+          setAutoSaving(false)
+        }
+      }
+    }, 1000) // Wait 1 second after last change before saving
+
+    return () => clearTimeout(autoSaveTimer)
+  }, [drawingPaths, pdfId, token, autoSaving])
 
   const fetchPDF = async () => {
     try {
@@ -390,6 +419,12 @@ export default function PDFEditor({ pdfId, onClose, token }) {
           <span className="text-slate-400 text-sm">
             Page {pageNumber} of {numPages}
           </span>
+          {autoSaving && (
+            <div className="flex items-center gap-2 text-green-400 text-sm">
+              <Loader2 className="animate-spin" size={14} />
+              <span>Auto-saving...</span>
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-3">
           <button
