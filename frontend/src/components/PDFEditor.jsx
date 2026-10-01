@@ -46,7 +46,7 @@ export default function PDFEditor({ pdfId, onClose, token }) {
   // Autosave annotations whenever drawingPaths changes
   useEffect(() => {
     const autoSaveTimer = setTimeout(async () => {
-      if (drawingPaths.length > 0 && !autoSaving) {
+      if (drawingPaths.length > 0) {
         setAutoSaving(true)
         try {
           const response = await fetch(`/api/pdfs/${pdfId}/annotations`, {
@@ -68,8 +68,11 @@ export default function PDFEditor({ pdfId, onClose, token }) {
       }
     }, 1000) // Wait 1 second after last change before saving
 
-    return () => clearTimeout(autoSaveTimer)
-  }, [drawingPaths, pdfId, token, autoSaving])
+    return () => {
+      clearTimeout(autoSaveTimer)
+      setAutoSaving(false)
+    }
+  }, [drawingPaths, pdfId, token])
 
   const fetchPDF = async () => {
     try {
