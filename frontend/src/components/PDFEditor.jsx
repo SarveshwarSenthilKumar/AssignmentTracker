@@ -3,6 +3,7 @@ import { Document, Page, pdfjs } from 'react-pdf'
 import 'react-pdf/dist/Page/AnnotationLayer.css'
 import 'react-pdf/dist/Page/TextLayer.css'
 import { X, Save, Download, Upload, Trash2, Pen, Highlighter, Eraser, ZoomIn, ZoomOut, RotateCw, Settings, Tag, Folder, Check, Loader2, Undo } from 'lucide-react'
+import { PDFDocument, rgb } from 'pdf-lib'
 import { cn } from '../lib/utils'
 
 // Set up PDF.js worker for react-pdf v7
@@ -43,27 +44,40 @@ export default function PDFEditor({ pdfId, onClose, token }) {
 
   const fetchPDF = async () => {
     try {
+      console.log('Fetching PDF with ID:', pdfId)
       const response = await fetch(`/api/pdfs/${pdfId}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       })
+      console.log('Response status:', response.status)
+      
       if (response.ok) {
         const data = await response.json()
-        console.log('PDF data received:', { hasData: !!data.pdfData, dataLength: data.pdfData?.length })
+        console.log('PDF data received:', { 
+          hasData: !!data.pdfData, 
+          dataLength: data.pdfData?.length,
+          name: data.name 
+        })
         setPdfData(data)
         
         // Convert base64 to blob for react-pdf
         if (data.pdfData) {
-          const byteCharacters = atob(data.pdfData)
-          const byteNumbers = new Array(byteCharacters.length)
-          for (let i = 0; i < byteCharacters.length; i++) {
-            byteNumbers[i] = byteCharacters.charCodeAt(i)
+          try {
+            const byteCharacters = atob(data.pdfData)
+            const byteNumbers = new Array(byteCharacters.length)
+            for (let i = 0; i < byteCharacters.length; i++) {
+              byteNumbers[i] = byteCharacters.charCodeAt(i)
+            }
+            const byteArray = new Uint8Array(byteNumbers)
+            const blob = new Blob([byteArray], { type: 'application/pdf' })
+            const file = new File([blob], data.name || 'document.pdf', { type: 'application/pdf' })
+            setPdfFile(file)
+            console.log('PDF file created successfully')
+          } catch (err) {
+            console.error('Error converting base64 to file:', err)
+            setPdfError('Failed to process PDF data')
           }
-          const byteArray = new Uint8Array(byteNumbers)
-          const blob = new Blob([byteArray], { type: 'application/pdf' })
-          const file = new File([blob], data.name || 'document.pdf', { type: 'application/pdf' })
-          setPdfFile(file)
         }
         
         setAnnotations(data.annotations || [])
@@ -79,7 +93,7 @@ export default function PDFEditor({ pdfId, onClose, token }) {
       }
     } catch (err) {
       console.error('Error fetching PDF:', err)
-      setPdfError(err.message)
+      setPdfError(err.message || 'Failed to fetch PDF')
     } finally {
       setLoading(false)
     }
@@ -227,25 +241,95 @@ export default function PDFEditor({ pdfId, onClose, token }) {
 
   const handleDownload = async () => {
     try {
+      // Fetch the original PDF
       const response = await fetch(`/api/pdfs/${pdfId}/download`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       })
-      if (response.ok) {
-        const blob = await response.blob()
-        const url = window.URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = pdfData?.originalName || 'document.pdf'
-        document.body.appendChild(a)
-        a.click()
-        window.URL.revokeObjectURL(url)
-        document.body.removeChild(a)
+      if (!response.ok) {
+        throw new Error('Failed to fetch PDF')
       }
+      
+      const pdfBytes = await response.arrayBuffer()
+      const pdfDoc = await PDFDocument.load(pdfBytes)
+      
+      // Add annotations to the PDF
+      if (drawingPaths.length > 0) {
+        const pages = pdfDoc.getPages()
+        
+        // Group annotations by page
+        const annotationsByPage = {}
+        drawingPaths.forEach(path => {
+          if (!annotationsByPage[path.page]) {
+            annotationsByPage[path.page] = []
+          }
+          annotationsByPage[path.page].push(path)
+        })
+        
+        // Draw annotations on each page
+        for (const [pageNum, paths] of Object.entries(annotationsByPage)) {
+          const pageIndex = parseInt(pageNum) - 1
+          if (pageIndex >= 0 && pageIndex < pages.length) {
+            const page = pages[pageIndex]
+            const { width, height } = page.getSize()
+            
+            // Convert hex color to rgb
+            const hexToRgb = (hex) => {
+              const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
+              return result ? {
+                r: parseInt(result[1], 16) / 255,
+                g: parseInt(result[2], 16) / 255,
+                b: parseInt(result[3], 16) / 255
+              } : { r: 0, g: 0, b: 0 }
+            }
+            
+            // Draw each path
+            for (const path of paths) {
+              if (path.points.length < 2) continue
+              
+              const color = hexToRgb(path.color)
+              const strokeWidth = path.strokeWidth
+              
+              // Create SVG path string
+              const pathData = path.points.map((p, i) => 
+                `${i === 0 ? 'M' : 'L'} ${p.x} ${height - p.y}`
+              ).join(' ')
+              
+              // Draw the path using pdf-lib's drawing capabilities
+              // Note: pdf-lib doesn't have direct SVG path drawing, so we'll use line segments
+              for (let i = 0; i < path.points.length - 1; i++) {
+                const start = path.points[i]
+                const end = path.points[i + 1]
+                
+                page.drawLine({
+                  start: { x: start.x, y: height - start.y },
+                  end: { x: end.x, y: height - end.y },
+                  thickness: strokeWidth,
+                  color: rgb(color.r, color.g, color.b),
+                  opacity: path.tool === 'highlighter' ? 0.3 : 1,
+                })
+              }
+            }
+          }
+        }
+      }
+      
+      // Save the modified PDF
+      const pdfBytesModified = await pdfDoc.save()
+      const blob = new Blob([pdfBytesModified], { type: 'application/pdf' })
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = pdfData?.originalName || 'document.pdf'
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+      
     } catch (err) {
       console.error('Error downloading PDF:', err)
-      alert('Failed to download PDF')
+      alert('Failed to download PDF: ' + err.message)
     }
   }
 
