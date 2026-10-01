@@ -252,72 +252,84 @@ export default function PDFEditor({ pdfId, onClose, token }) {
       }
       
       const pdfBytes = await response.arrayBuffer()
-      const pdfDoc = await PDFDocument.load(pdfBytes)
       
-      // Add annotations to the PDF
+      // If there are annotations, try to burn them in
       if (drawingPaths.length > 0) {
-        const pages = pdfDoc.getPages()
-        
-        // Group annotations by page
-        const annotationsByPage = {}
-        drawingPaths.forEach(path => {
-          if (!annotationsByPage[path.page]) {
-            annotationsByPage[path.page] = []
-          }
-          annotationsByPage[path.page].push(path)
-        })
-        
-        // Draw annotations on each page
-        for (const [pageNum, paths] of Object.entries(annotationsByPage)) {
-          const pageIndex = parseInt(pageNum) - 1
-          if (pageIndex >= 0 && pageIndex < pages.length) {
-            const page = pages[pageIndex]
-            const { width, height } = page.getSize()
-            
-            // Convert hex color to rgb
-            const hexToRgb = (hex) => {
-              const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
-              return result ? {
-                r: parseInt(result[1], 16) / 255,
-                g: parseInt(result[2], 16) / 255,
-                b: parseInt(result[3], 16) / 255
-              } : { r: 0, g: 0, b: 0 }
+        try {
+          const pdfDoc = await PDFDocument.load(pdfBytes)
+          const pages = pdfDoc.getPages()
+          
+          // Group annotations by page
+          const annotationsByPage = {}
+          drawingPaths.forEach(path => {
+            if (!annotationsByPage[path.page]) {
+              annotationsByPage[path.page] = []
             }
-            
-            // Draw each path
-            for (const path of paths) {
-              if (path.points.length < 2) continue
+            annotationsByPage[path.page].push(path)
+          })
+          
+          // Draw annotations on each page
+          for (const [pageNum, paths] of Object.entries(annotationsByPage)) {
+            const pageIndex = parseInt(pageNum) - 1
+            if (pageIndex >= 0 && pageIndex < pages.length) {
+              const page = pages[pageIndex]
+              const { width, height } = page.getSize()
               
-              const color = hexToRgb(path.color)
-              const strokeWidth = path.strokeWidth
+              // Convert hex color to rgb
+              const hexToRgb = (hex) => {
+                const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
+                return result ? {
+                  r: parseInt(result[1], 16) / 255,
+                  g: parseInt(result[2], 16) / 255,
+                  b: parseInt(result[3], 16) / 255
+                } : { r: 0, g: 0, b: 0 }
+              }
               
-              // Create SVG path string
-              const pathData = path.points.map((p, i) => 
-                `${i === 0 ? 'M' : 'L'} ${p.x} ${height - p.y}`
-              ).join(' ')
-              
-              // Draw the path using pdf-lib's drawing capabilities
-              // Note: pdf-lib doesn't have direct SVG path drawing, so we'll use line segments
-              for (let i = 0; i < path.points.length - 1; i++) {
-                const start = path.points[i]
-                const end = path.points[i + 1]
+              // Draw each path
+              for (const path of paths) {
+                if (path.points.length < 2) continue
                 
-                page.drawLine({
-                  start: { x: start.x, y: height - start.y },
-                  end: { x: end.x, y: height - end.y },
-                  thickness: strokeWidth,
-                  color: rgb(color.r, color.g, color.b),
-                  opacity: path.tool === 'highlighter' ? 0.3 : 1,
-                })
+                const color = hexToRgb(path.color)
+                const strokeWidth = path.strokeWidth
+                
+                // Draw the path using line segments
+                for (let i = 0; i < path.points.length - 1; i++) {
+                  const start = path.points[i]
+                  const end = path.points[i + 1]
+                  
+                  page.drawLine({
+                    start: { x: start.x, y: height - start.y },
+                    end: { x: end.x, y: height - end.y },
+                    thickness: strokeWidth,
+                    color: rgb(color.r, color.g, color.b),
+                    opacity: path.tool === 'highlighter' ? 0.3 : 1,
+                  })
+                }
               }
             }
           }
+          
+          // Save the modified PDF
+          const pdfBytesModified = await pdfDoc.save()
+          const blob = new Blob([pdfBytesModified], { type: 'application/pdf' })
+          const url = window.URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          a.href = url
+          a.download = pdfData?.originalName || 'document.pdf'
+          document.body.appendChild(a)
+          a.click()
+          window.URL.revokeObjectURL(url)
+          document.body.removeChild(a)
+          console.log('Downloaded PDF with annotations')
+          return
+        } catch (pdfLibError) {
+          console.error('Error burning annotations into PDF:', pdfLibError)
+          console.log('Falling back to original PDF download')
         }
       }
       
-      // Save the modified PDF
-      const pdfBytesModified = await pdfDoc.save()
-      const blob = new Blob([pdfBytesModified], { type: 'application/pdf' })
+      // Fallback: download original PDF without annotations
+      const blob = new Blob([pdfBytes], { type: 'application/pdf' })
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
@@ -326,6 +338,7 @@ export default function PDFEditor({ pdfId, onClose, token }) {
       a.click()
       window.URL.revokeObjectURL(url)
       document.body.removeChild(a)
+      console.log('Downloaded original PDF')
       
     } catch (err) {
       console.error('Error downloading PDF:', err)
