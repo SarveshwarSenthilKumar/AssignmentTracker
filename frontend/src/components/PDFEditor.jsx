@@ -2,8 +2,8 @@ import { useState, useRef, useEffect } from 'react'
 import { Document, Page, pdfjs } from 'react-pdf'
 import 'react-pdf/dist/Page/AnnotationLayer.css'
 import 'react-pdf/dist/Page/TextLayer.css'
-import { X, Save, Download, Upload, Trash2, Pen, Highlighter, Eraser, ZoomIn, ZoomOut, RotateCw, Settings, Tag, Folder, Check, Loader2, Undo } from 'lucide-react'
-import { PDFDocument, rgb } from 'pdf-lib'
+import { X, Save, Download, Upload, Trash2, Pen, Highlighter, Eraser, ZoomIn, ZoomOut, RotateCw, Settings, Tag, Folder, Check, Loader2, Undo, Type, Move } from 'lucide-react'
+import { PDFDocument, rgb, StandardFonts } from 'pdf-lib'
 import { cn } from '../lib/utils'
 
 // Set up PDF.js worker for react-pdf v7
@@ -21,6 +21,10 @@ export default function PDFEditor({ pdfId, onClose, token }) {
   const [isDrawing, setIsDrawing] = useState(false)
   const [currentColor, setCurrentColor] = useState('#ef4444')
   const [strokeWidth, setStrokeWidth] = useState(2)
+  const [fontSize, setFontSize] = useState(16)
+  const [activeTextId, setActiveTextId] = useState(null)
+  const [draggingTextId, setDraggingTextId] = useState(null)
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
   const [loading, setLoading] = useState(true)
   const [showSettings, setShowSettings] = useState(false)
   const [editTags, setEditTags] = useState('')
@@ -197,26 +201,108 @@ export default function PDFEditor({ pdfId, onClose, token }) {
     console.error('Page load error:', error)
   }
 
+  const handleColorChange = (color) => {
+    setCurrentColor(color)
+    if (activeTextId) {
+      setDrawingPaths(prev => prev.map(item => 
+        item.id === activeTextId ? { ...item, color } : item
+      ))
+    }
+  }
+
+  const handleFontSizeChange = (size) => {
+    setFontSize(size)
+    if (activeTextId) {
+      setDrawingPaths(prev => prev.map(item => 
+        item.id === activeTextId ? { ...item, fontSize: size } : item
+      ))
+    }
+  }
+
   const handleCanvasMouseDown = (e) => {
     if (currentTool === 'eraser') return
-    setIsDrawing(true)
     const rect = annotationLayerRef.current.getBoundingClientRect()
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
+
+    if (currentTool === 'text') {
+      if (e.target.closest('.text-annotation-box')) return
+      const newText = {
+        id: Date.now().toString(),
+        tool: 'text',
+        x,
+        y,
+        text: '',
+        color: currentColor,
+        fontSize: fontSize,
+        page: pageNumber
+      }
+      setDrawingPaths(prev => [...prev, newText])
+      setActiveTextId(newText.id)
+      return
+    }
+
+    setIsDrawing(true)
     const pressure = e.pressure || 0.5
     setCurrentPath([{ x, y, pressure }])
   }
 
+  const handleTextChange = (id, text) => {
+    setDrawingPaths(prev => prev.map(item => 
+      item.id === id ? { ...item, text } : item
+    ))
+  }
+
+  const handleTextBlur = (id) => {
+    setDrawingPaths(prev => prev.filter(item => {
+      if (item.id === id && item.tool === 'text') {
+        return item.text && item.text.trim() !== ''
+      }
+      return true
+    }))
+  }
+
+  const handleDeleteText = (id) => {
+    setDrawingPaths(prev => prev.filter(item => item.id !== id))
+    if (activeTextId === id) setActiveTextId(null)
+  }
+
+  const handleTextDragStart = (e, id) => {
+    e.stopPropagation()
+    setDraggingTextId(id)
+    const rect = annotationLayerRef.current.getBoundingClientRect()
+    const targetItem = drawingPaths.find(item => item.id === id)
+    if (targetItem) {
+      setDragOffset({
+        x: e.clientX - rect.left - targetItem.x,
+        y: e.clientY - rect.top - targetItem.y
+      })
+    }
+  }
+
   const handleCanvasMouseMove = (e) => {
-    if (!isDrawing) return
     const rect = annotationLayerRef.current.getBoundingClientRect()
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
+
+    if (draggingTextId) {
+      const newX = Math.max(0, x - dragOffset.x)
+      const newY = Math.max(0, y - dragOffset.y)
+      setDrawingPaths(prev => prev.map(item => 
+        item.id === draggingTextId ? { ...item, x: newX, y: newY } : item
+      ))
+      return
+    }
+
+    if (!isDrawing) return
     const pressure = e.pressure || 0.5
     setCurrentPath(prev => [...prev, { x, y, pressure }])
   }
 
   const handleCanvasMouseUp = () => {
+    if (draggingTextId) {
+      setDraggingTextId(null)
+    }
     if (!isDrawing) return
     setIsDrawing(false)
     if (currentPath.length > 0) {
@@ -235,6 +321,7 @@ export default function PDFEditor({ pdfId, onClose, token }) {
   const handleClearCanvas = () => {
     setDrawingPaths([])
     setCurrentPath([])
+    setActiveTextId(null)
   }
 
   const handleDeleteLastPath = () => {
@@ -292,6 +379,7 @@ export default function PDFEditor({ pdfId, onClose, token }) {
       if (drawingPaths.length > 0) {
         try {
           const pdfDoc = await PDFDocument.load(pdfBytes)
+          const helveticaFont = await pdfDoc.embedFont(StandardFonts.Helvetica)
           const pages = pdfDoc.getPages()
           
           // Group annotations by page
@@ -322,23 +410,40 @@ export default function PDFEditor({ pdfId, onClose, token }) {
               
               // Draw each path
               for (const path of paths) {
-                if (path.points.length < 2) continue
-                
-                const color = hexToRgb(path.color)
-                const strokeWidth = path.strokeWidth
-                
-                // Draw the path using line segments
-                for (let i = 0; i < path.points.length - 1; i++) {
-                  const start = path.points[i]
-                  const end = path.points[i + 1]
+                if (path.tool === 'text') {
+                  if (!path.text || !path.text.trim()) continue
+                  const color = hexToRgb(path.color)
+                  const fSize = path.fontSize || 16
+                  const lines = path.text.split('\n')
                   
-                  page.drawLine({
-                    start: { x: start.x, y: height - start.y },
-                    end: { x: end.x, y: height - end.y },
-                    thickness: strokeWidth,
-                    color: rgb(color.r, color.g, color.b),
-                    opacity: path.tool === 'highlighter' ? 0.3 : 1,
+                  lines.forEach((lineText, lineIdx) => {
+                    if (!lineText) return
+                    const textY = height - path.y - fSize - (lineIdx * fSize * 1.2)
+                    page.drawText(lineText, {
+                      x: path.x,
+                      y: textY,
+                      size: fSize,
+                      font: helveticaFont,
+                      color: rgb(color.r, color.g, color.b)
+                    })
                   })
+                } else if (path.points && path.points.length >= 2) {
+                  const color = hexToRgb(path.color)
+                  const strokeWidth = path.strokeWidth
+                  
+                  // Draw the path using line segments
+                  for (let i = 0; i < path.points.length - 1; i++) {
+                    const start = path.points[i]
+                    const end = path.points[i + 1]
+                    
+                    page.drawLine({
+                      start: { x: start.x, y: height - start.y },
+                      end: { x: end.x, y: height - end.y },
+                      thickness: strokeWidth,
+                      color: rgb(color.r, color.g, color.b),
+                      opacity: path.tool === 'highlighter' ? 0.3 : 1,
+                    })
+                  }
                 }
               }
             }
@@ -401,7 +506,7 @@ export default function PDFEditor({ pdfId, onClose, token }) {
   }
 
   const colors = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899', '#000000']
-  const tools = ['pen', 'highlighter', 'eraser']
+  const tools = ['pen', 'highlighter', 'text', 'eraser']
 
   if (loading) {
     return (
@@ -511,6 +616,7 @@ export default function PDFEditor({ pdfId, onClose, token }) {
             >
               {tool === 'pen' && <Pen size={18} />}
               {tool === 'highlighter' && <Highlighter size={18} />}
+              {tool === 'text' && <Type size={18} />}
               {tool === 'eraser' && <Eraser size={18} />}
             </button>
           ))}
@@ -521,7 +627,7 @@ export default function PDFEditor({ pdfId, onClose, token }) {
           {colors.map((color) => (
             <button
               key={color}
-              onClick={() => setCurrentColor(color)}
+              onClick={() => handleColorChange(color)}
               className={cn(
                 "w-6 h-6 rounded-full transition-all",
                 currentColor === color ? 'ring-2 ring-white ring-offset-2 ring-offset-slate-800' : 'hover:scale-110'
@@ -531,19 +637,34 @@ export default function PDFEditor({ pdfId, onClose, token }) {
           ))}
         </div>
 
-        {/* Stroke Width */}
-        <div className="flex items-center gap-2">
-          <span className="text-slate-400 text-sm">Size:</span>
-          <input
-            type="range"
-            min="1"
-            max="10"
-            value={strokeWidth}
-            onChange={(e) => setStrokeWidth(parseInt(e.target.value))}
-            className="w-20"
-          />
-          <span className="text-white text-sm">{strokeWidth}px</span>
-        </div>
+        {/* Stroke / Font Size */}
+        {currentTool === 'text' ? (
+          <div className="flex items-center gap-2">
+            <span className="text-slate-400 text-sm">Font Size:</span>
+            <input
+              type="range"
+              min="10"
+              max="48"
+              value={fontSize}
+              onChange={(e) => handleFontSizeChange(parseInt(e.target.value))}
+              className="w-20"
+            />
+            <span className="text-white text-sm">{fontSize}px</span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <span className="text-slate-400 text-sm">Size:</span>
+            <input
+              type="range"
+              min="1"
+              max="10"
+              value={strokeWidth}
+              onChange={(e) => setStrokeWidth(parseInt(e.target.value))}
+              className="w-20"
+            />
+            <span className="text-white text-sm">{strokeWidth}px</span>
+          </div>
+        )}
 
         {/* Zoom Controls */}
         <div className="flex items-center gap-2 ml-auto">
@@ -602,7 +723,7 @@ export default function PDFEditor({ pdfId, onClose, token }) {
               />
             </Document>
 
-            {/* Drawing Canvas Overlay */}
+            {/* Drawing & Text Canvas Overlay */}
             <div
               ref={annotationLayerRef}
               style={{
@@ -611,8 +732,8 @@ export default function PDFEditor({ pdfId, onClose, token }) {
                 left: 0,
                 width: '100%',
                 height: '100%',
-                pointerEvents: currentTool === 'eraser' ? 'none' : 'auto',
-                cursor: currentTool === 'pen' || currentTool === 'highlighter' ? 'crosshair' : 'default',
+                pointerEvents: 'auto',
+                cursor: currentTool === 'pen' || currentTool === 'highlighter' ? 'crosshair' : currentTool === 'text' ? 'text' : 'default',
                 zIndex: 10,
                 touchAction: 'none'
               }}
@@ -632,7 +753,7 @@ export default function PDFEditor({ pdfId, onClose, token }) {
                 }}
               >
                 {drawingPaths
-                  .filter(path => path.page === pageNumber)
+                  .filter(path => path.page === pageNumber && path.points)
                   .map((path, pathIdx) => (
                     <g key={pathIdx}>
                       {path.points.map((p, i) => {
@@ -692,6 +813,86 @@ export default function PDFEditor({ pdfId, onClose, token }) {
                   </g>
                 )}
               </svg>
+
+              {/* Text Annotations */}
+              {drawingPaths
+                .filter(path => path.page === pageNumber && path.tool === 'text')
+                .map((path) => {
+                  const isActive = activeTextId === path.id
+                  return (
+                    <div
+                      key={path.id || `${path.x}-${path.y}`}
+                      style={{
+                        position: 'absolute',
+                        left: path.x,
+                        top: path.y,
+                        zIndex: 20
+                      }}
+                      className="text-annotation-box group"
+                    >
+                      {isActive ? (
+                        <div className="relative flex flex-col bg-slate-900/90 border border-blue-500 rounded-lg p-1.5 shadow-xl min-w-[150px]">
+                          <div
+                            className="flex items-center justify-between gap-2 mb-1 cursor-move select-none border-b border-white/10 pb-1"
+                            onPointerDown={(e) => handleTextDragStart(e, path.id)}
+                          >
+                            <span className="text-[10px] text-slate-400 uppercase font-semibold flex items-center gap-1">
+                              <Move size={10} /> Text
+                            </span>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleDeleteText(path.id)
+                              }}
+                              className="p-0.5 text-slate-400 hover:text-red-400 rounded transition-all"
+                              title="Delete Text"
+                            >
+                              <X size={12} />
+                            </button>
+                          </div>
+                          <textarea
+                            autoFocus
+                            value={path.text}
+                            onChange={(e) => handleTextChange(path.id, e.target.value)}
+                            onBlur={() => handleTextBlur(path.id)}
+                            placeholder="Type text here..."
+                            style={{
+                              color: path.color,
+                              fontSize: `${path.fontSize || 16}px`,
+                              lineHeight: 1.2
+                            }}
+                            className="bg-transparent border-none outline-none text-white w-full resize-none p-0"
+                            rows={Math.max(1, (path.text || '').split('\n').length)}
+                          />
+                        </div>
+                      ) : (
+                        <div
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            if (currentTool === 'eraser') {
+                              handleDeleteText(path.id)
+                            } else {
+                              setActiveTextId(path.id)
+                            }
+                          }}
+                          style={{
+                            color: path.color,
+                            fontSize: `${path.fontSize || 16}px`,
+                            lineHeight: 1.2
+                          }}
+                          className={cn(
+                            "p-1 rounded whitespace-pre select-none transition-all min-w-[20px]",
+                            currentTool === 'text' && "hover:outline hover:outline-1 hover:outline-blue-400 hover:bg-blue-500/10 cursor-pointer",
+                            currentTool === 'eraser' && "hover:outline hover:outline-1 hover:outline-red-400 hover:bg-red-500/20 hover:line-through cursor-pointer",
+                            !currentTool && "cursor-default"
+                          )}
+                        >
+                          {path.text || <span className="italic opacity-50">Empty text</span>}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
             </div>
           </div>
         ) : (
