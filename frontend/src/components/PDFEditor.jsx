@@ -40,6 +40,8 @@ export default function PDFEditor({ pdfId, onClose, token }) {
   const [usePressure, setUsePressure] = useState(true)
   const canvasRef = useRef(null)
   const annotationLayerRef = useRef(null)
+  const textareaRef = useRef(null)
+  const lastBlurTimeRef = useRef(0)
 
   useEffect(() => {
     if (pdfId) {
@@ -47,6 +49,22 @@ export default function PDFEditor({ pdfId, onClose, token }) {
       fetchPDFFolders()
     }
   }, [pdfId])
+
+  // Focus textarea when a text box becomes active
+  useEffect(() => {
+    if (activeTextId && textareaRef.current) {
+      textareaRef.current.focus()
+      const len = textareaRef.current.value.length
+      textareaRef.current.setSelectionRange(len, len)
+    }
+  }, [activeTextId])
+
+  // Clean up active text editing when switching away from text tool
+  useEffect(() => {
+    if (currentTool !== 'text' && activeTextId) {
+      handleTextBlur(activeTextId)
+    }
+  }, [currentTool])
 
   // Autosave annotations whenever drawingPaths changes
   useEffect(() => {
@@ -227,6 +245,18 @@ export default function PDFEditor({ pdfId, onClose, token }) {
 
     if (currentTool === 'text') {
       if (e.target.closest('.text-annotation-box')) return
+
+      // If a text box was just blurred within the last 250ms (from clicking outside),
+      // ignore this pointerdown so we don't immediately spawn a new text box on the same click.
+      if (Date.now() - lastBlurTimeRef.current < 250) {
+        return
+      }
+
+      if (activeTextId) {
+        handleTextBlur(activeTextId)
+        return
+      }
+
       const newText = {
         id: Date.now().toString(),
         tool: 'text',
@@ -254,12 +284,16 @@ export default function PDFEditor({ pdfId, onClose, token }) {
   }
 
   const handleTextBlur = (id) => {
+    lastBlurTimeRef.current = Date.now()
     setDrawingPaths(prev => prev.filter(item => {
       if (item.id === id && item.tool === 'text') {
         return item.text && item.text.trim() !== ''
       }
       return true
     }))
+    if (activeTextId === id) {
+      setActiveTextId(null)
+    }
   }
 
   const handleDeleteText = (id) => {
@@ -829,6 +863,8 @@ export default function PDFEditor({ pdfId, onClose, token }) {
                         zIndex: 20
                       }}
                       className="text-annotation-box group"
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onMouseDown={(e) => e.stopPropagation()}
                     >
                       {isActive ? (
                         <div className="relative flex flex-col bg-slate-900/90 border border-blue-500 rounded-lg p-1.5 shadow-xl min-w-[150px]">
@@ -839,22 +875,42 @@ export default function PDFEditor({ pdfId, onClose, token }) {
                             <span className="text-[10px] text-slate-400 uppercase font-semibold flex items-center gap-1">
                               <Move size={10} /> Text
                             </span>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleDeleteText(path.id)
-                              }}
-                              className="p-0.5 text-slate-400 hover:text-red-400 rounded transition-all"
-                              title="Delete Text"
-                            >
-                              <X size={12} />
-                            </button>
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleTextBlur(path.id)
+                                }}
+                                className="p-0.5 text-green-400 hover:text-green-300 hover:bg-green-500/20 rounded transition-all"
+                                title="Done Editing"
+                              >
+                                <Check size={12} />
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleDeleteText(path.id)
+                                }}
+                                className="p-0.5 text-slate-400 hover:text-red-400 rounded transition-all"
+                                title="Delete Text"
+                              >
+                                <X size={12} />
+                              </button>
+                            </div>
                           </div>
                           <textarea
-                            autoFocus
+                            ref={isActive ? textareaRef : null}
                             value={path.text}
                             onChange={(e) => handleTextChange(path.id, e.target.value)}
                             onBlur={() => handleTextBlur(path.id)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Escape') {
+                                handleTextBlur(path.id)
+                              } else if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault()
+                                handleTextBlur(path.id)
+                              }
+                            }}
                             placeholder="Type text here..."
                             style={{
                               color: path.color,
@@ -871,7 +927,7 @@ export default function PDFEditor({ pdfId, onClose, token }) {
                             e.stopPropagation()
                             if (currentTool === 'eraser') {
                               handleDeleteText(path.id)
-                            } else {
+                            } else if (currentTool === 'text') {
                               setActiveTextId(path.id)
                             }
                           }}
@@ -884,7 +940,7 @@ export default function PDFEditor({ pdfId, onClose, token }) {
                             "p-1 rounded whitespace-pre select-none transition-all min-w-[20px]",
                             currentTool === 'text' && "hover:outline hover:outline-1 hover:outline-blue-400 hover:bg-blue-500/10 cursor-pointer",
                             currentTool === 'eraser' && "hover:outline hover:outline-1 hover:outline-red-400 hover:bg-red-500/20 hover:line-through cursor-pointer",
-                            !currentTool && "cursor-default"
+                            currentTool !== 'text' && currentTool !== 'eraser' && "cursor-default"
                           )}
                         >
                           {path.text || <span className="italic opacity-50">Empty text</span>}
