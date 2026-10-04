@@ -246,15 +246,15 @@ export default function PDFEditor({ pdfId, onClose, token }) {
     if (currentTool === 'text') {
       if (e.target.closest('.text-annotation-box')) return
 
-      // If a text box was just blurred within the last 250ms (from clicking outside),
-      // ignore this pointerdown so we don't immediately spawn a new text box on the same click.
-      if (Date.now() - lastBlurTimeRef.current < 250) {
-        return
-      }
-
+      // Clean up previous active text annotation if empty before spawning new one
       if (activeTextId) {
-        handleTextBlur(activeTextId)
-        return
+        const prevActiveId = activeTextId
+        setDrawingPaths(prev => prev.filter(item => {
+          if (item.id === prevActiveId && item.tool === 'text') {
+            return item.text && item.text.trim() !== ''
+          }
+          return true
+        }))
       }
 
       const newText = {
@@ -866,61 +866,65 @@ export default function PDFEditor({ pdfId, onClose, token }) {
                       onPointerDown={(e) => e.stopPropagation()}
                       onMouseDown={(e) => e.stopPropagation()}
                     >
-                      {isActive ? (
-                        <div className="relative flex flex-col bg-slate-900/90 border border-blue-500 rounded-lg p-1.5 shadow-xl min-w-[150px]">
-                          <div
-                            className="flex items-center justify-between gap-2 mb-1 cursor-move select-none border-b border-white/10 pb-1"
-                            onPointerDown={(e) => handleTextDragStart(e, path.id)}
+                      {isActive && (
+                        <div
+                          className="absolute -top-8 left-0 flex items-center gap-1 bg-slate-900/95 border border-blue-500/50 rounded px-1.5 py-0.5 shadow-lg select-none z-30 whitespace-nowrap"
+                          onPointerDown={(e) => handleTextDragStart(e, path.id)}
+                        >
+                          <span className="text-[10px] text-slate-300 uppercase font-semibold flex items-center gap-1 cursor-move">
+                            <Move size={10} /> Move
+                          </span>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleTextBlur(path.id)
+                            }}
+                            className="p-0.5 text-green-400 hover:text-green-300 hover:bg-green-500/20 rounded transition-all"
+                            title="Done Editing"
                           >
-                            <span className="text-[10px] text-slate-400 uppercase font-semibold flex items-center gap-1">
-                              <Move size={10} /> Text
-                            </span>
-                            <div className="flex items-center gap-1">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  handleTextBlur(path.id)
-                                }}
-                                className="p-0.5 text-green-400 hover:text-green-300 hover:bg-green-500/20 rounded transition-all"
-                                title="Done Editing"
-                              >
-                                <Check size={12} />
-                              </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  handleDeleteText(path.id)
-                                }}
-                                className="p-0.5 text-slate-400 hover:text-red-400 rounded transition-all"
-                                title="Delete Text"
-                              >
-                                <X size={12} />
-                              </button>
-                            </div>
-                          </div>
-                          <textarea
-                            ref={isActive ? textareaRef : null}
-                            value={path.text}
-                            onChange={(e) => handleTextChange(path.id, e.target.value)}
-                            onBlur={() => handleTextBlur(path.id)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Escape') {
-                                handleTextBlur(path.id)
-                              } else if (e.key === 'Enter' && !e.shiftKey) {
-                                e.preventDefault()
-                                handleTextBlur(path.id)
-                              }
+                            <Check size={12} />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleDeleteText(path.id)
                             }}
-                            placeholder="Type text here..."
-                            style={{
-                              color: path.color,
-                              fontSize: `${path.fontSize || 16}px`,
-                              lineHeight: 1.2
-                            }}
-                            className="bg-transparent border-none outline-none text-white w-full resize-none p-0"
-                            rows={Math.max(1, (path.text || '').split('\n').length)}
-                          />
+                            className="p-0.5 text-slate-400 hover:text-red-400 hover:bg-red-500/20 rounded transition-all"
+                            title="Delete Text"
+                          >
+                            <X size={12} />
+                          </button>
                         </div>
+                      )}
+
+                      {isActive ? (
+                        <textarea
+                          ref={isActive ? textareaRef : null}
+                          value={path.text}
+                          onChange={(e) => handleTextChange(path.id, e.target.value)}
+                          onBlur={(e) => {
+                            if (!e.relatedTarget || !e.relatedTarget.closest('.text-annotation-box')) {
+                              handleTextBlur(path.id)
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Escape') {
+                              handleTextBlur(path.id)
+                            } else if (e.key === 'Enter' && !e.shiftKey) {
+                              e.preventDefault()
+                              handleTextBlur(path.id)
+                            }
+                          }}
+                          placeholder="Type text here..."
+                          style={{
+                            color: path.color,
+                            fontSize: `${path.fontSize || 16}px`,
+                            lineHeight: 1.2,
+                            fontFamily: 'sans-serif'
+                          }}
+                          className="bg-white/95 border-2 border-blue-500 border-dashed rounded px-1 py-0.5 outline-none min-w-[120px] resize-none shadow-xl"
+                          rows={Math.max(1, (path.text || '').split('\n').length)}
+                        />
                       ) : (
                         <div
                           onClick={(e) => {
@@ -934,10 +938,11 @@ export default function PDFEditor({ pdfId, onClose, token }) {
                           style={{
                             color: path.color,
                             fontSize: `${path.fontSize || 16}px`,
-                            lineHeight: 1.2
+                            lineHeight: 1.2,
+                            fontFamily: 'sans-serif'
                           }}
                           className={cn(
-                            "p-1 rounded whitespace-pre select-none transition-all min-w-[20px]",
+                            "px-1 py-0.5 rounded whitespace-pre select-none transition-all min-w-[20px]",
                             currentTool === 'text' && "hover:outline hover:outline-1 hover:outline-blue-400 hover:bg-blue-500/10 cursor-pointer",
                             currentTool === 'eraser' && "hover:outline hover:outline-1 hover:outline-red-400 hover:bg-red-500/20 hover:line-through cursor-pointer",
                             currentTool !== 'text' && currentTool !== 'eraser' && "cursor-default"
