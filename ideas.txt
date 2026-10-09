@@ -5,9 +5,10 @@ add calendar and assignment functionality
 update the create folder feature for pdf to work properly
 add move and delete files features
 add compatibility for different file types
-add support for pen
 add pages view
 add instert abilities
+fix insert text to use black font when clicked
+update insert text to allow for more customizability
 
 resume job tailor:
 Get job by links
