@@ -7,8 +7,8 @@ add move and delete files features
 add compatibility for different file types
 add pages view
 add instert abilities
-fix insert text to use black font when clicked
-update insert text to allow for more customizability
+[x] fix insert text to use black font when clicked
+[x] update insert text to allow for more customizability
 
 resume job tailor:
 Get job by links

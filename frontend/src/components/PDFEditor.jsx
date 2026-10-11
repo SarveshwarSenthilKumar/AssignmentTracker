@@ -21,13 +21,16 @@ const TEXT_PAD_Y = 2
 const LINE_HEIGHT = 1.2
 const BASELINE_RATIO = 0.9465 // distance from top of a line box to the baseline, in font sizes
 const FONT_STACK = 'Helvetica, Arial, sans-serif'
-const COLORS = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899', '#000000']
+const COLORS = ['#000000', '#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899']
 const TOOLS = ['pen', 'highlighter', 'text', 'eraser']
 
 const uid = () => `a_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`
 
 const hexToRgb = (hex) => {
-  const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex || '')
+  if (!hex) return { r: 0, g: 0, b: 0 }
+  let h = hex.replace('#', '')
+  if (h.length === 3) h = h.split('').map(c => c + c).join('')
+  const m = /^([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(h)
   return m
     ? { r: parseInt(m[1], 16) / 255, g: parseInt(m[2], 16) / 255, b: parseInt(m[3], 16) / 255 }
     : { r: 0, g: 0, b: 0 }
@@ -88,7 +91,7 @@ async function burnAnnotations(pdfBytes, annotations, usePressure) {
       return { x: x + box.x, y: y + box.y }
     }
 
-    const { r, g, b } = hexToRgb(item.color)
+    const { r, g, b } = hexToRgb(item.color || '#000000')
     const color = rgb(r, g, b)
 
     if (item.tool === 'text') {
@@ -150,13 +153,14 @@ async function burnAnnotations(pdfBytes, annotations, usePressure) {
 /* ------------------------------------------------------------------ */
 function TextAnnotation({
   item, scale, isActive, tool, textareaRef,
-  onClick, onChange, onCommit, onDelete, onFontDelta,
+  onClick, onChange, onCommit, onDelete, onFontDelta, onColorChange,
   onDragStart, onDragMove, onDragEnd
 }) {
   const interactive = tool === 'text' || tool === 'eraser'
   const fontSize = item.fontSize || 16
+  const textColor = item.color || '#000000'
   const textStyle = {
-    color: item.color,
+    color: textColor,
     fontSize: fontSize * scale,
     lineHeight: LINE_HEIGHT,
     fontFamily: FONT_STACK,
@@ -188,14 +192,14 @@ function TextAnnotation({
           data-keep-text-active
           onMouseDown={(e) => e.preventDefault()}
           className={cn(
-            'absolute left-0 flex items-center gap-0.5 bg-slate-900/95 border border-blue-500/50 rounded px-1 py-0.5 shadow-lg select-none z-40 whitespace-nowrap transition-opacity',
-            toolbarBelow ? 'top-full' : 'bottom-full',
+            'absolute left-0 flex items-center gap-1 bg-slate-900/95 border border-blue-500/50 rounded-lg px-1.5 py-1 shadow-xl select-none z-40 whitespace-nowrap transition-opacity',
+            toolbarBelow ? 'top-full mt-1' : 'bottom-full mb-1',
             isActive ? 'opacity-100' : 'opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto'
           )}
         >
           <div
             title="Drag to move"
-            className="p-1 text-slate-300 hover:text-white cursor-move touch-none"
+            className="p-1 text-slate-300 hover:text-white cursor-move touch-none rounded hover:bg-white/10"
             onPointerDown={(e) => {
               e.preventDefault()
               e.stopPropagation()
@@ -209,37 +213,66 @@ function TextAnnotation({
             }}
             onPointerCancel={onDragEnd}
           >
-            <Move size={12} />
+            <Move size={13} />
           </div>
+
+          <div className="h-4 w-px bg-white/20" />
+
+          {/* Quick Color Picker */}
+          <div className="flex items-center gap-1">
+            {['#000000', '#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6'].map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => onColorChange?.(item.id, c)}
+                className={cn(
+                  'w-3.5 h-3.5 rounded-full border border-white/40 transition-transform',
+                  textColor === c ? 'ring-2 ring-white scale-110 shadow' : 'hover:scale-110 opacity-75 hover:opacity-100'
+                )}
+                style={{ backgroundColor: c }}
+                title={c === '#000000' ? 'Black' : c}
+              />
+            ))}
+          </div>
+
+          <div className="h-4 w-px bg-white/20" />
+
           <button
+            type="button"
             onClick={() => onFontDelta(item.id, -2)}
-            className="p-0.5 text-slate-300 hover:text-white hover:bg-white/10 rounded"
+            className="p-1 text-slate-300 hover:text-white hover:bg-white/10 rounded"
             title="Smaller text"
           >
-            <Minus size={12} />
+            <Minus size={13} />
           </button>
-          <span className="text-[10px] text-slate-300 w-5 text-center tabular-nums">{fontSize}</span>
+          <span className="text-[11px] text-slate-200 font-medium w-5 text-center tabular-nums">{fontSize}</span>
           <button
+            type="button"
             onClick={() => onFontDelta(item.id, 2)}
-            className="p-0.5 text-slate-300 hover:text-white hover:bg-white/10 rounded"
+            className="p-1 text-slate-300 hover:text-white hover:bg-white/10 rounded"
             title="Larger text"
           >
-            <Plus size={12} />
+            <Plus size={13} />
           </button>
+
+          <div className="h-4 w-px bg-white/20" />
+
           <button
+            type="button"
             onClick={() => onDelete(item.id)}
-            className="p-0.5 text-slate-300 hover:text-red-400 hover:bg-red-500/20 rounded"
+            className="p-1 text-slate-300 hover:text-red-400 hover:bg-red-500/20 rounded"
             title="Delete text"
           >
-            <Trash2 size={12} />
+            <Trash2 size={13} />
           </button>
           {isActive && (
             <button
+              type="button"
               onClick={onCommit}
-              className="p-0.5 text-green-400 hover:text-green-300 hover:bg-green-500/20 rounded"
-              title="Done (Esc)"
+              className="p-1 text-green-400 hover:text-green-300 hover:bg-green-500/20 rounded"
+              title="Done (Esc or Ctrl+Enter)"
             >
-              <Check size={12} />
+              <Check size={13} />
             </button>
           )}
         </div>
@@ -247,7 +280,7 @@ function TextAnnotation({
 
       {isActive ? (
         // Hidden mirror gives the box its size; the textarea sits on top of it.
-        <div className="relative inline-block" style={{ minWidth: 40 * scale }}>
+        <div className="relative inline-block" style={{ minWidth: 48 * scale }}>
           <div aria-hidden style={{ ...textStyle, visibility: 'hidden' }}>
             {(item.text || '') + ' '}
           </div>
@@ -257,7 +290,7 @@ function TextAnnotation({
             wrap="off"
             rows={1}
             spellCheck={false}
-            placeholder="Type…"
+            placeholder="Type text…"
             onChange={(e) => onChange(item.id, e.target.value)}
             onBlur={(e) => {
               if (e.relatedTarget?.closest?.('[data-keep-text-active]')) return
@@ -272,6 +305,9 @@ function TextAnnotation({
             }}
             style={{
               ...textStyle,
+              color: textColor,
+              caretColor: textColor,
+              colorScheme: 'light',
               position: 'absolute',
               inset: 0,
               width: '100%',
@@ -279,9 +315,9 @@ function TextAnnotation({
               resize: 'none',
               overflow: 'hidden',
               outline: 'none',
-              background: 'rgba(255,255,255,0.55)',
-              boxShadow: '0 0 0 1.5px #3b82f6',
-              borderRadius: 2
+              background: 'rgba(255, 255, 255, 0.92)',
+              boxShadow: '0 0 0 2px #3b82f6, 0 2px 6px rgba(0,0,0,0.15)',
+              borderRadius: 3
             }}
           />
         </div>
@@ -291,11 +327,16 @@ function TextAnnotation({
             e.stopPropagation()
             onClick(item)
           }}
-          style={{ ...textStyle, minWidth: 12 }}
+          style={{
+            ...textStyle,
+            color: textColor,
+            colorScheme: 'light',
+            minWidth: 12
+          }}
           className={cn(
-            'rounded select-none',
-            tool === 'text' && 'cursor-text hover:shadow-[0_0_0_1px_rgba(59,130,246,0.8)] hover:bg-blue-500/10',
-            tool === 'eraser' && 'cursor-pointer hover:shadow-[0_0_0_1px_rgba(239,68,68,0.8)] hover:bg-red-500/20 hover:line-through'
+            'rounded select-none transition-shadow',
+            tool === 'text' && 'cursor-text hover:shadow-[0_0_0_1.5px_rgba(59,130,246,0.8)] hover:bg-blue-500/10',
+            tool === 'eraser' && 'cursor-pointer hover:shadow-[0_0_0_1.5px_rgba(239,68,68,0.8)] hover:bg-red-500/20 hover:line-through'
           )}
         >
           {item.text}
@@ -317,7 +358,7 @@ export default function PDFEditor({ pdfId, onClose, token }) {
   const [scale, setScale] = useState(1.0)
   const [rotation, setRotation] = useState(0)
   const [currentTool, setCurrentTool] = useState('text')
-  const [currentColor, setCurrentColor] = useState('#ef4444')
+  const [currentColor, setCurrentColor] = useState('#000000')
   const [strokeWidth, setStrokeWidth] = useState(2)
   const [fontSize, setFontSize] = useState(16)
   const [activeTextId, setActiveTextId] = useState(null)
@@ -478,7 +519,13 @@ export default function PDFEditor({ pdfId, onClose, token }) {
           }
         }
 
-        const loaded = (data.annotations || []).map(a => (a.id ? a : { ...a, id: uid() }))
+        const loaded = (data.annotations || []).map(a => {
+          const item = a.id ? a : { ...a, id: uid() }
+          if (item.tool === 'text' && (!item.color || item.color === '#ffffff' || item.color === '#fff' || item.color === 'white')) {
+            item.color = '#000000'
+          }
+          return item
+        })
         updatePaths(loaded, { silent: true })
         dirtyRef.current = false
         setSaveStatus('saved')
@@ -569,6 +616,11 @@ export default function PDFEditor({ pdfId, onClose, token }) {
     if (id) updatePaths(prev => prev.map(i => (i.id === id ? { ...i, color } : i)))
   }
 
+  const handleAnnotationColorChange = (id, color) => {
+    setCurrentColor(color)
+    updatePaths(prev => prev.map(i => (i.id === id ? { ...i, color } : i)))
+  }
+
   const handleFontSizeChange = (size) => {
     setFontSize(size)
     const id = activeTextIdRef.current
@@ -641,7 +693,7 @@ export default function PDFEditor({ pdfId, onClose, token }) {
     if (currentTool !== 'text' || activeTextIdRef.current === item.id) return
     commitText()
     editSnapshotRef.current = pathsRef.current
-    setCurrentColor(item.color)
+    setCurrentColor(item.color || '#000000')
     setFontSize(item.fontSize || 16)
     activate(item.id)
   }
@@ -695,7 +747,7 @@ export default function PDFEditor({ pdfId, onClose, token }) {
         x: Math.max(0, pt.x - TEXT_PAD_X),
         y: Math.max(0, pt.y - TEXT_PAD_Y - fontSize * 0.6),
         text: '',
-        color: currentColor,
+        color: currentColor || '#000000',
         fontSize,
         page: pageNumber
       }
@@ -1004,12 +1056,19 @@ export default function PDFEditor({ pdfId, onClose, token }) {
           {TOOLS.map((tool) => (
             <button
               key={tool}
-              onClick={() => setCurrentTool(tool)}
+              onClick={() => {
+                setCurrentTool(tool)
+                if (tool === 'text') {
+                  setCurrentColor('#000000')
+                  const id = activeTextIdRef.current
+                  if (id) updatePaths(prev => prev.map(i => (i.id === id ? { ...i, color: '#000000' } : i)))
+                }
+              }}
               className={cn(
                 'p-2 rounded transition-all',
                 currentTool === tool ? 'bg-primary-600 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-600'
               )}
-              title={tool.charAt(0).toUpperCase() + tool.slice(1)}
+              title={tool === 'text' ? 'Insert Text' : tool.charAt(0).toUpperCase() + tool.slice(1)}
             >
               {tool === 'pen' && <Pen size={18} />}
               {tool === 'highlighter' && <Highlighter size={18} />}
@@ -1025,11 +1084,11 @@ export default function PDFEditor({ pdfId, onClose, token }) {
               key={color}
               onClick={() => handleColorChange(color)}
               className={cn(
-                'w-6 h-6 rounded-full transition-all',
-                currentColor === color ? 'ring-2 ring-white ring-offset-2 ring-offset-slate-800' : 'hover:scale-110'
+                'w-6 h-6 rounded-full transition-all border border-white/25',
+                currentColor === color ? 'ring-2 ring-white ring-offset-2 ring-offset-slate-800 scale-105' : 'hover:scale-110'
               )}
               style={{ backgroundColor: color }}
-              title={color}
+              title={color === '#000000' ? 'Black' : color}
             />
           ))}
         </div>
@@ -1178,6 +1237,7 @@ export default function PDFEditor({ pdfId, onClose, token }) {
                       onCommit={commitText}
                       onDelete={handleDeleteText}
                       onFontDelta={handleFontDelta}
+                      onColorChange={handleAnnotationColorChange}
                       onDragStart={handleTextDragStart}
                       onDragMove={handleTextDragMove}
                       onDragEnd={handleTextDragEnd}
