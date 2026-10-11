@@ -2,13 +2,15 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { Document, Page, pdfjs } from 'react-pdf'
 import {
   X, Save, Download, Upload, Trash2, Pen, Highlighter, Eraser, ZoomIn, ZoomOut,
-  RotateCw, Settings, Tag, Folder, Check, Loader2, Undo, Redo, Type, Move, Minus, Plus
+  PanelLeft, FileText, Maximize, RotateCw, Settings, Tag, Folder, Check, Loader2, Undo, Redo, Type, Move, Minus, Plus
 } from 'lucide-react'
 import { PDFDocument, rgb, degrees, StandardFonts, LineCapStyle } from 'pdf-lib'
+import workerUrl from 'pdfjs-dist/build/pdf.worker.min.js?url'
+import './PDFEditor.css'
 import { cn } from '../lib/utils'
 
 // Set up PDF.js worker for react-pdf v7
-pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`
+pdfjs.GlobalWorkerOptions.workerSrc = workerUrl
 
 /*
  * COORDINATE SYSTEM
@@ -346,6 +348,20 @@ function TextAnnotation({
   )
 }
 
+// Render previews as they approach the sidebar viewport, keeping long PDFs responsive.
+function PagePreview({ pageNumber }) {
+  const ref = useRef(null)
+  const [visible, setVisible] = useState(false)
+  useEffect(() => {
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) { setVisible(true); observer.disconnect() }
+    }, { root: ref.current?.closest('aside'), rootMargin: '200px' })
+    if (ref.current) observer.observe(ref.current)
+    return () => observer.disconnect()
+  }, [])
+  return <div ref={ref} style={{ width: 136, minHeight: 176 }}>{visible && <Page pageNumber={pageNumber} width={136} renderTextLayer={false} renderAnnotationLayer={false} loading={<div className="h-44 bg-slate-200 animate-pulse" />} />}</div>
+}
+
 /* ------------------------------------------------------------------ */
 /* Main editor                                                         */
 /* ------------------------------------------------------------------ */
@@ -374,6 +390,13 @@ export default function PDFEditor({ pdfId, onClose, token }) {
   const [currentPath, setCurrentPath] = useState([])
   const [usePressure, setUsePressure] = useState(true)
   const [saveStatus, setSaveStatus] = useState('saved') // saved | dirty | saving | error
+  const [showPages, setShowPages] = useState(() => window.innerWidth >= 768)
+  const [downloading, setDownloading] = useState(false)
+  const [actionError, setActionError] = useState(null)
+  const viewerRef = useRef(null)
+  const initialFitRef = useRef(false)
+  const saveQueueRef = useRef(Promise.resolve(true))
+  const revisionRef = useRef(0)
   const [historyCount, setHistoryCount] = useState({ undo: 0, redo: 0 })
 
   const overlayRef = useRef(null)
@@ -399,6 +422,7 @@ export default function PDFEditor({ pdfId, onClose, token }) {
     setDrawingPaths(next)
     if (!silent) {
       dirtyRef.current = true
+      revisionRef.current += 1
       setSaveStatus(s => (s === 'saving' ? s : 'dirty'))
     }
   }, [])
@@ -455,24 +479,30 @@ export default function PDFEditor({ pdfId, onClose, token }) {
   }, [bumpHistory, commitText, updatePaths])
 
   /* ---------- saving ---------- */
-  const saveAnnotations = useCallback(async () => {
+  const saveAnnotations = useCallback(() => {
+    const snapshot = cleanForSave(pathsRef.current)
+    const revision = revisionRef.current
     setSaveStatus('saving')
-    dirtyRef.current = false
-    try {
-      const response = await fetch(`/api/pdfs/${pdfId}/annotations`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ annotations: cleanForSave(pathsRef.current) })
-      })
-      if (!response.ok) throw new Error('Failed to save annotations')
-      setSaveStatus(dirtyRef.current ? 'dirty' : 'saved')
-      return true
-    } catch (err) {
-      console.error('Error saving annotations:', err)
-      dirtyRef.current = true
-      setSaveStatus('error')
-      return false
-    }
+    const operation = saveQueueRef.current.then(async () => {
+      try {
+        const response = await fetch(`/api/pdfs/${pdfId}/annotations`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ annotations: snapshot })
+        })
+        if (!response.ok) throw new Error('Failed to save annotations')
+        dirtyRef.current = revisionRef.current !== revision
+        setSaveStatus(dirtyRef.current ? 'dirty' : 'saved')
+        return true
+      } catch (err) {
+        console.error('Error saving annotations:', err)
+        dirtyRef.current = true
+        setSaveStatus('error')
+        return false
+      }
+    })
+    saveQueueRef.current = operation
+    return operation
   }, [pdfId, token])
 
   // Autosave 1s after the last change (including deletions)
@@ -484,7 +514,10 @@ export default function PDFEditor({ pdfId, onClose, token }) {
 
   const handleClose = async () => {
     commitText()
-    if (dirtyRef.current) await saveAnnotations()
+    if (dirtyRef.current || saveStatus === 'saving') {
+      const saved = await saveAnnotations()
+      if (!saved) { setActionError('Your changes could not be saved. Retry Save before closing.'); return }
+    }
     onClose()
   }
 
@@ -532,7 +565,7 @@ export default function PDFEditor({ pdfId, onClose, token }) {
         setEditName(data.name || '')
         setEditTags(data.tags?.join(', ') || '')
         setEditFolder(data.pdfFolder || '')
-        setPdfError(null)
+        if (!data.pdfData) setPdfError('This document has no PDF data. Please upload it again.')
       } else {
         const errorData = await response.json().catch(() => ({}))
         setPdfError(errorData.message || 'Failed to fetch PDF')
@@ -558,22 +591,24 @@ export default function PDFEditor({ pdfId, onClose, token }) {
 
   const handleSaveMetadata = async () => {
     setSavingMetadata(true)
+    setActionError(null)
     try {
       const response = await fetch(`/api/pdfs/${pdfId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({
-          name: editName,
+          name: editName.trim() || pdfData?.name || 'document.pdf',
           tags: editTags.split(',').map(t => t.trim()).filter(t => t),
-          pdfFolder: editFolder
+          pdfFolder: editFolder || null
         })
       })
       if (response.ok) {
         const data = await response.json()
         setPdfData(prev => ({ ...prev, ...data, pdfData: prev?.pdfData }))
         setShowSettings(false)
-      }
+      } else { throw new Error('Could not save document settings. Please try again.') }
     } catch (err) {
+      setActionError(err.message)
       console.error('Error saving metadata:', err)
     } finally {
       setSavingMetadata(false)
@@ -591,8 +626,15 @@ export default function PDFEditor({ pdfId, onClose, token }) {
   const onPageLoadSuccess = (page) => {
     // Viewport at scale 1 honours the page's own /Rotate, matching what is displayed
     const vp = page.getViewport({ scale: 1 })
-    setPageBase({ page: page.pageNumber, w: vp.width, h: vp.height })
+    setPageBase({ page: page.pageNumber, w: vp.width, h: vp.height, rotation: page.rotate || 0 })
   }
+
+  useEffect(() => {
+    if (!pageBase || !viewerRef.current || initialFitRef.current) return
+    initialFitRef.current = true
+    const width = viewerRef.current.clientWidth - 64
+    setScale(Math.max(0.25, Math.min(1, width / pageBase.w)))
+  }, [pageBase])
 
   /* ---------- coordinates ---------- */
   // Pointer position -> page units, correct at any zoom and rotation
@@ -723,7 +765,7 @@ export default function PDFEditor({ pdfId, onClose, token }) {
   /* ---------- eraser ---------- */
   const eraseAt = (pt) => {
     const radius = 10 / scale
-    const hits = (i) => i.page === pageNumber && i.points && strokeHit(i, pt, radius)
+    const hits = (i) => (i.page || 1) === pageNumber && i.points && strokeHit(i, pt, radius)
     if (!pathsRef.current.some(hits)) return
     if (!erasedRef.current) {
       pushHistory()
@@ -829,7 +871,16 @@ export default function PDFEditor({ pdfId, onClose, token }) {
 
   const goToPage = (n) => {
     commitText()
-    setPageNumber(Math.max(1, Math.min(numPages || 1, n)))
+    if (!Number.isFinite(n)) return
+    setPageNumber(Math.max(1, Math.min(numPages || 1, Math.trunc(n))))
+    viewerRef.current?.scrollTo({ top: 0, left: 0 })
+    if (window.innerWidth < 768) setShowPages(false)
+  }
+
+  const handleFitWidth = () => {
+    if (!pageBase || !viewerRef.current) return
+    const width = rotation % 180 ? pageBase.h : pageBase.w
+    setScale(Math.max(0.25, Math.min(4, (viewerRef.current.clientWidth - 64) / width)))
   }
 
   const handleZoomIn = () => setScale(prev => Math.min(prev + 0.25, 4.0))
@@ -845,6 +896,9 @@ export default function PDFEditor({ pdfId, onClose, token }) {
   }
 
   const handleDownload = async () => {
+    if (downloading) return
+    setDownloading(true)
+    setActionError(null)
     try {
       commitText()
       const response = await fetch(`/api/pdfs/${pdfId}/download`, {
@@ -860,7 +914,7 @@ export default function PDFEditor({ pdfId, onClose, token }) {
           outBytes = await burnAnnotations(pdfBytes, annotations, usePressure)
         } catch (err) {
           console.error('Error burning annotations into PDF:', err)
-          alert('Could not add annotations to the PDF, downloading the original instead.')
+          throw new Error('Could not export your annotations. Your edits remain in the editor; please try again.')
         }
       }
 
@@ -875,7 +929,9 @@ export default function PDFEditor({ pdfId, onClose, token }) {
       window.URL.revokeObjectURL(url)
     } catch (err) {
       console.error('Error downloading PDF:', err)
-      alert('Failed to download PDF: ' + err.message)
+      setActionError(err.message || 'Failed to download PDF')
+    } finally {
+      setDownloading(false)
     }
   }
 
@@ -953,14 +1009,14 @@ export default function PDFEditor({ pdfId, onClose, token }) {
   const renderH = ready ? (quarterTurn ? pageBase.w : pageBase.h) * scale : 0
   const cursor =
     currentTool === 'text' ? 'text' : currentTool === 'eraser' ? 'cell' : 'crosshair'
-  const pageItems = drawingPaths.filter(i => i.page === pageNumber)
+  const pageItems = drawingPaths.filter(i => (i.page || 1) === pageNumber)
 
   return (
-    <div className="fixed inset-0 bg-slate-950 flex flex-col z-50">
+    <div className="pdf-editor fixed inset-0 bg-slate-950 flex flex-col z-50" role="dialog" aria-modal="true" aria-label="PDF editor">
       {/* Header */}
-      <div className="bg-slate-900 border-b border-white/10 px-4 py-3 flex items-center justify-between">
+      <div className="pdf-editor-header bg-slate-900 border-b border-white/10 px-4 py-3 flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <h2 className="text-white font-semibold">{pdfData?.name || 'PDF Editor'}</h2>
+          <FileText className="text-indigo-400 shrink-0" size={24} /><h2 className="text-white font-semibold truncate max-w-[28vw]">{pdfData?.name || 'PDF Editor'}</h2>
           <span className="text-slate-400 text-sm">Page {pageNumber} of {numPages}</span>
           {saveStatus === 'saving' && (
             <div className="flex items-center gap-2 text-green-400 text-sm">
@@ -970,7 +1026,7 @@ export default function PDFEditor({ pdfId, onClose, token }) {
           )}
           {saveStatus === 'saved' && <span className="text-slate-500 text-sm">All changes saved</span>}
           {saveStatus === 'dirty' && <span className="text-slate-400 text-sm">Unsaved changes</span>}
-          {saveStatus === 'error' && <span className="text-red-400 text-sm">Couldn’t save – will retry on next change</span>}
+          {saveStatus === 'error' && <span className="text-red-400 text-sm">Save failed. Click Save to retry.</span>}
         </div>
         <div className="flex items-center gap-3">
           <button
@@ -1022,10 +1078,11 @@ export default function PDFEditor({ pdfId, onClose, token }) {
           </button>
           <button
             onClick={handleDownload}
+            disabled={downloading}
             className="p-2 text-blue-400 hover:bg-blue-500/10 rounded-lg transition-all"
             title="Download PDF with annotations"
           >
-            <Download size={20} />
+            {downloading ? <Loader2 className="animate-spin" size={20} /> : <Download size={20} />}
           </button>
           <button
             onClick={handleDelete}
@@ -1047,22 +1104,21 @@ export default function PDFEditor({ pdfId, onClose, token }) {
       {/* Toolbar. Mousedown is prevented (except on sliders) so clicking here never steals focus from an open text box. */}
       <div
         data-keep-text-active
-        className="bg-slate-800 border-b border-white/10 px-4 py-3 flex items-center gap-4"
+        className="pdf-editor-toolbar bg-slate-800 border-b border-white/10 px-4 py-3 flex items-center gap-4"
         onMouseDown={(e) => {
           if (e.target.tagName !== 'INPUT') e.preventDefault()
         }}
       >
+        <button onClick={() => setShowPages(v => !v)} aria-label="Toggle pages" aria-expanded={showPages} className={cn('p-2 rounded-lg', showPages ? 'bg-indigo-500/20 text-indigo-300' : 'text-slate-400')} title="Pages"><PanelLeft size={20} /></button>
         <div className="flex items-center gap-2 bg-slate-700 rounded-lg p-1">
           {TOOLS.map((tool) => (
             <button
               key={tool}
+              aria-label={tool}
+              aria-pressed={currentTool === tool}
               onClick={() => {
+                commitText()
                 setCurrentTool(tool)
-                if (tool === 'text') {
-                  setCurrentColor('#000000')
-                  const id = activeTextIdRef.current
-                  if (id) updatePaths(prev => prev.map(i => (i.id === id ? { ...i, color: '#000000' } : i)))
-                }
               }}
               className={cn(
                 'p-2 rounded transition-all',
@@ -1139,6 +1195,7 @@ export default function PDFEditor({ pdfId, onClose, token }) {
           >
             <ZoomIn size={18} />
           </button>
+          <button onClick={handleFitWidth} className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg" title="Fit to width" aria-label="Fit to width"><Maximize size={18} /></button>
           <button
             onClick={handleRotate}
             className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-all"
@@ -1149,14 +1206,31 @@ export default function PDFEditor({ pdfId, onClose, token }) {
         </div>
       </div>
 
+      {actionError && <div role="alert" className="flex items-center justify-between gap-3 bg-red-950 px-5 py-2 text-sm text-red-200">{actionError}<button onClick={() => setActionError(null)} aria-label="Dismiss error"><X size={16} /></button></div>}
+      <div className="flex flex-1 min-h-0 relative">
+        {showPages && pdfFile && !pdfError && (
+          <aside className="pdf-pages w-48 sm:w-56 shrink-0 overflow-y-auto border-r border-white/10 bg-slate-900/90" aria-label="Document pages">
+            <div className="sticky top-0 z-10 bg-slate-900 px-4 py-4 border-b border-white/5 flex items-center justify-between"><span className="text-xs font-semibold uppercase tracking-widest text-slate-300">Pages</span><span className="text-xs text-slate-500">{numPages || '…'} total</span></div>
+            <Document file={pdfFile} loading={<p className="p-4 text-xs text-slate-400">Loading previews…</p>}>
+              {Array.from({ length: numPages || 0 }, (_, index) => {
+                const n = index + 1
+                const count = drawingPaths.filter(item => (item.page || 1) === n).length
+                return <button key={n} onClick={() => goToPage(n)} aria-label={`Go to page ${n}${count ? `, ${count} annotations` : ''}`} aria-current={pageNumber === n ? 'page' : undefined} className={cn('pdf-page-tile', pageNumber === n && 'is-selected')}>
+                  <div className="pdf-page-preview"><PagePreview pageNumber={n} />{count > 0 && <span className="pdf-page-badge">{count} {count === 1 ? 'edit' : 'edits'}</span>}</div>
+                  <span className="flex items-center justify-between mt-3 text-xs"><span>Page {n}</span>{pageNumber === n && <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" />}</span>
+                </button>
+              })}
+            </Document>
+          </aside>
+        )}
       {/* PDF Viewer */}
-      <div className="flex-1 overflow-auto bg-slate-950">
+      <div ref={viewerRef} className="pdf-editor-canvas flex-1 min-w-0 overflow-auto bg-slate-950">
         <div className="flex min-h-full w-fit min-w-full items-start justify-center p-8">
           {pdfError ? (
             <div className="text-center py-12">
               <div className="text-6xl mb-4">❌</div>
               <p className="text-red-400 text-lg">{pdfError}</p>
-              <p className="text-slate-400 text-sm mt-2">Please check the console for more details</p>
+              <button onClick={() => { setPdfError(null); setLoading(true); fetchPDF() }} className="mt-4 px-4 py-2 rounded-lg bg-indigo-600 text-white">Retry loading</button>
             </div>
           ) : pdfFile ? (
             <div
@@ -1174,13 +1248,13 @@ export default function PDFEditor({ pdfId, onClose, token }) {
                 <Page
                   pageNumber={pageNumber}
                   scale={scale}
-                  rotate={rotation}
+                  rotate={((pageBase?.page === pageNumber ? pageBase.rotation : 0) + rotation) % 360}
                   renderTextLayer={false}
                   renderAnnotationLayer={false}
                   onLoadSuccess={onPageLoadSuccess}
                   loading={<div className="text-white">Loading page...</div>}
                   error={<div className="text-red-400">Failed to load page</div>}
-                  className="border border-white/10"
+                  className="bg-white"
                 />
               </Document>
 
@@ -1252,6 +1326,7 @@ export default function PDFEditor({ pdfId, onClose, token }) {
         </div>
       </div>
 
+      </div>
       {/* Page Navigation */}
       <div className="bg-slate-900 border-t border-white/10 px-4 py-3 flex items-center justify-center gap-4">
         <button
@@ -1261,7 +1336,7 @@ export default function PDFEditor({ pdfId, onClose, token }) {
         >
           Previous
         </button>
-        <span className="text-white">{pageNumber} / {numPages}</span>
+        <label className="flex items-center gap-2 text-sm text-slate-400">Page <input aria-label="Page number" key={pageNumber} type="number" min={1} max={numPages || 1} defaultValue={pageNumber} onBlur={e => { goToPage(Number(e.target.value)); e.target.value = String(Math.max(1, Math.min(numPages || 1, Number(e.target.value) || 1))) }} onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }} className="w-14 rounded-lg bg-slate-800 border border-white/10 px-2 py-1.5 text-center text-white" /> of {numPages || '…'}</label>
         <button
           onClick={() => goToPage(pageNumber + 1)}
           disabled={pageNumber >= (numPages || 1)}
@@ -1286,6 +1361,7 @@ export default function PDFEditor({ pdfId, onClose, token }) {
             </div>
 
             <div className="space-y-4">
+              {actionError && <p role="alert" className="rounded-lg bg-red-500/10 p-3 text-sm text-red-300">{actionError}</p>}
               <div>
                 <label className="block text-slate-400 text-sm mb-2">PDF Name</label>
                 <input
