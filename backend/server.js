@@ -6,6 +6,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const https = require('https');
+const { deletePDFPage } = require('./pdfPages');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -795,6 +796,27 @@ app.put('/api/pdfs/:id/annotations', authenticateToken, async (req, res) => {
     res.json(pdf);
   } catch (error) {
     res.status(500).json({ message: 'Error updating annotations', error: error.message });
+  }
+});
+
+// Persist the modified PDF and renumbered annotations together.
+app.delete('/api/pdfs/:id/pages/:pageNumber', authenticateToken, async (req, res) => {
+  try {
+    const pdf = await PDF.findOne({ _id: req.params.id, user: req.user.userId });
+    if (!pdf) return res.status(404).json({ message: 'PDF not found' });
+    let result;
+    try {
+      result = await deletePDFPage(pdf.pdfData, Number(req.params.pageNumber), req.body.annotations ?? pdf.annotations);
+    } catch (error) {
+      return res.status(400).json({ message: error.message });
+    }
+    pdf.pdfData = result.bytes;
+    pdf.annotations = result.annotations;
+    pdf.updatedAt = new Date();
+    await pdf.save();
+    res.json({ pdfData: result.bytes.toString('base64'), annotations: result.annotations, numPages: result.numPages });
+  } catch (error) {
+    res.status(500).json({ message: 'Could not delete the page. Please try again.' });
   }
 });
 

@@ -391,6 +391,8 @@ export default function PDFEditor({ pdfId, onClose, token }) {
   const [usePressure, setUsePressure] = useState(true)
   const [saveStatus, setSaveStatus] = useState('saved') // saved | dirty | saving | error
   const [showPages, setShowPages] = useState(() => window.innerWidth >= 768)
+  const [deletingPage, setDeletingPage] = useState(false)
+  const deletingPageRef = useRef(false)
   const [downloading, setDownloading] = useState(false)
   const [actionError, setActionError] = useState(null)
   const viewerRef = useRef(null)
@@ -480,6 +482,7 @@ export default function PDFEditor({ pdfId, onClose, token }) {
 
   /* ---------- saving ---------- */
   const saveAnnotations = useCallback(() => {
+    if (deletingPageRef.current) return Promise.resolve(false)
     const snapshot = cleanForSave(pathsRef.current)
     const revision = revisionRef.current
     setSaveStatus('saving')
@@ -699,6 +702,7 @@ export default function PDFEditor({ pdfId, onClose, token }) {
   // Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z / Ctrl+Y when not typing
   useEffect(() => {
     const onKey = (e) => {
+      if (deletingPageRef.current) return
       const tag = e.target?.tagName
       if (tag === 'TEXTAREA' || tag === 'INPUT' || tag === 'SELECT') return
       if (!(e.ctrlKey || e.metaKey)) return
@@ -883,6 +887,47 @@ export default function PDFEditor({ pdfId, onClose, token }) {
     setScale(Math.max(0.25, Math.min(4, (viewerRef.current.clientWidth - 64) / width)))
   }
 
+  const handleDeletePage = async () => {
+    if (!numPages || numPages <= 1 || deletingPageRef.current) return
+    commitText()
+    if (!confirm(`Delete page ${pageNumber} and its annotations? This cannot be undone.`)) return
+    deletingPageRef.current = true
+    setDeletingPage(true)
+    setActionError(null)
+    try {
+      // Finish older saves before changing page numbers; autosave is paused meanwhile.
+      await saveQueueRef.current
+      const response = await fetch(`/api/pdfs/${pdfId}/pages/${pageNumber}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ annotations: cleanForSave(pathsRef.current) })
+      })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.message || 'Could not delete this page.')
+      const bytes = Uint8Array.from(atob(result.pdfData), c => c.charCodeAt(0))
+      setPdfFile(new File([bytes], pdfData?.name || 'document.pdf', { type: 'application/pdf' }))
+      setPdfData(prev => ({ ...prev, pdfData: result.pdfData }))
+      setPageBase(null)
+      setNumPages(result.numPages)
+      setPageNumber(Math.min(pageNumber, result.numPages))
+      updatePaths(result.annotations, { silent: true })
+      dirtyRef.current = false
+      setSaveStatus('saved')
+      undoStack.current = []
+      redoStack.current = []
+      bumpHistory()
+      setCurrentPath([])
+      currentPathRef.current = []
+      isDrawingRef.current = false
+      viewerRef.current?.scrollTo({ top: 0, left: 0 })
+    } catch (error) {
+      setActionError(error.message || 'Could not delete this page. Please try again.')
+    } finally {
+      deletingPageRef.current = false
+      setDeletingPage(false)
+    }
+  }
+
   const handleZoomIn = () => setScale(prev => Math.min(prev + 0.25, 4.0))
   const handleZoomOut = () => setScale(prev => Math.max(prev - 0.25, 0.5))
   const handleRotate = () => {
@@ -1012,7 +1057,8 @@ export default function PDFEditor({ pdfId, onClose, token }) {
   const pageItems = drawingPaths.filter(i => (i.page || 1) === pageNumber)
 
   return (
-    <div className="pdf-editor fixed inset-0 bg-slate-950 flex flex-col z-50" role="dialog" aria-modal="true" aria-label="PDF editor">
+    <div className="pdf-editor fixed inset-0 bg-slate-950 flex flex-col z-50" role="dialog" aria-modal="true" aria-label="PDF editor" aria-busy={deletingPage} onKeyDownCapture={e => { if (deletingPage) { e.preventDefault(); e.stopPropagation() } }}>
+      {deletingPage && <div className="fixed inset-0 z-[100] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center" role="status"><div className="flex items-center gap-3 rounded-xl border border-white/10 bg-slate-900 p-6 text-white"><Loader2 className="animate-spin" size={22} />Deleting page…</div></div>}
       {/* Header */}
       <div className="pdf-editor-header bg-slate-900 border-b border-white/10 px-4 py-3 flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
@@ -1345,6 +1391,8 @@ export default function PDFEditor({ pdfId, onClose, token }) {
           Next
         </button>
       </div>
+
+      <button onClick={handleDeletePage} disabled={!numPages || numPages <= 1 || deletingPage} className="absolute bottom-4 right-4 flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-red-300 hover:bg-red-500/10 disabled:opacity-30 max-sm:static max-sm:justify-center max-sm:bg-slate-900" title={numPages === 1 ? 'Keep at least one page in the PDF' : 'Delete the current page'}><Trash2 size={16} />Delete page</button>
 
       {/* Settings Modal */}
       {showSettings && (
