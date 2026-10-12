@@ -1,4 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef, useId } from 'react'
+import { createPortal } from 'react-dom'
+import { Plus, X, ChevronDown, Image as ImageIcon, FileText, Upload, Square, Circle, Minus, ArrowRight, Table, Stamp, Check } from 'lucide-react'
 
 export const INSERT_ACCEPT = 'image/*,application/pdf,text/plain,text/csv,.md,.svg,.webp,.bmp,.gif,.avif'
 const MAX_FILE_SIZE = 10 * 1024 * 1024
@@ -59,27 +61,121 @@ export function makeInsert(kind, color, options = {}) {
   return { dataUrl: canvas.toDataURL('image/png'), width: canvas.width, height: canvas.height, label: kind === 'stamp' ? options.label : kind }
 }
 
+const SHAPES = [
+  { kind: 'rectangle', label: 'Rectangle', Icon: Square },
+  { kind: 'ellipse', label: 'Ellipse', Icon: Circle },
+  { kind: 'line', label: 'Line', Icon: Minus },
+  { kind: 'arrow', label: 'Arrow', Icon: ArrowRight }
+]
+const FILE_TYPES = [
+  { label: 'Images', Icon: ImageIcon, accept: 'image/*,.svg,.webp,.bmp,.gif,.avif', formats: 'PNG, JPG, SVG, WebP, GIF, BMP, AVIF', hint: 'Insert a picture. Animated images use a still frame.' },
+  { label: 'PDF page', Icon: FileText, accept: 'application/pdf,.pdf', formats: 'PDF', hint: 'Insert the first page as an image.' },
+  { label: 'Text file', Icon: FileText, accept: 'text/plain,text/csv,.txt,.md,.csv', formats: 'TXT, Markdown, CSV', hint: 'Insert the file contents as editable text.' }
+]
+
 export default function InsertPanel({ onFiles, onInsert, color, busy }) {
+  const [open, setOpen] = useState(false)
+  const [section, setSection] = useState('files')
   const [kind, setKind] = useState('rectangle')
   const [label, setLabel] = useState('APPROVED')
-  const [cells, setCells] = useState('Heading 1\tHeading 2\nValue 1\tValue 2')
-  return <details className="pdf-insert-panel">
-    <summary className="cursor-pointer rounded-lg bg-indigo-600 px-3 py-2 text-sm text-white">Insert content</summary>
-    <div className="pdf-insert-options">
-      <label className="block text-sm">Image, PDF page, or text file
-        <input aria-label="Insert files" type="file" accept={INSERT_ACCEPT} multiple disabled={busy} onChange={e => { onFiles(Array.from(e.target.files)); e.target.value = '' }} className="mt-2 block w-full text-xs" />
-      </label>
-      <p className="text-xs text-slate-400">Images: PNG, JPEG, SVG, WebP, GIF, BMP, AVIF and other browser-supported formats. GIFs use a still frame. PDFs insert their first page. Text: TXT, Markdown, CSV. You can also paste or drop images onto the page.</p>
-      <label className="block text-sm">Shape or content
-        <select value={kind} onChange={e => setKind(e.target.value)} className="mt-1 w-full rounded bg-slate-800 p-2">
-          {['rectangle', 'ellipse', 'line', 'arrow', 'table', 'stamp'].map(k => <option key={k} value={k}>{k[0].toUpperCase() + k.slice(1)}</option>)}
-        </select>
-      </label>
-      {kind === 'stamp' && <input aria-label="Stamp text" maxLength={40} value={label} onChange={e => setLabel(e.target.value)} className="w-full rounded bg-slate-800 p-2" />}
-      {kind === 'table' && <label className="block text-xs">One row per line; separate columns with tabs (paste from a spreadsheet). Up to 12 rows and 8 columns.
-        <textarea aria-label="Table cells" rows={4} value={cells} onChange={e => setCells(e.target.value)} className="mt-1 w-full rounded bg-slate-800 p-2" />
-      </label>}
-      <button disabled={busy || (kind === 'stamp' && !label.trim()) || (kind === 'table' && !cells.trim())} onClick={() => onInsert(kind, { label, cells })} className="w-full rounded bg-indigo-600 p-2 text-sm">{busy ? 'Inserting…' : 'Insert on current page'}</button>
-    </div>
-  </details>
+  const [rows, setRows] = useState(3)
+  const [cols, setCols] = useState(2)
+  const [values, setValues] = useState({})
+  const [position, setPosition] = useState({ top: 100, left: 16, maxHeight: 600 })
+  const triggerRef = useRef(null)
+  const panelRef = useRef(null)
+  const fileRef = useRef(null)
+  const id = useId()
+  const close = () => { setOpen(false); triggerRef.current?.focus() }
+
+  useEffect(() => {
+    if (!open) return
+    const place = () => {
+      const rect = triggerRef.current.getBoundingClientRect()
+      const width = Math.min(440, window.innerWidth - 24)
+      const top = Math.min(rect.bottom + 8, Math.max(12, window.innerHeight - 420))
+      setPosition({ top, left: Math.max(12, Math.min(rect.left, window.innerWidth - width - 12)), maxHeight: window.innerHeight - top - 12 })
+    }
+    place()
+    panelRef.current?.focus()
+    const outside = e => {
+      if (!panelRef.current?.contains(e.target) && !triggerRef.current?.contains(e.target)) setOpen(false)
+    }
+    const keyboard = e => {
+      if (e.key === 'Escape') { e.preventDefault(); setOpen(false); triggerRef.current?.focus() }
+      if (e.key === 'Tab') {
+        const items = Array.from(panelRef.current.querySelectorAll('button:not(:disabled), input:not(:disabled), textarea:not(:disabled)')).filter(el => el.type !== 'file')
+        const first = items[0], last = items[items.length - 1]
+        if (e.shiftKey && (document.activeElement === first || document.activeElement === panelRef.current)) { e.preventDefault(); last?.focus() }
+        else if (!e.shiftKey && (document.activeElement === last || document.activeElement === panelRef.current)) { e.preventDefault(); first?.focus() }
+      }
+    }
+    document.addEventListener('pointerdown', outside)
+    document.addEventListener('keydown', keyboard)
+    window.addEventListener('resize', place)
+    window.addEventListener('scroll', place, true)
+    return () => {
+      document.removeEventListener('pointerdown', outside)
+      document.removeEventListener('keydown', keyboard)
+      window.removeEventListener('resize', place)
+      window.removeEventListener('scroll', place, true)
+    }
+  }, [open])
+
+  const cells = Array.from({ length: rows }, (_, r) => Array.from({ length: cols }, (_, c) => values[`${r}:${c}`] || '').join('\t')).join('\n')
+  const chooseFiles = accept => { fileRef.current.accept = accept; fileRef.current.click() }
+  const submit = () => {
+    const type = section === 'shapes' ? kind : section === 'table' ? 'table' : 'stamp'
+    if (onInsert(type, { label: label.trim(), cells }) !== false) close()
+  }
+  const pasteCells = (e, startRow, startCol) => {
+    const text = e.clipboardData.getData('text/plain')
+    if (!/[\t\n]/.test(text)) return
+    e.preventDefault()
+    const pasted = text.replace(/\r/g, '').replace(/\n$/, '').split('\n').map(row => row.split('\t'))
+    const nextRows = Math.min(12, Math.max(rows, startRow + pasted.length))
+    const nextCols = Math.min(8, Math.max(cols, startCol + Math.max(...pasted.map(row => row.length))))
+    setRows(nextRows); setCols(nextCols)
+    setValues(prev => {
+      const next = { ...prev }
+      pasted.forEach((row, r) => row.forEach((value, c) => { if (startRow + r < 12 && startCol + c < 8) next[`${startRow + r}:${startCol + c}`] = value }))
+      return next
+    })
+  }
+
+  return <div className="pdf-insert-panel">
+    <button ref={triggerRef} type="button" className="insert-trigger" aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? id : undefined} onClick={() => setOpen(value => !value)}><Plus size={17} />Insert content<ChevronDown size={15} /></button>
+    <input ref={fileRef} type="file" hidden multiple accept={INSERT_ACCEPT} onChange={e => { const files = Array.from(e.target.files); e.target.value = ''; if (files.length) { onFiles(files); close() } }} />
+    {open && createPortal(<div ref={panelRef} id={id} role="dialog" aria-modal="false" aria-labelledby={`${id}-title`} tabIndex={-1} className="pdf-insert-popover" style={position}>
+      <div className="insert-heading"><div><h3 id={`${id}-title`}>Insert content</h3><p>Add to the current PDF page</p></div><button type="button" onClick={close} className="insert-close" aria-label="Close insert menu"><X size={18} /></button></div>
+      <nav className="insert-sections" aria-label="Insert categories">
+        {[['files', 'Files', Upload], ['shapes', 'Shapes', Square], ['table', 'Table', Table], ['stamp', 'Stamp', Stamp]].map(([key, name, Icon]) => <button type="button" key={key} aria-pressed={section === key} onClick={() => setSection(key)}><Icon size={17} />{name}</button>)}
+      </nav>
+      <div className="insert-body">
+        {busy && <p role="status" className="insert-notice">Content insertion is unavailable while the page loads or a file operation finishes.</p>}
+        {section === 'files' && <>
+          <div className="insert-file-list">{FILE_TYPES.map(({ label: name, Icon, accept, formats, hint }) => <button key={name} type="button" className="insert-file-card" disabled={busy} onClick={() => chooseFiles(accept)}><span className="insert-file-icon"><Icon size={22} /></span><span><strong>{name}</strong><span className="insert-formats">{formats}</span><span className="insert-description">{hint}</span></span><Plus size={17} /></button>)}</div>
+          <p className="insert-help">Up to 10 MB per file. You can select multiple files, or paste and drop images onto the page.</p>
+        </>}
+        {section === 'shapes' && <>
+          <p className="insert-label">Choose a shape</p>
+          <div className="insert-shape-grid">{SHAPES.map(({ kind: type, label: name, Icon }) => <button key={type} type="button" aria-pressed={kind === type} onClick={() => setKind(type)}><Icon size={32} strokeWidth={1.5} /><span>{name}</span>{kind === type && <Check className="insert-selected-check" size={15} />}</button>)}</div>
+          <p className="insert-help">Use the Move tool to position the shape and the − / + controls to resize it.</p>
+        </>}
+        {section === 'table' && <>
+          <div className="insert-table-size"><label htmlFor={`${id}-rows`}>Rows<input id={`${id}-rows`} type="number" min={1} max={12} value={rows} onChange={e => setRows(Math.max(1, Math.min(12, Number(e.target.value) || 1)))} /></label><span>×</span><label htmlFor={`${id}-cols`}>Columns<input id={`${id}-cols`} type="number" min={1} max={8} value={cols} onChange={e => setCols(Math.max(1, Math.min(8, Number(e.target.value) || 1)))} /></label></div>
+          <p className="insert-help">Type in the cells or paste a spreadsheet selection into the first cell. Maximum 12 rows × 8 columns.</p>
+          <div className="insert-table-scroll"><table className="insert-table-editor"><tbody>{Array.from({ length: rows }, (_, r) => <tr key={r}>{Array.from({ length: cols }, (_, c) => <td key={c}><input aria-label={`Row ${r + 1}, column ${c + 1}`} placeholder={r === 0 ? `Heading ${c + 1}` : 'Value'} value={values[`${r}:${c}`] || ''} onPaste={e => pasteCells(e, r, c)} onChange={e => setValues(prev => ({ ...prev, [`${r}:${c}`]: e.target.value }))} /></td>)}</tr>)}</tbody></table></div>
+          <p className="insert-help">The table inserts as an image. Finish editing the cells here before inserting.</p>
+        </>}
+        {section === 'stamp' && <>
+          <label className="insert-label" htmlFor={`${id}-stamp`}>Stamp text</label>
+          <input id={`${id}-stamp`} className="insert-text-input" maxLength={40} value={label} placeholder="Enter stamp text" onChange={e => setLabel(e.target.value)} />
+          <div className="insert-presets">{['APPROVED', 'DRAFT', 'REVIEWED', 'CONFIDENTIAL'].map(value => <button key={value} type="button" aria-pressed={label === value} onClick={() => setLabel(value)}>{value}</button>)}</div>
+          <div className="insert-stamp-preview" aria-label="Stamp preview"><span style={{ color, borderColor: color }}>{label || 'YOUR TEXT'}</span></div>
+        </>}
+      </div>
+      {section !== 'files' && <div className="insert-footer"><span className="insert-color"><i style={{ backgroundColor: color }} />Toolbar color</span><button type="button" className="insert-submit" disabled={busy || (section === 'stamp' && !label.trim())} onClick={submit}><Plus size={16} />Insert {section === 'shapes' ? kind : section}</button></div>}
+    </div>, document.body)}
+  </div>
 }

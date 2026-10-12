@@ -834,7 +834,7 @@ export default function PDFEditor({ pdfId, onClose, token }) {
 
   const insertGenerated = (kind, options) => {
     try { addImageInsert(makeInsert(kind, currentColor, options)); setActionError(null) }
-    catch (error) { setActionError(error.message) }
+    catch (error) { setActionError(error.message); return false }
   }
 
   const resizeInsert = (id, factor) => {
@@ -1237,6 +1237,8 @@ export default function PDFEditor({ pdfId, onClose, token }) {
           if (e.target.tagName !== 'INPUT') e.preventDefault()
         }}
       >
+        <InsertPanel onFiles={insertFiles} onInsert={insertGenerated} color={currentColor} busy={inserting || !pageBase || pageBase.page !== pageNumber || deletingPage} />
+        <div className="pdf-editor-tool-options">
         <button onClick={() => setShowPages(v => !v)} aria-label="Toggle pages" aria-expanded={showPages} className={cn('p-2 rounded-lg', showPages ? 'bg-indigo-500/20 text-indigo-300' : 'text-slate-400')} title="Pages"><PanelLeft size={20} /></button>
         <div className="flex items-center gap-2 bg-slate-700 rounded-lg p-1">
           {TOOLS.map((tool) => (
@@ -1262,8 +1264,6 @@ export default function PDFEditor({ pdfId, onClose, token }) {
             </button>
           ))}
         </div>
-
-        <InsertPanel onFiles={insertFiles} onInsert={insertGenerated} color={currentColor} busy={inserting || !pageBase || pageBase.page !== pageNumber || deletingPage} />
 
         <div className="flex items-center gap-2">
           {COLORS.map((color) => (
@@ -1334,6 +1334,7 @@ export default function PDFEditor({ pdfId, onClose, token }) {
           >
             <RotateCw size={18} />
           </button>
+        </div>
         </div>
       </div>
 

@@ -4,7 +4,11 @@
 .pdf-editor-header button { transition: background .15s, color .15s; }
 .pdf-editor button:focus-visible { outline: 2px solid #a5b4fc; outline-offset: 3px; }
 .pdf-editor button:disabled { cursor: default; opacity: .4; }
-.pdf-editor-toolbar { background: #111b30; flex-wrap: wrap; gap: 12px; }
+.pdf-editor-toolbar { background: #111b30; flex-wrap: nowrap; gap: 12px; flex-shrink: 0; overflow: visible; }
+.pdf-editor-tool-options { display: flex; flex: 1; min-width: 0; flex-wrap: wrap; align-items: center; gap: 12px; }
+.pdf-editor-tool-options > * { flex-shrink: 0; }
+.pdf-editor-toolbar .pdf-insert-panel { flex-shrink: 0; align-self: flex-start; }
+.pdf-editor-header { flex-shrink: 0; }
 .pdf-editor-canvas { background-color: #080f20; background-image: radial-gradient(#94a3b81c 1px, transparent 1px); background-size: 20px 20px; }
 .pdf-editor-canvas .react-pdf__Document { box-shadow: 0 16px 64px #0008, 0 0 0 1px #ffffff15; }
 .pdf-pages { scrollbar-width: thin; scrollbar-color: #334155 transparent; }
@@ -15,14 +19,64 @@
 .pdf-page-badge { position: absolute; right: 4px; bottom: 4px; background: #312e81e8; color: #e0e7ff; border-radius: 4px; padding: 3px 6px; font-size: 9px; }
 @media (max-width: 640px) { .pdf-editor-header h2 { max-width: 65vw; } .pdf-editor-header > div:last-child { gap: 2px; } .pdf-editor-toolbar { padding: 8px; gap: 8px; } .pdf-pages { width: 168px; } .pdf-page-tile { margin: 10px; width: calc(100% - 20px); padding: 5px; } }
 @media (max-width: 640px) {
-  .pdf-editor-toolbar { flex-wrap: nowrap; overflow-x: auto; }
+  .pdf-editor-tool-options { flex-wrap: nowrap; overflow-x: auto; padding: 3px; gap: 8px; scrollbar-width: thin; }
   .pdf-editor-toolbar > * { flex-shrink: 0; }
-  .pdf-editor-toolbar > div:last-child { margin-left: 0; }
+  .pdf-editor-tool-options > div:last-child { margin-left: 0; }
   .pdf-pages { position: absolute; inset: 0 auto 0 0; z-index: 35; width: 190px; box-shadow: 12px 0 32px #0006; background: #0f172a; }
 }
-.pdf-insert-panel { position: relative; z-index: 45; }
-.pdf-insert-options { position: absolute; top: calc(100% + 10px); left: 0; width: 320px; max-height: 65vh; overflow-y: auto; display: grid; gap: 14px; padding: 18px; background: #0f172a; border: 1px solid #475569; border-radius: 12px; box-shadow: 0 12px 40px #0008; }
+.pdf-insert-panel { position: relative; }
 .pdf-insert-controls { position: absolute; left: 0; top: 100%; display: flex; align-items: center; gap: 8px; padding: 6px 8px; white-space: nowrap; background: #0f172a; color: white; border-radius: 6px; box-shadow: 0 2px 8px #0005; }
 .pdf-insert-controls button { padding: 4px; border-radius: 4px; }
 .pdf-insert-controls button:hover { background: #334155; }
-@media (max-width: 640px) { .pdf-insert-options { position: fixed; top: 160px; left: 12px; width: min(320px, calc(100vw - 24px)); } }
+.insert-trigger { min-height: 42px; white-space: nowrap; display: flex; align-items: center; gap: 7px; padding: 9px 12px; border: 1px solid #818cf866; border-radius: 8px; background: #4f46e5; color: #fff; font-size: 14px; font-weight: 600; }
+.insert-trigger:hover, .insert-trigger[aria-expanded="true"] { background: #6366f1; }
+.pdf-insert-popover { position: fixed; z-index: 100; width: min(440px, calc(100vw - 24px)); display: flex; flex-direction: column; overflow: hidden; border: 1px solid #475569; border-radius: 16px; background: #111c30; color: #f1f5f9; box-shadow: 0 18px 60px #0009; font: 14px/1.5 Inter, ui-sans-serif, system-ui, sans-serif; color-scheme: dark; }
+.pdf-insert-popover button { cursor: pointer; }
+.pdf-insert-popover button:disabled { cursor: default; opacity: .45; }
+.pdf-insert-popover button:focus-visible, .pdf-insert-popover input:focus-visible { outline: 2px solid #a5b4fc; outline-offset: 2px; }
+.insert-heading { display: flex; align-items: center; justify-content: space-between; padding: 18px 20px 14px; flex-shrink: 0; }
+.insert-heading h3 { margin: 0; font-size: 17px; font-weight: 650; color: #fff; }
+.insert-heading p { margin: 3px 0 0; font-size: 12px; color: #cbd5e1; }
+.insert-close { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 8px; color: #cbd5e1; }
+.insert-close:hover { background: #334155; color: #fff; }
+.insert-sections { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 0 14px 12px; border-bottom: 1px solid #334155; flex-shrink: 0; }
+.insert-sections button { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 4px; border-radius: 8px; font-size: 13px; color: #cbd5e1; }
+.insert-sections button:hover { background: #1e293b; }
+.insert-sections button[aria-pressed="true"] { color: #e0e7ff; background: #6366f12e; box-shadow: inset 0 0 0 1px #818cf866; }
+.insert-body { padding: 18px 20px; overflow-y: auto; min-height: 0; scrollbar-width: thin; }
+.insert-file-list { display: grid; gap: 10px; }
+.insert-file-card { display: grid; grid-template-columns: 40px 1fr 18px; gap: 12px; align-items: center; text-align: left; width: 100%; padding: 14px 12px; border: 1px solid #475569; border-radius: 10px; background: #1e293b; color: #e2e8f0; }
+.insert-file-card:hover { border-color: #a5b4fc; background: #26334c; }
+.insert-file-card strong { display: block; color: #fff; font-size: 14px; font-weight: 600; }
+.insert-file-icon { display: grid; place-items: center; height: 40px; border-radius: 9px; color: #c7d2fe; background: #6366f126; }
+.insert-formats { display: block; color: #c7d2fe; font-size: 11px; margin-top: 2px; }
+.insert-description { display: block; color: #cbd5e1; font-size: 12px; margin-top: 5px; }
+.insert-help { color: #cbd5e1; font-size: 12px; margin: 12px 0 0; line-height: 1.6; }
+.insert-label { display: block; color: #e2e8f0; font-weight: 600; font-size: 13px; margin: 0 0 10px; }
+.insert-shape-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.insert-shape-grid button { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; min-height: 100px; border: 1px solid #475569; border-radius: 10px; background: #1e293b; color: #e2e8f0; }
+.insert-shape-grid button:hover { border-color: #a5b4fc; }
+.insert-shape-grid button[aria-pressed="true"] { background: #3730a333; border-color: #a5b4fc; color: #e0e7ff; }
+.insert-selected-check { position: absolute; top: 10px; right: 10px; color: #a5b4fc; }
+.insert-table-size { display: flex; align-items: center; gap: 12px; }
+.insert-table-size label { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }
+.insert-table-size input { width: 58px; padding: 7px; border: 1px solid #64748b; border-radius: 7px; background: #1e293b; color: #fff; }
+.insert-table-scroll { overflow: auto; margin-top: 14px; max-height: 260px; border: 1px solid #64748b; border-radius: 8px; }
+.insert-table-editor { width: 100%; border-collapse: collapse; }
+.insert-table-editor td { border: 1px solid #475569; padding: 0; }
+.insert-table-editor input { display: block; width: 100%; min-width: 100px; padding: 10px; border: 0; background: #1e293b; color: #f8fafc; font-size: 12px; }
+.insert-table-editor tr:first-child input { background: #29364e; font-weight: 600; }
+.insert-table-editor input::placeholder, .insert-text-input::placeholder { color: #94a3b8; }
+.insert-text-input { width: 100%; padding: 10px 12px; border: 1px solid #64748b; border-radius: 8px; background: #1e293b; color: #fff; }
+.insert-presets { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.insert-presets button { padding: 5px 8px; font-size: 10px; letter-spacing: .03em; border: 1px solid #475569; border-radius: 6px; color: #cbd5e1; }
+.insert-presets button[aria-pressed="true"], .insert-presets button:hover { background: #3730a333; border-color: #818cf8; color: #e0e7ff; }
+.insert-stamp-preview { display: grid; place-items: center; padding: 24px 12px; margin-top: 16px; background: #fff; border-radius: 8px; }
+.insert-stamp-preview span { max-width: 100%; overflow-wrap: anywhere; padding: 8px 16px; border: 3px solid; text-align: center; font-size: 21px; font-weight: 700; }
+.insert-footer { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 14px 20px; border-top: 1px solid #334155; background: #0f172a; flex-shrink: 0; }
+.insert-color { display: flex; align-items: center; gap: 7px; color: #cbd5e1; font-size: 12px; }
+.insert-color i { width: 16px; height: 16px; border: 1px solid #94a3b8; border-radius: 50%; }
+.insert-submit { display: flex; align-items: center; gap: 6px; padding: 10px 14px; border-radius: 8px; background: #4f46e5; color: #fff; font-size: 13px; font-weight: 600; }
+.insert-submit:hover { background: #6366f1; }
+.insert-notice { padding: 10px 12px; margin: 0 0 14px; background: #312e81; color: #e0e7ff; border-radius: 8px; font-size: 12px; }
+@media (max-width: 400px) { .insert-body { padding: 14px; } .insert-heading { padding: 14px; } .insert-sections button { flex-direction: column; gap: 3px; } .insert-footer { padding: 12px 14px; } .insert-color { font-size: 11px; } .insert-submit { padding: 9px 10px; } }
