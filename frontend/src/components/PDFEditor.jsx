@@ -7,6 +7,7 @@ import {
 import { PDFDocument, rgb, degrees, StandardFonts, LineCapStyle } from 'pdf-lib'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.js?url'
 import './PDFEditor.css'
+import InsertPanel, { imageFromFile, makeInsert } from './PDFInsertPanel'
 import { cn } from '../lib/utils'
 
 // Set up PDF.js worker for react-pdf v7
@@ -24,7 +25,7 @@ const LINE_HEIGHT = 1.2
 const BASELINE_RATIO = 0.9465 // distance from top of a line box to the baseline, in font sizes
 const FONT_STACK = 'Helvetica, Arial, sans-serif'
 const COLORS = ['#000000', '#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899']
-const TOOLS = ['pen', 'highlighter', 'text', 'eraser']
+const TOOLS = ['pen', 'highlighter', 'text', 'select', 'eraser']
 
 const uid = () => `a_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`
 
@@ -95,6 +96,13 @@ async function burnAnnotations(pdfBytes, annotations, usePressure) {
 
     const { r, g, b } = hexToRgb(item.color || '#000000')
     const color = rgb(r, g, b)
+
+    if (item.tool === 'image') {
+      const image = await pdfDoc.embedPng(item.dataUrl)
+      const p = toPdf(item.x, item.y + item.height)
+      page.drawImage(image, { x: p.x, y: p.y, width: item.width, height: item.height, rotate: degrees(angle) })
+      continue
+    }
 
     if (item.tool === 'text') {
       if (!item.text?.trim()) continue
@@ -395,6 +403,9 @@ export default function PDFEditor({ pdfId, onClose, token }) {
   const deletingPageRef = useRef(false)
   const [downloading, setDownloading] = useState(false)
   const [actionError, setActionError] = useState(null)
+  const [inserting, setInserting] = useState(false)
+  const [selectedInsertId, setSelectedInsertId] = useState(null)
+  const insertingRef = useRef(false)
   const viewerRef = useRef(null)
   const initialFitRef = useRef(false)
   const saveQueueRef = useRef(Promise.resolve(true))
@@ -753,8 +764,9 @@ export default function PDFEditor({ pdfId, onClose, token }) {
     const drag = dragRef.current
     if (!drag || !pageBase) return
     const pt = toLocal(e)
-    const x = Math.max(0, Math.min(pageBase.w - 10, pt.x - drag.dx))
-    const y = Math.max(0, Math.min(pageBase.h - 10, pt.y - drag.dy))
+    const item = pathsRef.current.find(i => i.id === drag.id)
+    const x = Math.max(0, Math.min(pageBase.w - (item?.width || 10), pt.x - drag.dx))
+    const y = Math.max(0, Math.min(pageBase.h - (item?.height || 10), pt.y - drag.dy))
     if (!drag.moved) {
       drag.moved = true
       if (activeTextIdRef.current !== drag.id) pushHistoryRaw(drag.snapshot)
@@ -764,6 +776,74 @@ export default function PDFEditor({ pdfId, onClose, token }) {
 
   const handleTextDragEnd = () => {
     dragRef.current = null
+  }
+
+  const addImageInsert = (asset, targetPage = pageNumber, base = pageBase) => {
+    if (!base) throw new Error('Wait for the page to load before inserting content.')
+    commitText()
+    const ratio = Math.min(1, base.w * 0.65 / asset.width, base.h * 0.65 / asset.height)
+    const width = asset.width * ratio
+    const height = asset.height * ratio
+    const item = { ...asset, id: uid(), tool: 'image', page: targetPage, width, height, x: (base.w - width) / 2, y: (base.h - height) / 2 }
+    pushHistory()
+    updatePaths(prev => [...prev, item])
+    setSelectedInsertId(item.id)
+    setCurrentTool('select')
+  }
+
+  const insertFiles = async (files) => {
+    if (insertingRef.current || deletingPageRef.current) return
+    if (!pageBase || pageBase.page !== pageNumber) { setActionError('Wait for the page to load before inserting content.'); return }
+    const targetPage = pageNumber
+    const base = pageBase
+    insertingRef.current = true
+    setInserting(true)
+    setActionError(null)
+    const errors = []
+    try {
+      for (const file of files) {
+        try {
+          if (file.size > 10 * 1024 * 1024) throw new Error('Files must be smaller than 10 MB.')
+          if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) {
+            const task = pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) })
+            try {
+              const pdf = await task.promise
+              const page = await pdf.getPage(1)
+              const natural = page.getViewport({ scale: 1 })
+              const viewport = page.getViewport({ scale: Math.min(2, 1800 / Math.max(natural.width, natural.height)) })
+              const canvas = document.createElement('canvas')
+              canvas.width = Math.ceil(viewport.width); canvas.height = Math.ceil(viewport.height)
+              await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise
+              addImageInsert({ dataUrl: canvas.toDataURL('image/png'), width: canvas.width, height: canvas.height, label: `${file.name} (page 1)` }, targetPage, base)
+            } finally { await task.destroy() }
+          } else if (/\.(txt|md|csv)$/i.test(file.name) || file.type.startsWith('text/') && file.type !== 'image/svg+xml') {
+            const text = await file.text()
+            if (text.length > 20000) throw new Error('Text inserts are limited to 20,000 characters.')
+            if (!text.trim()) throw new Error('This text file is empty.')
+            commitText(); pushHistory()
+            updatePaths(prev => [...prev, { id: uid(), tool: 'text', page: targetPage, x: 24, y: 24, fontSize, color: currentColor, text }])
+            setCurrentTool('text')
+          } else {
+            addImageInsert(await imageFromFile(file), targetPage, base)
+          }
+        } catch (error) { errors.push(`${file.name || 'Image'}: ${error.message || 'This format could not be read by your browser.'}`) }
+      }
+      if (errors.length) setActionError(errors.join(' '))
+    } finally { insertingRef.current = false; setInserting(false) }
+  }
+
+  const insertGenerated = (kind, options) => {
+    try { addImageInsert(makeInsert(kind, currentColor, options)); setActionError(null) }
+    catch (error) { setActionError(error.message) }
+  }
+
+  const resizeInsert = (id, factor) => {
+    commitText(); pushHistory()
+    updatePaths(prev => prev.map(item => {
+      if (item.id !== id) return item
+      const ratio = Math.min(factor, (pageBase.w - item.x) / item.width, (pageBase.h - item.y) / item.height)
+      return { ...item, width: Math.max(1, item.width * ratio), height: Math.max(1, item.height * ratio) }
+    }))
   }
 
   /* ---------- eraser ---------- */
@@ -782,7 +862,9 @@ export default function PDFEditor({ pdfId, onClose, token }) {
   const handlePointerDown = (e) => {
     if (e.pointerType === 'mouse' && e.button !== 0) return
     if (!overlayRef.current) return
+    viewerRef.current?.focus({ preventScroll: true })
 
+    if (currentTool === 'select') { setSelectedInsertId(null); return }
     if (currentTool === 'text') {
       e.preventDefault()
       commitText()
@@ -888,7 +970,7 @@ export default function PDFEditor({ pdfId, onClose, token }) {
   }
 
   const handleDeletePage = async () => {
-    if (!numPages || numPages <= 1 || deletingPageRef.current) return
+    if (!numPages || numPages <= 1 || deletingPageRef.current || insertingRef.current) return
     commitText()
     if (!confirm(`Delete page ${pageNumber} and its annotations? This cannot be undone.`)) return
     deletingPageRef.current = true
@@ -1175,10 +1257,13 @@ export default function PDFEditor({ pdfId, onClose, token }) {
               {tool === 'pen' && <Pen size={18} />}
               {tool === 'highlighter' && <Highlighter size={18} />}
               {tool === 'text' && <Type size={18} />}
+              {tool === 'select' && <Move size={18} />}
               {tool === 'eraser' && <Eraser size={18} />}
             </button>
           ))}
         </div>
+
+        <InsertPanel onFiles={insertFiles} onInsert={insertGenerated} color={currentColor} busy={inserting || !pageBase || pageBase.page !== pageNumber || deletingPage} />
 
         <div className="flex items-center gap-2">
           {COLORS.map((color) => (
@@ -1222,7 +1307,7 @@ export default function PDFEditor({ pdfId, onClose, token }) {
             <span className="text-white text-sm">{strokeWidth}px</span>
           </div>
         ) : (
-          <span className="text-slate-400 text-sm">Drag over a stroke or click a text box to erase it</span>
+          <span className="text-slate-400 text-sm">Drag over a stroke or click inserted content to erase it</span>
         )}
 
         <div className="flex items-center gap-2 ml-auto">
@@ -1270,7 +1355,7 @@ export default function PDFEditor({ pdfId, onClose, token }) {
           </aside>
         )}
       {/* PDF Viewer */}
-      <div ref={viewerRef} className="pdf-editor-canvas flex-1 min-w-0 overflow-auto bg-slate-950">
+      <div tabIndex={0} aria-label="PDF canvas; paste or drop images here" onDragOver={e => { e.preventDefault() }} onDrop={e => { e.preventDefault(); insertFiles(Array.from(e.dataTransfer.files)) }} onPaste={e => { if (e.target.closest('textarea, input')) return; const files = Array.from(e.clipboardData.files); if (files.length) { e.preventDefault(); insertFiles(files) } }} ref={viewerRef} className="pdf-editor-canvas flex-1 min-w-0 overflow-auto bg-slate-950">
         <div className="flex min-h-full w-fit min-w-full items-start justify-center p-8">
           {pdfError ? (
             <div className="text-center py-12">
@@ -1344,6 +1429,28 @@ export default function PDFEditor({ pdfId, onClose, token }) {
                       )}
                   </svg>
 
+                  {pageItems.filter(i => i.tool === 'image').map(item => (
+                    <div key={item.id} style={{ position: 'absolute', left: item.x * scale, top: item.y * scale, width: item.width * scale, height: item.height * scale, pointerEvents: ['select', 'eraser'].includes(currentTool) ? 'auto' : 'none', outline: currentTool === 'select' && selectedInsertId === item.id ? '2px solid #6366f1' : undefined, zIndex: selectedInsertId === item.id ? 25 : 15 }}
+                      onPointerDown={e => {
+                        e.stopPropagation(); e.preventDefault()
+                        if (currentTool === 'eraser') { handleDeleteText(item.id); return }
+                        setSelectedInsertId(item.id)
+                        e.currentTarget.setPointerCapture(e.pointerId)
+                        handleTextDragStart(e, item)
+                      }}
+                      onPointerMove={handleTextDragMove}
+                      onPointerUp={e => { e.currentTarget.releasePointerCapture?.(e.pointerId); handleTextDragEnd() }}
+                      onPointerCancel={handleTextDragEnd}>
+                      <img src={item.dataUrl} alt={item.label || 'Inserted image'} draggable={false} style={{ width: '100%', height: '100%', display: 'block' }} />
+                      {currentTool === 'select' && selectedInsertId === item.id && <div className="pdf-insert-controls" onPointerDown={e => e.stopPropagation()}>
+                        <span className="text-xs">Drag to move</span>
+                        <button aria-label="Shrink insert" title="Shrink insert" onClick={() => resizeInsert(item.id, 0.8)}><Minus size={16} /></button>
+                        <button aria-label="Enlarge insert" title="Enlarge insert" onClick={() => resizeInsert(item.id, 1.25)}><Plus size={16} /></button>
+                        <button aria-label="Delete insert" title="Delete insert" onClick={() => handleDeleteText(item.id)}><Trash2 size={16} /></button>
+                      </div>}
+                    </div>
+                  ))}
+
                   {pageItems.filter(i => i.tool === 'text').map((item) => (
                     <TextAnnotation
                       key={item.id}
@@ -1392,7 +1499,7 @@ export default function PDFEditor({ pdfId, onClose, token }) {
         </button>
       </div>
 
-      <button onClick={handleDeletePage} disabled={!numPages || numPages <= 1 || deletingPage} className="absolute bottom-4 right-4 flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-red-300 hover:bg-red-500/10 disabled:opacity-30 max-sm:static max-sm:justify-center max-sm:bg-slate-900" title={numPages === 1 ? 'Keep at least one page in the PDF' : 'Delete the current page'}><Trash2 size={16} />Delete page</button>
+      <button onClick={handleDeletePage} disabled={!numPages || numPages <= 1 || deletingPage || inserting} className="absolute bottom-4 right-4 flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-red-300 hover:bg-red-500/10 disabled:opacity-30 max-sm:static max-sm:justify-center max-sm:bg-slate-900" title={numPages === 1 ? 'Keep at least one page in the PDF' : 'Delete the current page'}><Trash2 size={16} />Delete page</button>
 
       {/* Settings Modal */}
       {showSettings && (

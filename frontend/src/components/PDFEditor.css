@@ -20,3 +20,9 @@
   .pdf-editor-toolbar > div:last-child { margin-left: 0; }
   .pdf-pages { position: absolute; inset: 0 auto 0 0; z-index: 35; width: 190px; box-shadow: 12px 0 32px #0006; background: #0f172a; }
 }
+.pdf-insert-panel { position: relative; z-index: 45; }
+.pdf-insert-options { position: absolute; top: calc(100% + 10px); left: 0; width: 320px; max-height: 65vh; overflow-y: auto; display: grid; gap: 14px; padding: 18px; background: #0f172a; border: 1px solid #475569; border-radius: 12px; box-shadow: 0 12px 40px #0008; }
+.pdf-insert-controls { position: absolute; left: 0; top: 100%; display: flex; align-items: center; gap: 8px; padding: 6px 8px; white-space: nowrap; background: #0f172a; color: white; border-radius: 6px; box-shadow: 0 2px 8px #0005; }
+.pdf-insert-controls button { padding: 4px; border-radius: 4px; }
+.pdf-insert-controls button:hover { background: #334155; }
+@media (max-width: 640px) { .pdf-insert-options { position: fixed; top: 160px; left: 12px; width: min(320px, calc(100vw - 24px)); } }
