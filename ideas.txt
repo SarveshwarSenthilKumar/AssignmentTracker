@@ -5,7 +5,8 @@ add calendar and assignment functionality
 update the create folder feature for pdf to work properly
 add move and delete files features
 add compatibility for different file types
-fix insert tab and fix ui of dropdown and sizing for insert
+Merge pdf ability, add pdf as page ability
+fix drag of insert features
 
 resume job tailor:
 Get job by links
