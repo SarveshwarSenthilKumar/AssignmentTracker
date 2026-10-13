@@ -21,8 +21,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 
 
 // MongoDB Connection
 mongoose.connect(process.env.MONGODB_URI)
-  .then(() => console.log('Connected to MongoDB'))
-  .catch((err) => console.error('MongoDB connection error:', err));
+  .catch(() => undefined);
 
 // User Schema
 const userSchema = new mongoose.Schema({
@@ -357,7 +356,7 @@ app.put('/api/todos/:id', authenticateToken, async (req, res) => {
     if (links !== undefined) updateData.links = links;
     if (text !== undefined) updateData.text = text;
     if (dueDate !== undefined) updateData.dueDate = dueDate;
-    
+
     const todo = await Todo.findOneAndUpdate(
       { _id: req.params.id, user: req.user.userId },
       updateData,
@@ -391,7 +390,7 @@ app.delete('/api/todos/folder/:folderId', authenticateToken, async (req, res) =>
     const { status } = req.query;
     const filter = { folder: req.params.folderId, user: req.user.userId };
     if (status) filter.status = status;
-    
+
     const result = await Todo.deleteMany(filter);
     res.json({ message: `Deleted ${result.deletedCount} tasks from folder`, deletedCount: result.deletedCount });
   } catch (error) {
@@ -405,7 +404,7 @@ app.delete('/api/todos/clear-inbox', authenticateToken, async (req, res) => {
     const { status } = req.query;
     const filter = { folder: null, user: req.user.userId };
     if (status) filter.status = status;
-    
+
     const result = await Todo.deleteMany(filter);
     res.json({ message: `Cleared ${result.deletedCount} tasks from inbox`, deletedCount: result.deletedCount });
   } catch (error) {
@@ -446,7 +445,7 @@ app.put('/api/folders/:id', authenticateToken, async (req, res) => {
     const updateData = {};
     if (name !== undefined) updateData.name = name;
     if (color !== undefined) updateData.color = color;
-    
+
     const folder = await Folder.findOneAndUpdate(
       { _id: req.params.id, user: req.user.userId },
       updateData,
@@ -502,10 +501,10 @@ app.get('/api/user/canvas', authenticateToken, async (req, res) => {
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
-    res.json({ 
-      hasCredentials: !!user.canvasToken, 
+    res.json({
+      hasCredentials: !!user.canvasToken,
       canvasUrl: user.canvasUrl,
-      lastCanvasSync: user.lastCanvasSync 
+      lastCanvasSync: user.lastCanvasSync
     });
   } catch (error) {
     res.status(500).json({ message: 'Error fetching Canvas status', error: error.message });
@@ -516,34 +515,34 @@ app.get('/api/user/canvas', authenticateToken, async (req, res) => {
 app.post('/api/canvas/test', authenticateToken, async (req, res) => {
   try {
     const { canvasUrl, canvasToken } = req.body;
-    
+
     if (!canvasUrl || !canvasToken) {
-      console.log('Test failed: Canvas credentials not provided in request');
+
       return res.status(400).json({ success: false, error: 'Canvas credentials not provided' });
     }
 
-    console.log('Testing Canvas connection with provided credentials');
-    console.log('Canvas URL:', canvasUrl);
+
+
 
     try {
       // Test with calendar endpoint instead (may have different permissions)
       const testResponse = await fetchFromCanvas(canvasUrl, canvasToken, '/api/v1/calendar_events?per_page=1');
-      console.log('Test response:', testResponse);
-      res.json({ 
-        success: true, 
+
+      res.json({
+        success: true,
         message: 'Canvas connection successful',
         response: Array.isArray(testResponse) ? `Found ${testResponse.length} calendar events` : 'Response received'
       });
     } catch (e) {
-      console.log('Test fetch error:', e);
-      res.status(400).json({ 
-        success: false, 
+
+      res.status(400).json({
+        success: false,
         message: 'Canvas connection failed',
         error: e.message
       });
     }
   } catch (error) {
-    console.log('Test endpoint error:', error);
+
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -555,38 +554,38 @@ const fetchFromCanvas = (canvasUrl, canvasToken, endpoint) => {
       // Ensure canvasUrl doesn't have trailing slash
       const cleanUrl = canvasUrl.replace(/\/$/, '');
       const url = new URL(endpoint, cleanUrl);
-      
+
       const options = {
         headers: {
           'Authorization': `Bearer ${canvasToken}`,
           'Accept': 'application/json'
         }
       };
-      
-      console.log(`Fetching from Canvas: ${url.href}`);
-      console.log(`Token length: ${canvasToken.length} characters`);
-      
+
+
+
+
       https.get(url, options, (res) => {
         let data = '';
         res.on('data', chunk => data += chunk);
         res.on('end', () => {
-          console.log(`Canvas response status: ${res.statusCode}`);
-          console.log(`Canvas response length: ${data.length} bytes`);
-          console.log(`Canvas response headers:`, res.headers);
-          
+
+
+
+
           if (res.statusCode >= 400) {
             reject(new Error(`Canvas API returned status ${res.statusCode}: ${data.substring(0, 200)}`));
             return;
           }
-          
+
           if (!data || data.trim().length === 0) {
             reject(new Error('Canvas returned empty response. Your API token may not have permission to access courses. Please regenerate the token with proper scopes.'));
             return;
           }
-          
+
           try {
             const parsed = JSON.parse(data);
-            console.log(`Successfully parsed JSON, type: ${Array.isArray(parsed) ? 'array' : typeof parsed}`);
+
             resolve(parsed);
           } catch (e) {
             // Check if response is HTML (authentication error)
@@ -598,11 +597,11 @@ const fetchFromCanvas = (canvasUrl, canvasToken, endpoint) => {
           }
         });
       }).on('error', (e) => {
-        console.error('Canvas fetch error:', e);
+
         reject(new Error(`Canvas API request failed: ${e.message}`));
       });
     } catch (e) {
-      console.error('Canvas URL error:', e);
+
       reject(new Error(`Invalid Canvas URL: ${e.message}`));
     }
   });
@@ -616,36 +615,36 @@ app.post('/api/canvas/sync', authenticateToken, async (req, res) => {
       return res.status(400).json({ message: 'Canvas credentials not configured' });
     }
 
-    console.log('Starting Canvas sync for user:', req.user.userId);
+
     let syncedCount = 0;
     let errors = [];
 
     // Fetch courses first
     try {
-      console.log('Fetching courses...');
+
       const courses = await fetchFromCanvas(user.canvasUrl, user.canvasToken, '/api/v1/courses?per_page=100');
-      console.log(`Found ${courses.length} courses`);
-      
+
+
       for (const course of courses) {
         try {
-          console.log(`Fetching assignments for course: ${course.name} (ID: ${course.id})`);
+
           // Fetch assignments for this course
           const courseAssignments = await fetchFromCanvas(
-            user.canvasUrl, 
-            user.canvasToken, 
+            user.canvasUrl,
+            user.canvasToken,
             `/api/v1/courses/${course.id}/assignments?per_page=100`
           );
-          
-          console.log(`Found ${courseAssignments.length} assignments for ${course.name}`);
-          
+
+
+
           for (const assignment of courseAssignments) {
             if (!assignment.due_at) continue;
-            
-            const existingTodo = await Todo.findOne({ 
+
+            const existingTodo = await Todo.findOne({
               canvasId: String(assignment.id),
-              user: req.user.userId 
+              user: req.user.userId
             });
-            
+
             if (!existingTodo) {
               const todo = new Todo({
                 text: assignment.name,
@@ -659,40 +658,40 @@ app.post('/api/canvas/sync', authenticateToken, async (req, res) => {
               });
               await todo.save();
               syncedCount++;
-              console.log(`Synced assignment: ${assignment.name}`);
+
             } else {
-              console.log(`Skipping duplicate assignment: ${assignment.name}`);
+
             }
           }
         } catch (e) {
-          console.error(`Error fetching assignments for course ${course.id}:`, e);
+
           errors.push(`Course ${course.name}: ${e.message}`);
         }
       }
     } catch (e) {
-      console.error('Error fetching courses:', e);
+
       errors.push(`Courses: ${e.message}`);
     }
 
     // Fetch calendar events
     try {
-      console.log('Fetching calendar events...');
+
       const calendarEvents = await fetchFromCanvas(
         user.canvasUrl,
         user.canvasToken,
         '/api/v1/calendar_events?per_page=100'
       );
-      
-      console.log(`Found ${calendarEvents.length} calendar events`);
-      
+
+
+
       for (const event of calendarEvents) {
         if (!event.start_at) continue;
-        
-        const existingTodo = await Todo.findOne({ 
+
+        const existingTodo = await Todo.findOne({
           canvasId: String(event.id),
-          user: req.user.userId 
+          user: req.user.userId
         });
-        
+
         if (!existingTodo) {
           const todo = new Todo({
             text: event.title,
@@ -706,28 +705,28 @@ app.post('/api/canvas/sync', authenticateToken, async (req, res) => {
           });
           await todo.save();
           syncedCount++;
-          console.log(`Synced calendar event: ${event.title}`);
+
         } else {
-          console.log(`Skipping duplicate calendar event: ${event.title}`);
+
         }
       }
     } catch (e) {
-      console.error('Error fetching calendar events:', e);
+
       errors.push(`Calendar events: ${e.message}`);
     }
 
     // Update last sync time
     await User.findByIdAndUpdate(req.user.userId, { lastCanvasSync: new Date() });
 
-    console.log(`Canvas sync complete. Synced ${syncedCount} items. Errors: ${errors.length}`);
-    
-    res.json({ 
-      message: `Synced ${syncedCount} items from Canvas`, 
+
+
+    res.json({
+      message: `Synced ${syncedCount} items from Canvas`,
       syncedCount,
       errors: errors.length > 0 ? errors : undefined
     });
   } catch (error) {
-    console.error('Canvas sync error:', error);
+
     res.status(500).json({ message: 'Error syncing Canvas data', error: error.message });
   }
 });
@@ -1027,7 +1026,8 @@ app.delete('/api/pdf-folders/:id', authenticateToken, async (req, res) => {
 
 // Health check
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', message: 'Server is running' });
+  const ready = mongoose.connection.readyState === 1;
+  res.status(ready ? 200 : 503).json({ status: ready ? 'ok' : 'unavailable', message: ready ? 'Service is ready' : 'Database connection is unavailable' });
 });
 
 // Import ICS calendar from file
@@ -1037,25 +1037,25 @@ app.post('/api/calendar/import', authenticateToken, upload.single('icsFile'), as
       return res.status(400).json({ message: 'No file uploaded' });
     }
 
-    console.log('Importing calendar from file:', req.file.originalname);
+
     const icsContent = req.file.buffer.toString('utf-8');
-    console.log('ICS content length:', icsContent.length);
-    
+
+
     const events = parseICS(icsContent);
-    console.log('Parsed events:', events.length);
-    
+
+
     let importedCount = 0;
     const courseFolders = new Map(); // Map course name to folder ID
-    
+
     for (const event of events) {
       if (!event.summary || !event.startDate) {
-        console.log('Skipping event without summary or date:', event);
+
         continue;
       }
-      
+
       // Extract course name from summary or description
       const courseName = extractCourseName(event.summary, event.description);
-      
+
       // Get or create folder for this course
       let folderId = null;
       if (courseName) {
@@ -1063,11 +1063,11 @@ app.post('/api/calendar/import', authenticateToken, upload.single('icsFile'), as
           folderId = courseFolders.get(courseName);
         } else {
           // Create a new folder for this course
-          const existingFolder = await Folder.findOne({ 
-            user: req.user.userId, 
-            name: courseName 
+          const existingFolder = await Folder.findOne({
+            user: req.user.userId,
+            name: courseName
           });
-          
+
           if (existingFolder) {
             folderId = existingFolder._id;
             courseFolders.set(courseName, folderId);
@@ -1080,18 +1080,18 @@ app.post('/api/calendar/import', authenticateToken, upload.single('icsFile'), as
             await newFolder.save();
             folderId = newFolder._id;
             courseFolders.set(courseName, folderId);
-            console.log('Created folder for course:', courseName);
+
           }
         }
       }
-      
+
       // Check if event already exists by combining summary and date
       const existingTodo = await Todo.findOne({
         user: req.user.userId,
         text: event.summary,
         dueDate: event.startDate
       });
-      
+
       if (!existingTodo) {
         const todo = new Todo({
           text: event.summary,
@@ -1105,14 +1105,14 @@ app.post('/api/calendar/import', authenticateToken, upload.single('icsFile'), as
         });
         await todo.save();
         importedCount++;
-        console.log(`Imported event: ${event.summary} -> ${courseName || 'Inbox'}`);
+
       }
     }
-    
-    console.log('Import complete, imported:', importedCount);
+
+
     res.json({ message: `Imported ${importedCount} events from calendar`, importedCount });
   } catch (error) {
-    console.error('Calendar import error:', error);
+
     res.status(500).json({ message: `Error importing calendar: ${error.message}` });
   }
 });
@@ -1122,13 +1122,13 @@ function extractCourseName(summary, description) {
   // Try to extract from summary (common Canvas format: "Assignment: CS101 - Homework")
   const summaryMatch = summary.match(/([A-Z]{2,4}\d{3,4})/);
   if (summaryMatch) return summaryMatch[0];
-  
+
   // Try to extract from description
   if (description) {
     const descMatch = description.match(/([A-Z]{2,4}\d{3,4})/);
     if (descMatch) return descMatch[0];
   }
-  
+
   // Try common course patterns
   const patterns = [
     /([A-Z]{2,4}\s?\d{3,4})/,
@@ -1136,12 +1136,12 @@ function extractCourseName(summary, description) {
     /Course:\s*([^\n]+)/,
     /Class:\s*([^\n]+)/
   ];
-  
+
   for (const pattern of patterns) {
     const match = summary.match(pattern) || (description && description.match(pattern));
     if (match) return match[1].trim();
   }
-  
+
   return null;
 }
 
@@ -1160,10 +1160,10 @@ function parseICS(icsContent) {
   const events = [];
   const lines = icsContent.split('\n');
   let currentEvent = null;
-  
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
-    
+
     if (line === 'BEGIN:VEVENT') {
       currentEvent = {};
     } else if (line === 'END:VEVENT' && currentEvent) {
@@ -1186,7 +1186,7 @@ function parseICS(icsContent) {
       }
     }
   }
-  
+
   return events;
 }
 
@@ -1195,22 +1195,22 @@ function parseICSDate(icsDate) {
   try {
     // Format: 20240915T143000Z or 20240915T143000
     const cleanDate = icsDate.replace(/Z$/, '');
-    
+
     if (cleanDate.length < 15) {
-      console.log('Invalid ICS date format:', icsDate);
+
       return new Date(); // Return current date if invalid
     }
-    
+
     const year = parseInt(cleanDate.substring(0, 4));
     const month = parseInt(cleanDate.substring(4, 6)) - 1;
     const day = parseInt(cleanDate.substring(6, 8));
     const hour = parseInt(cleanDate.substring(9, 11));
     const minute = parseInt(cleanDate.substring(11, 13));
     const second = parseInt(cleanDate.substring(13, 15)) || 0;
-    
+
     return new Date(year, month, day, hour, minute, second);
   } catch (e) {
-    console.error('Error parsing ICS date:', icsDate, e);
+
     return new Date();
   }
 }
@@ -1221,6 +1221,4 @@ app.use((error, req, res, next) => {
   next(error);
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+app.listen(PORT);

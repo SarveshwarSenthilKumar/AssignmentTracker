@@ -70,7 +70,7 @@ export default function PDFUploadModal({ onClose, token, onUploadSuccess, pdfFol
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+    <div className="app-inline-panel document-upload-panel">
       <div className="bg-slate-900 border border-white/10 rounded-2xl p-6 w-full max-w-md">
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-2xl font-bold text-white">Upload document</h3>

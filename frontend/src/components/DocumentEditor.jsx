@@ -1,3 +1,5 @@
+import useInlineConfirm from '../hooks/useInlineConfirm'
+import InlineConfirmation from './InlineConfirmation'
 import { useEffect, useState, useRef } from 'react'
 import { X, Save, Download, Plus, FileText, Loader2, Upload } from 'lucide-react'
 import { PDFDocument } from 'pdf-lib'
@@ -10,6 +12,7 @@ const cellText = value => value == null ? '' : typeof value === 'object' ? value
 const typedValue = value => value.startsWith('=') ? { formula: value.slice(1) } : /^(?:0|-?[1-9]\d*)(?:\.\d+)?$/.test(value) ? Number(value) : value
 
 export default function DocumentEditor({ pdfId, token, onClose }) {
+  const confirmation = useInlineConfirm()
   const [data, setData] = useState(null), [kind, setKind] = useState(null), [loading, setLoading] = useState(true)
   const [loadFailed, setLoadFailed] = useState(false)
   const [error, setError] = useState(''), [text, setText] = useState(''), [dirty, setDirty] = useState(false), [saving, setSaving] = useState(false)
@@ -63,6 +66,14 @@ export default function DocumentEditor({ pdfId, token, onClose }) {
         } else if (type === 'audio' || type === 'video') {
           url = URL.createObjectURL(new Blob([bytes], { type: document.mimeType })); if (!cancelled) setMediaUrl(url)
         }
+        if (!cancelled && ['text','word','table','workbook'].includes(type)) {
+          try {
+            const draft = JSON.parse(sessionStorage.getItem(`document-draft:${pdfId}`) || 'null')
+            if (draft && draft.version === document.updatedAt) {
+              setText(draft.text || ''); setTable(draft.table || []); setChanges(draft.changes || {}); setDirty(true)
+            }
+          } catch { /* The loaded document is still usable when local draft storage is unavailable. */ }
+        }
       } catch (err) { if (!cancelled) { setLoadFailed(true); setError(err.message || 'This file could not be opened.') } }
       finally { if (!cancelled) setLoading(false) }
     }
@@ -70,12 +81,20 @@ export default function DocumentEditor({ pdfId, token, onClose }) {
     return () => { cancelled = true; if (url) URL.revokeObjectURL(url) }
   }, [pdfId, token])
   useEffect(() => {
-    const beforeUnload = e => { if (dirty) { e.preventDefault(); e.returnValue = '' } }
-    window.addEventListener('beforeunload', beforeUnload)
-    return () => window.removeEventListener('beforeunload', beforeUnload)
-  }, [dirty])
+    if (loading || !data || loadFailed) return
+    const key = `document-draft:${pdfId}`
+    try {
+      if (dirty) sessionStorage.setItem(key, JSON.stringify({ version: data.updatedAt, text, table, changes }))
+      else sessionStorage.removeItem(key)
+    } catch { setError('Local draft storage is unavailable. Use Save to keep your edits.') }
+  }, [dirty, text, table, changes, loading, loadFailed, pdfId, data])
   const markDirty = () => { revision.current++; setDirty(true) }
-  const close = () => { if (!saving && (!dirty || confirm('Close without saving your edits?'))) onClose() }
+  const close = async () => {
+    if (saving) return
+    if (dirty && !await confirmation.ask('You have unsaved edits. Discard them and close the editor?', 'Discard edits')) return
+    try { sessionStorage.removeItem(`document-draft:${pdfId}`) } catch { /* Closing remains available without local storage. */ }
+    onClose()
+  }
   const serialize = async () => {
     if (kind === 'word') {
       const { Document, Packer, Paragraph } = await import('docx')
@@ -118,13 +137,14 @@ export default function DocumentEditor({ pdfId, token, onClose }) {
   const editable = ['text','word','table','workbook'].includes(kind) && !loading && !loadFailed
   const rows = kind === 'workbook' ? gridSize.rows : table.length
   const cols = kind === 'workbook' ? gridSize.cols : Math.max(1, ...table.map(row => row.length))
-  return <div className="document-editor" role="dialog" aria-modal="true" aria-label="Document editor">
+  return <div className="document-editor" role="region" aria-label="Document editor">
     <header><div className="document-title"><FileText size={22} /><div><h2>{data?.name || 'Document editor'}</h2><p>{filename} · {loading ? 'Loading…' : dirty ? 'Unsaved changes' : 'Saved'}</p></div></div><div className="document-actions">
       {editable && <button disabled={saving || !dirty} onClick={() => save()}><Save size={17} />{saving ? 'Saving…' : 'Save'}</button>}
       <button disabled={loading || saving || !data} onClick={() => download()}><Download size={17} />Download</button>
       {data?.hasOriginalBackup && <button disabled={saving} onClick={() => download(true)}>Original file</button>}
       <button aria-label="Close editor" disabled={saving} onClick={close}><X size={20} /></button>
     </div></header>
+    <InlineConfirmation {...confirmation} />
     {error && <div role="alert" className="document-error">{error}<button onClick={() => setError('')}>Dismiss</button></div>}
     {kind === 'word' && <p className="document-notice">DOCX text editing: saves a new document containing your text. Original formatting, images, and tables are not retained in the edited version; the uploaded original remains downloadable.</p>}
     {kind === 'workbook' && <div className="document-tools"><label>Worksheet <select value={sheetId || ''} onChange={e => { const id = Number(e.target.value), sheet = workbook.current.getWorksheet(id); setSheetId(id); setGridSize({rows:Math.min(200,Math.max(20,sheet.rowCount)),cols:Math.min(40,Math.max(5,sheet.columnCount))}) }}>{sheets.map(sheet => <option key={sheet.id} value={sheet.id}>{sheet.name}</option>)}</select></label><span>Cell values and formulas; formulas recalculate when opened in Excel. Showing up to 200 rows × 40 columns; other cells are retained.</span></div>}

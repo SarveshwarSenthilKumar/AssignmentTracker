@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useId } from 'react'
-import { createPortal } from 'react-dom'
 import { Plus, X, ChevronDown, Image as ImageIcon, FileText, Upload, Square, Circle, Minus, ArrowRight, Table, Stamp, Check, Files } from 'lucide-react'
 
 export const INSERT_ACCEPT = 'image/*,application/pdf,text/plain,text/csv,.md,.svg,.webp,.bmp,.gif,.avif'
@@ -86,7 +85,6 @@ export default function InsertPanel({ onFiles, onInsert, onPages, pageNumber, co
   const [rows, setRows] = useState(3)
   const [cols, setCols] = useState(2)
   const [values, setValues] = useState({})
-  const [position, setPosition] = useState({ top: 100, left: 16, maxHeight: 600 })
   const triggerRef = useRef(null)
   const panelRef = useRef(null)
   const fileRef = useRef(null)
@@ -95,36 +93,10 @@ export default function InsertPanel({ onFiles, onInsert, onPages, pageNumber, co
 
   useEffect(() => {
     if (!open) return
-    const place = () => {
-      const rect = triggerRef.current.getBoundingClientRect()
-      const width = Math.min(440, window.innerWidth - 24)
-      const top = Math.min(rect.bottom + 8, Math.max(12, window.innerHeight - 420))
-      setPosition({ top, left: Math.max(12, Math.min(rect.left, window.innerWidth - width - 12)), maxHeight: window.innerHeight - top - 12 })
-    }
-    place()
-    panelRef.current?.focus()
-    const outside = e => {
-      if (!panelRef.current?.contains(e.target) && !triggerRef.current?.contains(e.target)) setOpen(false)
-    }
-    const keyboard = e => {
-      if (e.key === 'Escape') { e.preventDefault(); setOpen(false); triggerRef.current?.focus() }
-      if (e.key === 'Tab') {
-        const items = Array.from(panelRef.current.querySelectorAll('button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled)')).filter(el => el.type !== 'file')
-        const first = items[0], last = items[items.length - 1]
-        if (e.shiftKey && (document.activeElement === first || document.activeElement === panelRef.current)) { e.preventDefault(); last?.focus() }
-        else if (!e.shiftKey && (document.activeElement === last || document.activeElement === panelRef.current)) { e.preventDefault(); first?.focus() }
-      }
-    }
-    document.addEventListener('pointerdown', outside)
+    panelRef.current?.focus({ preventScroll: true })
+    const keyboard = e => { if (e.key === 'Escape' && panelRef.current?.contains(e.target)) { e.preventDefault(); setOpen(false); triggerRef.current?.focus() } }
     document.addEventListener('keydown', keyboard)
-    window.addEventListener('resize', place)
-    window.addEventListener('scroll', place, true)
-    return () => {
-      document.removeEventListener('pointerdown', outside)
-      document.removeEventListener('keydown', keyboard)
-      window.removeEventListener('resize', place)
-      window.removeEventListener('scroll', place, true)
-    }
+    return () => document.removeEventListener('keydown', keyboard)
   }, [open])
 
   const cells = Array.from({ length: rows }, (_, r) => Array.from({ length: cols }, (_, c) => values[`${r}:${c}`] || '').join('\t')).join('\n')
@@ -157,9 +129,9 @@ export default function InsertPanel({ onFiles, onInsert, onPages, pageNumber, co
   }
 
   return <div className="pdf-insert-panel">
-    <button ref={triggerRef} type="button" className="insert-trigger" aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? id : undefined} onClick={() => setOpen(value => !value)}><Plus size={17} />Insert content<ChevronDown size={15} /></button>
+    <button ref={triggerRef} type="button" className="insert-trigger" aria-expanded={open} aria-controls={open ? id : undefined} onClick={() => setOpen(value => !value)}><Plus size={17} />Insert content<ChevronDown size={15} /></button>
     <input ref={fileRef} type="file" hidden multiple accept={INSERT_ACCEPT} onChange={e => { const files = Array.from(e.target.files); e.target.value = ''; if (files.length) { onFiles(files); close() } }} />
-    {open && createPortal(<div ref={panelRef} id={id} role="dialog" aria-modal="false" aria-labelledby={`${id}-title`} tabIndex={-1} className="pdf-insert-popover" style={position}>
+    {open && <div ref={panelRef} id={id} role="region" aria-labelledby={`${id}-title`} tabIndex={-1} className="pdf-insert-popover">
       <div className="insert-heading"><div><h3 id={`${id}-title`}>Insert content</h3><p>Add to the current PDF page</p></div><button type="button" onClick={close} className="insert-close" aria-label="Close insert menu"><X size={18} /></button></div>
       <nav className="insert-sections" aria-label="Insert categories">
         {[['files', 'Files', Upload], ['pages', 'Pages', Files], ['shapes', 'Shapes', Square], ['table', 'Table', Table], ['stamp', 'Stamp', Stamp]].filter(([key]) => key !== 'pages' || onPages).map(([key, name, Icon]) => <button type="button" key={key} aria-pressed={section === key} onClick={() => setSection(key)}><Icon size={17} />{name}</button>)}
@@ -203,6 +175,6 @@ export default function InsertPanel({ onFiles, onInsert, onPages, pageNumber, co
         </>}
       </div>
       {section !== 'files' && <div className="insert-footer">{section !== 'pages' && <span className="insert-color"><i style={{ backgroundColor: color }} />Toolbar color</span>}<button type="button" className="insert-submit" disabled={busy || (section === 'stamp' && !label.trim()) || (section === 'pages' && pageMode === 'files' && !pageFiles.length)} onClick={submit}><Plus size={16} />{section === 'pages' ? (pageMode === 'files' ? 'Merge pages' : pageMode === 'blank' ? 'Add blank page' : 'Duplicate page') : `Insert ${section === 'shapes' ? kind : section}`}</button></div>}
-    </div>, document.body)}
+    </div>}
   </div>
 }

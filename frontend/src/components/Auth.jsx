@@ -18,7 +18,7 @@ export default function Auth() {
 
     try {
       const endpoint = isLogin ? '/api/auth/login' : '/api/auth/register'
-      const body = isLogin 
+      const body = isLogin
         ? { email, password }
         : { username, email, password }
 
@@ -46,11 +46,11 @@ export default function Auth() {
     <div className="min-h-screen flex items-center justify-center px-4">
       <div className="max-w-md w-full">
         <div className="text-center mb-8">
-          <h1 className="text-5xl font-bold text-white mb-2 tracking-tight">
-            Todo App
+          <h1 className="text-3xl font-semibold text-white mb-2 tracking-tight">
+            Assignment Tracker
           </h1>
           <p className="text-slate-400 text-lg">
-            {isLogin ? 'Welcome back!' : 'Create your account'}
+            {isLogin ? 'Sign in to your workspace' : 'Create your account'}
           </p>
         </div>
 
@@ -104,7 +104,7 @@ export default function Auth() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full px-6 py-4 bg-primary-600 hover:bg-primary-700 disabled:bg-primary-800 text-white rounded-xl font-medium transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
+              className="w-full px-6 py-4 bg-primary-600 hover:bg-primary-700 disabled:bg-primary-800 text-white rounded-xl font-medium transition-all   flex items-center justify-center gap-2"
             >
               {loading ? (
                 <>

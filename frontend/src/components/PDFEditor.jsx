@@ -1,3 +1,5 @@
+import useInlineConfirm from '../hooks/useInlineConfirm'
+import InlineConfirmation from './InlineConfirmation'
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Document, Page, pdfjs } from 'react-pdf'
 import {
@@ -27,7 +29,7 @@ const LINE_HEIGHT = 1.2
 const BASELINE_RATIO = 0.9465 // distance from top of a line box to the baseline, in font sizes
 const FONT_STACK = 'Helvetica, Arial, sans-serif'
 const PDF_OPTIONS = { isEvalSupported: false }
-const COLORS = ['#000000', '#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899']
+const COLORS = ['#000000', '#9e6464', '#526c83', '#62816f', '#9a835e', '#777487', '#967d87']
 const TOOLS = ['pen', 'highlighter', 'text', 'select', 'eraser']
 
 const uid = () => `a_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`
@@ -247,14 +249,14 @@ function TextAnnotation({
 
           {/* Quick Color Picker */}
           <div className="flex items-center gap-1">
-            {['#000000', '#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6'].map((c) => (
+            {['#000000', '#526c83', '#9e6464', '#62816f', '#9a835e', '#777487'].map((c) => (
               <button
                 key={c}
                 type="button"
                 onClick={() => onColorChange?.(item.id, c)}
                 className={cn(
                   'w-3.5 h-3.5 rounded-full border border-white/40 transition-transform',
-                  textColor === c ? 'ring-2 ring-white scale-110 shadow' : 'hover:scale-110 opacity-75 hover:opacity-100'
+                  textColor === c ? 'ring-2 ring-white  shadow' : ' opacity-75 hover:opacity-100'
                 )}
                 style={{ backgroundColor: c }}
                 title={c === '#000000' ? 'Black' : c}
@@ -385,13 +387,14 @@ function PagePreview({ pageNumber }) {
     if (ref.current) observer.observe(ref.current)
     return () => observer.disconnect()
   }, [])
-  return <div ref={ref} style={{ width: 136, minHeight: 176 }}>{visible && <Page pageNumber={pageNumber} width={136} renderTextLayer={false} renderAnnotationLayer={false} loading={<div className="h-44 bg-slate-200 animate-pulse" />} />}</div>
+  return <div ref={ref} style={{ width: 136, minHeight: 176 }}>{visible && <Page pageNumber={pageNumber} width={136} renderTextLayer={false} renderAnnotationLayer={false} loading={<div className="h-44 bg-slate-200 " />} />}</div>
 }
 
 /* ------------------------------------------------------------------ */
 /* Main editor                                                         */
 /* ------------------------------------------------------------------ */
 export default function PDFEditor({ pdfId, onClose, token, initialDocument = null, exportImage = false }) {
+  const confirmation = useInlineConfirm()
   const [pdfData, setPdfData] = useState(null)
   const [pdfFile, setPdfFile] = useState(null)
   const [numPages, setNumPages] = useState(null)
@@ -527,7 +530,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         setSaveStatus(dirtyRef.current ? 'dirty' : 'saved')
         return true
       } catch (err) {
-        console.error('Error saving annotations:', err)
+
         dirtyRef.current = true
         setSaveStatus('error')
         return false
@@ -579,7 +582,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
             const blob = new Blob([bytes], { type: 'application/pdf' })
             setPdfFile(new File([blob], data.name || 'document.pdf', { type: 'application/pdf' }))
           } catch (err) {
-            console.error('Error converting base64 to file:', err)
+
             setPdfError('Failed to process PDF data')
           }
         }
@@ -603,7 +606,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         setPdfError(errorData.message || 'Failed to fetch PDF')
       }
     } catch (err) {
-      console.error('Error fetching PDF:', err)
+
       setPdfError(err.message || 'Failed to fetch PDF')
     } finally {
       setLoading(false)
@@ -615,9 +618,10 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       const response = await fetch('/api/pdf-folders', {
         headers: { 'Authorization': `Bearer ${token}` }
       })
-      if (response.ok) setPdfFolders(await response.json())
+      if (!response.ok) throw new Error('Could not load document folders. Please retry.')
+      setPdfFolders(await response.json())
     } catch (err) {
-      console.error('Error fetching PDF folders:', err)
+      setActionError(err.message || 'Could not load document folders.')
     }
   }
 
@@ -641,7 +645,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       } else { throw new Error('Could not save document settings. Please try again.') }
     } catch (err) {
       setActionError(err.message)
-      console.error('Error saving metadata:', err)
+
     } finally {
       setSavingMetadata(false)
     }
@@ -651,7 +655,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const onDocumentLoadSuccess = ({ numPages }) => setNumPages(numPages)
 
   const onDocumentLoadError = (error) => {
-    console.error('PDF load error:', error)
+
     setPdfError(`Failed to load PDF: ${error.message || 'Unknown error'}`)
   }
 
@@ -990,9 +994,9 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   }
 
   /* ---------- toolbar actions ---------- */
-  const handleClearCanvas = () => {
+  const handleClearCanvas = async () => {
     if (!pathsRef.current.length) return
-    if (!confirm('Remove all annotations from this document?')) return
+    if (!await confirmation.ask('Remove all annotations from this document? You can undo this change.', 'Clear annotations')) return
     commitText()
     pushHistory()
     updatePaths([])
@@ -1018,7 +1022,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const handleDeletePage = async () => {
     if (!numPages || numPages <= 1 || deletingPageRef.current || insertingRef.current) return
     commitText()
-    if (!confirm(`Delete page ${pageNumber} and its annotations? This cannot be undone.`)) return
+    if (!await confirmation.ask(`Delete page ${pageNumber} and its annotations? This cannot be undone.`, 'Delete page')) return
     deletingPageRef.current = true
     setDeletingPage(true)
     setActionError(null)
@@ -1116,7 +1120,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         try {
           outBytes = await burnAnnotations(pdfBytes, annotations, usePressure)
         } catch (err) {
-          console.error('Error burning annotations into PDF:', err)
+
           throw new Error('Could not export your annotations. Your edits remain in the editor; please try again.')
         }
       }
@@ -1142,7 +1146,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       document.body.removeChild(a)
       window.URL.revokeObjectURL(url)
     } catch (err) {
-      console.error('Error downloading PDF:', err)
+
       setActionError(err.message || 'Failed to download PDF')
     } finally {
       setDownloading(false)
@@ -1150,16 +1154,17 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   }
 
   const handleDelete = async () => {
-    if (!confirm('Move this document to Trash? You can restore it from the document library.')) return
+    if (!await confirmation.ask('Move this document to Trash? You can restore it from the library.', 'Move to Trash')) return
     try {
       const response = await fetch(`/api/pdfs/${pdfId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       })
-      if (response.ok) onClose()
+      if (!response.ok) throw new Error('Could not move this document to Trash.')
+      onClose()
     } catch (err) {
-      console.error('Error deleting PDF:', err)
-      alert('Failed to delete PDF')
+
+      setActionError(err.message || 'Could not move this document to Trash.')
     }
   }
 
@@ -1206,7 +1211,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
 
   if (loading) {
     return (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="fixed inset-0 bg-slate-950 flex items-center justify-center z-50">
         <div className="bg-slate-900 border border-white/10 rounded-2xl p-8">
           <div className="animate-spin text-primary-500 mx-auto">
             <Upload size={40} />
@@ -1226,8 +1231,9 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const pageItems = drawingPaths.filter(i => (i.page || 1) === pageNumber)
 
   return (
-    <div className="pdf-editor fixed inset-0 bg-slate-950 flex flex-col z-50" role="dialog" aria-modal="true" aria-label="Visual document editor" aria-busy={deletingPage} onKeyDownCapture={e => { if (deletingPage) { e.preventDefault(); e.stopPropagation() } }}>
-      {deletingPage && <div className="fixed inset-0 z-[100] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center" role="status"><div className="flex items-center gap-3 rounded-xl border border-white/10 bg-slate-900 p-6 text-white"><Loader2 className="animate-spin" size={22} />Updating pages…</div></div>}
+    <div className="pdf-editor fixed inset-0 bg-slate-950 flex flex-col z-50" role="region" aria-label="Visual document editor" aria-busy={deletingPage} onPointerDownCapture={e => { if (deletingPage) { e.preventDefault(); e.stopPropagation() } }} onKeyDownCapture={e => { if (deletingPage) { e.preventDefault(); e.stopPropagation() } }}>
+      {deletingPage && <div className="inline-operation-status" role="status"><Loader2 className="animate-spin" size={17} />Updating pages…</div>}
+      <InlineConfirmation {...confirmation} />
       {/* Header */}
       <div className="pdf-editor-header bg-slate-900 border-b border-white/10 px-4 py-3 flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
@@ -1359,7 +1365,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
               onClick={() => handleColorChange(color)}
               className={cn(
                 'w-6 h-6 rounded-full transition-all border border-white/25',
-                currentColor === color ? 'ring-2 ring-white ring-offset-2 ring-offset-slate-800 scale-105' : 'hover:scale-110'
+                currentColor === color ? 'ring-2 ring-white ring-offset-2 ring-offset-slate-800 ' : ''
               )}
               style={{ backgroundColor: color }}
               title={color === '#000000' ? 'Black' : color}
@@ -1600,7 +1606,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
 
       {/* Settings Modal */}
       {showSettings && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="pdf-settings-panel app-inline-panel">
           <div className="bg-slate-900 border border-white/10 rounded-2xl p-6 w-full max-w-md">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-2xl font-bold text-white">Document settings</h3>

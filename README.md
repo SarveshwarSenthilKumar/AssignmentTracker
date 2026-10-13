@@ -123,3 +123,7 @@ Direct content saves retain a downloadable copy of the uploaded original. The or
 ### Document management
 
 The document library provides folder navigation, filename/tag search, sorting, individual and bulk moves, renaming, downloads, drag-to-folder, and recoverable deletion. Deleted documents move to Trash and can be restored individually, in bulk, or immediately using Undo. Trash retains the original folder membership; removing a folder moves its documents (including trashed documents) to Unfiled. Uploads default to the folder currently being viewed. Document and destination-folder operations are scoped to the signed-in user.
+
+### Interface conventions
+
+The interface uses charcoal surfaces, a single muted blue-gray accent, and restrained semantic status colors. Application operations use inline feedback and confirmation bars. Settings, upload, and management forms remain in the page flow; browser alerts, prompts, confirmations, console logging, celebration overlays, gradients, and decorative scale/pulse animations are not used. Text and workbook drafts are kept in session storage when available, without a browser leave-page dialog.
