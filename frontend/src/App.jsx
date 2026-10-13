@@ -1,3 +1,5 @@
+import TaskDependencies from './components/TaskDependencies'
+import { dependencySummary } from './lib/taskDependencies'
 import TaskVisualization from './components/TaskVisualization'
 import AccountReset from './components/AccountReset'
 import TaskAttachments, { TaskDescription } from './components/TaskAttachments'
@@ -620,7 +622,8 @@ function App() {
   const renderTaskCard = (todo, statusColor) => {
     const isExpanded = expandedTodos.has(todo._id)
     const isEditing = editingTodos.has(todo._id)
-    const hasDetails = todo.description || (todo.links && todo.links.length > 0) || pdfs.some(file => !file.deletedAt && documentTaskIds(file).includes(todo._id))
+    const connections = dependencySummary(todo._id, todos)
+    const hasDetails = connections.prerequisites.length || connections.following.length || todo.description || (todo.links && todo.links.length > 0) || pdfs.some(file => !file.deletedAt && documentTaskIds(file).includes(todo._id))
     const folder = todo.folder ? folders.find(f => f._id === todo.folder) : null
 
     return (
@@ -689,6 +692,7 @@ function App() {
                 </span>
               )}
 
+              {!isEditing && connections.prerequisites.length > 0 && <span className="text-xs text-slate-400 flex-shrink-0" title="Advisory prerequisite completion">{connections.completed}/{connections.prerequisites.length} before</span>}
               {hasDetails && !isEditing && (
                 <button
                   onClick={(e) => { e.stopPropagation(); toggleExpand(todo._id) }}
@@ -817,6 +821,7 @@ function App() {
                 )}
               </>
             )}
+            <TaskDependencies taskId={todo._id} tasks={todos} token={token} onTasksChange={setTodos} onOpenTask={setSelectedTask} />
             <TaskAttachments taskId={todo._id} documents={pdfs} folders={pdfFolders} token={token} onDocumentsChange={setPdfs} onOpen={setSelectedPDF} onLibrary={() => { setSelectedPDFFolder('all'); navigate('documents') }} onInsert={isEditing ? reference => {
               const field = document.getElementById(`task-description-${todo._id}`)
               const current = editData[todo._id]?.description || ''
@@ -1266,7 +1271,7 @@ function App() {
         <div className="platform-page-title"><h1>{page==='tasks'?'Tasks':page==='documents'?'Document library':page==='visualization'?'Task visualization':page==='canvas'?'Canvas integration':page==='account'?'Account':'Keyboard shortcuts'}</h1><p>{page==='tasks'?'Plan your work and track progress.':page==='documents'?'Organize and edit your files.':page==='visualization'?'Explore relationships, deadlines, and progress across your workspace.':page==='canvas'?'Manage your course connection and imports.':page==='account'?'Review your profile and workspace activity.':'A searchable reference for navigation and actions.'}</p></div>
         <InlineConfirmation {...taskConfirmation} />
         {page==='shortcuts' && <ShortcutsPage />}
-        {page==='visualization' && <TaskVisualization loading={loading} keyboardEnabled={!selectedPDF} tasks={todos} folders={folders} documents={pdfs} onOpenDocument={setSelectedPDF} onStatusChange={updateTodoStatus} onEditTask={task=>{setSelectedFolder('all');navigate('tasks');startEditing(task)}} />}
+        {page==='visualization' && <TaskVisualization token={token} onTasksChange={setTodos} onOpenTask={task => { pendingLibraryTask.current = task; setSelectedFolder('all'); navigate('tasks') }} loading={loading} keyboardEnabled={!selectedPDF} tasks={todos} folders={folders} documents={pdfs} onOpenDocument={setSelectedPDF} onStatusChange={updateTodoStatus} onEditTask={task=>{setSelectedFolder('all');navigate('tasks');startEditing(task)}} />}
 
         {error && (
           <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-lg">
@@ -1907,6 +1912,7 @@ function App() {
               <div className="mb-6">
                 <label className="block text-slate-400 text-sm mb-2">Description</label>
                 <TaskDescription text={selectedTask.description || 'No description'} documents={pdfs} onOpen={setSelectedPDF} />
+                <TaskDependencies key={`dependencies:${selectedTask._id}`} taskId={selectedTask._id} tasks={todos} token={token} onTasksChange={setTodos} onOpenTask={setSelectedTask} />
                 <TaskAttachments key={selectedTask._id} taskId={selectedTask._id} documents={pdfs} folders={pdfFolders} token={token} onDocumentsChange={setPdfs} onOpen={setSelectedPDF} onLibrary={() => { setSelectedPDFFolder('all'); navigate('documents') }} />
               </div>
 

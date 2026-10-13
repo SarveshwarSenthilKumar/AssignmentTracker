@@ -9,6 +9,7 @@ const https = require('https');
 const { documentAction } = require('./documentActions');
 const { deletePDFPage, insertPDFPages } = require('./pdfPages');
 const { resetAccountWorkspace } = require('./accountReset');
+const { dependencyChange } = require('./taskDependencies');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -96,6 +97,7 @@ const todoSchema = new mongoose.Schema({
     type: String,
     default: '',
   },
+  dependsOn: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Todo' }],
   links: {
     type: [String],
     default: [],
@@ -376,6 +378,18 @@ app.post('/api/todos', authenticateToken, async (req, res) => {
 });
 
 // Update a todo
+app.post('/api/task-dependencies', authenticateToken, async (req, res) => {
+  let change;
+  try { change = dependencyChange(req.body, req.user.userId); }
+  catch (error) { return res.status(400).json({ message: error.message }); }
+  try {
+    if (await Todo.countDocuments(change.owner) !== 2) return res.status(404).json({ message: 'Both tasks must belong to your account and still exist.' });
+    const task = await Todo.findOneAndUpdate(change.target, change.update, { new: true });
+    if (!task) return res.status(404).json({ message: 'Task no longer exists.' });
+    res.json(task);
+  } catch (error) { res.status(500).json({ message: 'Could not update the task connection.' }); }
+});
+
 app.put('/api/todos/:id', authenticateToken, async (req, res) => {
   try {
     const { status, description, links, text, dueDate } = req.body;
@@ -409,12 +423,13 @@ app.put('/api/todos/:id', authenticateToken, async (req, res) => {
 });
 
 // Delete a todo
-app.delete('/api/todos/:id', authenticateToken, async (req, res) => {
+app.delete('/api/todos/:id([a-fA-F0-9]{24})', authenticateToken, async (req, res) => {
   try {
     const todo = await Todo.findOneAndDelete({ _id: req.params.id, user: req.user.userId });
     if (!todo) {
       return res.status(404).json({ message: 'Todo not found' });
     }
+    await Todo.updateMany({ user: req.user.userId, dependsOn: todo._id }, { $pull: { dependsOn: todo._id } });
     res.json({ message: 'Todo deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: 'Error deleting todo', error: error.message });
@@ -422,13 +437,20 @@ app.delete('/api/todos/:id', authenticateToken, async (req, res) => {
 });
 
 // Delete all todos in a folder
+async function deleteTasksAndConnections(filter) {
+  const tasks = await Todo.find(filter).select('_id');
+  const ids = tasks.map(task => task._id);
+  const result = await Todo.deleteMany({ user: filter.user, _id: { $in: ids } });
+  if (ids.length) await Todo.updateMany({ user: filter.user, dependsOn: { $in: ids } }, { $pull: { dependsOn: { $in: ids } } });
+  return result;
+}
 app.delete('/api/todos/folder/:folderId', authenticateToken, async (req, res) => {
   try {
     const { status } = req.query;
     const filter = { folder: req.params.folderId, user: req.user.userId };
     if (status) filter.status = status;
 
-    const result = await Todo.deleteMany(filter);
+    const result = await deleteTasksAndConnections(filter);
     res.json({ message: `Deleted ${result.deletedCount} tasks from folder`, deletedCount: result.deletedCount });
   } catch (error) {
     res.status(500).json({ message: 'Error deleting folder tasks', error: error.message });
@@ -442,7 +464,7 @@ app.delete('/api/todos/clear-inbox', authenticateToken, async (req, res) => {
     const filter = { folder: null, user: req.user.userId };
     if (status) filter.status = status;
 
-    const result = await Todo.deleteMany(filter);
+    const result = await deleteTasksAndConnections(filter);
     res.json({ message: `Cleared ${result.deletedCount} tasks from inbox`, deletedCount: result.deletedCount });
   } catch (error) {
     res.status(500).json({ message: 'Error clearing inbox', error: error.message });
@@ -505,7 +527,7 @@ app.delete('/api/folders/:id', authenticateToken, async (req, res) => {
       return res.status(404).json({ message: 'Folder not found' });
     }
     // Also delete all todos in this folder
-    await Todo.deleteMany({ folder: req.params.id, user: req.user.userId });
+    await deleteTasksAndConnections({ folder: req.params.id, user: req.user.userId });
     res.json({ message: 'Folder deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: 'Error deleting folder', error: error.message });

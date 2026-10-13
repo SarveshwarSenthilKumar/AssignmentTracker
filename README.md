@@ -136,7 +136,7 @@ The searchable Shortcuts page is generated from the same registry used by the ke
 
 ### Task visualization
 
-Open Visualization or press Alt+6 to explore all tasks in an interactive network, grouped by folder or status. Connections represent actual group membership and associated documents. Search, folder/status filters, overdue filtering, pan, zoom, a minimap, and a task index help navigate dense maps. Select a task to inspect its details, open linked documents, edit it, or advance its status. Dragged positions are temporary view adjustments.
+Open Visualization or press Alt+6 to explore all tasks in an interactive network, grouped by folder or status, or laid out in planned sequence. Connections represent actual group membership, associated documents, and saved task prerequisites. Search, folder/status filters, overdue filtering, pan, zoom, a minimap, and a task index help navigate dense maps. Select a task to inspect its details, open linked documents, edit it, or advance its status. Dragged positions are temporary view adjustments.
 
 Completion, folder workload, and a 14-day deadline chart update from the same task records. Deadline days use America/Chicago time. Visualization shortcuts include `/` for search, `0` to fit, `=`/`-` to zoom, `R` to reset layout, and Escape to clear filters; they also appear on the Shortcuts page.
 
@@ -151,3 +151,9 @@ While editing a task, use Insert in description to place a document reference at
 Account → Clean account reset permanently clears tasks, document files and backups (including Trash), task/document folders, and Canvas credentials/sync history. It preserves the login and profile identity. The inline form requires the current password and the exact phrase `RESET`. Local drafts for the account's loaded documents and workspace UI state are cleared after success.
 
 The owner-scoped reset uses a MongoDB transaction and therefore requires Atlas or a replica set. Standalone MongoDB connections reject reset without deleting data. The single-server API blocks concurrent writes during reset and rejects reset while other authenticated write operations are active. Multi-instance deployments must coordinate this write guard across instances before enabling resets.
+
+### Task prerequisites and follow-ups
+
+Task details, expanded task cards, and the visualization inspector include Task connections. Add a task that should come before or after the current task, including tasks in other folders. The connection saves immediately and appears at both ends. Completion counts and statuses update from the linked task records. Circular sequences are flagged for review; no connection prevents starting, completing, or reopening a task.
+
+The visualization draws arrows from prerequisite to follow-up, colored sage when the prerequisite is completed and muted amber otherwise. Sequence mode arranges acyclic chains from left to right and places circular or unresolved sequences in a final column. Filters hide arrows to tasks outside the current selection; the inspector still shows the full relationships. Duplicate and self-links are rejected or deduplicated. Deleting tasks removes their stored prerequisite references, and account reset clears all task connections along with the tasks.

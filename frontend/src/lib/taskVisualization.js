@@ -1,3 +1,4 @@
+import { dependencyEdges, dependencyLayout } from './taskDependencies.js'
 import { documentTaskIds } from './taskAttachments.js'
 export const STATUS_LABELS = { todo: 'To do', 'in-progress': 'In progress', completed: 'Completed' }
 export const taskStatus = task => task.status === 'completed' || task.status === 'in-progress' ? task.status : 'todo'
@@ -64,6 +65,16 @@ export function buildTaskGraph(tasks, folders, documents = [], mode = 'folder') 
       offset += count; ring++
     }
   })
+  let graphWidth = size, graphHeight = size
+  if (mode === 'sequence') {
+    const layout = dependencyLayout(tasks); graphWidth = layout.width; graphHeight = layout.height
+    edges.length = 0
+    for (const node of nodes) {
+      if (node.type !== 'task') node.hidden = true
+      else Object.assign(node, layout.positions.get(String(node.task._id)))
+    }
+  }
+  for (const edge of dependencyEdges(tasks)) edges.push({ source: `task:${edge.beforeId}`, target: `task:${edge.afterId}`, type: 'dependency', complete: taskNodes.get(edge.beforeId).task.status === 'completed' })
   const linked = new Map()
   documents.filter(file => !file.deletedAt).forEach(file => {
     documentTaskIds(file).forEach(id => {
@@ -74,5 +85,5 @@ export function buildTaskGraph(tasks, folders, documents = [], mode = 'folder') 
     nodes.push(node); edges.push({ source: parent.id, target: node.id, type: 'document' })
     })
   })
-  return { nodes, edges, groups, width: size, height: size, linkedFiles: [...linked.values()].reduce((a,b)=>a+b,0) }
+  return { nodes, edges, groups, width: graphWidth, height: graphHeight, linkedFiles: [...linked.values()].reduce((a,b)=>a+b,0) }
 }
