@@ -1,3 +1,4 @@
+import { documentTaskIds } from './taskAttachments.js'
 export const STATUS_LABELS = { todo: 'To do', 'in-progress': 'In progress', completed: 'Completed' }
 export const taskStatus = task => task.status === 'completed' || task.status === 'in-progress' ? task.status : 'todo'
 export const referenceId = value => value && typeof value === 'object' ? String(value._id || '') : String(value || '')
@@ -65,11 +66,13 @@ export function buildTaskGraph(tasks, folders, documents = [], mode = 'folder') 
   })
   const linked = new Map()
   documents.filter(file => !file.deletedAt).forEach(file => {
-    const id = referenceId(file.todo), parent = taskNodes.get(id)
+    documentTaskIds(file).forEach(id => {
+    const parent = taskNodes.get(id)
     if (!parent) return
     const index = linked.get(id) || 0; linked.set(id, index + 1)
-    const node = { id: `file:${file._id}`, type: 'file', label: file.name || file.originalName, file, parent: parent.id, x: parent.x + 22 + index * 12, y: parent.y + 26 + index * 9 }
+    const node = { id: `file:${file._id}:${id}`, type: 'file', label: file.name || file.originalName, file, parent: parent.id, x: parent.x + 22 + index * 12, y: parent.y + 26 + index * 9 }
     nodes.push(node); edges.push({ source: parent.id, target: node.id, type: 'document' })
+    })
   })
   return { nodes, edges, groups, width: size, height: size, linkedFiles: [...linked.values()].reduce((a,b)=>a+b,0) }
 }

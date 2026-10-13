@@ -179,6 +179,7 @@ const pdfSchema = new mongoose.Schema({
     ref: 'Todo',
     default: null,
   },
+  taskIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Todo' }],
   createdAt: {
     type: Date,
     default: Date.now,
@@ -785,6 +786,7 @@ app.post('/api/pdfs', authenticateToken, upload.single('pdfFile'), async (req, r
 
     if (req.file.size > 10 * 1024 * 1024) return res.status(400).json({ message: 'Files must be smaller than 10 MB.' });
     const { name, todoId, pdfFolderId, tags } = req.body;
+    if (todoId && (!mongoose.isValidObjectId(todoId) || !await Todo.exists({ _id: todoId, user: req.user.userId }))) return res.status(400).json({ message: 'Choose one of your tasks.' });
     if (pdfFolderId && (typeof pdfFolderId !== 'string' || !mongoose.isValidObjectId(pdfFolderId) || !await PDFFolder.exists({ _id: pdfFolderId, user: req.user.userId }))) return res.status(400).json({ message: 'Choose one of your document folders.' });
     const pdf = new PDF({
       name: name || req.file.originalname,
@@ -793,14 +795,31 @@ app.post('/api/pdfs', authenticateToken, upload.single('pdfFile'), async (req, r
       mimeType: req.file.mimetype || 'application/octet-stream',
       user: req.user.userId,
       todo: todoId || null,
+      taskIds: todoId ? [todoId] : [],
       pdfFolder: pdfFolderId || null,
       tags: tags ? JSON.parse(tags) : [],
     });
     await pdf.save();
-    res.status(201).json(pdf);
+    const metadata = pdf.toObject(); delete metadata.pdfData; delete metadata.originalBackup;
+    res.status(201).json(metadata);
   } catch (error) {
     res.status(500).json({ message: 'Error uploading PDF', error: error.message });
   }
+});
+
+// Reuse library files across tasks without duplicating their stored contents.
+app.put('/api/pdfs/:id/task-link', authenticateToken, async (req, res) => {
+  try {
+    const { taskId, linked } = req.body;
+    if (!mongoose.isValidObjectId(req.params.id) || !mongoose.isValidObjectId(taskId) || typeof linked !== 'boolean') return res.status(400).json({ message: 'Invalid document link.' });
+    if (!await Todo.exists({ _id: taskId, user: req.user.userId })) return res.status(404).json({ message: 'Task not found.' });
+    const file = await PDF.findOne({ _id: req.params.id, user: req.user.userId, deletedAt: null }).select('-pdfData -originalBackup');
+    if (!file) return res.status(404).json({ message: 'Document not found.' });
+    const update = linked ? { $addToSet: { taskIds: taskId }, $set: { updatedAt: new Date() } } : { $pull: { taskIds: taskId }, $set: { updatedAt: new Date(), ...(String(file.todo) === taskId ? { todo: null } : {}) } };
+    const updated = await PDF.findOneAndUpdate({ _id: file._id, user: req.user.userId, deletedAt: null }, update, { new: true }).select('-pdfData -originalBackup');
+    if (!updated) return res.status(409).json({ message: 'Document is no longer available.' });
+    res.json(updated);
+  } catch (error) { res.status(500).json({ message: 'Could not update the document link.' }); }
 });
 
 // Save directly editable documents; retain the uploaded original before the first edit.

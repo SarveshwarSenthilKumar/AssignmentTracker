@@ -8,7 +8,7 @@ test('all tasks are mapped with real group membership and associated active docu
  assert.equal(graph.nodes.filter(node=>node.type==='task').length,4)
  assert.equal(graph.nodes.filter(node=>node.type==='file').length,1)
  assert.equal(graph.groups.length,2)
- assert.ok(graph.edges.some(edge=>edge.source==='task:b'&&edge.target==='file:doc'))
+ assert.ok(graph.edges.some(edge=>edge.source==='task:b'&&edge.target==='file:doc:b'))
  assert.equal(graph.edges.filter(edge=>edge.type==='membership').length,4)
  assert.ok(graph.nodes.every(node=>Number.isFinite(node.x)&&Number.isFinite(node.y)))
 })

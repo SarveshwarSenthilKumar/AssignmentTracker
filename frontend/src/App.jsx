@@ -1,4 +1,6 @@
 import TaskVisualization from './components/TaskVisualization'
+import TaskAttachments, { TaskDescription } from './components/TaskAttachments'
+import { documentTaskIds } from './lib/taskAttachments'
 import useInlineConfirm from './hooks/useInlineConfirm'
 import InlineConfirmation from './components/InlineConfirmation'
 import useShortcuts from './hooks/useShortcuts'
@@ -20,9 +22,10 @@ function App() {
     const route = window.location.hash.replace(/^#\/?/, '')
     return ['tasks','documents','visualization','canvas','account','shortcuts'].includes(route) ? route : 'tasks'
   }
+  const pendingLibraryTask = useRef(null)
   const [page, setPage] = useState(readPage)
   const navigate = next => { window.location.hash = `/${next}`; setPage(next); setShowCommandMenu(false); window.scrollTo({top:0}) }
-  useEffect(() => { const change = () => { setPage(readPage()); setShowCommandMenu(false); setContextMenu(null); setSelectedTask(null); setShowFolderModal(false); window.scrollTo({top:0}) }; window.addEventListener('hashchange',change); return () => window.removeEventListener('hashchange',change) }, [])
+  useEffect(() => { const change = () => { setPage(readPage()); setShowCommandMenu(false); setContextMenu(null); setSelectedTask(pendingLibraryTask.current); pendingLibraryTask.current = null; setShowFolderModal(false); window.scrollTo({top:0}) }; window.addEventListener('hashchange',change); return () => window.removeEventListener('hashchange',change) }, [])
   const [todos, setTodos] = useState([])
   const [folders, setFolders] = useState([])
   const [selectedFolder, setSelectedFolder] = useState(null)
@@ -616,7 +619,7 @@ function App() {
   const renderTaskCard = (todo, statusColor) => {
     const isExpanded = expandedTodos.has(todo._id)
     const isEditing = editingTodos.has(todo._id)
-    const hasDetails = todo.description || (todo.links && todo.links.length > 0)
+    const hasDetails = todo.description || (todo.links && todo.links.length > 0) || pdfs.some(file => !file.deletedAt && documentTaskIds(file).includes(todo._id))
     const folder = todo.folder ? folders.find(f => f._id === todo.folder) : null
 
     return (
@@ -626,7 +629,7 @@ function App() {
         tabIndex={0}
         role="article"
         aria-label={todo.text}
-        draggable
+        draggable={!isEditing}
         onDragStart={(e) => handleDragStart(e, todo)}
         onDragEnd={handleDragEnd}
         className="group"
@@ -743,6 +746,7 @@ function App() {
                 <div>
                   <label className="block text-slate-400 text-xs mb-1">Description</label>
                   <textarea
+                    id={`task-description-${todo._id}`}
                     value={editData[todo._id]?.description || ''}
                     onChange={(e) => setEditData({
                       ...editData,
@@ -782,7 +786,7 @@ function App() {
             ) : (
               <>
                 {todo.description && (
-                  <p className="text-slate-300 text-xs leading-relaxed">{todo.description}</p>
+                  <TaskDescription text={todo.description} documents={pdfs} onOpen={setSelectedPDF} />
                 )}
                 {todo.links && todo.links.length > 0 && (
                   <div className="space-y-1">
@@ -812,6 +816,13 @@ function App() {
                 )}
               </>
             )}
+            <TaskAttachments taskId={todo._id} documents={pdfs} folders={pdfFolders} token={token} onDocumentsChange={setPdfs} onOpen={setSelectedPDF} onLibrary={() => { setSelectedPDFFolder('all'); navigate('documents') }} onInsert={isEditing ? reference => {
+              const field = document.getElementById(`task-description-${todo._id}`)
+              const current = editData[todo._id]?.description || ''
+              const start = field?.selectionStart ?? current.length, end = field?.selectionEnd ?? start
+              setEditData(prev => ({ ...prev, [todo._id]: { ...prev[todo._id], description: current.slice(0, start) + reference + current.slice(end) } }))
+              requestAnimationFrame(() => { field?.focus(); field?.setSelectionRange(start + reference.length, start + reference.length) })
+            } : undefined} />
           </div>
         )}
       </div>
@@ -1284,7 +1295,7 @@ function App() {
           </div>
         )}
 
-        {page === 'documents' && <DocumentLibrary keyboardEnabled={!selectedPDF} documents={pdfs} folders={pdfFolders} token={token} onOpen={setSelectedPDF} onUpload={() => setShowPDFUploadModal(true)} onDocumentsChange={setPdfs} onFoldersChange={setPdfFolders} selectedFolder={selectedPDFFolder} onSelectFolder={setSelectedPDFFolder} />}
+        {page === 'documents' && <DocumentLibrary tasks={todos} onOpenTask={task => { setSelectedFolder('all'); if (page === 'tasks') setSelectedTask(task); else { pendingLibraryTask.current = task; navigate('tasks') } }} keyboardEnabled={!selectedPDF} documents={pdfs} folders={pdfFolders} token={token} onOpen={setSelectedPDF} onUpload={() => setShowPDFUploadModal(true)} onDocumentsChange={setPdfs} onFoldersChange={setPdfFolders} selectedFolder={selectedPDFFolder} onSelectFolder={setSelectedPDFFolder} />}
 
         {page === 'tasks' && <>
         {/* Folders Section */}
@@ -1882,9 +1893,8 @@ function App() {
               {/* Description */}
               <div className="mb-6">
                 <label className="block text-slate-400 text-sm mb-2">Description</label>
-                <p className="text-slate-300 text-sm leading-relaxed whitespace-pre-wrap">
-                  {selectedTask.description || 'No description'}
-                </p>
+                <TaskDescription text={selectedTask.description || 'No description'} documents={pdfs} onOpen={setSelectedPDF} />
+                <TaskAttachments key={selectedTask._id} taskId={selectedTask._id} documents={pdfs} folders={pdfFolders} token={token} onDocumentsChange={setPdfs} onOpen={setSelectedPDF} onLibrary={() => { setSelectedPDFFolder('all'); navigate('documents') }} />
               </div>
 
               {/* Due Date */}

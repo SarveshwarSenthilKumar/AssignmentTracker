@@ -1,3 +1,4 @@
+import { documentTaskIds } from '../lib/taskAttachments'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Search, Network, Layers, ZoomIn, ZoomOut, Maximize, RotateCcw, FileText, ArrowRight, Check, SlidersHorizontal } from 'lucide-react'
 import useShortcuts from '../hooks/useShortcuts'
@@ -41,7 +42,7 @@ export default function TaskVisualization({ tasks, folders, documents, onEditTas
   const nodes=graph.nodes.map(node=>{const shift=offsets[node.id]||(node.parent?offsets[node.parent]:null);return shift?{...node,x:node.x+shift.x,y:node.y+shift.y}:node})
   const lookup=new Map(nodes.map(node=>[node.id,node]))
   const selected=filtered.find(task=>String(task._id)===selectedId)
-  const linkedFiles=selected?documents.filter(file=>!file.deletedAt&&referenceId(file.todo)===String(selected._id)):[]
+  const linkedFiles=selected?documents.filter(file=>!file.deletedAt&&documentTaskIds(file).includes(String(selected._id))):[]
   const metrics=taskMetrics(filtered,now),series=deadlineSeries(filtered,now)
   const folderRows=graph.groups.length&&mode==='folder'?graph.groups:buildTaskGraph(filtered,folders,[], 'folder').groups
   const point=(event,svg=svgRef.current)=>{if(!svg)return{x:0,y:0};const matrix=svg.getScreenCTM();if(!matrix)return{x:0,y:0};const p=svg.createSVGPoint();p.x=event.clientX;p.y=event.clientY;return p.matrixTransform(matrix.inverse())}
