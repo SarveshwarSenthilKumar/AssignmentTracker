@@ -3,7 +3,7 @@ import { Plus, Trash2, Check, X, Loader2, FolderPlus, Folder, LogOut, Sparkles, 
 import { cn } from './lib/utils'
 import { useAuth } from './contexts/AuthContext'
 import Auth from './components/Auth'
-import PDFEditor from './components/PDFEditor'
+import DocumentEditor from './components/DocumentEditor'
 import PDFUploadModal from './components/PDFUploadModal'
 
 function App() {
@@ -1360,10 +1360,10 @@ function App() {
             <button
               onClick={() => setShowPDFUploadModal(true)}
               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all flex items-center gap-2 shadow-lg shadow-blue-500/30 hover:scale-105"
-              title="PDF Editor"
+              title="Document editor"
             >
               <FileText size={18} />
-              <span className="hidden sm:inline">PDF</span>
+              <span className="hidden sm:inline">Documents</span>
             </button>
             <button
               onClick={() => setShowCanvasModal(true)}
@@ -1421,7 +1421,7 @@ function App() {
         {/* PDFs Section */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-semibold text-white">PDF Documents</h2>
+            <h2 className="text-lg font-semibold text-white">Documents</h2>
             <button
               onClick={() => {
                 const name = prompt('Enter folder name:')
@@ -1446,7 +1446,7 @@ function App() {
               )}
             >
               <Sparkles size={16} />
-              <span className="font-medium">All PDFs</span>
+              <span className="font-medium">All documents</span>
               <span className={cn(
                 "px-2 py-0.5 rounded-full text-xs",
                 selectedPDFFolder === 'all'
@@ -1506,7 +1506,7 @@ function App() {
                 <button
                   onClick={(e) => {
                     e.stopPropagation()
-                    if (confirm(`Delete folder "${folder.name}"? PDFs will be moved to Uncategorized.`)) {
+                    if (confirm(`Delete folder "${folder.name}"? Documents will be moved to Uncategorized.`)) {
                       deletePDFFolder(folder._id)
                     }
                   }}
@@ -1524,7 +1524,7 @@ function App() {
               type="text"
               value={pdfSearchQuery}
               onChange={(e) => setPdfSearchQuery(e.target.value)}
-              placeholder="Search PDFs by name or tags..."
+              placeholder="Search documents by name or tags..."
               className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
             />
           </div>
@@ -1553,6 +1553,7 @@ function App() {
                     <div className="flex items-center gap-2 flex-1 min-w-0">
                       <FileText size={20} className="text-blue-400 flex-shrink-0" />
                       <p className="text-white font-medium truncate">{pdf.name}</p>
+                      <span className="shrink-0 rounded bg-slate-700 px-1.5 py-0.5 text-[10px] uppercase text-slate-300">{pdf.originalName?.split('.').pop() || 'file'}</span>
                     </div>
                     <span className="text-slate-400 text-xs flex-shrink-0">
                       {new Date(pdf.createdAt).toLocaleDateString()}
@@ -1607,7 +1608,7 @@ function App() {
           }).length === 0 && (
             <div className="text-center py-8 text-slate-400">
               <FileText size={48} className="mx-auto mb-2 opacity-50" />
-              <p>No PDFs found</p>
+              <p>No documents found</p>
             </div>
           )}
         </div>
@@ -2397,9 +2398,9 @@ function App() {
 
         {/* PDF Editor */}
         {selectedPDF && (
-          <PDFEditor
+          <DocumentEditor
             pdfId={selectedPDF}
-            onClose={() => setSelectedPDF(null)}
+            onClose={() => { setSelectedPDF(null); fetchPDFs() }}
             token={token}
           />
         )}

@@ -102,3 +102,20 @@ Open source - use freely for personal or commercial projects.
 ---
 
 **Built with ❤️ using React, Express, and MongoDB**
+
+### Document editor formats
+
+The Documents library accepts files up to 10 MB, using the existing PDF storage routes for backward compatibility.
+
+| Format | Available editing |
+| --- | --- |
+| PDF | Visual annotations, images, shapes, tables, stamps, page merging and duplication |
+| PNG, JPEG, SVG, WebP, GIF, BMP, AVIF and browser-supported images | Visual annotation canvas; edited PNG export (still frame, up to 1800 pixels on longest side) |
+| TXT, Markdown, JSON, HTML, XML, source code and other UTF-8 text | Direct text editing and save/download in the original format |
+| CSV / TSV | Editable cell grid with quoted-field support; larger files use text editing |
+| DOCX | Text editing and DOCX export; original formatting and embedded content are not retained in the edited version |
+| XLSX | Worksheet selection, cell values and formulas; formulas recalculate when opened in Excel |
+| Browser-supported audio / video | Playback, download and replacement |
+| Other formats, including legacy DOC/XLS and presentations | Download and replacement; native content editing is not available |
+
+Direct content saves retain a downloadable copy of the uploaded original. The original and edited data together must fit within 15 MB. Unsupported or unreadable files remain downloadable rather than being forced through the PDF renderer. Native file edits require Save; visual annotations retain the existing autosave behavior.

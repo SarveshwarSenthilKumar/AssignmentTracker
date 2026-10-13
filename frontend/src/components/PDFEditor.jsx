@@ -26,6 +26,7 @@ const TEXT_PAD_Y = 2
 const LINE_HEIGHT = 1.2
 const BASELINE_RATIO = 0.9465 // distance from top of a line box to the baseline, in font sizes
 const FONT_STACK = 'Helvetica, Arial, sans-serif'
+const PDF_OPTIONS = { isEvalSupported: false }
 const COLORS = ['#000000', '#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899']
 const TOOLS = ['pen', 'highlighter', 'text', 'select', 'eraser']
 
@@ -390,7 +391,7 @@ function PagePreview({ pageNumber }) {
 /* ------------------------------------------------------------------ */
 /* Main editor                                                         */
 /* ------------------------------------------------------------------ */
-export default function PDFEditor({ pdfId, onClose, token }) {
+export default function PDFEditor({ pdfId, onClose, token, initialDocument = null, exportImage = false }) {
   const [pdfData, setPdfData] = useState(null)
   const [pdfFile, setPdfFile] = useState(null)
   const [numPages, setNumPages] = useState(null)
@@ -415,7 +416,7 @@ export default function PDFEditor({ pdfId, onClose, token }) {
   const [currentPath, setCurrentPath] = useState([])
   const [usePressure, setUsePressure] = useState(true)
   const [saveStatus, setSaveStatus] = useState('saved') // saved | dirty | saving | error
-  const [showPages, setShowPages] = useState(() => window.innerWidth >= 768)
+  const [showPages, setShowPages] = useState(() => !exportImage && window.innerWidth >= 768)
   const [deletingPage, setDeletingPage] = useState(false)
   const deletingPageRef = useRef(false)
   const [downloading, setDownloading] = useState(false)
@@ -563,7 +564,7 @@ export default function PDFEditor({ pdfId, onClose, token }) {
 
   const fetchPDF = async () => {
     try {
-      const response = await fetch(`/api/pdfs/${pdfId}`, {
+      const response = initialDocument ? { ok: true, json: async () => initialDocument } : await fetch(`/api/pdfs/${pdfId}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       if (response.ok) {
@@ -847,7 +848,7 @@ export default function PDFEditor({ pdfId, onClose, token }) {
         try {
           if (file.size > 10 * 1024 * 1024) throw new Error('Files must be smaller than 10 MB.')
           if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) {
-            const task = pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) })
+            const task = pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()), isEvalSupported: false })
             try {
               const pdf = await task.promise
               const page = await pdf.getPage(1)
@@ -1101,11 +1102,13 @@ export default function PDFEditor({ pdfId, onClose, token }) {
     setActionError(null)
     try {
       commitText()
-      const response = await fetch(`/api/pdfs/${pdfId}/download`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
-      if (!response.ok) throw new Error('Failed to fetch PDF')
-      const pdfBytes = await response.arrayBuffer()
+      let pdfBytes
+      if (initialDocument) pdfBytes = Uint8Array.from(atob(initialDocument.pdfData), c => c.charCodeAt(0))
+      else {
+        const response = await fetch(`/api/pdfs/${pdfId}/download`, { headers: { Authorization: `Bearer ${token}` } })
+        if (!response.ok) throw new Error('Failed to fetch PDF')
+        pdfBytes = await response.arrayBuffer()
+      }
 
       let outBytes = pdfBytes
       const annotations = cleanForSave(pathsRef.current)
@@ -1118,11 +1121,22 @@ export default function PDFEditor({ pdfId, onClose, token }) {
         }
       }
 
-      const blob = new Blob([outBytes], { type: 'application/pdf' })
+      let blob = new Blob([outBytes], { type: 'application/pdf' })
+      if (exportImage) {
+        const task = pdfjs.getDocument({ data: new Uint8Array(outBytes), isEvalSupported: false })
+        try {
+          const document = await task.promise, page = await document.getPage(1)
+          const viewport = page.getViewport({ scale: 1 })
+          const canvas = window.document.createElement('canvas'); canvas.width = Math.ceil(viewport.width); canvas.height = Math.ceil(viewport.height)
+          await page.render({ canvasContext: canvas.getContext('2d'), viewport, background: 'rgba(0,0,0,0)' }).promise
+          blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'))
+          if (!blob) throw new Error('Could not export the image.')
+        } finally { await task.destroy() }
+      }
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = pdfData?.originalName || pdfData?.name || 'document.pdf'
+      a.download = exportImage ? `${(pdfData?.originalName || 'image').replace(/\.[^.]+$/, '')}-edited.png` : pdfData?.originalName || pdfData?.name || 'document.pdf'
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
@@ -1136,7 +1150,7 @@ export default function PDFEditor({ pdfId, onClose, token }) {
   }
 
   const handleDelete = async () => {
-    if (!confirm('Are you sure you want to delete this PDF?')) return
+    if (!confirm('Are you sure you want to delete this document?')) return
     try {
       const response = await fetch(`/api/pdfs/${pdfId}`, {
         method: 'DELETE',
@@ -1212,7 +1226,7 @@ export default function PDFEditor({ pdfId, onClose, token }) {
   const pageItems = drawingPaths.filter(i => (i.page || 1) === pageNumber)
 
   return (
-    <div className="pdf-editor fixed inset-0 bg-slate-950 flex flex-col z-50" role="dialog" aria-modal="true" aria-label="PDF editor" aria-busy={deletingPage} onKeyDownCapture={e => { if (deletingPage) { e.preventDefault(); e.stopPropagation() } }}>
+    <div className="pdf-editor fixed inset-0 bg-slate-950 flex flex-col z-50" role="dialog" aria-modal="true" aria-label="Visual document editor" aria-busy={deletingPage} onKeyDownCapture={e => { if (deletingPage) { e.preventDefault(); e.stopPropagation() } }}>
       {deletingPage && <div className="fixed inset-0 z-[100] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center" role="status"><div className="flex items-center gap-3 rounded-xl border border-white/10 bg-slate-900 p-6 text-white"><Loader2 className="animate-spin" size={22} />Updating pages…</div></div>}
       {/* Header */}
       <div className="pdf-editor-header bg-slate-900 border-b border-white/10 px-4 py-3 flex items-center justify-between gap-3">
@@ -1266,7 +1280,7 @@ export default function PDFEditor({ pdfId, onClose, token }) {
           <button
             onClick={() => setShowSettings(true)}
             className="p-2 text-slate-400 hover:bg-white/10 rounded-lg transition-all"
-            title="PDF Settings"
+            title="Document settings"
           >
             <Settings size={20} />
           </button>
@@ -1281,14 +1295,14 @@ export default function PDFEditor({ pdfId, onClose, token }) {
             onClick={handleDownload}
             disabled={downloading}
             className="p-2 text-blue-400 hover:bg-blue-500/10 rounded-lg transition-all"
-            title="Download PDF with annotations"
+            title={exportImage ? 'Download edited image as PNG' : 'Download PDF with annotations'}
           >
             {downloading ? <Loader2 className="animate-spin" size={20} /> : <Download size={20} />}
           </button>
           <button
             onClick={handleDelete}
             className="p-2 text-red-400 hover:bg-red-500/10 rounded-lg transition-all"
-            title="Delete PDF"
+            title="Delete document"
           >
             <Trash2 size={20} />
           </button>
@@ -1310,9 +1324,9 @@ export default function PDFEditor({ pdfId, onClose, token }) {
           if (e.target.tagName !== 'INPUT') e.preventDefault()
         }}
       >
-        <InsertPanel onPages={handleAddPages} pageNumber={pageNumber} onFiles={insertFiles} onInsert={insertGenerated} color={currentColor} busy={inserting || !pageBase || pageBase.page !== pageNumber || deletingPage} />
+        <InsertPanel onPages={exportImage ? undefined : handleAddPages} pageNumber={pageNumber} onFiles={insertFiles} onInsert={insertGenerated} color={currentColor} busy={inserting || !pageBase || pageBase.page !== pageNumber || deletingPage} />
         <div className="pdf-editor-tool-options">
-        <button onClick={() => setShowPages(v => !v)} aria-label="Toggle pages" aria-expanded={showPages} className={cn('p-2 rounded-lg', showPages ? 'bg-indigo-500/20 text-indigo-300' : 'text-slate-400')} title="Pages"><PanelLeft size={20} /></button>
+        {!exportImage && <button onClick={() => setShowPages(v => !v)} aria-label="Toggle pages" aria-expanded={showPages} className={cn('p-2 rounded-lg', showPages ? 'bg-indigo-500/20 text-indigo-300' : 'text-slate-400')} title="Pages"><PanelLeft size={20} /></button>}
         <div className="flex items-center gap-2 bg-slate-700 rounded-lg p-1">
           {TOOLS.map((tool) => (
             <button
@@ -1418,7 +1432,7 @@ export default function PDFEditor({ pdfId, onClose, token }) {
         {showPages && pdfFile && !pdfError && (
           <aside className="pdf-pages w-48 sm:w-56 shrink-0 overflow-y-auto border-r border-white/10 bg-slate-900/90" aria-label="Document pages">
             <div className="sticky top-0 z-10 bg-slate-900 px-4 py-4 border-b border-white/5 flex items-center justify-between"><span className="text-xs font-semibold uppercase tracking-widest text-slate-300">Pages</span><span className="text-xs text-slate-500">{numPages || '…'} total</span></div>
-            <Document file={pdfFile} loading={<p className="p-4 text-xs text-slate-400">Loading previews…</p>}>
+            <Document options={PDF_OPTIONS} file={pdfFile} loading={<p className="p-4 text-xs text-slate-400">Loading previews…</p>}>
               {Array.from({ length: numPages || 0 }, (_, index) => {
                 const n = index + 1
                 const count = drawingPaths.filter(item => (item.page || 1) === n).length
@@ -1445,6 +1459,7 @@ export default function PDFEditor({ pdfId, onClose, token }) {
               style={ready ? { width: renderW, height: renderH } : undefined}
             >
               <Document
+                options={PDF_OPTIONS}
                 file={pdfFile}
                 onLoadSuccess={onDocumentLoadSuccess}
                 onLoadError={onDocumentLoadError}
@@ -1581,14 +1596,14 @@ export default function PDFEditor({ pdfId, onClose, token }) {
         </button>
       </div>
 
-      <button onClick={handleDeletePage} disabled={!numPages || numPages <= 1 || deletingPage || inserting} className="absolute bottom-4 right-4 flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-red-300 hover:bg-red-500/10 disabled:opacity-30 max-sm:static max-sm:justify-center max-sm:bg-slate-900" title={numPages === 1 ? 'Keep at least one page in the PDF' : 'Delete the current page'}><Trash2 size={16} />Delete page</button>
+      {!exportImage && <button onClick={handleDeletePage} disabled={!numPages || numPages <= 1 || deletingPage || inserting} className="absolute bottom-4 right-4 flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-red-300 hover:bg-red-500/10 disabled:opacity-30 max-sm:static max-sm:justify-center max-sm:bg-slate-900" title={numPages === 1 ? 'Keep at least one page in the PDF' : 'Delete the current page'}><Trash2 size={16} />Delete page</button>}
 
       {/* Settings Modal */}
       {showSettings && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-slate-900 border border-white/10 rounded-2xl p-6 w-full max-w-md">
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-2xl font-bold text-white">PDF Settings</h3>
+              <h3 className="text-2xl font-bold text-white">Document settings</h3>
               <button
                 onClick={() => setShowSettings(false)}
                 className="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition-all"
@@ -1600,7 +1615,7 @@ export default function PDFEditor({ pdfId, onClose, token }) {
             <div className="space-y-4">
               {actionError && <p role="alert" className="rounded-lg bg-red-500/10 p-3 text-sm text-red-300">{actionError}</p>}
               <div>
-                <label className="block text-slate-400 text-sm mb-2">PDF Name</label>
+                <label className="block text-slate-400 text-sm mb-2">Document name</label>
                 <input
                   type="text"
                   value={editName}

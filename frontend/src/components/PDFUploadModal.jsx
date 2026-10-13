@@ -12,19 +12,19 @@ export default function PDFUploadModal({ onClose, token, onUploadSuccess, pdfFol
 
   const handleFileChange = (e) => {
     const file = e.target.files[0]
-    if (file && file.type === 'application/pdf') {
+    if (file && file.size <= 10 * 1024 * 1024) {
       setPdfFile(file)
-      setPdfName(file.name.replace('.pdf', ''))
+      setPdfName(file.name.replace(/\.[^.]+$/, ''))
       setError('')
     } else {
-      setError('Please select a valid PDF file')
+      setError('Choose a file smaller than 10 MB')
     }
   }
 
   const handleUpload = async (e) => {
     e.preventDefault()
     if (!pdfFile) {
-      setError('Please select a PDF file')
+      setError('Please select a file')
       return
     }
 
@@ -52,7 +52,7 @@ export default function PDFUploadModal({ onClose, token, onUploadSuccess, pdfFol
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || 'Failed to upload PDF')
+        throw new Error(errorData.message || 'Failed to upload a document')
       }
 
       const data = await response.json()
@@ -73,7 +73,7 @@ export default function PDFUploadModal({ onClose, token, onUploadSuccess, pdfFol
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-slate-900 border border-white/10 rounded-2xl p-6 w-full max-w-md">
         <div className="flex items-center justify-between mb-6">
-          <h3 className="text-2xl font-bold text-white">Upload PDF</h3>
+          <h3 className="text-2xl font-bold text-white">Upload document</h3>
           <button
             onClick={onClose}
             className="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition-all"
@@ -85,11 +85,11 @@ export default function PDFUploadModal({ onClose, token, onUploadSuccess, pdfFol
         <form onSubmit={handleUpload} className="space-y-4">
           {/* File Upload */}
           <div>
-            <label className="block text-slate-400 text-sm mb-2">PDF File</label>
+            <label className="block text-slate-400 text-sm mb-2">Document file</label>
             <div className="relative">
               <input
                 type="file"
-                accept=".pdf"
+                accept="*/*"
                 onChange={handleFileChange}
                 className="hidden"
                 id="pdf-upload"
@@ -113,8 +113,8 @@ export default function PDFUploadModal({ onClose, token, onUploadSuccess, pdfFol
                   <>
                     <Upload size={32} className="text-slate-400" />
                     <div className="text-center">
-                      <p className="text-white font-medium">Click to upload PDF</p>
-                      <p className="text-slate-400 text-sm">or drag and drop</p>
+                      <p className="text-white font-medium">Click to upload a document</p>
+                      <p className="text-slate-400 text-sm">PDF, images, DOCX, XLSX, text, code, CSV, and other files · up to 10 MB</p>
                     </div>
                   </>
                 )}
@@ -122,9 +122,10 @@ export default function PDFUploadModal({ onClose, token, onUploadSuccess, pdfFol
             </div>
           </div>
 
-          {/* PDF Name */}
+          <button type="button" disabled={uploading} onClick={() => { setPdfFile(new File([''], 'Untitled.txt', { type: 'text/plain' })); setPdfName('Untitled'); setError('') }} className="w-full rounded-lg border border-slate-600 px-4 py-2 text-sm text-slate-200 hover:bg-slate-800">Create a blank text document</button>
+          {/* Document name */}
           <div>
-            <label className="block text-slate-400 text-sm mb-2">PDF Name</label>
+            <label className="block text-slate-400 text-sm mb-2">Document name</label>
             <input
               type="text"
               value={pdfName}
@@ -197,7 +198,7 @@ export default function PDFUploadModal({ onClose, token, onUploadSuccess, pdfFol
               ) : (
                 <>
                   <Upload size={18} />
-                  Upload PDF
+                  Upload document
                 </>
               )}
             </button>

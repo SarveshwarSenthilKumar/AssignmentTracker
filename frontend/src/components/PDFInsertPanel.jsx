@@ -162,7 +162,7 @@ export default function InsertPanel({ onFiles, onInsert, onPages, pageNumber, co
     {open && createPortal(<div ref={panelRef} id={id} role="dialog" aria-modal="false" aria-labelledby={`${id}-title`} tabIndex={-1} className="pdf-insert-popover" style={position}>
       <div className="insert-heading"><div><h3 id={`${id}-title`}>Insert content</h3><p>Add to the current PDF page</p></div><button type="button" onClick={close} className="insert-close" aria-label="Close insert menu"><X size={18} /></button></div>
       <nav className="insert-sections" aria-label="Insert categories">
-        {[['files', 'Files', Upload], ['pages', 'Pages', Files], ['shapes', 'Shapes', Square], ['table', 'Table', Table], ['stamp', 'Stamp', Stamp]].map(([key, name, Icon]) => <button type="button" key={key} aria-pressed={section === key} onClick={() => setSection(key)}><Icon size={17} />{name}</button>)}
+        {[['files', 'Files', Upload], ['pages', 'Pages', Files], ['shapes', 'Shapes', Square], ['table', 'Table', Table], ['stamp', 'Stamp', Stamp]].filter(([key]) => key !== 'pages' || onPages).map(([key, name, Icon]) => <button type="button" key={key} aria-pressed={section === key} onClick={() => setSection(key)}><Icon size={17} />{name}</button>)}
       </nav>
       <div className="insert-body">
         {busy && <p role="status" className="insert-notice">Content insertion is unavailable while the page loads or a file operation finishes.</p>}

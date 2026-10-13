@@ -16,7 +16,7 @@ app.use(cors());
 app.use(express.json({ limit: '25mb' }));
 
 // File upload configuration
-const upload = multer({ storage: multer.memoryStorage() });
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 // MongoDB Connection
 mongoose.connect(process.env.MONGODB_URI)
@@ -139,7 +139,7 @@ const todoSchema = new mongoose.Schema({
 
 const Todo = mongoose.model('Todo', todoSchema);
 
-// PDF Schema
+// Document storage (legacy PDF collection remains compatible).
 const pdfSchema = new mongoose.Schema({
   name: {
     type: String,
@@ -149,6 +149,8 @@ const pdfSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  mimeType: { type: String, default: 'application/pdf' },
+  originalBackup: { type: Buffer, default: null },
   pdfData: {
     type: Buffer,
     required: true,
@@ -732,7 +734,7 @@ app.post('/api/canvas/sync', authenticateToken, async (req, res) => {
 // Get all PDFs for user
 app.get('/api/pdfs', authenticateToken, async (req, res) => {
   try {
-    const pdfs = await PDF.find({ user: req.user.userId }).sort({ createdAt: -1 });
+    const pdfs = await PDF.find({ user: req.user.userId }).select('-pdfData -originalBackup').sort({ createdAt: -1 });
     res.json(pdfs);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching PDFs', error: error.message });
@@ -749,6 +751,8 @@ app.get('/api/pdfs/:id', authenticateToken, async (req, res) => {
     // Convert PDF buffer to base64 for JSON transmission
     const pdfResponse = {
       ...pdf.toObject(),
+      originalBackup: undefined,
+      hasOriginalBackup: Boolean(pdf.originalBackup),
       pdfData: pdf.pdfData.toString('base64')
     };
     res.json(pdfResponse);
@@ -764,11 +768,13 @@ app.post('/api/pdfs', authenticateToken, upload.single('pdfFile'), async (req, r
       return res.status(400).json({ message: 'No file uploaded' });
     }
 
+    if (req.file.size > 10 * 1024 * 1024) return res.status(400).json({ message: 'Files must be smaller than 10 MB.' });
     const { name, todoId, pdfFolderId, tags } = req.body;
     const pdf = new PDF({
       name: name || req.file.originalname,
       originalName: req.file.originalname,
       pdfData: req.file.buffer,
+      mimeType: req.file.mimetype || 'application/octet-stream',
       user: req.user.userId,
       todo: todoId || null,
       pdfFolder: pdfFolderId || null,
@@ -779,6 +785,35 @@ app.post('/api/pdfs', authenticateToken, upload.single('pdfFile'), async (req, r
   } catch (error) {
     res.status(500).json({ message: 'Error uploading PDF', error: error.message });
   }
+});
+
+// Save directly editable documents; retain the uploaded original before the first edit.
+app.put('/api/pdfs/:id/content', authenticateToken, async (req, res) => {
+  try {
+    const pdf = await PDF.findOne({ _id: req.params.id, user: req.user.userId });
+    if (!pdf) return res.status(404).json({ message: 'Document not found' });
+    const { data, mimeType } = req.body;
+    if (typeof data !== 'string' || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(data)) return res.status(400).json({ message: 'Invalid document content.' });
+    const bytes = Buffer.from(data, 'base64');
+    if (bytes.length > 10 * 1024 * 1024) return res.status(400).json({ message: 'Files must be smaller than 10 MB.' });
+    if (bytes.length + (pdf.originalBackup || pdf.pdfData).length > 15 * 1024 * 1024) return res.status(400).json({ message: 'The original and edited document together exceed the 15 MB storage limit. Download the edited version instead.' });
+    if (!pdf.originalBackup) pdf.originalBackup = pdf.pdfData;
+    pdf.pdfData = bytes;
+    if (typeof mimeType === 'string' && mimeType.length < 150) pdf.mimeType = mimeType;
+    pdf.annotations = [];
+    pdf.updatedAt = new Date();
+    await pdf.save();
+    res.json({ updatedAt: pdf.updatedAt, hasOriginalBackup: true });
+  } catch (error) { res.status(500).json({ message: 'Could not save this document.' }); }
+});
+app.get('/api/pdfs/:id/original', authenticateToken, async (req, res) => {
+  try {
+    const pdf = await PDF.findOne({ _id: req.params.id, user: req.user.userId });
+    if (!pdf) return res.status(404).json({ message: 'Document not found' });
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(pdf.originalName)}`);
+    res.send(pdf.originalBackup || pdf.pdfData);
+  } catch (error) { res.status(500).json({ message: 'Could not download the original.' }); }
 });
 
 // Update PDF annotations
@@ -869,8 +904,8 @@ app.get('/api/pdfs/:id/download', authenticateToken, async (req, res) => {
     if (!pdf) {
       return res.status(404).json({ message: 'PDF not found' });
     }
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${pdf.originalName}"`);
+    res.setHeader('Content-Type', pdf.mimeType || 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(pdf.originalName)}`);
     res.send(pdf.pdfData);
   } catch (error) {
     res.status(500).json({ message: 'Error downloading PDF', error: error.message });
@@ -1151,6 +1186,12 @@ function parseICSDate(icsDate) {
     return new Date();
   }
 }
+
+app.use((error, req, res, next) => {
+  if (error.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ message: 'Files must be smaller than 10 MB.' });
+  if (error.type === 'entity.too.large') return res.status(413).json({ message: 'This document and its edits are too large to save together.' });
+  next(error);
+});
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
