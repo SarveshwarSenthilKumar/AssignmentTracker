@@ -1,3 +1,4 @@
+import TaskVisualization from './components/TaskVisualization'
 import useInlineConfirm from './hooks/useInlineConfirm'
 import InlineConfirmation from './components/InlineConfirmation'
 import useShortcuts from './hooks/useShortcuts'
@@ -17,7 +18,7 @@ function App() {
   const taskConfirmation = useInlineConfirm()
   const readPage = () => {
     const route = window.location.hash.replace(/^#\/?/, '')
-    return ['tasks','documents','canvas','account','shortcuts'].includes(route) ? route : 'tasks'
+    return ['tasks','documents','visualization','canvas','account','shortcuts'].includes(route) ? route : 'tasks'
   }
   const [page, setPage] = useState(readPage)
   const navigate = next => { window.location.hash = `/${next}`; setPage(next); setShowCommandMenu(false); window.scrollTo({top:0}) }
@@ -83,10 +84,10 @@ function App() {
   useShortcuts('Platform', {
     'nav-tasks': () => navigate('tasks'), 'nav-documents': () => navigate('documents'),
     'nav-canvas': () => navigate('canvas'), 'nav-account': () => navigate('account'),
-    'nav-shortcuts': () => navigate('shortcuts'), help: () => navigate('shortcuts'),
-    dismiss: () => { setShowCommandMenu(false); setShowFolderModal(false); setShowPDFUploadModal(false); setSelectedTask(null); setContextMenu(null) },
+    'nav-visualization': () => navigate('visualization'), 'nav-shortcuts': () => navigate('shortcuts'), help: () => navigate('shortcuts'),
+    dismiss: () => { if(!showCommandMenu&&!showFolderModal&&!showPDFUploadModal&&!selectedTask&&!contextMenu)return false; setShowCommandMenu(false); setShowFolderModal(false); setShowPDFUploadModal(false); setSelectedTask(null); setContextMenu(null) },
     commands: () => { setShowCommandMenu(true); setTimeout(() => commandInputRef.current?.focus(),0) },
-    search: () => { const field = page === 'documents' ? document.querySelector('[aria-label="Search documents"]') : page === 'shortcuts' ? document.querySelector('[aria-label="Search keyboard shortcuts"]') : page === 'tasks' ? inputRef.current : null; field?.focus() },
+    search: () => { const field = page === 'documents' ? document.querySelector('[aria-label="Search documents"]') : page === 'shortcuts' ? document.querySelector('[aria-label="Search keyboard shortcuts"]') : page === 'tasks' ? inputRef.current : null; if(!field)return false; field.focus() },
   }, isAuthenticated && !selectedPDF && !taskConfirmation.pending)
   useShortcuts('Tasks', { 'new-task': () => inputRef.current?.focus(), 'task-folder': () => setShowFolderModal(true),
     'save-task': () => {if(editingFolder)updateFolder(editingFolder);else [...editingTodos].forEach(id=>saveEdit(id))},
@@ -1249,10 +1250,11 @@ function App() {
   return (
     <div className="min-h-screen py-8 px-4">
       <div className="app-shell w-full max-w-[1440px] mx-auto">
-        <header className="platform-header"><a className="platform-brand" href="#/tasks">Assignment Tracker</a><nav aria-label="Main navigation">{[['tasks','Tasks'],['documents','Documents'],['canvas','Canvas'],['account','Account'],['shortcuts','Shortcuts']].map(([key,label]) => <a key={key} href={`#/${key}`} aria-current={page===key?'page':undefined}>{key==='shortcuts'&&<Keyboard size={15}/>} {label}</a>)}</nav><button className="platform-signout" onClick={logout}><LogOut size={16}/>Sign out</button></header>
-        <div className="platform-page-title"><h1>{page==='tasks'?'Tasks':page==='documents'?'Document library':page==='canvas'?'Canvas integration':page==='account'?'Account':'Keyboard shortcuts'}</h1><p>{page==='tasks'?'Plan your work and track progress.':page==='documents'?'Organize and edit your files.':page==='canvas'?'Manage your course connection and imports.':page==='account'?'Review your profile and workspace activity.':'A searchable reference for navigation and actions.'}</p></div>
+        <header className="platform-header"><a className="platform-brand" href="#/tasks">Assignment Tracker</a><nav aria-label="Main navigation">{[['tasks','Tasks'],['documents','Documents'],['visualization','Visualization'],['canvas','Canvas'],['account','Account'],['shortcuts','Shortcuts']].map(([key,label]) => <a key={key} href={`#/${key}`} aria-current={page===key?'page':undefined}>{key==='shortcuts'&&<Keyboard size={15}/>} {label}</a>)}</nav><button className="platform-signout" onClick={logout}><LogOut size={16}/>Sign out</button></header>
+        <div className="platform-page-title"><h1>{page==='tasks'?'Tasks':page==='documents'?'Document library':page==='visualization'?'Task visualization':page==='canvas'?'Canvas integration':page==='account'?'Account':'Keyboard shortcuts'}</h1><p>{page==='tasks'?'Plan your work and track progress.':page==='documents'?'Organize and edit your files.':page==='visualization'?'Explore relationships, deadlines, and progress across your workspace.':page==='canvas'?'Manage your course connection and imports.':page==='account'?'Review your profile and workspace activity.':'A searchable reference for navigation and actions.'}</p></div>
         <InlineConfirmation {...taskConfirmation} />
         {page==='shortcuts' && <ShortcutsPage />}
+        {page==='visualization' && <TaskVisualization loading={loading} keyboardEnabled={!selectedPDF} tasks={todos} folders={folders} documents={pdfs} onOpenDocument={setSelectedPDF} onStatusChange={updateTodoStatus} onEditTask={task=>{setSelectedFolder('all');navigate('tasks');startEditing(task)}} />}
 
         {error && (
           <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-lg">

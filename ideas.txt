@@ -4,7 +4,6 @@ add ability to do a full clean reset
 fix ui of pdf editor and other internals
 add the ability to tie other to do items to task
 add other media to task descriptions
-create visualization of tasks and documents like a graph
 
 resume job tailor:
 Get job by links
