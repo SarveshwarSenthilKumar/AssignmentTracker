@@ -7,6 +7,8 @@ import {
 import { PDFDocument, rgb, degrees, StandardFonts, LineCapStyle } from 'pdf-lib'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.js?url'
 import './PDFEditor.css'
+import InsertHandles from './InsertHandles'
+import { moveInsert, resizeFromCorner } from '../lib/insertGeometry'
 import InsertPanel, { imageFromFile, makeInsert } from './PDFInsertPanel'
 import { cn } from '../lib/utils'
 
@@ -164,9 +166,9 @@ async function burnAnnotations(pdfBytes, annotations, usePressure) {
 function TextAnnotation({
   item, scale, isActive, tool, textareaRef,
   onClick, onChange, onCommit, onDelete, onFontDelta, onColorChange,
-  onDragStart, onDragMove, onDragEnd
+  onDragStart, onDragMove, onDragEnd, onResizeStart, selected, onSelect
 }) {
-  const interactive = tool === 'text' || tool === 'eraser'
+  const interactive = tool === 'text' || tool === 'eraser' || tool === 'select'
   const fontSize = item.fontSize || 16
   const textColor = item.color || '#000000'
   const textStyle = {
@@ -190,13 +192,27 @@ function TextAnnotation({
         position: 'absolute',
         left: item.x * scale,
         top: item.y * scale,
-        zIndex: isActive ? 30 : 20,
+        zIndex: isActive || selected ? 30 : 20,
+        outline: tool === 'select' && selected ? '2px solid #6366f1' : undefined,
+        touchAction: 'none',
         pointerEvents: interactive ? 'auto' : 'none'
       }}
       // Keep these events away from the drawing overlay underneath
-      onPointerDown={(e) => e.stopPropagation()}
+      onPointerDown={(e) => {
+        e.stopPropagation()
+        if (tool === 'select') {
+          e.preventDefault(); onSelect(item.id)
+          e.currentTarget.setPointerCapture(e.pointerId)
+          onDragStart(e, item)
+        }
+      }}
+      onPointerMove={tool === 'select' ? onDragMove : undefined}
+      onPointerUp={tool === 'select' ? e => { if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId); onDragEnd() } : undefined}
+      onPointerCancel={tool === 'select' ? () => onDragEnd(true) : undefined}
+      onLostPointerCapture={tool === 'select' ? () => onDragEnd() : undefined}
       onMouseDown={(e) => e.stopPropagation()}
     >
+      {tool === 'select' && selected && <InsertHandles item={item} onStart={onResizeStart} onMove={onDragMove} onEnd={onDragEnd} />}
       {tool === 'text' && (
         <div
           data-keep-text-active
@@ -221,7 +237,7 @@ function TextAnnotation({
               e.currentTarget.releasePointerCapture?.(e.pointerId)
               onDragEnd()
             }}
-            onPointerCancel={onDragEnd}
+            onPointerCancel={() => onDragEnd(true)}
           >
             <Move size={13} />
           </div>
@@ -255,7 +271,7 @@ function TextAnnotation({
           >
             <Minus size={13} />
           </button>
-          <span className="text-[11px] text-slate-200 font-medium w-5 text-center tabular-nums">{fontSize}</span>
+          <span className="text-[11px] text-slate-200 font-medium w-5 text-center tabular-nums">{Math.round(fontSize)}</span>
           <button
             type="button"
             onClick={() => onFontDelta(item.id, 2)}
@@ -345,6 +361,7 @@ function TextAnnotation({
           }}
           className={cn(
             'rounded select-none transition-shadow',
+            tool === 'select' && 'cursor-move',
             tool === 'text' && 'cursor-text hover:shadow-[0_0_0_1.5px_rgba(59,130,246,0.8)] hover:bg-blue-500/10',
             tool === 'eraser' && 'cursor-pointer hover:shadow-[0_0_0_1.5px_rgba(239,68,68,0.8)] hover:bg-red-500/20 hover:line-through'
           )}
@@ -755,27 +772,52 @@ export default function PDFEditor({ pdfId, onClose, token }) {
     activate(item.id)
   }
 
-  const handleTextDragStart = (e, item) => {
-    const pt = toLocal(e)
-    dragRef.current = { id: item.id, dx: pt.x - item.x, dy: pt.y - item.y, moved: false, snapshot: pathsRef.current }
+  const insertSize = (item) => {
+    if (item.tool !== 'text') return { width: item.width, height: item.height }
+    const canvas = document.createElement('canvas')
+    const context = canvas.getContext('2d')
+    const size = item.fontSize || 16
+    context.font = `${size}px ${FONT_STACK}`
+    const lines = (item.text || '').split('\n')
+    return { width: Math.max(12, ...lines.map(line => context.measureText(line).width)) + TEXT_PAD_X * 2, height: lines.length * size * LINE_HEIGHT + TEXT_PAD_Y * 2 }
   }
+
+  const beginTransform = (e, item, corner = null) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return
+    if (!pageBase || pageBase.page !== pageNumber || dragRef.current) return
+    e.stopPropagation()
+    const point = toLocal(e)
+    dragRef.current = { id: item.id, pointerId: e.pointerId, origin: point, item: { ...item }, size: insertSize(item), corner, snapshot: pathsRef.current, moved: false }
+  }
+  const handleTextDragStart = (e, item) => beginTransform(e, item)
+  const handleResizeStart = (e, item, corner) => beginTransform(e, item, corner)
 
   const handleTextDragMove = (e) => {
     const drag = dragRef.current
-    if (!drag || !pageBase) return
+    if (!drag || e.pointerId !== drag.pointerId || !pageBase) return
+    e.stopPropagation()
     const pt = toLocal(e)
-    const item = pathsRef.current.find(i => i.id === drag.id)
-    const x = Math.max(0, Math.min(pageBase.w - (item?.width || 10), pt.x - drag.dx))
-    const y = Math.max(0, Math.min(pageBase.h - (item?.height || 10), pt.y - drag.dy))
-    if (!drag.moved) {
-      drag.moved = true
-      if (activeTextIdRef.current !== drag.id) pushHistoryRaw(drag.snapshot)
+    if (!drag.moved && Math.hypot(pt.x - drag.origin.x, pt.y - drag.origin.y) * scale < 3) return
+    let changes
+    if (drag.corner) {
+      const text = drag.item.tool === 'text'
+      const size = drag.item.fontSize || 16
+      const result = resizeFromCorner(drag.item, drag.size, pt, drag.corner, pageBase, text ? { min: 8 / size, max: 96 / size } : {})
+      changes = text ? { x: result.x, y: result.y, fontSize: size * result.ratio } : { x: result.x, y: result.y, width: result.width, height: result.height }
+    } else {
+      changes = moveInsert(drag.item, drag.size, pt, { x: drag.origin.x - drag.item.x, y: drag.origin.y - drag.item.y }, pageBase)
     }
-    updatePaths(prev => prev.map(i => (i.id === drag.id ? { ...i, x, y } : i)))
+    drag.moved = true
+    updatePaths(prev => prev.map(item => item.id === drag.id ? { ...item, ...changes } : item))
   }
 
-  const handleTextDragEnd = () => {
+  const handleTextDragEnd = (cancelled = false) => {
+    const drag = dragRef.current
+    if (!drag) return
     dragRef.current = null
+    if (!drag.moved) return
+    if (cancelled) { updatePaths(drag.snapshot); return }
+    if (activeTextIdRef.current !== drag.id) pushHistoryRaw(drag.snapshot)
   }
 
   const addImageInsert = (asset, targetPage = pageNumber, base = pageBase) => {
@@ -838,12 +880,14 @@ export default function PDFEditor({ pdfId, onClose, token }) {
   }
 
   const resizeInsert = (id, factor) => {
+    if (!pageBase || pageBase.page !== pageNumber) return
+    const item = pathsRef.current.find(item => item.id === id)
+    if (!item || item.tool !== 'image') return
+    const size = insertSize(item)
+    const next = resizeFromCorner(item, size, { x: item.x + size.width * factor, y: item.y + size.height * factor }, 'se', pageBase)
+    if (Math.abs(next.width - item.width) < 0.01) return
     commitText(); pushHistory()
-    updatePaths(prev => prev.map(item => {
-      if (item.id !== id) return item
-      const ratio = Math.min(factor, (pageBase.w - item.x) / item.width, (pageBase.h - item.y) / item.height)
-      return { ...item, width: Math.max(1, item.width * ratio), height: Math.max(1, item.height * ratio) }
-    }))
+    updatePaths(prev => prev.map(value => value.id === id ? { ...value, x: next.x, y: next.y, width: next.width, height: next.height } : value))
   }
 
   /* ---------- eraser ---------- */
@@ -956,6 +1000,7 @@ export default function PDFEditor({ pdfId, onClose, token }) {
   }
 
   const goToPage = (n) => {
+    handleTextDragEnd()
     commitText()
     if (!Number.isFinite(n)) return
     setPageNumber(Math.max(1, Math.min(numPages || 1, Math.trunc(n))))
@@ -1293,6 +1338,8 @@ export default function PDFEditor({ pdfId, onClose, token }) {
             />
             <span className="text-white text-sm w-10">{fontSize}pt</span>
           </div>
+        ) : currentTool === 'select' ? (
+          <span className="text-slate-300 text-sm">Drag content to move · drag corners to resize</span>
         ) : currentTool !== 'eraser' ? (
           <div className="flex items-center gap-2">
             <span className="text-slate-400 text-sm">Size:</span>
@@ -1431,18 +1478,21 @@ export default function PDFEditor({ pdfId, onClose, token }) {
                   </svg>
 
                   {pageItems.filter(i => i.tool === 'image').map(item => (
-                    <div key={item.id} style={{ position: 'absolute', left: item.x * scale, top: item.y * scale, width: item.width * scale, height: item.height * scale, pointerEvents: ['select', 'eraser'].includes(currentTool) ? 'auto' : 'none', outline: currentTool === 'select' && selectedInsertId === item.id ? '2px solid #6366f1' : undefined, zIndex: selectedInsertId === item.id ? 25 : 15 }}
+                    <div key={item.id} style={{ position: 'absolute', left: item.x * scale, top: item.y * scale, width: item.width * scale, height: item.height * scale, pointerEvents: ['select', 'eraser'].includes(currentTool) ? 'auto' : 'none', outline: currentTool === 'select' && selectedInsertId === item.id ? '2px solid #6366f1' : undefined, touchAction: 'none', cursor: currentTool === 'select' ? 'move' : 'pointer', zIndex: selectedInsertId === item.id ? 25 : 15 }}
                       onPointerDown={e => {
                         e.stopPropagation(); e.preventDefault()
                         if (currentTool === 'eraser') { handleDeleteText(item.id); return }
+                        if (e.pointerType === 'mouse' && e.button !== 0) return
                         setSelectedInsertId(item.id)
                         e.currentTarget.setPointerCapture(e.pointerId)
                         handleTextDragStart(e, item)
                       }}
                       onPointerMove={handleTextDragMove}
-                      onPointerUp={e => { e.currentTarget.releasePointerCapture?.(e.pointerId); handleTextDragEnd() }}
-                      onPointerCancel={handleTextDragEnd}>
+                      onPointerUp={e => { if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId); handleTextDragEnd() }}
+                      onPointerCancel={() => handleTextDragEnd(true)}
+                      onLostPointerCapture={() => handleTextDragEnd()}>
                       <img src={item.dataUrl} alt={item.label || 'Inserted image'} draggable={false} style={{ width: '100%', height: '100%', display: 'block' }} />
+                      {currentTool === 'select' && selectedInsertId === item.id && <InsertHandles item={item} onStart={handleResizeStart} onMove={handleTextDragMove} onEnd={handleTextDragEnd} />}
                       {currentTool === 'select' && selectedInsertId === item.id && <div className="pdf-insert-controls" onPointerDown={e => e.stopPropagation()}>
                         <span className="text-xs">Drag to move</span>
                         <button aria-label="Shrink insert" title="Shrink insert" onClick={() => resizeInsert(item.id, 0.8)}><Minus size={16} /></button>
@@ -1469,6 +1519,9 @@ export default function PDFEditor({ pdfId, onClose, token }) {
                       onDragStart={handleTextDragStart}
                       onDragMove={handleTextDragMove}
                       onDragEnd={handleTextDragEnd}
+                      onResizeStart={handleResizeStart}
+                      selected={selectedInsertId === item.id}
+                      onSelect={setSelectedInsertId}
                     />
                   ))}
                 </div>

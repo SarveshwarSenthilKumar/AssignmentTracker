@@ -160,7 +160,7 @@ export default function InsertPanel({ onFiles, onInsert, color, busy }) {
         {section === 'shapes' && <>
           <p className="insert-label">Choose a shape</p>
           <div className="insert-shape-grid">{SHAPES.map(({ kind: type, label: name, Icon }) => <button key={type} type="button" aria-pressed={kind === type} onClick={() => setKind(type)}><Icon size={32} strokeWidth={1.5} /><span>{name}</span>{kind === type && <Check className="insert-selected-check" size={15} />}</button>)}</div>
-          <p className="insert-help">Use the Move tool to position the shape and the − / + controls to resize it.</p>
+          <p className="insert-help">Use the Move tool to drag the shape. Drag a corner handle to resize it.</p>
         </>}
         {section === 'table' && <>
           <div className="insert-table-size"><label htmlFor={`${id}-rows`}>Rows<input id={`${id}-rows`} type="number" min={1} max={12} value={rows} onChange={e => setRows(Math.max(1, Math.min(12, Number(e.target.value) || 1)))} /></label><span>×</span><label htmlFor={`${id}-cols`}>Columns<input id={`${id}-cols`} type="number" min={1} max={8} value={cols} onChange={e => setCols(Math.max(1, Math.min(8, Number(e.target.value) || 1)))} /></label></div>

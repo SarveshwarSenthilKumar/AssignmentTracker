@@ -80,3 +80,10 @@
 .insert-submit:hover { background: #6366f1; }
 .insert-notice { padding: 10px 12px; margin: 0 0 14px; background: #312e81; color: #e0e7ff; border-radius: 8px; font-size: 12px; }
 @media (max-width: 400px) { .insert-body { padding: 14px; } .insert-heading { padding: 14px; } .insert-sections button { flex-direction: column; gap: 3px; } .insert-footer { padding: 12px 14px; } .insert-color { font-size: 11px; } .insert-submit { padding: 9px 10px; } }
+.pdf-resize-handle { position: absolute; z-index: 45; width: 16px; height: 16px; padding: 0; background: #fff; border: 2px solid #4f46e5; border-radius: 3px; touch-action: none; }
+.pdf-resize-nw { left: -8px; top: -8px; cursor: nwse-resize; }
+.pdf-resize-ne { right: -8px; top: -8px; cursor: nesw-resize; }
+.pdf-resize-sw { left: -8px; bottom: -8px; cursor: nesw-resize; }
+.pdf-resize-se { right: -8px; bottom: -8px; cursor: nwse-resize; }
+.pdf-insert-move-hint { position: absolute; left: 0; bottom: calc(100% + 12px); display: flex; align-items: center; gap: 5px; padding: 4px 7px; border-radius: 5px; color: #fff; background: #312e81; white-space: nowrap; font-size: 11px; pointer-events: none; }
+@media (pointer: coarse) { .pdf-resize-handle { width: 24px; height: 24px; } .pdf-resize-nw, .pdf-resize-ne { top: -12px; } .pdf-resize-sw, .pdf-resize-se { bottom: -12px; } .pdf-resize-nw, .pdf-resize-sw { left: -12px; } .pdf-resize-ne, .pdf-resize-se { right: -12px; } }
