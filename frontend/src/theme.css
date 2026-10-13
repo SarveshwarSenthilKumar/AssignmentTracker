@@ -1,0 +1,42 @@
+:root {
+  --surface-base: #131a22;
+  --surface-panel: #171e27;
+  --surface-elevated: #1c242e;
+  --surface-raised: #242c37;
+  --surface-input: #18222e;
+  --border: #354253;
+  --border-strong: #4e5c6d;
+  --text-primary: #e9edf1;
+  --text-secondary: #b1bdc9;
+  --text-muted: #8997a7;
+  --accent: #8fa5b9;
+  --accent-solid: #526c83;
+  --accent-hover: #40566c;
+  --success: #96b3a3;
+  --warning: #bdab8b;
+  --danger: #cfb1b1;
+  --radius-control: 6px;
+  --radius-panel: 10px;
+}
+input[type="checkbox"], input[type="radio"], input[type="range"] { accent-color: var(--accent); }
+input[type="range"] { cursor: pointer; }
+input[type="file"]::file-selector-button { padding: 7px 10px; margin-right: 10px; background: var(--surface-raised); color: var(--text-primary); border: 1px solid var(--border-strong); border-radius: var(--radius-control); cursor: pointer; }
+button:disabled { opacity: .5; }
+.app-inline-panel h3 { font-size: 18px; font-weight: 600; letter-spacing: -.01em; }
+.app-inline-panel label { color: var(--text-secondary); }
+.app-inline-panel input:not([type="checkbox"]):not([type="radio"]):not([type="color"]), .app-inline-panel select, .app-inline-panel textarea { border-color: var(--border-strong); border-radius: var(--radius-control); }
+.app-inline-panel input:not([type="file"]):not([type="color"]), .app-inline-panel select, .app-inline-panel textarea { background: var(--surface-input); }
+.app-inline-panel button { border-radius: var(--radius-control); }
+.app-inline-panel p { overflow-wrap: anywhere; }
+.app-inline-panel.document-upload-panel > div { max-width: 760px; }
+.app-shell .group > div:first-child { box-shadow: none; }
+.app-shell .group button[title="Edit"], .app-shell .group button[title="Delete"] { opacity: 1; }
+.auth-screen { background: var(--surface-base); }
+.auth-screen > div { max-width: 420px; }
+.auth-screen h1 { font-size: 25px; }
+.auth-screen h1 + p { font-size: 14px; }
+.auth-screen .auth-card { background: var(--surface-panel); border: 1px solid var(--border); border-radius: var(--radius-panel); }
+.auth-screen .auth-card input { border-color: var(--border-strong); background: var(--surface-input); border-radius: var(--radius-control); }
+.auth-card button[type="submit"] { border-radius: var(--radius-control); font-size: 14px; padding: 11px 16px; }
+.auth-card > div:last-child button { font-size: 13px; }
+@media(max-width:640px) { .app-inline-panel > div { padding: 16px; } }

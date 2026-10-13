@@ -5,7 +5,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { Document, Page, pdfjs } from 'react-pdf'
 import {
   X, Save, Download, Upload, Trash2, Pen, Highlighter, Eraser, ZoomIn, ZoomOut,
-  PanelLeft, FileText, Maximize, RotateCw, Settings, Tag, Folder, Check, Loader2, Undo, Redo, Type, Move, Minus, Plus
+  PanelLeft, FileText, Maximize, RotateCw, Settings, Tag, Folder, Check, Loader2, Undo, Redo, Type, Move, Minus, Plus, AlertCircle
 } from 'lucide-react'
 import { PDFDocument, rgb, degrees, StandardFonts, LineCapStyle } from 'pdf-lib'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.js?url'
@@ -31,6 +31,7 @@ const BASELINE_RATIO = 0.9465 // distance from top of a line box to the baseline
 const FONT_STACK = 'Helvetica, Arial, sans-serif'
 const PDF_OPTIONS = { isEvalSupported: false }
 const COLORS = ['#000000', '#9e6464', '#526c83', '#62816f', '#9a835e', '#777487', '#967d87']
+const COLOR_NAMES = { '#000000': 'Black', '#9e6464': 'Muted red', '#526c83': 'Slate blue', '#62816f': 'Sage', '#9a835e': 'Ochre', '#777487': 'Violet gray', '#967d87': 'Rose gray' }
 const TOOLS = ['pen', 'highlighter', 'text', 'select', 'eraser']
 
 const uid = () => `a_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`
@@ -197,7 +198,7 @@ function TextAnnotation({
         left: item.x * scale,
         top: item.y * scale,
         zIndex: isActive || selected ? 30 : 20,
-        outline: tool === 'select' && selected ? '2px solid #6366f1' : undefined,
+        outline: tool === 'select' && selected ? '2px solid #8fa5b9' : undefined,
         touchAction: 'none',
         pointerEvents: interactive ? 'auto' : 'none'
       }}
@@ -260,7 +261,7 @@ function TextAnnotation({
                   textColor === c ? 'ring-2 ring-white  shadow' : ' opacity-75 hover:opacity-100'
                 )}
                 style={{ backgroundColor: c }}
-                title={c === '#000000' ? 'Black' : c}
+                aria-label={`Text color ${COLOR_NAMES[c] || c}`} title={COLOR_NAMES[c] || c}
               />
             ))}
           </div>
@@ -347,7 +348,7 @@ function TextAnnotation({
               overflow: 'hidden',
               outline: 'none',
               background: 'rgba(255, 255, 255, 0.92)',
-              boxShadow: '0 0 0 2px #3b82f6, 0 2px 6px rgba(0,0,0,0.15)',
+              boxShadow: '0 0 0 2px #8fa5b9',
               borderRadius: 3
             }}
           />
@@ -367,8 +368,8 @@ function TextAnnotation({
           className={cn(
             'rounded select-none transition-shadow',
             tool === 'select' && 'cursor-move',
-            tool === 'text' && 'cursor-text hover:shadow-[0_0_0_1.5px_rgba(59,130,246,0.8)] hover:bg-blue-500/10',
-            tool === 'eraser' && 'cursor-pointer hover:shadow-[0_0_0_1.5px_rgba(239,68,68,0.8)] hover:bg-red-500/20 hover:line-through'
+            tool === 'text' && 'cursor-text hover:outline hover:outline-1 hover:outline-slate-400 hover:bg-blue-500/10',
+            tool === 'eraser' && 'cursor-pointer hover:outline hover:outline-1 hover:outline-red-400 hover:bg-red-500/20 hover:line-through'
           )}
         >
           {item.text}
@@ -411,6 +412,13 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const [activeTextId, setActiveTextId] = useState(null)
   const [loading, setLoading] = useState(true)
   const [showSettings, setShowSettings] = useState(false)
+  const settingsFocusRef = useRef(null)
+  useEffect(() => {
+    if (!showSettings) return
+    settingsFocusRef.current = document.activeElement
+    document.getElementById('pdf-document-name')?.focus({ preventScroll: true })
+    return () => settingsFocusRef.current?.focus?.({ preventScroll: true })
+  }, [showSettings])
   const [editTags, setEditTags] = useState('')
   const [editFolder, setEditFolder] = useState('')
   const [editName, setEditName] = useState('')
@@ -1179,7 +1187,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     'delete-insert': () => { if(selectedInsertId && currentTool==='select'){handleDeleteText(selectedInsertId);setSelectedInsertId(null)} },
     'grow-insert': () => resizeSelected(1.1), 'shrink-insert': () => resizeSelected(.9),
     'nudge-left': () => nudgeSelected(-2,0), 'nudge-right': () => nudgeSelected(2,0), 'nudge-up': () => nudgeSelected(0,-2), 'nudge-down': () => nudgeSelected(0,2),
-    'pdf-close': handleClose,
+    'pdf-close': () => { if (showSettings) setShowSettings(false); else handleClose() },
   }, !loading && !deletingPage && !confirmation.pending)
 
   /* ---------- rendering helpers ---------- */
@@ -1230,7 +1238,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
           <div className="animate-spin text-primary-500 mx-auto">
             <Upload size={40} />
           </div>
-          <p className="text-white mt-4 text-center">Loading PDF...</p>
+          <p className="text-white mt-4 text-center">Loading document…</p>
         </div>
       </div>
     )
@@ -1248,118 +1256,41 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     <div className="pdf-editor fixed inset-0 bg-slate-950 flex flex-col z-50" role="region" aria-label="Visual document editor" aria-busy={deletingPage} onPointerDownCapture={e => { if (deletingPage) { e.preventDefault(); e.stopPropagation() } }} onKeyDownCapture={e => { if (deletingPage) { e.preventDefault(); e.stopPropagation() } }}>
       {deletingPage && <div className="inline-operation-status" role="status"><Loader2 className="animate-spin" size={17} />Updating pages…</div>}
       <InlineConfirmation {...confirmation} />
-      {/* Header */}
-      <div className="pdf-editor-header bg-slate-900 border-b border-white/10 px-4 py-3 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <FileText className="text-indigo-400 shrink-0" size={24} /><h2 className="text-white font-semibold truncate max-w-[28vw]">{pdfData?.name || 'PDF Editor'}</h2>
-          <span className="text-slate-400 text-sm">Page {pageNumber} of {numPages}</span>
-          {saveStatus === 'saving' && (
-            <div className="flex items-center gap-2 text-green-400 text-sm">
-              <Loader2 className="animate-spin" size={14} />
-              <span>Saving...</span>
-            </div>
-          )}
-          {saveStatus === 'saved' && <span className="text-slate-500 text-sm">All changes saved</span>}
-          {saveStatus === 'dirty' && <span className="text-slate-400 text-sm">Unsaved changes</span>}
-          {saveStatus === 'error' && <span className="text-red-400 text-sm">Save failed. Click Save to retry.</span>}
+      <header className="pdf-editor-header">
+        <div className="pdf-editor-identity"><FileText size={22}/><div><h2 title={pdfData?.name}>{pdfData?.name || 'Document editor'}</h2><div className="pdf-editor-metadata"><span>{exportImage ? 'Image annotations' : `PDF · ${numPages || '…'} pages`}</span><span className={`pdf-save-status is-${saveStatus}`} role="status">{saveStatus === 'saving' ? 'Saving…' : saveStatus === 'saved' ? 'All changes saved' : saveStatus === 'error' ? 'Save failed — retry Save' : 'Unsaved changes'}</span></div></div></div>
+        <div className="pdf-editor-actions">
+          <div className="pdf-history-actions"><button className="pdf-control" onClick={undo} disabled={historyCount.undo === 0} title="Undo (Ctrl+Z)" aria-label="Undo"><Undo size={17}/></button><button className="pdf-control" onClick={redo} disabled={historyCount.redo === 0} title="Redo (Ctrl+Shift+Z)" aria-label="Redo"><Redo size={17}/></button></div>
+          <button className="pdf-control" onClick={() => setShowSettings(v => !v)} aria-expanded={showSettings}><Settings size={16}/><span>Settings</span></button>
+          <button className="pdf-control pdf-control-primary" onClick={handleSave} disabled={saveStatus === 'saving'}><Save size={16}/><span>Save</span></button>
+          <button className="pdf-control" onClick={handleDownload} disabled={downloading} title={exportImage ? 'Download edited image as PNG' : 'Download PDF with annotations'}>{downloading ? <Loader2 className="animate-spin" size={16}/> : <Download size={16}/>}<span>{downloading ? 'Exporting…' : 'Download'}</span></button>
+          <button className="pdf-control" onClick={handleClose} title="Close editor" aria-label="Close editor"><X size={18}/></button>
         </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={undo}
-            disabled={historyCount.undo === 0}
-            className="p-2 text-orange-400 hover:bg-orange-500/10 rounded-lg transition-all disabled:opacity-30 disabled:hover:bg-transparent"
-            title="Undo (Ctrl+Z)"
-          >
-            <Undo size={20} />
-          </button>
-          <button
-            onClick={redo}
-            disabled={historyCount.redo === 0}
-            className="p-2 text-orange-400 hover:bg-orange-500/10 rounded-lg transition-all disabled:opacity-30 disabled:hover:bg-transparent"
-            title="Redo (Ctrl+Shift+Z)"
-          >
-            <Redo size={20} />
-          </button>
-          <button
-            onClick={handleClearCanvas}
-            className="p-2 text-red-400 hover:bg-red-500/10 rounded-lg transition-all"
-            title="Clear All Annotations"
-          >
-            <Eraser size={20} />
-          </button>
-          <button
-            onClick={() => setUsePressure(!usePressure)}
-            className={cn(
-              'p-2 rounded-lg transition-all',
-              usePressure ? 'text-green-400 bg-green-500/10' : 'text-slate-400 hover:bg-white/10'
-            )}
-            title="Toggle Pen Pressure Sensitivity"
-          >
-            <Pen size={20} />
-          </button>
-          <button
-            onClick={() => setShowSettings(true)}
-            className="p-2 text-slate-400 hover:bg-white/10 rounded-lg transition-all"
-            title="Document settings"
-          >
-            <Settings size={20} />
-          </button>
-          <button
-            onClick={handleSave}
-            className="p-2 text-green-400 hover:bg-green-500/10 rounded-lg transition-all"
-            title="Save Annotations"
-          >
-            <Save size={20} />
-          </button>
-          <button
-            onClick={handleDownload}
-            disabled={downloading}
-            className="p-2 text-blue-400 hover:bg-blue-500/10 rounded-lg transition-all"
-            title={exportImage ? 'Download edited image as PNG' : 'Download PDF with annotations'}
-          >
-            {downloading ? <Loader2 className="animate-spin" size={20} /> : <Download size={20} />}
-          </button>
-          <button
-            onClick={handleDelete}
-            className="p-2 text-red-400 hover:bg-red-500/10 rounded-lg transition-all"
-            title="Move document to Trash"
-          >
-            <Trash2 size={20} />
-          </button>
-          <button
-            onClick={handleClose}
-            className="p-2 text-slate-400 hover:bg-white/10 rounded-lg transition-all"
-            title="Close"
-          >
-            <X size={20} />
-          </button>
-        </div>
-      </div>
+      </header>
 
       {/* Toolbar. Mousedown is prevented (except on sliders) so clicking here never steals focus from an open text box. */}
       <div
         data-keep-text-active
         className="pdf-editor-toolbar bg-slate-800 border-b border-white/10 px-4 py-3 flex items-center gap-4"
         onMouseDown={(e) => {
-          if (e.target.tagName !== 'INPUT') e.preventDefault()
+          if (activeTextId && e.target.closest('button') && !e.target.closest('.pdf-insert-popover')) e.preventDefault()
         }}
       >
         <InsertPanel onPages={exportImage ? undefined : handleAddPages} pageNumber={pageNumber} onFiles={insertFiles} onInsert={insertGenerated} color={currentColor} busy={inserting || !pageBase || pageBase.page !== pageNumber || deletingPage} />
         <div className="pdf-editor-tool-options">
         {!exportImage && <button onClick={() => setShowPages(v => !v)} aria-label="Toggle pages" aria-expanded={showPages} className={cn('p-2 rounded-lg', showPages ? 'bg-indigo-500/20 text-indigo-300' : 'text-slate-400')} title="Pages"><PanelLeft size={20} /></button>}
-        <div className="flex items-center gap-2 bg-slate-700 rounded-lg p-1">
+        <div className="pdf-tool-group" role="group" aria-label="Annotation tools">
           {TOOLS.map((tool) => (
             <button
               key={tool}
-              aria-label={tool}
+              aria-label={tool === 'select' ? 'Move and resize' : tool === 'text' ? 'Text' : tool.charAt(0).toUpperCase() + tool.slice(1)}
               aria-pressed={currentTool === tool}
               onClick={() => {
                 commitText()
                 setCurrentTool(tool)
               }}
               className={cn(
-                'p-2 rounded transition-all',
-                currentTool === tool ? 'bg-primary-600 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-600'
+                'pdf-tool-button',
+                currentTool === tool ? 'is-active' : ''
               )}
               title={tool === 'text' ? 'Insert Text' : tool.charAt(0).toUpperCase() + tool.slice(1)}
             >
@@ -1367,12 +1298,12 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
               {tool === 'highlighter' && <Highlighter size={18} />}
               {tool === 'text' && <Type size={18} />}
               {tool === 'select' && <Move size={18} />}
-              {tool === 'eraser' && <Eraser size={18} />}
+              {tool === 'eraser' && <Eraser size={18} />}<span>{tool === 'select' ? 'Move' : tool === 'text' ? 'Text' : tool.charAt(0).toUpperCase() + tool.slice(1)}</span>
             </button>
           ))}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="pdf-color-group" role="group" aria-label="Annotation color">
           {COLORS.map((color) => (
             <button
               key={color}
@@ -1382,7 +1313,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
                 currentColor === color ? 'ring-2 ring-white ring-offset-2 ring-offset-slate-800 ' : ''
               )}
               style={{ backgroundColor: color }}
-              title={color === '#000000' ? 'Black' : color}
+              aria-label={`Annotation color ${COLOR_NAMES[color] || color}`} aria-pressed={currentColor === color} title={COLOR_NAMES[color] || color}
             />
           ))}
         </div>
@@ -1392,6 +1323,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
             <span className="text-slate-400 text-sm">Font size:</span>
             <input
               type="range"
+              aria-label="Text font size"
               min="8"
               max="72"
               value={fontSize}
@@ -1407,6 +1339,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
             <span className="text-slate-400 text-sm">Size:</span>
             <input
               type="range"
+              aria-label="Stroke width"
               min="1"
               max="10"
               value={strokeWidth}
@@ -1419,7 +1352,8 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
           <span className="text-slate-400 text-sm">Drag over a stroke or click inserted content to erase it</span>
         )}
 
-        <div className="flex items-center gap-2 ml-auto">
+        {['pen','highlighter'].includes(currentTool) && <button className="pdf-control pdf-pressure" onClick={() => setUsePressure(!usePressure)} aria-pressed={usePressure} title="Use pen pressure to vary stroke width"><Pen size={15}/>Pressure {usePressure ? 'on' : 'off'}</button>}
+        <div className="pdf-zoom-group" role="group" aria-label="Page view">
           <button
             onClick={handleZoomOut}
             className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-all"
@@ -1469,7 +1403,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         <div className="flex min-h-full w-fit min-w-full items-start justify-center p-8">
           {pdfError ? (
             <div className="text-center py-12">
-              <div className="text-6xl mb-4">❌</div>
+              <AlertCircle size={32} className="mx-auto mb-4 text-slate-400"/>
               <p className="text-red-400 text-lg">{pdfError}</p>
               <button onClick={() => { setPdfError(null); setLoading(true); fetchPDF() }} className="mt-4 px-4 py-2 rounded-lg bg-indigo-600 text-white">Retry loading</button>
             </div>
@@ -1483,8 +1417,8 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
                 file={pdfFile}
                 onLoadSuccess={onDocumentLoadSuccess}
                 onLoadError={onDocumentLoadError}
-                loading={<div className="text-white">Loading PDF...</div>}
-                error={<div className="text-red-400">Failed to load PDF document</div>}
+                loading={<div className="text-white">Loading document…</div>}
+                error={<div className="text-red-400">Could not render this document</div>}
                 className="shadow-2xl"
               >
                 <Page
@@ -1541,7 +1475,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
                   </svg>
 
                   {pageItems.filter(i => i.tool === 'image').map(item => (
-                    <div key={item.id} style={{ position: 'absolute', left: item.x * scale, top: item.y * scale, width: item.width * scale, height: item.height * scale, pointerEvents: ['select', 'eraser'].includes(currentTool) ? 'auto' : 'none', outline: currentTool === 'select' && selectedInsertId === item.id ? '2px solid #6366f1' : undefined, touchAction: 'none', cursor: currentTool === 'select' ? 'move' : 'pointer', zIndex: selectedInsertId === item.id ? 25 : 15 }}
+                    <div key={item.id} style={{ position: 'absolute', left: item.x * scale, top: item.y * scale, width: item.width * scale, height: item.height * scale, pointerEvents: ['select', 'eraser'].includes(currentTool) ? 'auto' : 'none', outline: currentTool === 'select' && selectedInsertId === item.id ? '2px solid #8fa5b9' : undefined, touchAction: 'none', cursor: currentTool === 'select' ? 'move' : 'pointer', zIndex: selectedInsertId === item.id ? 25 : 15 }}
                       onPointerDown={e => {
                         e.stopPropagation(); e.preventDefault()
                         if (currentTool === 'eraser') { handleDeleteText(item.id); return }
@@ -1593,14 +1527,14 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
               )}
             </div>
           ) : (
-            <div className="text-slate-400">No PDF data available</div>
+            <div className="text-slate-400">No document data available</div>
           )}
         </div>
       </div>
 
       </div>
       {/* Page Navigation */}
-      <div className="bg-slate-900 border-t border-white/10 px-4 py-3 flex items-center justify-center gap-4">
+      {!exportImage && <div className="pdf-editor-footer">
         <button
           onClick={() => goToPage(pageNumber - 1)}
           disabled={pageNumber <= 1}
@@ -1616,41 +1550,43 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         >
           Next
         </button>
-      </div>
+      {!exportImage && <button onClick={handleDeletePage} disabled={!numPages || numPages <= 1 || deletingPage || inserting} className="pdf-control pdf-control-danger pdf-delete-page" title={numPages === 1 ? 'Keep at least one page in the PDF' : 'Delete the current page'}><Trash2 size={16} />Delete page</button>}
+      </div>}
 
-      {!exportImage && <button onClick={handleDeletePage} disabled={!numPages || numPages <= 1 || deletingPage || inserting} className="absolute bottom-4 right-4 flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-red-300 hover:bg-red-500/10 disabled:opacity-30 max-sm:static max-sm:justify-center max-sm:bg-slate-900" title={numPages === 1 ? 'Keep at least one page in the PDF' : 'Delete the current page'}><Trash2 size={16} />Delete page</button>}
+
 
       {/* Settings Modal */}
       {showSettings && (
-        <div className="pdf-settings-panel app-inline-panel">
+        <div className="pdf-settings-panel app-inline-panel" onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setShowSettings(false) } }}>
           <div className="bg-slate-900 border border-white/10 rounded-2xl p-6 w-full max-w-md">
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-2xl font-bold text-white">Document settings</h3>
+              <h3 className="text-lg font-semibold text-white">Document settings</h3>
               <button
                 onClick={() => setShowSettings(false)}
+                aria-label="Close document settings"
                 className="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition-all"
               >
                 <X size={20} />
               </button>
             </div>
 
-            <div className="space-y-4">
+            <div className="pdf-settings-fields">
               {actionError && <p role="alert" className="rounded-lg bg-red-500/10 p-3 text-sm text-red-300">{actionError}</p>}
               <div>
-                <label className="block text-slate-400 text-sm mb-2">Document name</label>
+                <label htmlFor="pdf-document-name" className="block text-slate-400 text-sm mb-2">Document name</label>
                 <input
                   type="text"
-                  value={editName}
+                  id="pdf-document-name" value={editName}
                   onChange={(e) => setEditName(e.target.value)}
                   className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
               <div>
-                <label className="block text-slate-400 text-sm mb-2">Folder</label>
+                <label htmlFor="pdf-document-folder" className="block text-slate-400 text-sm mb-2">Folder</label>
                 <div className="relative">
                   <select
-                    value={editFolder}
+                    id="pdf-document-folder" value={editFolder}
                     onChange={(e) => setEditFolder(e.target.value)}
                     className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none"
                   >
@@ -1664,11 +1600,11 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
               </div>
 
               <div>
-                <label className="block text-slate-400 text-sm mb-2">Tags (comma-separated)</label>
+                <label htmlFor="pdf-document-tags" className="block text-slate-400 text-sm mb-2">Tags (comma-separated)</label>
                 <div className="relative">
                   <input
                     type="text"
-                    value={editTags}
+                    id="pdf-document-tags" value={editTags}
                     onChange={(e) => setEditTags(e.target.value)}
                     placeholder="homework, important, chapter1"
                     className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 pl-10"
@@ -1686,7 +1622,8 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
                 )}
               </div>
 
-              <div className="flex gap-3 pt-2">
+              <div className="pdf-settings-actions"><button className="pdf-control" onClick={handleClearCanvas}><Eraser size={15}/>Clear annotations</button><button className="pdf-control pdf-control-danger" onClick={handleDelete}><Trash2 size={15}/>Move document to Trash</button></div>
+              <div className="flex gap-3 pt-2 pdf-settings-save">
                 <button
                   onClick={() => setShowSettings(false)}
                   className="flex-1 px-4 py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl transition-all"

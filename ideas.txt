@@ -1,6 +1,5 @@
 add calendar functionality
 add assignment functionality
-fix ui of pdf editor and other internals
 add the ability to attach a file to something and add a prompt to an ai and for it to create a more digestible version
 
 resume job tailor:

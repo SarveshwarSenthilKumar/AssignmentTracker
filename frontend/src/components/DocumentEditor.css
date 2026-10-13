@@ -1,29 +1,45 @@
-.document-editor { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; background: #131a22; color: #f1f5f9; color-scheme: dark; font-family: Inter, system-ui, sans-serif; }
-.document-editor header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; padding: 14px 20px; border-bottom: 1px solid #354253; flex-shrink: 0; }
+.document-editor { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; background: var(--surface-base); color: var(--text-primary); color-scheme: dark; font-family: Inter, system-ui, sans-serif; }
+.document-editor header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; padding: 14px 20px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
 .document-title { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .document-title h2 { font-size: 16px; font-weight: 600; overflow-wrap: anywhere; }
-.document-title p { color: #8997a7; font-size: 12px; overflow-wrap: anywhere; }
+.document-title p { color: var(--text-muted); font-size: 12px; overflow-wrap: anywhere; }
 .document-actions, .document-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.document-editor button, .document-replace { display: inline-flex; align-items: center; gap: 7px; padding: 9px 12px; border: 1px solid #4e5c6d; border-radius: 7px; font-size: 13px; color: #f1f5f9; background: #242c37; cursor: pointer; }
-.document-editor button:hover { background: #354253; }
+.document-editor button, .document-replace { display: inline-flex; align-items: center; gap: 7px; padding: 9px 12px; border: 1px solid var(--border-strong); border-radius: 7px; font-size: 13px; color: var(--text-primary); background: var(--surface-raised); cursor: pointer; }
+.document-editor button:hover { background: var(--border); }
 .document-editor button:disabled { opacity: .4; cursor: default; }
 .document-editor :focus-visible { outline: 2px solid #b3c2d0; outline-offset: 2px; }
-.document-tools { padding: 10px 20px; border-bottom: 1px solid #354253; font-size: 12px; color: #d4dbe3; }
-.document-tools select { background: #242c37; padding: 7px; border-radius: 6px; margin-left: 8px; }
+.document-tools { padding: 10px 20px; border-bottom: 1px solid var(--border); font-size: 12px; color: #d4dbe3; }
+.document-tools select { background: var(--surface-raised); padding: 7px; border-radius: 6px; margin-left: 8px; }
 .document-notice { padding: 10px 20px; font-size: 12px; color: #e5ebf0; background: #304355; }
 .document-error { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 20px; color: #dfcccc; background: #382626; }
 .document-editor main { flex: 1; min-height: 0; overflow: auto; display: flex; }
-.document-text { flex: 1; width: 100%; min-height: 100%; padding: 24px; background: #171e27; color: #e9edf1; border: 0; resize: none; font: 15px/1.7 ui-monospace, Consolas, monospace; tab-size: 4; }
-.document-prose { background: #fff; color: #171e27; font-family: Georgia, serif; color-scheme: light; padding: 32px max(24px, calc((100vw - 850px)/2)); }
+.document-text { flex: 1; width: 100%; min-height: 100%; padding: 24px; background: var(--surface-panel); color: var(--text-primary); border: 0; resize: none; font: 15px/1.7 ui-monospace, Consolas, monospace; tab-size: 4; }
+.document-prose { background: #fff; color: var(--surface-panel); font-family: Georgia, serif; color-scheme: light; padding: 32px max(24px, calc((100vw - 850px)/2)); }
 .document-grid { overflow: auto; width: 100%; }
 .document-grid table { border-collapse: collapse; }
-.document-grid th { background: #242c37; color: #d4dbe3; font-size: 12px; padding: 8px 12px; position: sticky; top: 0; }
-.document-grid td { border: 1px solid #354253; padding: 0; }
-.document-grid input { width: 140px; padding: 9px; color: #f1f5f9; background: #171e27; font-size: 13px; border: 0; }
-.document-grid input:focus { background: #242c37; }
+.document-grid th { background: var(--surface-raised); color: #d4dbe3; font-size: 12px; padding: 8px 12px; position: sticky; top: 0; }
+.document-grid td { border: 1px solid var(--border); padding: 0; }
+.document-grid input { width: 140px; padding: 9px; color: var(--text-primary); background: var(--surface-panel); font-size: 13px; border: 0; }
+.document-grid input:focus { background: var(--surface-raised); }
 .document-empty { width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: 24px; text-align: center; }
 .document-empty p { color: #d4dbe3; max-width: 560px; }
 .document-empty video { max-width: 100%; max-height: 60vh; }
 .document-replace { flex-wrap: wrap; justify-content: center; }
 .document-replace input { font-size: 12px; max-width: 250px; }
 @media(max-width:640px) { .document-editor header { padding: 12px; } .document-actions { width: 100%; } .document-actions button { padding: 8px; } }
+.document-editor header { background: var(--surface-panel); padding: 12px 18px; }
+.document-title > svg { color: var(--text-secondary); flex-shrink: 0; }
+.document-editor .document-save { background: var(--accent-solid); border-color: var(--accent-solid); }
+.document-editor .document-save:hover { background: var(--accent-hover); }
+.document-editor button, .document-replace { border-radius: var(--radius-control); min-height: 34px; padding: 7px 10px; font-size: 12px; color: var(--text-secondary); }
+.document-tools { background: var(--surface-elevated); gap: 10px; }
+.document-tools select { border: 1px solid var(--border-strong); margin-left: 6px; }
+.document-grid th:first-child { position: sticky; left: 0; z-index: 1; border-right: 1px solid var(--border); }
+.document-grid thead th:first-child { z-index: 2; }
+.document-grid td:focus-within { outline: 1px solid var(--accent); outline-offset: -1px; }
+.document-text:focus-visible { outline-offset: -3px; }
+.document-prose { font: 16px/1.85 Georgia, serif; }
+.document-notice { color: var(--text-secondary); background: var(--surface-elevated); border-bottom: 1px solid var(--border); line-height: 1.6; }
+.document-empty audio { width: min(100%, 520px); }
+.document-empty h3 { font-size: 17px; font-weight: 600; }
+.document-empty p { font-size: 13px; line-height: 1.7; }

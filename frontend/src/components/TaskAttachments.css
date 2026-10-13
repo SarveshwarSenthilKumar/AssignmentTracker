@@ -1,6 +1,6 @@
-.task-description{white-space:pre-wrap;overflow-wrap:anywhere;color:#cbd5e1;font-size:14px;line-height:1.7}
+.task-description{white-space:pre-wrap;overflow-wrap:anywhere;color:var(--text-secondary);font-size:14px;line-height:1.7}
 .task-document-reference{display:inline-flex;align-items:center;gap:5px;border:1px solid #435264;background:#25313e;color:#c4d4e2;padding:1px 7px;border-radius:5px;margin:0 3px;vertical-align:middle}
-.task-attachments{background:#151e29;border:1px solid #334052;border-radius:10px;padding:14px;margin:12px 0;color:#b8c5d2;font-size:12px;cursor:default}
+.task-attachments{background:var(--surface-panel);border:1px solid #334052;border-radius:10px;padding:14px;margin:12px 0;color:#b8c5d2;font-size:12px;cursor:default}
 .task-attachments header{display:flex;justify-content:space-between;gap:12px;align-items:start;margin-bottom:12px}
 .task-attachments strong{display:flex;align-items:center;gap:7px;color:#e0e7ee;font-size:13px}
 .task-attachments strong span{color:#93a6b9}.task-attachments small{display:block;color:#91a2b4;font-size:11px;margin-top:4px;overflow-wrap:anywhere}

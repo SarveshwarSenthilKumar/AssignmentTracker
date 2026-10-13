@@ -1492,7 +1492,7 @@ function App() {
           </div>
         ) : filteredTodos.length === 0 ? (
           <div className="text-center py-12">
-            <div className="text-6xl mb-4">📝</div>
+            <FileText size={34} className="mx-auto mb-4 text-slate-400"/>
             <p className="text-slate-400 text-lg">
               {selectedFolder === 'all' ? 'No tasks yet. Add one above!' : selectedFolder ? 'No tasks in this folder yet' : 'No todos yet. Add one above!'}
             </p>

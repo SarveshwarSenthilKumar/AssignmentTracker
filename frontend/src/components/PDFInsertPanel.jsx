@@ -132,7 +132,7 @@ export default function InsertPanel({ onFiles, onInsert, onPages, pageNumber, co
     <button ref={triggerRef} type="button" className="insert-trigger" aria-expanded={open} aria-controls={open ? id : undefined} onClick={() => setOpen(value => !value)}><Plus size={17} />Insert content<ChevronDown size={15} /></button>
     <input ref={fileRef} type="file" hidden multiple accept={INSERT_ACCEPT} onChange={e => { const files = Array.from(e.target.files); e.target.value = ''; if (files.length) { onFiles(files); close() } }} />
     {open && <div ref={panelRef} id={id} role="region" aria-labelledby={`${id}-title`} tabIndex={-1} className="pdf-insert-popover">
-      <div className="insert-heading"><div><h3 id={`${id}-title`}>Insert content</h3><p>Add to the current PDF page</p></div><button type="button" onClick={close} className="insert-close" aria-label="Close insert menu"><X size={18} /></button></div>
+      <div className="insert-heading"><div><h3 id={`${id}-title`}>Insert content</h3><p>{onPages ? 'Add to the current PDF page' : 'Add to the image canvas'}</p></div><button type="button" onClick={close} className="insert-close" aria-label="Close insert menu"><X size={18} /></button></div>
       <nav className="insert-sections" aria-label="Insert categories">
         {[['files', 'Files', Upload], ['pages', 'Pages', Files], ['shapes', 'Shapes', Square], ['table', 'Table', Table], ['stamp', 'Stamp', Stamp]].filter(([key]) => key !== 'pages' || onPages).map(([key, name, Icon]) => <button type="button" key={key} aria-pressed={section === key} onClick={() => setSection(key)}><Icon size={17} />{name}</button>)}
       </nav>

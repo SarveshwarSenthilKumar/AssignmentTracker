@@ -144,7 +144,7 @@ export default function DocumentEditor({ pdfId, token, onClose }) {
   const cols = kind === 'workbook' ? gridSize.cols : Math.max(1, ...table.map(row => row.length))
   return <div className="document-editor" role="region" aria-label="Document editor">
     <header><div className="document-title"><FileText size={22} /><div><h2>{data?.name || 'Document editor'}</h2><p>{filename} · {loading ? 'Loading…' : dirty ? 'Unsaved changes' : 'Saved'}</p></div></div><div className="document-actions">
-      {editable && <button disabled={saving || !dirty} onClick={() => save()}><Save size={17} />{saving ? 'Saving…' : 'Save'}</button>}
+      {editable && <button className="document-save" disabled={saving || !dirty} onClick={() => save()}><Save size={17} />{saving ? 'Saving…' : 'Save'}</button>}
       <button disabled={loading || saving || !data} onClick={() => download()}><Download size={17} />Download</button>
       {data?.hasOriginalBackup && <button disabled={saving} onClick={() => download(true)}>Original file</button>}
       <button aria-label="Close editor" disabled={saving} onClick={close}><X size={20} /></button>

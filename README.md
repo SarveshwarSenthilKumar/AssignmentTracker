@@ -128,6 +128,8 @@ The document library provides folder navigation, filename/tag search, sorting, i
 
 The interface uses charcoal surfaces, a single muted blue-gray accent, and restrained semantic status colors. Application operations use inline feedback and confirmation bars. Settings, upload, and management forms remain in the page flow; browser alerts, prompts, confirmations, console logging, celebration overlays, gradients, and decorative scale/pulse animations are not used. Text and workbook drafts are kept in session storage when available, without a browser leave-page dialog.
 
+Shared surface, border, text, and control tokens live in `frontend/src/theme.css` and are used by the document library, editor chrome, navigation, visualization, and task panels. The visual editor keeps Insert visible, labels its annotation tools, groups zoom controls, and uses neutral Save/Download/Settings actions. Page deletion stays in the footer; document-wide destructive actions live in Settings with inline confirmation. Settings focuses the first field and Escape dismisses the settings panel. Narrow layouts wrap controls without hiding Insert. PDF pages and image content retain their original colors; UI selection outlines use the muted accent.
+
 ### Navigation and keyboard shortcuts
 
 The primary pages are `/#/tasks`, `/#/documents`, `/#/visualization`, `/#/canvas`, `/#/account`, and `/#/shortcuts`. Hash routes support direct links, reloads, and browser Back/Forward without server routing changes. The navigation is neutral and shows the current page.

@@ -43,7 +43,7 @@ export default function Auth() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4">
+    <div className="auth-screen min-h-screen flex items-center justify-center px-4">
       <div className="max-w-md w-full">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-semibold text-white mb-2 tracking-tight">
@@ -54,9 +54,9 @@ export default function Auth() {
           </p>
         </div>
 
-        <div className="bg-white/5 border border-white/10 rounded-2xl p-8">
+        <div className="auth-card bg-white/5 border border-white/10 rounded-2xl p-8">
           {error && (
-            <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-lg">
+            <div role="alert" className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-lg">
               <p className="text-red-400 text-sm">{error}</p>
             </div>
           )}
@@ -64,9 +64,10 @@ export default function Auth() {
           <form onSubmit={handleSubmit} className="space-y-4">
             {!isLogin && (
               <div>
-                <label className="block text-slate-400 mb-2 text-sm">Username</label>
+                <label htmlFor="auth-username" className="block text-slate-400 mb-2 text-sm">Username</label>
                 <input
                   type="text"
+                  id="auth-username" autoComplete="username"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="Choose a username"
@@ -77,10 +78,11 @@ export default function Auth() {
             )}
 
             <div>
-              <label className="block text-slate-400 mb-2 text-sm">Email</label>
+              <label htmlFor="auth-email" className="block text-slate-400 mb-2 text-sm">Email</label>
               <input
                 type="email"
-                value={email}
+                id="auth-email" autoComplete="email"
+                  value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="your@email.com"
                 className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
@@ -89,10 +91,11 @@ export default function Auth() {
             </div>
 
             <div>
-              <label className="block text-slate-400 mb-2 text-sm">Password</label>
+              <label htmlFor="auth-password" className="block text-slate-400 mb-2 text-sm">Password</label>
               <input
                 type="password"
-                value={password}
+                id="auth-password" autoComplete={isLogin ? 'current-password' : 'new-password'}
+                  value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
                 className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
