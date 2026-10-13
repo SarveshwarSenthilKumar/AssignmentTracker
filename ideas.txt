@@ -1,9 +1,6 @@
-add features
-add undo button
 update and add keyboard shortcuts
 add calendar and assignment functionality
-update the create folder feature for pdf to work properly
-add move and delete files features
+improve ui to never use console.log or popups
 
 resume job tailor:
 Get job by links

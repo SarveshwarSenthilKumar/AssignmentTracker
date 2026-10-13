@@ -2,10 +2,10 @@ import { useState, useEffect } from 'react'
 import { X, Upload, FileText, Loader2, Tag, Folder } from 'lucide-react'
 import { cn } from '../lib/utils'
 
-export default function PDFUploadModal({ onClose, token, onUploadSuccess, pdfFolders }) {
+export default function PDFUploadModal({ onClose, token, onUploadSuccess, pdfFolders, initialFolder = '' }) {
   const [pdfFile, setPdfFile] = useState(null)
   const [pdfName, setPdfName] = useState('')
-  const [selectedFolder, setSelectedFolder] = useState('')
+  const [selectedFolder, setSelectedFolder] = useState(initialFolder)
   const [tags, setTags] = useState('')
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
@@ -145,7 +145,7 @@ export default function PDFUploadModal({ onClose, token, onUploadSuccess, pdfFol
                 onChange={(e) => setSelectedFolder(e.target.value)}
                 className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none"
               >
-                <option value="">Uncategorized</option>
+                <option value="">Unfiled</option>
                 {pdfFolders.map((folder) => (
                   <option key={folder._id} value={folder._id}>{folder.name}</option>
                 ))}

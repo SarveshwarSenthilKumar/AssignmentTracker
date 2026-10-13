@@ -6,6 +6,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const https = require('https');
+const { documentAction } = require('./documentActions');
 const { deletePDFPage, insertPDFPages } = require('./pdfPages');
 
 const app = express();
@@ -149,6 +150,7 @@ const pdfSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  deletedAt: { type: Date, default: null },
   mimeType: { type: String, default: 'application/pdf' },
   originalBackup: { type: Buffer, default: null },
   pdfData: {
@@ -731,10 +733,24 @@ app.post('/api/canvas/sync', authenticateToken, async (req, res) => {
 });
 
 // PDF Routes
-// Get all PDFs for user
+app.post('/api/documents/actions', authenticateToken, async (req, res) => {
+  try {
+    let operation;
+    try { operation = documentAction(req.body); }
+    catch (error) { return res.status(400).json({ message: error.message }); }
+    const { action, ids, folderId, update } = operation;
+    if (action === 'move' && folderId !== null && !await PDFFolder.exists({ _id: folderId, user: req.user.userId })) return res.status(404).json({ message: 'The destination folder no longer exists.' });
+    const query = { _id: { $in: ids }, user: req.user.userId, deletedAt: action === 'restore' ? { $ne: null } : null };
+    if (await PDF.countDocuments(query) !== ids.length) return res.status(409).json({ message: 'Some selected documents are unavailable. Refresh the library and try again.' });
+    await PDF.updateMany(query, { $set: update });
+    res.json({ ids, action, folderId: folderId ?? null, deletedAt: update.deletedAt ?? null });
+  } catch (error) { res.status(500).json({ message: 'Could not update the selected documents. Please try again.' }); }
+});
+
+// Get all documents for user
 app.get('/api/pdfs', authenticateToken, async (req, res) => {
   try {
-    const pdfs = await PDF.find({ user: req.user.userId }).select('-pdfData -originalBackup').sort({ createdAt: -1 });
+    const pdfs = await PDF.find({ user: req.user.userId, ...(req.query.includeTrash === '1' ? {} : { deletedAt: null }) }).select('-pdfData -originalBackup').sort({ createdAt: -1 });
     res.json(pdfs);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching PDFs', error: error.message });
@@ -770,6 +786,7 @@ app.post('/api/pdfs', authenticateToken, upload.single('pdfFile'), async (req, r
 
     if (req.file.size > 10 * 1024 * 1024) return res.status(400).json({ message: 'Files must be smaller than 10 MB.' });
     const { name, todoId, pdfFolderId, tags } = req.body;
+    if (pdfFolderId && (typeof pdfFolderId !== 'string' || !mongoose.isValidObjectId(pdfFolderId) || !await PDFFolder.exists({ _id: pdfFolderId, user: req.user.userId }))) return res.status(400).json({ message: 'Choose one of your document folders.' });
     const pdf = new PDF({
       name: name || req.file.originalname,
       originalName: req.file.originalname,
@@ -878,9 +895,16 @@ app.put('/api/pdfs/:id', authenticateToken, async (req, res) => {
   try {
     const { name, tags, pdfFolder } = req.body;
     const updateData = {};
-    if (name !== undefined) updateData.name = name;
+    if (name !== undefined) {
+      if (typeof name !== 'string' || !name.trim() || name.trim().length > 120) return res.status(400).json({ message: 'Enter a name between 1 and 120 characters.' });
+      updateData.name = name.trim();
+    }
     if (tags !== undefined) updateData.tags = tags;
-    if (pdfFolder !== undefined) updateData.pdfFolder = pdfFolder;
+    if (pdfFolder !== undefined) {
+      if (pdfFolder !== null && (typeof pdfFolder !== 'string' || !mongoose.isValidObjectId(pdfFolder))) return res.status(400).json({ message: 'Choose a valid destination folder.' });
+      if (pdfFolder !== null && !await PDFFolder.exists({ _id: pdfFolder, user: req.user.userId })) return res.status(400).json({ message: 'Choose one of your document folders.' });
+      updateData.pdfFolder = pdfFolder;
+    }
     updateData.updatedAt = new Date();
 
     const pdf = await PDF.findOneAndUpdate(
@@ -915,11 +939,11 @@ app.get('/api/pdfs/:id/download', authenticateToken, async (req, res) => {
 // Delete a PDF
 app.delete('/api/pdfs/:id', authenticateToken, async (req, res) => {
   try {
-    const pdf = await PDF.findOneAndDelete({ _id: req.params.id, user: req.user.userId });
+    const pdf = await PDF.findOneAndUpdate({ _id: req.params.id, user: req.user.userId }, { $set: { deletedAt: new Date(), updatedAt: new Date() } }, { new: true });
     if (!pdf) {
       return res.status(404).json({ message: 'PDF not found' });
     }
-    res.json({ message: 'PDF deleted successfully' });
+    res.json({ message: 'Document moved to Trash' });
   } catch (error) {
     res.status(500).json({ message: 'Error deleting PDF', error: error.message });
   }
@@ -940,11 +964,11 @@ app.get('/api/pdf-folders', authenticateToken, async (req, res) => {
 app.post('/api/pdf-folders', authenticateToken, async (req, res) => {
   try {
     const { name, color, description } = req.body;
-    if (!name) {
-      return res.status(400).json({ message: 'Name is required' });
+    if (typeof name !== 'string' || !name.trim() || name.trim().length > 120) {
+      return res.status(400).json({ message: 'Enter a folder name between 1 and 120 characters.' });
     }
     const folder = new PDFFolder({
-      name,
+      name: name.trim(),
       color: color || '#3b82f6',
       description: description || '',
       user: req.user.userId,
@@ -961,7 +985,10 @@ app.put('/api/pdf-folders/:id', authenticateToken, async (req, res) => {
   try {
     const { name, color, description } = req.body;
     const updateData = {};
-    if (name !== undefined) updateData.name = name;
+    if (name !== undefined) {
+      if (typeof name !== 'string' || !name.trim() || name.trim().length > 120) return res.status(400).json({ message: 'Enter a name between 1 and 120 characters.' });
+      updateData.name = name.trim();
+    }
     if (color !== undefined) updateData.color = color;
     if (description !== undefined) updateData.description = description;
 
@@ -982,7 +1009,7 @@ app.put('/api/pdf-folders/:id', authenticateToken, async (req, res) => {
 // Delete a PDF folder
 app.delete('/api/pdf-folders/:id', authenticateToken, async (req, res) => {
   try {
-    const folder = await PDFFolder.findOneAndDelete({ _id: req.params.id, user: req.user.userId });
+    const folder = await PDFFolder.findOne({ _id: req.params.id, user: req.user.userId });
     if (!folder) {
       return res.status(404).json({ message: 'PDF folder not found' });
     }
@@ -991,7 +1018,8 @@ app.delete('/api/pdf-folders/:id', authenticateToken, async (req, res) => {
       { pdfFolder: req.params.id, user: req.user.userId },
       { pdfFolder: null }
     );
-    res.json({ message: 'PDF folder deleted successfully' });
+    await PDFFolder.deleteOne({ _id: req.params.id, user: req.user.userId });
+    res.json({ message: 'Document folder removed; documents moved to Unfiled.' });
   } catch (error) {
     res.status(500).json({ message: 'Error deleting PDF folder', error: error.message });
   }

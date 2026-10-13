@@ -1150,7 +1150,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   }
 
   const handleDelete = async () => {
-    if (!confirm('Are you sure you want to delete this document?')) return
+    if (!confirm('Move this document to Trash? You can restore it from the document library.')) return
     try {
       const response = await fetch(`/api/pdfs/${pdfId}`, {
         method: 'DELETE',
@@ -1302,7 +1302,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
           <button
             onClick={handleDelete}
             className="p-2 text-red-400 hover:bg-red-500/10 rounded-lg transition-all"
-            title="Delete document"
+            title="Move document to Trash"
           >
             <Trash2 size={20} />
           </button>
@@ -1632,7 +1632,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
                     onChange={(e) => setEditFolder(e.target.value)}
                     className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none"
                   >
-                    <option value="">Uncategorized</option>
+                    <option value="">Unfiled</option>
                     {pdfFolders.map((folder) => (
                       <option key={folder._id} value={folder._id}>{folder.name}</option>
                     ))}
