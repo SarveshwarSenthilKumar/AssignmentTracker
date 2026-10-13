@@ -8,6 +8,12 @@ export default function useInlineConfirm() {
     resolveRef.current?.(false)
     return new Promise(resolve => { resolveRef.current = resolve; setPending({ message, action }) })
   }, [])
+  useEffect(() => {
+    if(!pending)return
+    const cancel=event=>{if(event.key==='Escape'){event.preventDefault();event.stopPropagation();settle(false)}}
+    window.addEventListener('keydown',cancel,true)
+    return()=>window.removeEventListener('keydown',cancel,true)
+  },[pending,settle])
   useEffect(() => () => { resolveRef.current?.(false) }, [])
   return { pending, ask, settle }
 }

@@ -127,3 +127,9 @@ The document library provides folder navigation, filename/tag search, sorting, i
 ### Interface conventions
 
 The interface uses charcoal surfaces, a single muted blue-gray accent, and restrained semantic status colors. Application operations use inline feedback and confirmation bars. Settings, upload, and management forms remain in the page flow; browser alerts, prompts, confirmations, console logging, celebration overlays, gradients, and decorative scale/pulse animations are not used. Text and workbook drafts are kept in session storage when available, without a browser leave-page dialog.
+
+### Navigation and keyboard shortcuts
+
+The primary pages are `/#/tasks`, `/#/documents`, `/#/canvas`, `/#/account`, and `/#/shortcuts`. Hash routes support direct links, reloads, and browser Back/Forward without server routing changes. The navigation is neutral and shows the current page.
+
+The searchable Shortcuts page is generated from the same registry used by the keyboard handlers. Alt+1 through Alt+5 switch pages; Ctrl/Cmd+K opens commands; `?` opens the reference. Context-specific shortcuts cover document management, task editing, calendar import, and document/visual editing. Text-entry controls retain typing behavior, checkboxes do not block document action shortcuts, and Tab/Shift+Tab use normal focus navigation. Destructive task deletion uses inline confirmation; Escape cancels that confirmation. Editor navigation does not discard unsaved work.

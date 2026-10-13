@@ -1,3 +1,4 @@
+import useShortcuts from '../hooks/useShortcuts'
 import useInlineConfirm from '../hooks/useInlineConfirm'
 import InlineConfirmation from './InlineConfirmation'
 import { useEffect, useState, useRef } from 'react'
@@ -132,6 +133,10 @@ export default function DocumentEditor({ pdfId, token, onClose }) {
       } else downloadBlob(dirty && !loadFailed && ['text','word','table','workbook'].includes(kind) ? await serialize() : new Blob([bytesRef.current], { type: mime }), filename)
     } catch (err) { setError(err.message) }
   }
+  useShortcuts('Document editor', {
+    save: () => { if (!loadFailed && ['text','word','table','workbook'].includes(kind)) save() },
+    download: () => download(), close,
+  }, !loading && !saving && !confirmation.pending && kind !== 'pdf' && kind !== 'image')
   if (kind === 'pdf' && !loading && !error) return <PDFEditor pdfId={pdfId} token={token} onClose={onClose} />
   if (kind === 'image' && imageDocument && !error) return <PDFEditor pdfId={pdfId} token={token} onClose={onClose} initialDocument={imageDocument} exportImage />
   const editable = ['text','word','table','workbook'].includes(kind) && !loading && !loadFailed
@@ -150,7 +155,7 @@ export default function DocumentEditor({ pdfId, token, onClose }) {
     {kind === 'workbook' && <div className="document-tools"><label>Worksheet <select value={sheetId || ''} onChange={e => { const id = Number(e.target.value), sheet = workbook.current.getWorksheet(id); setSheetId(id); setGridSize({rows:Math.min(200,Math.max(20,sheet.rowCount)),cols:Math.min(40,Math.max(5,sheet.columnCount))}) }}>{sheets.map(sheet => <option key={sheet.id} value={sheet.id}>{sheet.name}</option>)}</select></label><span>Cell values and formulas; formulas recalculate when opened in Excel. Showing up to 200 rows × 40 columns; other cells are retained.</span></div>}
     {(kind === 'table' || kind === 'workbook') && editable && <div className="document-tools"><button onClick={() => { if (kind === 'table') setTable(prev => [...prev, Array(cols).fill('')]); else setGridSize(prev => ({...prev,rows:Math.min(500,prev.rows+1)})); markDirty() }}><Plus size={15} />Row</button><button onClick={() => { if (kind === 'table') setTable(prev=>prev.map(row=>[...Array.from({length:cols},(_,i)=>row[i]||''),''])); else setGridSize(prev=>({...prev,cols:Math.min(100,prev.cols+1)})); markDirty() }}><Plus size={15} />Column</button></div>}
     <main>
-      {loading ? <div className="document-empty"><Loader2 className="animate-spin" />Loading document…</div> : !loadFailed && (kind === 'text' || kind === 'word') ? <textarea aria-label="Document content" className={`document-text ${kind === 'word' ? 'document-prose' : ''}`} spellCheck={kind === 'word'} value={text} onChange={e=>{setText(e.target.value);markDirty()}} onKeyDown={e=>{if ((e.ctrlKey||e.metaKey)&&e.key==='s'){e.preventDefault();save()}}} /> : !loadFailed && (kind === 'table' || kind === 'workbook') ? <div className="document-grid"><table><thead><tr><th>#</th>{Array.from({length:cols},(_,c)=><th key={c}>{c+1}</th>)}</tr></thead><tbody>{Array.from({length:rows},(_,r)=><tr key={r}><th>{r+1}</th>{Array.from({length:cols},(_,c)=>{
+      {loading ? <div className="document-empty"><Loader2 className="animate-spin" />Loading document…</div> : !loadFailed && (kind === 'text' || kind === 'word') ? <textarea aria-label="Document content" className={`document-text ${kind === 'word' ? 'document-prose' : ''}`} spellCheck={kind === 'word'} value={text} onChange={e=>{setText(e.target.value);markDirty()}} /> : !loadFailed && (kind === 'table' || kind === 'workbook') ? <div className="document-grid"><table><thead><tr><th>#</th>{Array.from({length:cols},(_,c)=><th key={c}>{c+1}</th>)}</tr></thead><tbody>{Array.from({length:rows},(_,r)=><tr key={r}><th>{r+1}</th>{Array.from({length:cols},(_,c)=>{
         const key=`${sheetId}:${r+1}:${c+1}`
         const value=kind==='table' ? table[r]?.[c]||'' : changes[key] ?? cellText(workbook.current.getWorksheet(sheetId).getCell(r+1,c+1).value)
         return <td key={c}><input aria-label={`Row ${r+1}, column ${c+1}`} value={value} onChange={e=>{const value=e.target.value;if(kind==='table')setTable(prev=>prev.map((row,i)=>i===r?Array.from({length:cols},(_,j)=>j===c?value:row[j]||''):row));else setChanges(prev=>({...prev,[key]:value}));markDirty()}} /></td>

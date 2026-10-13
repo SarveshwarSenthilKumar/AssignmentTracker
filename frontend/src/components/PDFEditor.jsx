@@ -1,3 +1,4 @@
+import useShortcuts from '../hooks/useShortcuts'
 import useInlineConfirm from '../hooks/useInlineConfirm'
 import InlineConfirmation from './InlineConfirmation'
 import { useState, useRef, useEffect, useCallback } from 'react'
@@ -169,7 +170,7 @@ async function burnAnnotations(pdfBytes, annotations, usePressure) {
 function TextAnnotation({
   item, scale, isActive, tool, textareaRef,
   onClick, onChange, onCommit, onDelete, onFontDelta, onColorChange,
-  onDragStart, onDragMove, onDragEnd, onResizeStart, selected, onSelect
+  onDragStart, onDragMove, onDragEnd, onResizeStart, selected, onSelect, onSave, onDownload
 }) {
   const interactive = tool === 'text' || tool === 'eraser' || tool === 'select'
   const fontSize = item.fontSize || 16
@@ -326,6 +327,7 @@ function TextAnnotation({
               onCommit()
             }}
             onKeyDown={(e) => {
+              if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); e.stopPropagation(); e.shiftKey ? onDownload() : onSave(); return }
               e.stopPropagation()
               if (e.key === 'Escape' || (e.key === 'Enter' && (e.ctrlKey || e.metaKey))) {
                 e.preventDefault()
@@ -731,21 +733,6 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     }, 0)
     return () => clearTimeout(t)
   }, [activeTextId])
-
-  // Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z / Ctrl+Y when not typing
-  useEffect(() => {
-    const onKey = (e) => {
-      if (deletingPageRef.current) return
-      const tag = e.target?.tagName
-      if (tag === 'TEXTAREA' || tag === 'INPUT' || tag === 'SELECT') return
-      if (!(e.ctrlKey || e.metaKey)) return
-      const key = e.key.toLowerCase()
-      if (key === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo() }
-      else if (key === 'y') { e.preventDefault(); redo() }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [undo, redo])
 
   /* ---------- text interactions ---------- */
   const handleTextChange = (id, text) => {
@@ -1168,6 +1155,33 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     }
   }
 
+  const resizeSelected = factor => {
+    const item=pathsRef.current.find(item=>item.id===selectedInsertId)
+    if(!item || currentTool !== 'select')return
+    if(item.tool==='image')resizeInsert(item.id,factor)
+    else if(item.tool==='text'){pushHistory();handleFontDelta(item.id,factor>1?2:-2)}
+  }
+  const nudgeSelected = (dx,dy) => {
+    const item=pathsRef.current.find(item=>item.id===selectedInsertId)
+    if(!item||!pageBase||currentTool!=='select')return
+    const changes=moveInsert(item,insertSize(item),{x:item.x+dx,y:item.y+dy},{x:0,y:0},pageBase)
+    if(changes.x===item.x&&changes.y===item.y)return
+    pushHistory();updatePaths(prev=>prev.map(value=>value.id===item.id?{...value,...changes}:value))
+  }
+  useShortcuts('Visual editor', {
+    'pdf-save': handleSave, 'pdf-download': handleDownload, undo, redo, 'redo-y': redo,
+    'move-tool': () => {commitText();setCurrentTool('select')}, 'text-tool': () => setCurrentTool('text'),
+    'pen-tool': () => {commitText();setCurrentTool('pen')}, 'highlight-tool': () => {commitText();setCurrentTool('highlighter')},
+    'eraser-tool': () => {commitText();setCurrentTool('eraser')},
+    insert: () => overlayRef.current?.closest('.pdf-editor')?.querySelector('.insert-trigger')?.click(),
+    'previous-page': () => goToPage(pageNumber-1), 'next-page': () => goToPage(pageNumber+1),
+    'zoom-in': handleZoomIn, 'zoom-out': handleZoomOut, fit: handleFitWidth, rotate: handleRotate,
+    'delete-insert': () => { if(selectedInsertId && currentTool==='select'){handleDeleteText(selectedInsertId);setSelectedInsertId(null)} },
+    'grow-insert': () => resizeSelected(1.1), 'shrink-insert': () => resizeSelected(.9),
+    'nudge-left': () => nudgeSelected(-2,0), 'nudge-right': () => nudgeSelected(2,0), 'nudge-up': () => nudgeSelected(0,-2), 'nudge-down': () => nudgeSelected(0,2),
+    'pdf-close': handleClose,
+  }, !loading && !deletingPage && !confirmation.pending)
+
   /* ---------- rendering helpers ---------- */
   const renderStroke = (s, key) => {
     const pts = s.points
@@ -1571,6 +1585,8 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
                       onResizeStart={handleResizeStart}
                       selected={selectedInsertId === item.id}
                       onSelect={setSelectedInsertId}
+                      onSave={handleSave}
+                      onDownload={handleDownload}
                     />
                   ))}
                 </div>

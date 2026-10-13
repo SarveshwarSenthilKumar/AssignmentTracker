@@ -1,9 +1,10 @@
+import useShortcuts from '../hooks/useShortcuts'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { FileText, Folder, FolderPlus, Upload, Search, Trash2, Edit2, ArrowRight, RotateCcw, X, Download, Loader2, Files, Check, RefreshCw } from 'lucide-react'
 import { downloadBlob } from '../lib/documentFormats'
 import './DocumentLibrary.css'
 
-export default function DocumentLibrary({ documents, folders, token, onOpen, onUpload, onDocumentsChange, onFoldersChange, selectedFolder, onSelectFolder }) {
+export default function DocumentLibrary({ documents, folders, token, onOpen, onUpload, onDocumentsChange, onFoldersChange, selectedFolder, onSelectFolder, keyboardEnabled = true }) {
   const [search, setSearch] = useState(''), [sort, setSort] = useState('updated')
   const [selected, setSelected] = useState(new Set()), [modal, setModal] = useState(null), [value, setValue] = useState(''), [destination, setDestination] = useState('')
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState(null), [dropTarget, setDropTarget] = useState(null)
@@ -90,6 +91,17 @@ export default function DocumentLibrary({ documents, folders, token, onOpen, onU
     if (!response.ok) throw new Error('Could not download the document.')
     downloadBlob(await response.blob(), file.originalName)
   })
+  useShortcuts('Documents', {
+    upload: () => { if (!inTrash) onUpload() },
+    folder: () => { setValue(''); setModal({type:'new-folder'}) },
+    'select-all': () => setSelected(new Set(visible.map(file=>file._id))),
+    move: () => { if (selected.size && !inTrash) openMove([...selected]) },
+    trash: () => { if (selected.size && !inTrash) run(()=>action('trash',[...selected])) },
+    restore: () => { if (selected.size && inTrash) run(()=>action('restore',[...selected])) },
+    rename: () => { if (selected.size===1 && !inTrash) { const file=documents.find(file=>selected.has(file._id)); if(file){setValue(file.name);setModal({type:'rename',file})} } },
+    'download-file': () => {if(selected.size===1){const file=documents.find(file=>selected.has(file._id));if(file)download(file)}},
+    refresh,
+  }, keyboardEnabled && !busy && !modal)
   const modalTitle = modal?.type === 'move' ? `Move ${modal.ids.length === 1 ? 'document' : `${modal.ids.length} documents`}` : modal?.type === 'new-folder' ? 'New folder' : modal?.type === 'delete-folder' ? 'Remove folder' : 'Rename'
   return <section className="document-library" aria-label="Document library" aria-busy={busy}>
     <div className="library-header"><div><h2>Documents</h2><p>Organize, edit, and manage your files</p></div><div className="library-header-actions"><button disabled={busy} aria-label="Refresh document library" title="Refresh library" onClick={refresh}><RefreshCw size={16}/></button><button disabled={busy} onClick={()=>{setValue('');setModal({type:'new-folder'})}}><FolderPlus size={16}/>New folder</button><button className="library-primary" disabled={busy || inTrash} onClick={onUpload}><Upload size={16}/>Upload</button></div></div>

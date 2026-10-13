@@ -1,5 +1,10 @@
+import useInlineConfirm from './hooks/useInlineConfirm'
+import InlineConfirmation from './components/InlineConfirmation'
+import useShortcuts from './hooks/useShortcuts'
+import ShortcutsPage from './components/ShortcutsPage'
+import './Navigation.css'
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Trash2, Check, X, Loader2, FolderPlus, Folder, LogOut, Sparkles, Link2, ChevronDown, ChevronUp, Edit2, Save, User, Trophy, Target, Calendar, ArrowUpDown, RefreshCw, Terminal, ChevronRight, FileText } from 'lucide-react'
+import { Plus, Trash2, Check, X, Loader2, FolderPlus, Folder, LogOut, Sparkles, Link2, ChevronDown, ChevronUp, Edit2, Save, User, Trophy, Target, Calendar, ArrowUpDown, RefreshCw, Terminal, ChevronRight, FileText, Keyboard } from 'lucide-react'
 import { cn } from './lib/utils'
 import { useAuth } from './contexts/AuthContext'
 import Auth from './components/Auth'
@@ -9,6 +14,14 @@ import PDFUploadModal from './components/PDFUploadModal'
 
 function App() {
   const { isAuthenticated, token, logout, user, loading: authLoading } = useAuth()
+  const taskConfirmation = useInlineConfirm()
+  const readPage = () => {
+    const route = window.location.hash.replace(/^#\/?/, '')
+    return ['tasks','documents','canvas','account','shortcuts'].includes(route) ? route : 'tasks'
+  }
+  const [page, setPage] = useState(readPage)
+  const navigate = next => { window.location.hash = `/${next}`; setPage(next); setShowCommandMenu(false); window.scrollTo({top:0}) }
+  useEffect(() => { const change = () => { setPage(readPage()); setShowCommandMenu(false); setContextMenu(null); setSelectedTask(null); setShowFolderModal(false); window.scrollTo({top:0}) }; window.addEventListener('hashchange',change); return () => window.removeEventListener('hashchange',change) }, [])
   const [todos, setTodos] = useState([])
   const [folders, setFolders] = useState([])
   const [selectedFolder, setSelectedFolder] = useState(null)
@@ -67,22 +80,25 @@ function App() {
     panel?.scrollIntoView({ block: 'start', behavior: 'smooth' })
   }, [showFolderModal, showProfileModal, showCanvasModal, showPDFUploadModal, showCommandMenu, selectedTask, contextMenu])
 
-  // Tab key listener for command menu
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === 'Tab' && !e.shiftKey) {
-        e.preventDefault()
-        setShowCommandMenu(true)
-        setTimeout(() => commandInputRef.current?.focus(), 0)
-      }
-      if (e.key === 'Escape' && showCommandMenu) {
-        setShowCommandMenu(false)
-        setCommandInput('')
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [showCommandMenu])
+  useShortcuts('Platform', {
+    'nav-tasks': () => navigate('tasks'), 'nav-documents': () => navigate('documents'),
+    'nav-canvas': () => navigate('canvas'), 'nav-account': () => navigate('account'),
+    'nav-shortcuts': () => navigate('shortcuts'), help: () => navigate('shortcuts'),
+    dismiss: () => { setShowCommandMenu(false); setShowFolderModal(false); setShowPDFUploadModal(false); setSelectedTask(null); setContextMenu(null) },
+    commands: () => { setShowCommandMenu(true); setTimeout(() => commandInputRef.current?.focus(),0) },
+    search: () => { const field = page === 'documents' ? document.querySelector('[aria-label="Search documents"]') : page === 'shortcuts' ? document.querySelector('[aria-label="Search keyboard shortcuts"]') : page === 'tasks' ? inputRef.current : null; field?.focus() },
+  }, isAuthenticated && !selectedPDF && !taskConfirmation.pending)
+  useShortcuts('Tasks', { 'new-task': () => inputRef.current?.focus(), 'task-folder': () => setShowFolderModal(true),
+    'save-task': () => {if(editingFolder)updateFolder(editingFolder);else [...editingTodos].forEach(id=>saveEdit(id))},
+    'edit-task': () => {const id=document.activeElement?.closest('[data-task-id]')?.dataset.taskId; const task=todos.find(task=>task._id===id); if(task)startEditing(task)},
+    'advance-task': () => {const id=document.activeElement?.closest('[data-task-id]')?.dataset.taskId; if(id)cycleTodoStatus(id)},
+    'delete-task': () => {const id=document.activeElement?.closest('[data-task-id]')?.dataset.taskId; if(id)deleteTodo(id)},
+  }, isAuthenticated && page === 'tasks' && !selectedPDF && !taskConfirmation.pending)
+
+  useShortcuts('Canvas', {
+    'calendar-file': () => document.querySelector('[data-canvas-import] input[type="file"]')?.click(),
+    'calendar-import': () => { if(icsFile) document.querySelector('[data-canvas-import] form')?.requestSubmit(); else setError('Choose an ICS calendar file first.') },
+  }, isAuthenticated && page === 'canvas' && !selectedPDF && !syncing)
 
   // Click outside to save edit
   useEffect(() => {
@@ -159,25 +175,6 @@ function App() {
       return () => document.removeEventListener('mousedown', handleClickOutside)
     }
   }, [contextMenu])
-
-  // Keyboard shortcut for "/" to focus input
-  useEffect(() => {
-    const handleKeyPress = (event) => {
-      if (event.key === '/' && !event.ctrlKey && !event.metaKey) {
-        const activeElement = document.activeElement
-        const isInputFocused = activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA'
-
-        if (!isInputFocused && inputRef.current) {
-          event.preventDefault()
-          inputRef.current.focus()
-          setInput('')
-        }
-      }
-    }
-
-    document.addEventListener('keydown', handleKeyPress)
-    return () => document.removeEventListener('keydown', handleKeyPress)
-  }, [])
 
   const fetchTodos = async () => {
     try {
@@ -624,6 +621,10 @@ function App() {
     return (
       <div
         key={todo._id}
+        data-task-id={todo._id}
+        tabIndex={0}
+        role="article"
+        aria-label={todo.text}
         draggable
         onDragStart={(e) => handleDragStart(e, todo)}
         onDragEnd={handleDragEnd}
@@ -817,6 +818,8 @@ function App() {
   }
 
   const deleteTodo = async (id) => {
+    const task=todos.find(task=>task._id===id)
+    if (!await taskConfirmation.ask(`Delete “${task?.text || 'this task'}”? This cannot be undone.`, 'Delete task')) return
     try {
       const response = await fetch(`/api/todos/${id}`, {
         method: 'DELETE',
@@ -1246,48 +1249,10 @@ function App() {
   return (
     <div className="min-h-screen py-8 px-4">
       <div className="app-shell w-full max-w-[1440px] mx-auto">
-        <div className="flex items-center justify-between mb-6">
-          <div className="text-center">
-            <h1 className="text-3xl font-bold text-white mb-2 tracking-tight">
-              Assignment Tracker
-            </h1>
-            <p className="text-slate-400 text-sm">
-              Stay organized, get things done
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setShowPDFUploadModal(true)}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all flex items-center gap-2 shadow-lg shadow-blue-500/30 "
-              title="Document editor"
-            >
-              <FileText size={18} />
-              <span className="hidden sm:inline">Documents</span>
-            </button>
-            <button
-              onClick={() => setShowCanvasModal(true)}
-              className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-all flex items-center gap-2 shadow-lg shadow-purple-500/30 "
-              title="Canvas Integration"
-            >
-              <RefreshCw size={18} />
-              <span className="hidden sm:inline">Canvas</span>
-            </button>
-            <button
-              onClick={() => setShowProfileModal(true)}
-              className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition-all flex items-center gap-2 shadow-lg shadow-primary-500/30 "
-            >
-              <User size={18} />
-              <span className="hidden sm:inline">Profile</span>
-            </button>
-            <button
-              onClick={logout}
-              className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-all flex items-center gap-2"
-            >
-              <LogOut size={18} />
-              <span className="hidden sm:inline">Logout</span>
-            </button>
-          </div>
-        </div>
+        <header className="platform-header"><a className="platform-brand" href="#/tasks">Assignment Tracker</a><nav aria-label="Main navigation">{[['tasks','Tasks'],['documents','Documents'],['canvas','Canvas'],['account','Account'],['shortcuts','Shortcuts']].map(([key,label]) => <a key={key} href={`#/${key}`} aria-current={page===key?'page':undefined}>{key==='shortcuts'&&<Keyboard size={15}/>} {label}</a>)}</nav><button className="platform-signout" onClick={logout}><LogOut size={16}/>Sign out</button></header>
+        <div className="platform-page-title"><h1>{page==='tasks'?'Tasks':page==='documents'?'Document library':page==='canvas'?'Canvas integration':page==='account'?'Account':'Keyboard shortcuts'}</h1><p>{page==='tasks'?'Plan your work and track progress.':page==='documents'?'Organize and edit your files.':page==='canvas'?'Manage your course connection and imports.':page==='account'?'Review your profile and workspace activity.':'A searchable reference for navigation and actions.'}</p></div>
+        <InlineConfirmation {...taskConfirmation} />
+        {page==='shortcuts' && <ShortcutsPage />}
 
         {error && (
           <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-lg">
@@ -1317,8 +1282,9 @@ function App() {
           </div>
         )}
 
-        <DocumentLibrary documents={pdfs} folders={pdfFolders} token={token} onOpen={setSelectedPDF} onUpload={() => setShowPDFUploadModal(true)} onDocumentsChange={setPdfs} onFoldersChange={setPdfFolders} selectedFolder={selectedPDFFolder} onSelectFolder={setSelectedPDFFolder} />
+        {page === 'documents' && <DocumentLibrary keyboardEnabled={!selectedPDF} documents={pdfs} folders={pdfFolders} token={token} onOpen={setSelectedPDF} onUpload={() => setShowPDFUploadModal(true)} onDocumentsChange={setPdfs} onFoldersChange={setPdfFolders} selectedFolder={selectedPDFFolder} onSelectFolder={setSelectedPDFFolder} />}
 
+        {page === 'tasks' && <>
         {/* Folders Section */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-3">
@@ -1618,6 +1584,7 @@ function App() {
           </div>
         )}
 
+        </>}
         {/* Folder Modal */}
         {showFolderModal && (
           <div className="app-inline-panel">
@@ -1673,13 +1640,13 @@ function App() {
         )}
 
         {/* Profile Modal */}
-        {showProfileModal && (
+        {page === 'account' && (
           <div className="app-inline-panel">
             <div className="bg-slate-900 border border-white/10 rounded-2xl p-6 w-full max-w-md">
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-2xl font-bold text-white">Your Profile</h3>
                 <button
-                  onClick={() => setShowProfileModal(false)}
+                  onClick={() => navigate('tasks')}
                   className="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition-all"
                 >
                   <X size={20} />
@@ -1744,7 +1711,7 @@ function App() {
               </div>
 
               <button
-                onClick={() => setShowProfileModal(false)}
+                onClick={() => navigate('tasks')}
                 className="w-full px-4 py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-xl transition-all font-medium"
               >
                 Close
@@ -1754,13 +1721,13 @@ function App() {
         )}
 
         {/* Canvas Integration Modal */}
-        {showCanvasModal && (
-          <div className="app-inline-panel">
+        {page === 'canvas' && (
+          <div className="app-inline-panel" data-canvas-import>
             <div className="bg-slate-900 border border-white/10 rounded-2xl p-6 w-full max-w-md">
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-2xl font-bold text-white">Import Calendar</h3>
                 <button
-                  onClick={() => setShowCanvasModal(false)}
+                  onClick={() => navigate('tasks')}
                   className="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition-all"
                 >
                   <X size={20} />
