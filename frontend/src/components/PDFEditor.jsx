@@ -1055,6 +1055,34 @@ export default function PDFEditor({ pdfId, onClose, token }) {
     }
   }
 
+  const handleAddPages = async ({ mode, placement, range, files }) => {
+    if (!numPages || deletingPageRef.current || insertingRef.current) return false
+    handleTextDragEnd(); commitText()
+    deletingPageRef.current = true; setDeletingPage(true); setActionError(null)
+    try {
+      await saveQueueRef.current
+      if (files.reduce((sum, file) => sum + file.size, 0) > 10 * 1024 * 1024) throw new Error('Choose PDFs totaling no more than 10 MB.')
+      const sources = []
+      for (const file of files) sources.push(await new Promise((resolve, reject) => {
+        const reader = new FileReader(); reader.onload = () => resolve(reader.result.split(',')[1]); reader.onerror = () => reject(new Error(`Could not read ${file.name}.`)); reader.readAsDataURL(file)
+      }))
+      const position = placement === 'start' ? 0 : placement === 'end' ? numPages : placement === 'before' ? pageNumber - 1 : pageNumber
+      const response = await fetch(`/api/pdfs/${pdfId}/pages`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ mode, position, range, currentPage: pageNumber, sources, annotations: cleanForSave(pathsRef.current) }) })
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(result.message || 'Could not add pages. The combined files and edits may be too large.')
+      const bytes = Uint8Array.from(atob(result.pdfData), c => c.charCodeAt(0))
+      setPdfFile(new File([bytes], pdfData?.name || 'document.pdf', { type: 'application/pdf' }))
+      setPdfData(prev => ({ ...prev, pdfData: result.pdfData }))
+      setPageBase(null); setNumPages(result.numPages); setPageNumber(result.firstInsertedPage)
+      updatePaths(result.annotations, { silent: true }); dirtyRef.current = false; setSaveStatus('saved')
+      undoStack.current = []; redoStack.current = []; bumpHistory()
+      setSelectedInsertId(null); setCurrentPath([]); currentPathRef.current = []; isDrawingRef.current = false
+      viewerRef.current?.scrollTo({ top: 0, left: 0 })
+      return true
+    } catch (error) { setActionError(error.message); return false }
+    finally { deletingPageRef.current = false; setDeletingPage(false) }
+  }
+
   const handleZoomIn = () => setScale(prev => Math.min(prev + 0.25, 4.0))
   const handleZoomOut = () => setScale(prev => Math.max(prev - 0.25, 0.5))
   const handleRotate = () => {
@@ -1185,7 +1213,7 @@ export default function PDFEditor({ pdfId, onClose, token }) {
 
   return (
     <div className="pdf-editor fixed inset-0 bg-slate-950 flex flex-col z-50" role="dialog" aria-modal="true" aria-label="PDF editor" aria-busy={deletingPage} onKeyDownCapture={e => { if (deletingPage) { e.preventDefault(); e.stopPropagation() } }}>
-      {deletingPage && <div className="fixed inset-0 z-[100] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center" role="status"><div className="flex items-center gap-3 rounded-xl border border-white/10 bg-slate-900 p-6 text-white"><Loader2 className="animate-spin" size={22} />Deleting page…</div></div>}
+      {deletingPage && <div className="fixed inset-0 z-[100] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center" role="status"><div className="flex items-center gap-3 rounded-xl border border-white/10 bg-slate-900 p-6 text-white"><Loader2 className="animate-spin" size={22} />Updating pages…</div></div>}
       {/* Header */}
       <div className="pdf-editor-header bg-slate-900 border-b border-white/10 px-4 py-3 flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
@@ -1282,7 +1310,7 @@ export default function PDFEditor({ pdfId, onClose, token }) {
           if (e.target.tagName !== 'INPUT') e.preventDefault()
         }}
       >
-        <InsertPanel onFiles={insertFiles} onInsert={insertGenerated} color={currentColor} busy={inserting || !pageBase || pageBase.page !== pageNumber || deletingPage} />
+        <InsertPanel onPages={handleAddPages} pageNumber={pageNumber} onFiles={insertFiles} onInsert={insertGenerated} color={currentColor} busy={inserting || !pageBase || pageBase.page !== pageNumber || deletingPage} />
         <div className="pdf-editor-tool-options">
         <button onClick={() => setShowPages(v => !v)} aria-label="Toggle pages" aria-expanded={showPages} className={cn('p-2 rounded-lg', showPages ? 'bg-indigo-500/20 text-indigo-300' : 'text-slate-400')} title="Pages"><PanelLeft size={20} /></button>
         <div className="flex items-center gap-2 bg-slate-700 rounded-lg p-1">

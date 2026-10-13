@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useId } from 'react'
 import { createPortal } from 'react-dom'
-import { Plus, X, ChevronDown, Image as ImageIcon, FileText, Upload, Square, Circle, Minus, ArrowRight, Table, Stamp, Check } from 'lucide-react'
+import { Plus, X, ChevronDown, Image as ImageIcon, FileText, Upload, Square, Circle, Minus, ArrowRight, Table, Stamp, Check, Files } from 'lucide-react'
 
 export const INSERT_ACCEPT = 'image/*,application/pdf,text/plain,text/csv,.md,.svg,.webp,.bmp,.gif,.avif'
 const MAX_FILE_SIZE = 10 * 1024 * 1024
@@ -73,9 +73,14 @@ const FILE_TYPES = [
   { label: 'Text file', Icon: FileText, accept: 'text/plain,text/csv,.txt,.md,.csv', formats: 'TXT, Markdown, CSV', hint: 'Insert the file contents as editable text.' }
 ]
 
-export default function InsertPanel({ onFiles, onInsert, color, busy }) {
+export default function InsertPanel({ onFiles, onInsert, onPages, pageNumber, color, busy }) {
   const [open, setOpen] = useState(false)
   const [section, setSection] = useState('files')
+  const [pageMode, setPageMode] = useState('files')
+  const [placement, setPlacement] = useState('after')
+  const [pageFiles, setPageFiles] = useState([])
+  const [pageRange, setPageRange] = useState('')
+  const [pageError, setPageError] = useState('')
   const [kind, setKind] = useState('rectangle')
   const [label, setLabel] = useState('APPROVED')
   const [rows, setRows] = useState(3)
@@ -104,7 +109,7 @@ export default function InsertPanel({ onFiles, onInsert, color, busy }) {
     const keyboard = e => {
       if (e.key === 'Escape') { e.preventDefault(); setOpen(false); triggerRef.current?.focus() }
       if (e.key === 'Tab') {
-        const items = Array.from(panelRef.current.querySelectorAll('button:not(:disabled), input:not(:disabled), textarea:not(:disabled)')).filter(el => el.type !== 'file')
+        const items = Array.from(panelRef.current.querySelectorAll('button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled)')).filter(el => el.type !== 'file')
         const first = items[0], last = items[items.length - 1]
         if (e.shiftKey && (document.activeElement === first || document.activeElement === panelRef.current)) { e.preventDefault(); last?.focus() }
         else if (!e.shiftKey && (document.activeElement === last || document.activeElement === panelRef.current)) { e.preventDefault(); first?.focus() }
@@ -124,7 +129,15 @@ export default function InsertPanel({ onFiles, onInsert, color, busy }) {
 
   const cells = Array.from({ length: rows }, (_, r) => Array.from({ length: cols }, (_, c) => values[`${r}:${c}`] || '').join('\t')).join('\n')
   const chooseFiles = accept => { fileRef.current.accept = accept; fileRef.current.click() }
-  const submit = () => {
+  const submit = async () => {
+    if (section === 'pages') {
+      setPageError('')
+      if (pageMode === 'files' && (!pageFiles.length || pageFiles.length > 10)) { setPageError('Choose between 1 and 10 PDF files.'); return }
+      const success = await onPages({ mode: pageMode, placement, range: pageRange, files: pageMode === 'files' ? pageFiles : [] })
+      if (success) { setPageFiles([]); close() }
+      else setPageError('Pages could not be added. See the editor error message for details.')
+      return
+    }
     const type = section === 'shapes' ? kind : section === 'table' ? 'table' : 'stamp'
     if (onInsert(type, { label: label.trim(), cells }) !== false) close()
   }
@@ -149,7 +162,7 @@ export default function InsertPanel({ onFiles, onInsert, color, busy }) {
     {open && createPortal(<div ref={panelRef} id={id} role="dialog" aria-modal="false" aria-labelledby={`${id}-title`} tabIndex={-1} className="pdf-insert-popover" style={position}>
       <div className="insert-heading"><div><h3 id={`${id}-title`}>Insert content</h3><p>Add to the current PDF page</p></div><button type="button" onClick={close} className="insert-close" aria-label="Close insert menu"><X size={18} /></button></div>
       <nav className="insert-sections" aria-label="Insert categories">
-        {[['files', 'Files', Upload], ['shapes', 'Shapes', Square], ['table', 'Table', Table], ['stamp', 'Stamp', Stamp]].map(([key, name, Icon]) => <button type="button" key={key} aria-pressed={section === key} onClick={() => setSection(key)}><Icon size={17} />{name}</button>)}
+        {[['files', 'Files', Upload], ['pages', 'Pages', Files], ['shapes', 'Shapes', Square], ['table', 'Table', Table], ['stamp', 'Stamp', Stamp]].map(([key, name, Icon]) => <button type="button" key={key} aria-pressed={section === key} onClick={() => setSection(key)}><Icon size={17} />{name}</button>)}
       </nav>
       <div className="insert-body">
         {busy && <p role="status" className="insert-notice">Content insertion is unavailable while the page loads or a file operation finishes.</p>}
@@ -157,7 +170,21 @@ export default function InsertPanel({ onFiles, onInsert, color, busy }) {
           <div className="insert-file-list">{FILE_TYPES.map(({ label: name, Icon, accept, formats, hint }) => <button key={name} type="button" className="insert-file-card" disabled={busy} onClick={() => chooseFiles(accept)}><span className="insert-file-icon"><Icon size={22} /></span><span><strong>{name}</strong><span className="insert-formats">{formats}</span><span className="insert-description">{hint}</span></span><Plus size={17} /></button>)}</div>
           <p className="insert-help">Up to 10 MB per file. You can select multiple files, or paste and drop images onto the page.</p>
         </>}
-        {section === 'shapes' && <>
+        {section === 'pages' && <>
+          <label className="insert-label" htmlFor={`${id}-operation`}>Page operation</label>
+          <select id={`${id}-operation`} className="insert-text-input" value={pageMode} onChange={e => { setPageMode(e.target.value); setPageError('') }}><option value="files">Merge / import PDF pages</option><option value="blank">Add a blank page</option><option value="duplicate">Duplicate current page</option></select>
+          {pageMode === 'files' && <>
+            <label className="insert-label insert-spaced" htmlFor={`${id}-pdfs`}>Choose PDFs in merge order</label>
+            <input id={`${id}-pdfs`} className="insert-page-files" type="file" accept="application/pdf,.pdf" multiple disabled={busy} onChange={e => { setPageFiles(Array.from(e.target.files)); setPageError('') }} />
+            {pageFiles.length > 0 && <ol className="insert-merge-list">{pageFiles.map((file, index) => <li key={`${file.name}-${index}`}><span>{index + 1}. {file.name}</span><button type="button" disabled={busy || index === 0} aria-label={`Move ${file.name} earlier`} onClick={() => setPageFiles(prev => { const next = [...prev]; [next[index - 1], next[index]] = [next[index], next[index - 1]]; return next })}>↑</button><button type="button" disabled={busy} aria-label={`Remove ${file.name}`} onClick={() => setPageFiles(prev => prev.filter((_, i) => i !== index))}><X size={14} /></button></li>)}</ol>}
+            <label className="insert-label insert-spaced" htmlFor={`${id}-range`}>Pages to import (optional)</label><input id={`${id}-range`} className="insert-text-input" value={pageRange} placeholder="All pages, or e.g. 1, 3-5" onChange={e => setPageRange(e.target.value)} />
+            <p className="insert-help">Leave empty to merge every page. A range applies to each PDF. Up to 10 files totaling 10 MB.</p>
+          </>}
+          <label className="insert-label insert-spaced" htmlFor={`${id}-placement`}>Insert location</label><select id={`${id}-placement`} className="insert-text-input" value={placement} onChange={e => setPlacement(e.target.value)}><option value="after">After current page ({pageNumber})</option><option value="before">Before current page ({pageNumber})</option><option value="end">End of document</option><option value="start">Beginning of document</option></select>
+          <p className="insert-help">{pageMode === 'duplicate' ? 'Copies the current page and its editor annotations.' : pageMode === 'blank' ? 'Uses the current page’s displayed dimensions.' : 'Imports full PDF pages with their original dimensions and rotation.'} Page changes save immediately and reset annotation undo history.</p>
+          {pageError && <p role="alert" className="insert-notice insert-spaced">{pageError}</p>}
+        </>}
+        {section === 'shapes'  && <>
           <p className="insert-label">Choose a shape</p>
           <div className="insert-shape-grid">{SHAPES.map(({ kind: type, label: name, Icon }) => <button key={type} type="button" aria-pressed={kind === type} onClick={() => setKind(type)}><Icon size={32} strokeWidth={1.5} /><span>{name}</span>{kind === type && <Check className="insert-selected-check" size={15} />}</button>)}</div>
           <p className="insert-help">Use the Move tool to drag the shape. Drag a corner handle to resize it.</p>
@@ -175,7 +202,7 @@ export default function InsertPanel({ onFiles, onInsert, color, busy }) {
           <div className="insert-stamp-preview" aria-label="Stamp preview"><span style={{ color, borderColor: color }}>{label || 'YOUR TEXT'}</span></div>
         </>}
       </div>
-      {section !== 'files' && <div className="insert-footer"><span className="insert-color"><i style={{ backgroundColor: color }} />Toolbar color</span><button type="button" className="insert-submit" disabled={busy || (section === 'stamp' && !label.trim())} onClick={submit}><Plus size={16} />Insert {section === 'shapes' ? kind : section}</button></div>}
+      {section !== 'files' && <div className="insert-footer">{section !== 'pages' && <span className="insert-color"><i style={{ backgroundColor: color }} />Toolbar color</span>}<button type="button" className="insert-submit" disabled={busy || (section === 'stamp' && !label.trim()) || (section === 'pages' && pageMode === 'files' && !pageFiles.length)} onClick={submit}><Plus size={16} />{section === 'pages' ? (pageMode === 'files' ? 'Merge pages' : pageMode === 'blank' ? 'Add blank page' : 'Duplicate page') : `Insert ${section === 'shapes' ? kind : section}`}</button></div>}
     </div>, document.body)}
   </div>
 }

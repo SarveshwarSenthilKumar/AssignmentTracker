@@ -87,3 +87,11 @@
 .pdf-resize-se { right: -8px; bottom: -8px; cursor: nwse-resize; }
 .pdf-insert-move-hint { position: absolute; left: 0; bottom: calc(100% + 12px); display: flex; align-items: center; gap: 5px; padding: 4px 7px; border-radius: 5px; color: #fff; background: #312e81; white-space: nowrap; font-size: 11px; pointer-events: none; }
 @media (pointer: coarse) { .pdf-resize-handle { width: 24px; height: 24px; } .pdf-resize-nw, .pdf-resize-ne { top: -12px; } .pdf-resize-sw, .pdf-resize-se { bottom: -12px; } .pdf-resize-nw, .pdf-resize-sw { left: -12px; } .pdf-resize-ne, .pdf-resize-se { right: -12px; } }
+.insert-sections { grid-template-columns: repeat(5, 1fr); }
+.insert-spaced { margin-top: 14px; }
+.insert-page-files { width: 100%; font-size: 12px; color: #e2e8f0; }
+.insert-page-files::file-selector-button { background: #334155; color: white; border: 1px solid #64748b; border-radius: 6px; padding: 8px; margin-right: 8px; cursor: pointer; }
+.insert-merge-list { margin: 12px 0 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.insert-merge-list li { display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #1e293b; border-radius: 6px; font-size: 12px; }
+.insert-merge-list li span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.insert-merge-list button { padding: 4px; color: #c7d2fe; }

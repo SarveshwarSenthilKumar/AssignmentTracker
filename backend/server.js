@@ -6,7 +6,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const https = require('https');
-const { deletePDFPage } = require('./pdfPages');
+const { deletePDFPage, insertPDFPages } = require('./pdfPages');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -797,6 +797,24 @@ app.put('/api/pdfs/:id/annotations', authenticateToken, async (req, res) => {
   } catch (error) {
     res.status(500).json({ message: 'Error updating annotations', error: error.message });
   }
+});
+
+app.post('/api/pdfs/:id/pages', authenticateToken, async (req, res) => {
+  try {
+    const pdf = await PDF.findOne({ _id: req.params.id, user: req.user.userId });
+    if (!pdf) return res.status(404).json({ message: 'PDF not found' });
+    let result;
+    try {
+      const { sources = [], ...options } = req.body;
+      if (!Array.isArray(sources) || sources.some(source => typeof source !== 'string') || sources.reduce((size, source) => size + source.length, 0) > 14 * 1024 * 1024) throw new Error('Choose PDFs totaling no more than 10 MB.');
+      result = await insertPDFPages(pdf.pdfData, { ...options, sources: sources.map(source => Buffer.from(source, 'base64')), annotations: options.annotations ?? pdf.annotations });
+    } catch (error) { return res.status(400).json({ message: error.message || 'Could not read the PDF. Check that it is valid and not password protected.' }); }
+    pdf.pdfData = result.bytes;
+    pdf.annotations = result.annotations;
+    pdf.updatedAt = new Date();
+    await pdf.save();
+    res.json({ pdfData: result.bytes.toString('base64'), annotations: result.annotations, numPages: result.numPages, insertedPages: result.insertedPages, firstInsertedPage: result.firstInsertedPage });
+  } catch (error) { res.status(500).json({ message: 'Could not add pages. Please try again.' }); }
 });
 
 // Persist the modified PDF and renumbered annotations together.
