@@ -145,3 +145,9 @@ Completion, folder workload, and a 14-day deadline chart update from the same ta
 Task details and expanded task editors include a Files & media panel. Upload multiple files or drop them onto the panel, choose a document folder, or search and link existing library files. Files are stored once in Documents and may be associated with several tasks. Library rows link back to those tasks, and the Visualization map includes their document connections.
 
 While editing a task, use Insert in description to place a document reference at the cursor, then save the task. References display the current document name and open the existing document editor. Images, audio, and video have optional authenticated previews in the attachment panel; other formats open with the library's existing editing/download support. Each uploaded file is limited to 10 MB. Attachment operations save immediately, while description changes require Save. Unlinking preserves the library file and existing inline references; documents in Trash show unavailable references until restored.
+
+### Clean account reset
+
+Account → Clean account reset permanently clears tasks, document files and backups (including Trash), task/document folders, and Canvas credentials/sync history. It preserves the login and profile identity. The inline form requires the current password and the exact phrase `RESET`. Local drafts for the account's loaded documents and workspace UI state are cleared after success.
+
+The owner-scoped reset uses a MongoDB transaction and therefore requires Atlas or a replica set. Standalone MongoDB connections reject reset without deleting data. The single-server API blocks concurrent writes during reset and rejects reset while other authenticated write operations are active. Multi-instance deployments must coordinate this write guard across instances before enabling resets.

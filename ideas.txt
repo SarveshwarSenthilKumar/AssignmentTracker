@@ -1,6 +1,5 @@
 add calendar functionality
 add assignment functionality
-add ability to do a full clean reset
 fix ui of pdf editor and other internals
 add the ability to tie other to do items to task
 

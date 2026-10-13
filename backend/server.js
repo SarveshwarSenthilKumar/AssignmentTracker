@@ -8,6 +8,7 @@ const multer = require('multer');
 const https = require('https');
 const { documentAction } = require('./documentActions');
 const { deletePDFPage, insertPDFPages } = require('./pdfPages');
+const { resetAccountWorkspace } = require('./accountReset');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -220,6 +221,8 @@ const pdfFolderSchema = new mongoose.Schema({
 const PDFFolder = mongoose.model('PDFFolder', pdfFolderSchema);
 
 // Auth Middleware
+const accountWrites = new Map();
+const resettingAccounts = new Set();
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
@@ -233,6 +236,21 @@ const authenticateToken = (req, res, next) => {
       return res.status(403).json({ message: 'Invalid or expired token' });
     }
     req.user = user;
+    if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+      const id = String(user.userId);
+      if (resettingAccounts.has(id)) return res.status(409).json({ message: 'Account reset is in progress. Try again shortly.' });
+      accountWrites.set(id, (accountWrites.get(id) || 0) + 1);
+      let finished = false;
+      const finish = () => {
+        if (finished) return;
+        finished = true;
+        const count = (accountWrites.get(id) || 1) - 1;
+        count ? accountWrites.set(id, count) : accountWrites.delete(id);
+      };
+      // Keep a disconnected client's operation counted until its handler responds.
+      const end = res.end;
+      res.end = function (...args) { try { return end.apply(this, args); } finally { finish(); } };
+    }
     next();
   });
 };
@@ -314,6 +332,24 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 // Routes
+app.post('/api/user/reset', authenticateToken, async (req, res) => {
+  const userId = String(req.user.userId);
+  let locked = false;
+  try {
+    if (req.body.confirmation !== 'RESET' || typeof req.body.password !== 'string' || !req.body.password || req.body.password.length > 1024) return res.status(400).json({ message: 'Enter your password and type RESET to confirm.' });
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: 'Account not found.' });
+    if (!await bcrypt.compare(req.body.password, user.password)) return res.status(401).json({ message: 'The password is incorrect. No data was reset.' });
+    if ((accountWrites.get(userId) || 0) !== 1 || resettingAccounts.has(userId)) return res.status(409).json({ message: 'Wait for uploads, saves, and imports to finish, then try the reset again.' });
+    resettingAccounts.add(userId); locked = true;
+    const deleted = await resetAccountWorkspace({ userId, models: { Todo, PDF, Folder, PDFFolder, User }, startSession: () => mongoose.startSession() });
+    res.json({ message: 'Account workspace reset.', deleted });
+  } catch (error) {
+    const unsupported = /Transaction numbers|replica set|mongos/i.test(error.message);
+    res.status(503).json({ message: unsupported ? 'Reset requires a MongoDB replica set or Atlas connection. No data was reset.' : 'Reset could not be confirmed. Refresh your workspace before retrying.' });
+  } finally { if (locked) resettingAccounts.delete(userId); }
+});
+
 // Get all todos
 app.get('/api/todos', authenticateToken, async (req, res) => {
   try {

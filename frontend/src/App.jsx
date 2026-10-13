@@ -1,4 +1,5 @@
 import TaskVisualization from './components/TaskVisualization'
+import AccountReset from './components/AccountReset'
 import TaskAttachments, { TaskDescription } from './components/TaskAttachments'
 import { documentTaskIds } from './lib/taskAttachments'
 import useInlineConfirm from './hooks/useInlineConfirm'
@@ -1722,6 +1723,18 @@ function App() {
                   />
                 </div>
               </div>
+
+              <AccountReset token={token} disabled={syncing || testing || !!selectedPDF} onReset={() => {
+                try { pdfs.forEach(file => sessionStorage.removeItem(`document-draft:${file._id}`)) } catch { /* Storage may be unavailable. */ }
+                setTodos([]); setFolders([]); setPdfs([]); setPdfFolders([])
+                setSelectedFolder(null); setSelectedPDFFolder('all'); setSelectedTask(null); setSelectedPDF(null)
+                setExpandedTodos(new Set()); setEditingTodos(new Set()); setEditData({}); editRefs.current = {}
+                setInput(''); setDueDate(''); setSortBy('createdAt'); setSortOrder('desc')
+                setCanvasUrl(''); setCanvasToken(''); setCanvasStatus({ hasCredentials: false, canvasUrl: null, lastCanvasSync: null }); setIcsFile(null)
+                setContextMenu(null); setError(null); setErrorDetails(null); setShowErrorDetails(false); setShowPDFUploadModal(false)
+                setShowFolderModal(false); setEditingFolder(null); setEditFolderName(''); setNewFolderName(''); setNewFolderColor('#64788b')
+                setDraggedTodo(null); setCommandInput(''); setShowCommandMenu(false); pendingLibraryTask.current = null
+              }} />
 
               <button
                 onClick={() => navigate('tasks')}
