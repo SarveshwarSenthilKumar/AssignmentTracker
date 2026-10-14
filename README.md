@@ -4,6 +4,8 @@ A modern, full-stack todo application with a beautiful UI and cloud database.
 
 Account → Time zone lets you save a time zone or follow your device automatically. Calendar appointments, task deadline inputs and labels, and deadline charts use this preference. Stored event times remain unchanged; date markers and all-day dates keep their original calendar dates.
 
+Search for a city to choose from matching locations, or use **Detect from IP** to suggest your network's time zone, then select **Save time zone**. City lookup uses [Open-Meteo geocoding](https://open-meteo.com/en/docs/geocoding-api); IP detection calls [ipapi.co](https://ipapi.co/api/) directly from your browser so it detects your public IP rather than the server's. Detection runs only when selected, sends no account credentials, and does not store the IP or location. VPNs can affect accuracy. If either service is unavailable or rate limited, manual selection and Automatic remain available.
+
 ![React](https://img.shields.io/badge/React-18.2.0-blue)
 ![Node.js](https://img.shields.io/badge/Node.js-18+-green)
 ![MongoDB](https://img.shields.io/badge/MongoDB-Atlas-green)
