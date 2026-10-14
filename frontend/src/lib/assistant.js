@@ -70,9 +70,10 @@ export function clientFailure(error) {
   return error
 }
 export function diagnosticExport(status,result) {
-  const keys=['category','source','model','providerStatus','httpStatus','code','type','parameter','stage','providerRequestId','traceId','networkCode','elapsedMs','totalElapsedMs','inputTokens','outputTokens','requestBytes','workspaceCharacters','screenCharacters','historyMessages','fileBytes','retryable','retryAfterSeconds','timestamp','kind']
-  const scrub=value=>typeof value==='string'?value.replace(/\bsk-[a-zA-Z0-9_.*-]+/g,'[redacted key]').replace(/\bBearer\s+[^\s"',;]+/gi,'Bearer [redacted]'):value
+  const keys=['category','source','model','providerStatus','httpStatus','code','type','parameter','stage','providerRequestId','traceId','networkCode','elapsedMs','totalElapsedMs','inputTokens','outputTokens','thoughtTokens','requestBytes','workspaceCharacters','screenCharacters','historyMessages','fileBytes','retryable','retryAfterSeconds','timestamp','kind']
+  const scrub=value=>typeof value==='string'?value.replace(/\bAIza[a-zA-Z0-9_-]+/g,'[redacted key]').replace(/([?&]key=)[^&\s]+/gi,'$1[redacted]').replace(/\bsk-[a-zA-Z0-9_.*-]+/g,'[redacted key]').replace(/\bBearer\s+[^\s"',;]+/gi,'Bearer [redacted]'):value
   const diagnostics=Object.fromEntries(keys.filter(key=>result?.[key]!==undefined).map(key=>[key,scrub(result[key])]))
+  if(Array.isArray(result?.quotaDetails))diagnostics.quotaDetails=result.quotaDetails.slice(0,10).map(item=>Object.fromEntries(['metric','id','value'].map(key=>[key,scrub(item[key])])))
   const limits=status?.limits?Object.fromEntries(['used','limit','windowSeconds','resetAt','inProgress'].map(key=>[key,status.limits[key]])):undefined
   return {configured:!!status?.configured,model:scrub(status?.model),applicationLimits:limits,diagnostics}
 }

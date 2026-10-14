@@ -366,7 +366,7 @@ app.post('/api/auth/login', async (req, res) => {
 
 // Routes
 const aiRequests = new Map();
-const aiModel = () => process.env.OPENAI_MODEL?.trim() || 'gpt-4.1-mini';
+const aiModel = () => process.env.GEMINI_MODEL?.trim() || 'gemini-3.8-flash';
 function aiState(userId) {
   const now = Date.now();
   for (const [id, state] of aiRequests) if (!state.busy && now - state.start >= 600000) aiRequests.delete(id);
@@ -375,7 +375,7 @@ function aiState(userId) {
   return state;
 }
 function aiFailure(res,state,status,category,message,action,extra={}) {
-  const report=diagnostic(category,message,action,{model:safeMessage(aiModel(),[process.env.OPENAI_API_KEY]),...extra,httpStatus:status});
+  const report=diagnostic(category,message,action,{model:safeMessage(aiModel(),[process.env.GEMINI_API_KEY]),...extra,httpStatus:status});
   if (state) state.lastResult=report;
   res.set('X-Assistant-Trace-Id',report.traceId);
   if (report.retryable && report.retryAfterSeconds) res.set('Retry-After',String(report.retryAfterSeconds));
@@ -384,12 +384,12 @@ function aiFailure(res,state,status,category,message,action,extra={}) {
 app.get('/api/assistant/status', authenticateToken, (req, res) => {
   res.set('Cache-Control', 'no-store');
   const state=aiState(String(req.user.userId));
-  res.json({ configured: !!process.env.OPENAI_API_KEY?.trim(), model:safeMessage(aiModel(),[process.env.OPENAI_API_KEY]), lastResult:state.lastResult, limits:{used:state.count,limit:20,windowSeconds:600,resetAt:new Date(state.start+600000).toISOString(),inProgress:state.busy} });
+  res.json({ configured: !!process.env.GEMINI_API_KEY?.trim(), model:safeMessage(aiModel(),[process.env.GEMINI_API_KEY]), lastResult:state.lastResult, limits:{used:state.count,limit:20,windowSeconds:600,resetAt:new Date(state.start+600000).toISOString(),inProgress:state.busy} });
 });
 app.post('/api/assistant/test', authenticateToken, async (req,res) => {
   res.set('Cache-Control','no-store');
   const state=aiState(String(req.user.userId)),traceId=randomUUID();
-  if (!process.env.OPENAI_API_KEY?.trim()) return aiFailure(res,state,503,'configuration','The AI API key is not configured.','Set OPENAI_API_KEY on the backend and restart it.',{traceId,stage:'configuration'});
+  if (!process.env.GEMINI_API_KEY?.trim()) return aiFailure(res,state,503,'configuration','The AI API key is not configured.','Set GEMINI_API_KEY on the backend and restart it.',{traceId,stage:'configuration'});
   if (state.busy) return aiFailure(res,null,409,'request_in_progress','Another AI request is still running for this account.','Wait for it to finish or stop the request in the tab where it started.',{traceId,retryable:true,retryAfterSeconds:1,stage:'application'});
   if (Date.now()-state.testStart>=60000) { state.testStart=Date.now();state.testCount=0; }
   if (state.testCount>=5) return aiFailure(res,state,429,'test_limit','The API connection test limit was reached.','Wait for the test timer before checking again.',{traceId,retryable:true,retryAfterSeconds:Math.ceil((state.testStart+60000-Date.now())/1000),stage:'application'});
@@ -398,12 +398,12 @@ app.post('/api/assistant/test', authenticateToken, async (req,res) => {
   const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),20000);
   const disconnected=()=>{if(!res.writableEnded)controller.abort()};res.on('close',disconnected);
   try {
-    const result=await callAssistantAPI({model:aiModel(),input:'Reply with OK.',max_output_tokens:16,store:false},{apiKey:process.env.OPENAI_API_KEY,signal:controller.signal,traceId,metadata:{kind:'connection_test'}});
+    const result=await callAssistantAPI({model:aiModel(),contents:[{role:'user',parts:[{text:'Reply with OK.'}]}],generationConfig:{maxOutputTokens:1024},store:false},{apiKey:process.env.GEMINI_API_KEY,signal:controller.signal,traceId,metadata:{kind:'connection_test'}});
     providerReport=result.diagnostics;
     responseText(result.data);
     state.lastResult={...result.diagnostics,httpStatus:200};res.set('X-Assistant-Trace-Id',traceId);res.json({configured:true,model:result.diagnostics.model,diagnostics:state.lastResult});
   } catch(error) {
-    if(!res.destroyed){if(error instanceof AssistantAPIError){state.lastResult={...error.diagnostics,httpStatus:error.status};res.set('X-Assistant-Trace-Id',traceId);res.status(error.status).json({message:error.message,diagnostics:state.lastResult});}else aiFailure(res,state,502,'empty_response','The API responded without a usable answer.','Check the configured model and its output token requirements.',{traceId,stage:'parse_answer',source:'openai',providerStatus:providerReport?.providerStatus,providerRequestId:providerReport?.providerRequestId,inputTokens:providerReport?.inputTokens,outputTokens:providerReport?.outputTokens});}
+    if(!res.destroyed){if(error instanceof AssistantAPIError){state.lastResult={...error.diagnostics,httpStatus:error.status};res.set('X-Assistant-Trace-Id',traceId);res.status(error.status).json({message:error.message,diagnostics:state.lastResult});}else aiFailure(res,state,502,'empty_response','The API responded without a usable answer.','Check the configured model and its output token requirements.',{traceId,stage:'parse_answer',source:'gemini',providerStatus:providerReport?.providerStatus,providerRequestId:providerReport?.providerRequestId,inputTokens:providerReport?.inputTokens,outputTokens:providerReport?.outputTokens});}
   } finally {clearTimeout(timeout);res.off('close',disconnected);state.busy=false;if(res.destroyed&&!res.writableEnded)res.end();}
 });
 app.post('/api/assistant/chat', authenticateToken, async (req, res) => {
@@ -411,9 +411,9 @@ app.post('/api/assistant/chat', authenticateToken, async (req, res) => {
   const userId=String(req.user.userId),state=aiState(userId),traceId=randomUUID(),started=Date.now();
   let request,stage='validation',providerReport=null;
   try { request = assistantRequest(req.body); } catch (error) { return aiFailure(res,state,400,'validation',error.message,'Review the question and context options, then try again.',{traceId,stage}); }
-  if (!process.env.OPENAI_API_KEY?.trim()) return aiFailure(res,state,503,'configuration','The assistant is not connected yet.','Set OPENAI_API_KEY on the backend and restart it.',{traceId,stage:'configuration'});
+  if (!process.env.GEMINI_API_KEY?.trim()) return aiFailure(res,state,503,'configuration','The assistant is not connected yet.','Set GEMINI_API_KEY on the backend and restart it.',{traceId,stage:'configuration'});
   if (state.busy) return aiFailure(res,null,409,'request_in_progress','Another AI request is still running for this account.','Wait for it to finish or stop the request in the tab where it started.',{traceId,retryable:true,retryAfterSeconds:1,stage:'application'});
-  if (state.count >= 20) return aiFailure(res,state,429,'app_limit','This account reached the app’s chat request limit.','Wait until the application limit resets. This is separate from OpenAI billing and rate limits.',{traceId,retryable:true,retryAfterSeconds:Math.ceil((state.start+600000-Date.now())/1000),stage:'application'});
+  if (state.count >= 20) return aiFailure(res,state,429,'app_limit','This account reached the app’s chat request limit.','Wait until the application limit resets. This is separate from Gemini billing and rate limits.',{traceId,retryable:true,retryAfterSeconds:Math.ceil((state.start+600000-Date.now())/1000),stage:'application'});
   state.busy = true; state.count++;
   const controller = new AbortController(), timeout = setTimeout(() => controller.abort(), 60000);
   const disconnected = () => { if (!res.writableEnded) controller.abort(); };
@@ -443,16 +443,16 @@ app.post('/api/assistant/chat', authenticateToken, async (req, res) => {
     }
     if (controller.signal.aborted) { if (res.destroyed) return; throw new Error('Request timed out.'); }
     const context = workspaceContext({user,tasks,entries,documents,folders,documentFolders,totals},request);
-    const payload=responsePayload(request,context,file,aiModel());stage='openai';
-    const result=await callAssistantAPI(payload,{apiKey:process.env.OPENAI_API_KEY,signal:controller.signal,traceId,metadata:{kind:'chat',requestBytes:Buffer.byteLength(JSON.stringify(payload)),workspaceCharacters:JSON.stringify(context).length,screenCharacters:request.screen.length,historyMessages:request.messages.length,fileBytes:file?.pdfData?.length||0}});
+    const payload=await responsePayload(request,context,file,aiModel());stage='gemini';
+    const result=await callAssistantAPI(payload,{apiKey:process.env.GEMINI_API_KEY,signal:controller.signal,traceId,metadata:{kind:'chat',requestBytes:Buffer.byteLength(JSON.stringify(payload)),workspaceCharacters:JSON.stringify(context).length,screenCharacters:request.screen.length,historyMessages:request.messages.length,fileBytes:file?.pdfData?.length||0}});
     providerReport=result.diagnostics;
     stage='parse_answer';const data=result.data,text=responseText(data);state.lastResult={...result.diagnostics,httpStatus:200,totalElapsedMs:Date.now()-started};
     res.set('X-Assistant-Trace-Id',traceId);
-    res.json({text,sources:responseSources(text,context),diagnostics:state.lastResult,context:{...totals,section:request.section,screenIncluded:request.includeScreen,workspaceIncluded:request.includeWorkspace,document:context.openDocument||null},partial:data.status==='incomplete'});
+    res.json({text,sources:responseSources(text,context),diagnostics:state.lastResult,context:{...totals,section:request.section,screenIncluded:request.includeScreen,workspaceIncluded:request.includeWorkspace,document:context.openDocument||null},partial:data.candidates?.[0]?.finishReason==='MAX_TOKENS'});
   } catch (error) {
     if (!res.destroyed) {
       if(error instanceof AssistantAPIError){state.lastResult={...error.diagnostics,httpStatus:error.status,totalElapsedMs:Date.now()-started};res.set('X-Assistant-Trace-Id',traceId);if(error.diagnostics.retryable&&error.diagnostics.retryAfterSeconds)res.set('Retry-After',String(error.diagnostics.retryAfterSeconds));res.status(error.status).json({message:error.message,diagnostics:state.lastResult});}
-      else aiFailure(res,state,502,controller.signal.aborted?'timeout':stage==='parse_answer'?'empty_response':'workspace_unavailable',controller.signal.aborted?'The AI request timed out.':stage==='parse_answer'?'OpenAI returned no usable answer.':'Could not load workspace context for the assistant.',controller.signal.aborted?'Try a smaller request.':stage==='parse_answer'?'Try another question or check the model’s output token requirements.':'Check the backend database connection and try again.',{traceId,stage,totalElapsedMs:Date.now()-started,retryable:true,source:providerReport?'openai':'application',providerStatus:providerReport?.providerStatus,providerRequestId:providerReport?.providerRequestId,inputTokens:providerReport?.inputTokens,outputTokens:providerReport?.outputTokens});
+      else aiFailure(res,state,502,controller.signal.aborted?'timeout':stage==='parse_answer'?'empty_response':'workspace_unavailable',controller.signal.aborted?'The AI request timed out.':stage==='parse_answer'?'Gemini returned no usable answer.':'Could not load workspace context for the assistant.',controller.signal.aborted?'Try a smaller request.':stage==='parse_answer'?'Try another question or check the model’s output token requirements.':'Check the backend database connection and try again.',{traceId,stage,totalElapsedMs:Date.now()-started,retryable:true,source:providerReport?'gemini':'application',providerStatus:providerReport?.providerStatus,providerRequestId:providerReport?.providerRequestId,inputTokens:providerReport?.inputTokens,outputTokens:providerReport?.outputTokens});
     }
   } finally { clearTimeout(timeout); res.off('close',disconnected); state.busy=false; if (res.destroyed && !res.writableEnded) res.end(); }
 });
