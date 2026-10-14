@@ -56,7 +56,7 @@ export function entryDraft(day, kind='appointment', entry=null) {
 }
 export function entryPayload(draft) {
   if(!draft.title?.trim() || draft.title.trim().length>200)throw new Error('Enter a title of up to 200 characters.')
-  const payload={title:draft.title,kind:draft.kind,allDay:draft.kind==='marker'||draft.allDay,notes:draft.notes,location:draft.location,done:draft.done}
+  const payload={title:draft.title,kind:draft.kind,allDay:draft.kind==='marker'||draft.allDay,notes:draft.notes,location:draft.location,done:draft.done,taskIds:draft.taskIds||[],documentIds:draft.documentIds||[]}
   if(payload.allDay) {
     if(!validDay(draft.startDate)||!validDay(draft.endDate)||draft.endDate<draft.startDate)throw new Error('Choose an end date on or after the start date.')
     return {...payload,startDate:draft.startDate,endDate:draft.endDate}

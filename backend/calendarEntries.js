@@ -6,6 +6,11 @@ function calendarEntry(body) {
   for (const [key, limit] of [['notes',4000],['location',300]]) if (body[key] !== undefined && (typeof body[key] !== 'string' || body[key].length > limit)) throw new Error(`${key === 'notes' ? 'Notes' : 'Location'} is too long or invalid.`);
   if (body.done !== undefined && typeof body.done !== 'boolean') throw new Error('Invalid completion state.');
   const result = { title: body.title.trim(), kind: body.kind, notes: body.notes?.trim() || '', location: body.location?.trim() || '', allDay: body.kind === 'marker' || body.allDay, done: body.done ?? false };
+  for (const key of ['taskIds','documentIds']) {
+    if (body[key] === undefined) continue;
+    if (!Array.isArray(body[key]) || body[key].length > 100 || body[key].some(id => typeof id !== 'string' || !/^[a-f\d]{24}$/i.test(id))) throw new Error('Choose up to 100 valid task or document links.');
+    result[key] = [...new Set(body[key].map(id => id.toLowerCase()))];
+  }
   if (result.allDay) {
     if (!validDay(body.startDate) || !validDay(body.endDate || body.startDate)) throw new Error('Choose valid calendar dates.');
     if ((body.endDate || body.startDate) < body.startDate) throw new Error('The end date must be on or after the start date.');

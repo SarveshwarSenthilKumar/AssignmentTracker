@@ -18,6 +18,7 @@ test('personal ranges span months while midnight end times exclude the following
 test('appointment forms convert local times to UTC and preserve date-only markers',()=>{
  const draft=entryDraft('2026-10-13');assert.equal(entryPayload({...draft,title:'Meeting'}).startAt,'2026-10-13T14:00:00.000Z');
  const marker=entryPayload({...entryDraft('2026-10-13','marker'),title:'Important day'});assert.equal(marker.startDate,'2026-10-13');assert.equal(marker.allDay,true);assert.equal(marker.startAt,undefined);
+ const linked=entryPayload({...draft,title:'Review',done:true,taskIds:['111111111111111111111111'],documentIds:['222222222222222222222222']});assert.deepEqual(linked.taskIds,['111111111111111111111111']);assert.deepEqual(linked.documentIds,['222222222222222222222222']);assert.equal(linked.done,true);
  assert.throws(()=>entryPayload({...draft,title:'Meeting',endLocal:draft.startLocal}));
  assert.throws(()=>entryPayload({...draft,title:''}));
  assert.throws(()=>entryPayload({...entryDraft('2026-10-13','marker'),title:'Marker',endDate:'2026-10-12'}));

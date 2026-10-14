@@ -11,6 +11,7 @@ const { deletePDFPage, insertPDFPages } = require('./pdfPages');
 const { resetAccountWorkspace } = require('./accountReset');
 const { dependencyChange } = require('./taskDependencies');
 const { calendarEntry } = require('./calendarEntries');
+const { calendarLinksOwned: validateCalendarLinks } = require('./calendarLinks');
 const { collectCanvasPages } = require('./canvasPagination');
 const { parseCalendarICS } = require('./calendarICS');
 const { canvasIdentity, canvasTaskFields } = require('./canvasTasks');
@@ -163,6 +164,8 @@ const CalendarEntry = mongoose.model('CalendarEntry', new mongoose.Schema({
   startDate: { type: String, required: true }, endDate: { type: String, required: true },
   startAt: { type: Date, default: null }, endAt: { type: Date, default: null },
   done: { type: Boolean, default: false },
+  taskIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Todo' }],
+  documentIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'PDF' }],
 }, { timestamps: true }));
 
 // Document storage (legacy PDF collection remains compatible).
@@ -396,6 +399,9 @@ app.post('/api/user/reset', authenticateToken, async (req, res) => {
 });
 
 // Get all todos
+async function calendarLinksOwned(entry, userId, previous = {}) {
+  return validateCalendarLinks(entry, userId, previous, { Todo, PDF });
+}
 app.get('/api/calendar-entries', authenticateToken, async (req, res) => {
   try { res.json(await CalendarEntry.find({ user: req.user.userId }).sort({ startDate: 1, startAt: 1 })); }
   catch { res.status(500).json({ message: 'Could not load your calendar entries.' }); }
@@ -403,7 +409,10 @@ app.get('/api/calendar-entries', authenticateToken, async (req, res) => {
 app.post('/api/calendar-entries', authenticateToken, async (req, res) => {
   let entry;
   try { entry = calendarEntry(req.body); } catch (error) { return res.status(400).json({ message: error.message }); }
-  try { res.status(201).json(await CalendarEntry.create({ ...entry, user: req.user.userId })); }
+  try {
+    if (!await calendarLinksOwned(entry, req.user.userId)) return res.status(400).json({ message: 'Choose tasks and active documents from your account.' });
+    res.status(201).json(await CalendarEntry.create({ ...entry, user: req.user.userId }));
+  }
   catch { res.status(500).json({ message: 'Could not create the calendar entry.' }); }
 });
 app.put('/api/calendar-entries/:id', authenticateToken, async (req, res) => {
@@ -411,6 +420,9 @@ app.put('/api/calendar-entries/:id', authenticateToken, async (req, res) => {
   try { entry = calendarEntry(req.body); } catch (error) { return res.status(400).json({ message: error.message }); }
   if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: 'Invalid calendar entry.' });
   try {
+    const current = await CalendarEntry.findOne({ _id: req.params.id, user: req.user.userId });
+    if (!current) return res.status(404).json({ message: 'Calendar entry not found.' });
+    if (!await calendarLinksOwned(entry, req.user.userId, current)) return res.status(400).json({ message: 'Choose tasks and active documents from your account.' });
     const updated = await CalendarEntry.findOneAndUpdate({ _id: req.params.id, user: req.user.userId }, { $set: entry }, { new: true, runValidators: true });
     if (!updated) return res.status(404).json({ message: 'Calendar entry not found.' });
     res.json(updated);

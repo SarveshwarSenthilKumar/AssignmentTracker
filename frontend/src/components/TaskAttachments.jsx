@@ -11,7 +11,7 @@ export function TaskDescription({ text, documents, onOpen }) {
   })}</div>
 }
 
-function MediaPreview({ file, token }) {
+export function MediaPreview({ file, token }) {
   const [url, setUrl] = useState(''), [failed, setFailed] = useState(false)
   const kind = file.mimeType?.split('/')[0]
   useEffect(() => {
