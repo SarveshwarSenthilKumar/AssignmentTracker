@@ -42,3 +42,37 @@ export function chatHistory(messages) {
   }
   return history
 }
+export async function readAssistantResponse(response) {
+  let data
+  try {data=await response.json()} catch {
+    const error=new Error('The backend returned an unreadable response. Check that /api is routed to the backend.')
+    error.diagnostics={category:'backend_response',source:'browser',httpStatus:response.status,retryable:true,timestamp:new Date().toISOString()};throw error
+  }
+  if(!response.ok) {
+    const error=new Error(data.message||`The backend returned HTTP ${response.status}.`)
+    error.diagnostics=data.diagnostics||{category:[401,403].includes(response.status)?'session':'backend_error',source:'application',httpStatus:response.status,traceId:response.headers?.get?.('x-assistant-trace-id'),retryable:response.status>=500,timestamp:new Date().toISOString(),action:[401,403].includes(response.status)?'Sign in again, then retry.':'Check the backend connection and try again.'}
+    throw error
+  }
+  return data
+}
+export const retryLabel = seconds => seconds>=60?`${Math.floor(seconds/60)}m ${seconds%60}s`:`${seconds}s`
+export function diagnosticRetryWindows(report,now=Date.now()) {
+  if(!report?.retryable||!(report.retryAfterSeconds>0))return {}
+  const until=(Date.parse(report.timestamp)||now)+report.retryAfterSeconds*1000
+  return {chatUntil:report.category==='test_limit'?undefined:until,testUntil:report.category==='app_limit'?undefined:until}
+}
+export function clientFailure(error) {
+  if(error.diagnostics)return error
+  if(error.name==='TypeError'&&/fetch|network|load failed/i.test(error.message)) {
+    const failure=new Error('Could not reach the backend. Check the app server and your connection, then retry.')
+    failure.diagnostics={category:'backend_network',source:'browser',retryable:true,timestamp:new Date().toISOString(),action:'Check that the backend is running and the /api proxy points to it.'};return failure
+  }
+  return error
+}
+export function diagnosticExport(status,result) {
+  const keys=['category','source','model','providerStatus','httpStatus','code','type','parameter','stage','providerRequestId','traceId','networkCode','elapsedMs','totalElapsedMs','inputTokens','outputTokens','requestBytes','workspaceCharacters','screenCharacters','historyMessages','fileBytes','retryable','retryAfterSeconds','timestamp','kind']
+  const scrub=value=>typeof value==='string'?value.replace(/\bsk-[a-zA-Z0-9_.*-]+/g,'[redacted key]').replace(/\bBearer\s+[^\s"',;]+/gi,'Bearer [redacted]'):value
+  const diagnostics=Object.fromEntries(keys.filter(key=>result?.[key]!==undefined).map(key=>[key,scrub(result[key])]))
+  const limits=status?.limits?Object.fromEntries(['used','limit','windowSeconds','resetAt','inProgress'].map(key=>[key,status.limits[key]])):undefined
+  return {configured:!!status?.configured,model:scrub(status?.model),applicationLimits:limits,diagnostics}
+}

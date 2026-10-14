@@ -16,6 +16,8 @@ const { collectCanvasPages } = require('./canvasPagination');
 const { parseCalendarICS } = require('./calendarICS');
 const { canvasIdentity, canvasTaskFields } = require('./canvasTasks');
 const { assistantRequest, workspaceContext, responsePayload, responseText, responseSources } = require('./assistant');
+const { diagnostic, callAssistantAPI, AssistantAPIError, safeMessage } = require('./assistantDiagnostics');
+const { randomUUID } = require('node:crypto');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -364,28 +366,62 @@ app.post('/api/auth/login', async (req, res) => {
 
 // Routes
 const aiRequests = new Map();
-const aiModel = () => process.env.OPENAI_MODEL || 'gpt-4.1-mini';
+const aiModel = () => process.env.OPENAI_MODEL?.trim() || 'gpt-4.1-mini';
+function aiState(userId) {
+  const now = Date.now();
+  for (const [id, state] of aiRequests) if (!state.busy && now - state.start >= 600000) aiRequests.delete(id);
+  let state = aiRequests.get(userId);
+  if (!state) { state = { start:now, count:0, busy:false, testStart:now, testCount:0, lastResult:null }; aiRequests.set(userId,state); }
+  return state;
+}
+function aiFailure(res,state,status,category,message,action,extra={}) {
+  const report=diagnostic(category,message,action,{model:safeMessage(aiModel(),[process.env.OPENAI_API_KEY]),...extra,httpStatus:status});
+  if (state) state.lastResult=report;
+  res.set('X-Assistant-Trace-Id',report.traceId);
+  if (report.retryable && report.retryAfterSeconds) res.set('Retry-After',String(report.retryAfterSeconds));
+  res.status(status).json({message:report.message,diagnostics:report});
+}
 app.get('/api/assistant/status', authenticateToken, (req, res) => {
   res.set('Cache-Control', 'no-store');
-  res.json({ configured: !!process.env.OPENAI_API_KEY, model: aiModel() });
+  const state=aiState(String(req.user.userId));
+  res.json({ configured: !!process.env.OPENAI_API_KEY?.trim(), model:safeMessage(aiModel(),[process.env.OPENAI_API_KEY]), lastResult:state.lastResult, limits:{used:state.count,limit:20,windowSeconds:600,resetAt:new Date(state.start+600000).toISOString(),inProgress:state.busy} });
+});
+app.post('/api/assistant/test', authenticateToken, async (req,res) => {
+  res.set('Cache-Control','no-store');
+  const state=aiState(String(req.user.userId)),traceId=randomUUID();
+  if (!process.env.OPENAI_API_KEY?.trim()) return aiFailure(res,state,503,'configuration','The AI API key is not configured.','Set OPENAI_API_KEY on the backend and restart it.',{traceId,stage:'configuration'});
+  if (state.busy) return aiFailure(res,null,409,'request_in_progress','Another AI request is still running for this account.','Wait for it to finish or stop the request in the tab where it started.',{traceId,retryable:true,retryAfterSeconds:1,stage:'application'});
+  if (Date.now()-state.testStart>=60000) { state.testStart=Date.now();state.testCount=0; }
+  if (state.testCount>=5) return aiFailure(res,state,429,'test_limit','The API connection test limit was reached.','Wait for the test timer before checking again.',{traceId,retryable:true,retryAfterSeconds:Math.ceil((state.testStart+60000-Date.now())/1000),stage:'application'});
+  state.testCount++;state.busy=true;
+  let providerReport=null;
+  const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),20000);
+  const disconnected=()=>{if(!res.writableEnded)controller.abort()};res.on('close',disconnected);
+  try {
+    const result=await callAssistantAPI({model:aiModel(),input:'Reply with OK.',max_output_tokens:16,store:false},{apiKey:process.env.OPENAI_API_KEY,signal:controller.signal,traceId,metadata:{kind:'connection_test'}});
+    providerReport=result.diagnostics;
+    responseText(result.data);
+    state.lastResult={...result.diagnostics,httpStatus:200};res.set('X-Assistant-Trace-Id',traceId);res.json({configured:true,model:result.diagnostics.model,diagnostics:state.lastResult});
+  } catch(error) {
+    if(!res.destroyed){if(error instanceof AssistantAPIError){state.lastResult={...error.diagnostics,httpStatus:error.status};res.set('X-Assistant-Trace-Id',traceId);res.status(error.status).json({message:error.message,diagnostics:state.lastResult});}else aiFailure(res,state,502,'empty_response','The API responded without a usable answer.','Check the configured model and its output token requirements.',{traceId,stage:'parse_answer',source:'openai',providerStatus:providerReport?.providerStatus,providerRequestId:providerReport?.providerRequestId,inputTokens:providerReport?.inputTokens,outputTokens:providerReport?.outputTokens});}
+  } finally {clearTimeout(timeout);res.off('close',disconnected);state.busy=false;if(res.destroyed&&!res.writableEnded)res.end();}
 });
 app.post('/api/assistant/chat', authenticateToken, async (req, res) => {
   res.set('Cache-Control', 'no-store');
-  let request;
-  try { request = assistantRequest(req.body); } catch (error) { return res.status(400).json({ message: error.message }); }
-  if (!process.env.OPENAI_API_KEY) return res.status(503).json({ message: 'The assistant is not connected yet. Configure OPENAI_API_KEY on the backend to enable answers.' });
-  const userId = String(req.user.userId), now = Date.now();
-  for (const [id, state] of aiRequests) if (!state.busy && now - state.start >= 600000) aiRequests.delete(id);
-  const state = aiRequests.get(userId) || { start: now, count: 0, busy: false };
-  if (state.busy) return res.status(409).json({ message: 'An answer is already in progress. Wait or stop that request first.' });
-  if (state.count >= 20) return res.status(429).json({ message: 'You have reached the chat request limit. Try again in a few minutes.' });
-  state.busy = true; state.count++; aiRequests.set(userId, state);
+  const userId=String(req.user.userId),state=aiState(userId),traceId=randomUUID(),started=Date.now();
+  let request,stage='validation',providerReport=null;
+  try { request = assistantRequest(req.body); } catch (error) { return aiFailure(res,state,400,'validation',error.message,'Review the question and context options, then try again.',{traceId,stage}); }
+  if (!process.env.OPENAI_API_KEY?.trim()) return aiFailure(res,state,503,'configuration','The assistant is not connected yet.','Set OPENAI_API_KEY on the backend and restart it.',{traceId,stage:'configuration'});
+  if (state.busy) return aiFailure(res,null,409,'request_in_progress','Another AI request is still running for this account.','Wait for it to finish or stop the request in the tab where it started.',{traceId,retryable:true,retryAfterSeconds:1,stage:'application'});
+  if (state.count >= 20) return aiFailure(res,state,429,'app_limit','This account reached the app’s chat request limit.','Wait until the application limit resets. This is separate from OpenAI billing and rate limits.',{traceId,retryable:true,retryAfterSeconds:Math.ceil((state.start+600000-Date.now())/1000),stage:'application'});
+  state.busy = true; state.count++;
   const controller = new AbortController(), timeout = setTimeout(() => controller.abort(), 60000);
   const disconnected = () => { if (!res.writableEnded) controller.abort(); };
   res.on('close', disconnected);
   try {
+    stage='load_workspace';
     const user = await User.findById(userId).select('username email timeZone createdAt canvasUrl lastCanvasSync').lean();
-    if (!user) return res.status(404).json({ message: 'Account not found.' });
+    if (!user) return aiFailure(res,state,404,'account_unavailable','Account not found.','Sign in again and retry.',{traceId,stage});
     let tasks=[],entries=[],documents=[],folders=[],documentFolders=[],totals={};
     if (request.includeWorkspace) {
       const owner = { user: userId }, active = { user: userId, deletedAt: null };
@@ -401,23 +437,23 @@ app.post('/api/assistant/chat', authenticateToken, async (req, res) => {
     }
     let file = null;
     if (request.includeDocument && request.documentId) {
+      stage='read_document';
       file = await PDF.findOne({ _id: request.documentId, user: userId, deletedAt: null }).select('name originalName mimeType pdfData');
-      if (!file) return res.status(404).json({ message: 'The open document is unavailable or does not belong to your account.' });
+      if (!file) return aiFailure(res,state,404,'document_unavailable','The open document is unavailable or does not belong to your account.','Refresh Documents or turn off open-file context and resend.',{traceId,stage});
     }
     if (controller.signal.aborted) { if (res.destroyed) return; throw new Error('Request timed out.'); }
     const context = workspaceContext({user,tasks,entries,documents,folders,documentFolders,totals},request);
-    const response = await fetch('https://api.openai.com/v1/responses', {
-      method:'POST', headers:{Authorization:`Bearer ${process.env.OPENAI_API_KEY}`,'Content-Type':'application/json'},
-      body:JSON.stringify(responsePayload(request,context,file,aiModel())), signal:controller.signal
-    });
-    if (!response.ok) {
-      const message = response.status === 429 ? 'The AI service is busy or its usage limit has been reached. Try again later.' : response.status === 401 || response.status === 403 ? 'The AI connection could not authenticate. Check the backend API key and model access.' : 'The AI service could not answer this request. Try again, or turn off open-file context.';
-      return res.status(502).json({ message });
-    }
-    const data = await response.json(), text = responseText(data);
-    res.json({text,sources:responseSources(text,context),context:{...totals,section:request.section,screenIncluded:request.includeScreen,workspaceIncluded:request.includeWorkspace,document:context.openDocument||null},partial:data.status==='incomplete'});
+    const payload=responsePayload(request,context,file,aiModel());stage='openai';
+    const result=await callAssistantAPI(payload,{apiKey:process.env.OPENAI_API_KEY,signal:controller.signal,traceId,metadata:{kind:'chat',requestBytes:Buffer.byteLength(JSON.stringify(payload)),workspaceCharacters:JSON.stringify(context).length,screenCharacters:request.screen.length,historyMessages:request.messages.length,fileBytes:file?.pdfData?.length||0}});
+    providerReport=result.diagnostics;
+    stage='parse_answer';const data=result.data,text=responseText(data);state.lastResult={...result.diagnostics,httpStatus:200,totalElapsedMs:Date.now()-started};
+    res.set('X-Assistant-Trace-Id',traceId);
+    res.json({text,sources:responseSources(text,context),diagnostics:state.lastResult,context:{...totals,section:request.section,screenIncluded:request.includeScreen,workspaceIncluded:request.includeWorkspace,document:context.openDocument||null},partial:data.status==='incomplete'});
   } catch (error) {
-    if (!res.destroyed) res.status(502).json({ message: controller.signal.aborted ? 'The AI request timed out. Try again.' : 'Could not get an answer. Check the AI connection and try again.' });
+    if (!res.destroyed) {
+      if(error instanceof AssistantAPIError){state.lastResult={...error.diagnostics,httpStatus:error.status,totalElapsedMs:Date.now()-started};res.set('X-Assistant-Trace-Id',traceId);if(error.diagnostics.retryable&&error.diagnostics.retryAfterSeconds)res.set('Retry-After',String(error.diagnostics.retryAfterSeconds));res.status(error.status).json({message:error.message,diagnostics:state.lastResult});}
+      else aiFailure(res,state,502,controller.signal.aborted?'timeout':stage==='parse_answer'?'empty_response':'workspace_unavailable',controller.signal.aborted?'The AI request timed out.':stage==='parse_answer'?'OpenAI returned no usable answer.':'Could not load workspace context for the assistant.',controller.signal.aborted?'Try a smaller request.':stage==='parse_answer'?'Try another question or check the model’s output token requirements.':'Check the backend database connection and try again.',{traceId,stage,totalElapsedMs:Date.now()-started,retryable:true,source:providerReport?'openai':'application',providerStatus:providerReport?.providerStatus,providerRequestId:providerReport?.providerRequestId,inputTokens:providerReport?.inputTokens,outputTokens:providerReport?.outputTokens});
+    }
   } finally { clearTimeout(timeout); res.off('close',disconnected); state.busy=false; if (res.destroyed && !res.writableEnded) res.end(); }
 });
 app.get('/api/account/preferences', authenticateToken, async (req, res) => {
