@@ -50,7 +50,7 @@ export function calendarTime(item) {
   return item.kind==='deadline' ? `Due ${time(item.startAt)}` : item.endAt ? `${time(item.startAt)} – ${time(item.endAt)}` : time(item.startAt)
 }
 export function entryDraft(day, kind='appointment', entry=null) {
-  if(entry) return {...entry, startLocal:localDateTime(entry.startAt)||`${entry.startDate}T09:00`,endLocal:localDateTime(entry.endAt)||`${entry.endDate||entry.startDate}T10:00`}
+  if(entry) return {...entry, startDate:entry.allDay?entry.startDate:calendarDay(entry.startAt),endDate:entry.allDay?entry.endDate:calendarDay(new Date(Date.parse(entry.endAt)-1)),startLocal:localDateTime(entry.startAt)||`${entry.startDate}T09:00`,endLocal:localDateTime(entry.endAt)||`${entry.endDate||entry.startDate}T10:00`}
   return {title:'',kind,allDay:kind==='marker',startDate:day,endDate:day,startLocal:`${day}T09:00`,endLocal:`${day}T10:00`,notes:'',location:'',done:false}
 }
 export function entryPayload(draft) {

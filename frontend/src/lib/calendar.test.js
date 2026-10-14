@@ -23,4 +23,5 @@ test('appointment forms convert local times to UTC and preserve date-only marker
  assert.throws(()=>entryPayload({...entryDraft('2026-10-13','marker'),title:'Marker',endDate:'2026-10-12'}));
  assert.throws(()=>entryPayload({...draft,title:'Clock change',startLocal:'2026-03-08T02:30',endLocal:'2026-03-08T04:00'}));
  const edit=entryDraft('2026-10-13','marker',{title:'Break',kind:'marker',allDay:true,startDate:'2026-10-13',endDate:'2026-10-14',startAt:null,endAt:null});assert.equal(edit.startLocal,'2026-10-13T09:00');
+ const late=entryDraft('2026-10-13','appointment',{title:'Evening',kind:'appointment',allDay:false,startDate:'2026-10-14',endDate:'2026-10-14',startAt:'2026-10-14T03:00:00Z',endAt:'2026-10-14T05:00:00Z'});assert.equal(entryPayload({...late,allDay:true}).startDate,'2026-10-13');assert.equal(late.endDate,'2026-10-13');
 });
