@@ -1,10 +1,11 @@
+import { activeTimeZone } from './timeZone.js'
 import { dependencyEdges, dependencyLayout } from './taskDependencies.js'
 import { validDay } from './calendar.js'
 import { documentTaskIds } from './taskAttachments.js'
 export const STATUS_LABELS = { todo: 'To do', 'in-progress': 'In progress', completed: 'Completed' }
 export const taskStatus = task => task.status === 'completed' || task.status === 'in-progress' ? task.status : 'todo'
 export const referenceId = value => value && typeof value === 'object' ? String(value._id || '') : String(value || '')
-export function dayKey(value, zone = 'America/Chicago') {
+export function dayKey(value, zone = activeTimeZone()) {
   const date = new Date(value)
   if (!Number.isFinite(date.getTime())) return null
   const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date).map(part => [part.type, part.value]))

@@ -2,6 +2,8 @@
 
 A modern, full-stack todo application with a beautiful UI and cloud database.
 
+Account → Time zone lets you save a time zone or follow your device automatically. Calendar appointments, task deadline inputs and labels, and deadline charts use this preference. Stored event times remain unchanged; date markers and all-day dates keep their original calendar dates.
+
 ![React](https://img.shields.io/badge/React-18.2.0-blue)
 ![Node.js](https://img.shields.io/badge/Node.js-18+-green)
 ![MongoDB](https://img.shields.io/badge/MongoDB-Atlas-green)
@@ -140,7 +142,7 @@ The searchable Shortcuts page is generated from the same registry used by the ke
 
 Open Visualization or press Alt+6 to explore all tasks in an interactive network, grouped by folder or status, or laid out in planned sequence. Connections represent actual group membership, associated documents, and saved task prerequisites. Search, folder/status filters, overdue filtering, pan, zoom, a minimap, and a task index help navigate dense maps. Select a task to inspect its details, open linked documents, edit it, or advance its status. Dragged positions are temporary view adjustments.
 
-Completion, folder workload, and a 14-day deadline chart update from the same task records. Deadline days use America/Chicago time. Visualization shortcuts include `/` for search, `0` to fit, `=`/`-` to zoom, `R` to reset layout, and Escape to clear filters; they also appear on the Shortcuts page.
+Completion, folder workload, and a 14-day deadline chart update from the same task records. Deadline days use the account time zone (or the device time zone in Automatic mode). Visualization shortcuts include `/` for search, `0` to fit, `=`/`-` to zoom, `R` to reset layout, and Escape to clear filters; they also appear on the Shortcuts page.
 
 ### Task files and media
 
@@ -162,7 +164,7 @@ The visualization draws arrows from prerequisite to follow-up, colored sage when
 
 ### Workspace calendar
 
-Open Calendar or press Alt+7. Month and agenda views combine task deadlines, Canvas assignments/imported events, and personal appointments/date markers. Task dates and completion are derived from the task records; opening a deadline takes you to the original task. Undated tasks appear in a separate list until given a due date. Search and source/completion filters apply to both views. Times use the browser's displayed time zone; all-day dates retain their date-only meaning.
+Open Calendar or press Alt+7. Month and agenda views combine task deadlines, Canvas assignments/imported events, and personal appointments/date markers. Task dates and completion are derived from the task records; opening a deadline takes you to the original task. Undated tasks appear in a separate list until given a due date. Search and source/completion filters apply to both views. Times use the account time zone; all-day dates retain their date-only meaning.
 
 Create, edit, mark complete, or delete personal appointments and markers through inline controls. Appointments support start/end times, all-day ranges, notes, and locations. Markers support one date or an inclusive date range. Personal entries are saved in the owner-scoped `CalendarEntry` collection through `/api/calendar-entries`; they are not sent to Canvas. Deletion uses inline confirmation. Clean account reset includes this collection in its transaction.
 

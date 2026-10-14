@@ -31,6 +31,7 @@ mongoose.connect(process.env.MONGODB_URI)
 
 // User Schema
 const userSchema = new mongoose.Schema({
+  timeZone: { type: String, default: '' },
   username: {
     type: String,
     required: true,
@@ -310,6 +311,7 @@ app.post('/api/auth/register', async (req, res) => {
         id: user._id,
         username: user.username,
         email: user.email,
+        timeZone: user.timeZone || '',
       },
     });
   } catch (error) {
@@ -348,6 +350,7 @@ app.post('/api/auth/login', async (req, res) => {
         id: user._id,
         username: user.username,
         email: user.email,
+        timeZone: user.timeZone || '',
       },
     });
   } catch (error) {
@@ -356,6 +359,24 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 // Routes
+app.get('/api/account/preferences', authenticateToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId).select('timeZone');
+    if (!user) return res.status(404).json({ message: 'Account not found.' });
+    res.json({ timeZone: user.timeZone || '' });
+  } catch { res.status(500).json({ message: 'Could not load account preferences.' }); }
+});
+app.put('/api/account/preferences', authenticateToken, async (req, res) => {
+  const { timeZone } = req.body;
+  if (typeof timeZone !== 'string' || timeZone.length > 100) return res.status(400).json({ message: 'Choose a valid time zone.' });
+  try { if (timeZone) new Intl.DateTimeFormat('en', { timeZone }).format(); }
+  catch { return res.status(400).json({ message: 'Choose a valid time zone.' }); }
+  try {
+    const user = await User.findByIdAndUpdate(req.user.userId, { $set: { timeZone } }, { new: true }).select('timeZone');
+    if (!user) return res.status(404).json({ message: 'Account not found.' });
+    res.json({ timeZone: user.timeZone || '' });
+  } catch { res.status(500).json({ message: 'Could not save your time zone.' }); }
+});
 app.post('/api/user/reset', authenticateToken, async (req, res) => {
   const userId = String(req.user.userId);
   let locked = false;

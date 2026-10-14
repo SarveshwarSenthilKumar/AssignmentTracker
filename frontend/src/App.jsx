@@ -1,3 +1,5 @@
+import TimeZoneSettings from './components/TimeZoneSettings'
+import { localToInstant, zonedLocal } from './lib/timeZone'
 import { taskDueLabel } from './lib/calendar'
 import CalendarPage from './components/CalendarPage'
 import TaskDependencies from './components/TaskDependencies'
@@ -319,7 +321,7 @@ function App() {
         body: JSON.stringify({
           text: input.trim(),
           folder: selectedFolder === 'all' ? null : selectedFolder,
-          dueDate: dueDate ? new Date(dueDate).toISOString() : null
+          dueDate: dueDate ? localToInstant(dueDate) : null
         }),
       })
       if (!response.ok) {
@@ -426,6 +428,7 @@ function App() {
       ...editData,
       [todo._id]: {
         text: todo.text,
+        dueDate: zonedLocal(todo.dueDate),
         description: todo.description || '',
         links: todo.links?.join('\n') || ''
       }
@@ -456,7 +459,7 @@ function App() {
           text: data.text,
           description: data.description,
           links: linksArray,
-          dueDate: data.dueDate ? new Date(data.dueDate).toISOString() : null
+          dueDate: data.dueDate ? localToInstant(data.dueDate) : null
         }),
       })
       if (!response.ok) {
@@ -1734,6 +1737,7 @@ function App() {
                 </div>
               </div>
 
+              <TimeZoneSettings />
               <AccountReset token={token} disabled={syncing || testing || !!selectedPDF} onReset={() => {
                 try { pdfs.forEach(file => sessionStorage.removeItem(`document-draft:${file._id}`)) } catch { /* Storage may be unavailable. */ }
                 setTodos([]); setFolders([]); setPdfs([]); setPdfFolders([])

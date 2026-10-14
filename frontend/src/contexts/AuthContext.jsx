@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react'
+import { setTimeZone } from '../lib/timeZone'
 
 const AuthContext = createContext(null)
 
@@ -6,6 +7,19 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null)
   const [token, setToken] = useState(null)
   const [loading, setLoading] = useState(true)
+  setTimeZone(user?.timeZone)
+  const updatePreferences = preferences => setUser(previous => {
+    if (!previous) return previous
+    const next = {...previous,...preferences}
+    localStorage.setItem('user',JSON.stringify(next))
+    return next
+  })
+  useEffect(()=>{
+    if(!token)return
+    const controller=new AbortController()
+    fetch('/api/account/preferences',{headers:{Authorization:`Bearer ${token}`},signal:controller.signal}).then(response=>response.ok?response.json():null).then(data=>{if(data&&!controller.signal.aborted)updatePreferences(data)}).catch(()=>{})
+    return()=>controller.abort()
+  },[token])
 
   useEffect(() => {
     // Check for stored token on mount
@@ -38,6 +52,7 @@ export const AuthProvider = ({ children }) => {
     token,
     login,
     logout,
+    updatePreferences,
     isAuthenticated: !!token,
     loading
   }

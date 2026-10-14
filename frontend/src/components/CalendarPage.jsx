@@ -1,3 +1,4 @@
+import { activeTimeZone } from '../lib/timeZone'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { CalendarDays, ChevronLeft, ChevronRight, Plus, RefreshCw, Search, X, MapPin, Check, Trash2, Edit2, ArrowRight } from 'lucide-react'
 import useShortcuts from '../hooks/useShortcuts'
@@ -7,7 +8,7 @@ import { CALENDAR_LABELS, calendarDay, shiftMonth, monthDays, dayLabel, calendar
 import './CalendarPage.css'
 
 export default function CalendarPage({ tasks, token, onOpenTask, onRefreshTasks, onSyncCanvas, onCanvasSettings, canvasStatus, syncing, keyboardEnabled=true }) {
-  const today=calendarDay(new Date()), zone=Intl.DateTimeFormat().resolvedOptions().timeZone
+  const today=calendarDay(new Date()), zone=activeTimeZone()
   const [anchor,setAnchor]=useState(today),[selectedDay,setSelectedDay]=useState(today),[view,setView]=useState('month'),[entries,setEntries]=useState([]),[query,setQuery]=useState('')
   const [sources,setSources]=useState(new Set(Object.keys(CALENDAR_LABELS))),[hideDone,setHideDone]=useState(false),[selectedId,setSelectedId]=useState(null),[draft,setDraft]=useState(null)
   const [loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('')
@@ -19,7 +20,7 @@ export default function CalendarPage({ tasks, token, onOpenTask, onRefreshTasks,
     return()=>controller.abort()
   },[token])
   useEffect(()=>{if(!draft)return;const previous=document.activeElement;panel.current?.scrollIntoView({block:'nearest'});panel.current?.querySelector('input')?.focus();return()=>previous?.focus?.({preventScroll:true})},[draft?._id,!!draft])
-  const all=useMemo(()=>calendarItems(tasks,entries),[tasks,entries])
+  const all=useMemo(()=>calendarItems(tasks,entries),[tasks,entries,zone])
   const filtered=useMemo(()=>all.filter(item=>sources.has(item.source)&&(!hideDone||!item.done)&&`${item.title} ${item.notes||''} ${item.location||''} ${item.context||''}`.toLowerCase().includes(query.toLowerCase())),[all,sources,hideDone,query])
   const month=itemsInMonth(filtered,anchor), dayItems=itemsOnDay(filtered,selectedDay), selected=filtered.find(item=>item.id===selectedId), unscheduled=tasks.filter(task=>!task.dueDate||!Number.isFinite(Date.parse(task.dueDate)))
   const openForm=(kind='appointment',entry=null)=>{setError('');setNotice('');setDraft(entryDraft(selectedDay,kind,entry));setSelectedId(entry?`entry:${entry._id}`:null)}

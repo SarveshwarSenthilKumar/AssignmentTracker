@@ -1,10 +1,11 @@
+import { activeTimeZone, zonedLocal, localToInstant } from './timeZone.js'
 export const CALENDAR_LABELS = { tasks: 'Task deadlines', canvas: 'Canvas & imports', appointment: 'Appointments', marker: 'Date markers' }
 export const validDay = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(`${value}T12:00:00Z`)) && new Date(`${value}T12:00:00Z`).toISOString().slice(0,10) === value
 export function calendarDay(value) {
   if (value == null) return null
   const date = new Date(value)
   if (!Number.isFinite(date.getTime())) return null
-  return `${date.getFullYear().toString().padStart(4,'0')}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`
+  return zonedLocal(value).slice(0,10)
 }
 export const shiftDay = (day, count) => { const date = new Date(`${day}T12:00:00Z`); date.setUTCDate(date.getUTCDate()+count); return date.toISOString().slice(0,10) }
 export const shiftMonth = (day, count) => { const date = new Date(`${day.slice(0,7)}-01T12:00:00Z`); date.setUTCMonth(date.getUTCMonth()+count); return date.toISOString().slice(0,10) }
@@ -17,9 +18,9 @@ export function taskDueLabel(task, includeTime=false) {
   if(task.calendarAllDay && validDay(task.calendarDate)) return `${dayLabel(task.calendarDate,{month:'short',day:'numeric',year:'numeric'})} · All day`
   if(!task.dueDate || !Number.isFinite(Date.parse(task.dueDate))) return 'No due date'
   const date=new Date(task.dueDate)
-  return includeTime?date.toLocaleString():date.toLocaleDateString()
+  return includeTime?date.toLocaleString(undefined,{timeZone:activeTimeZone()}):date.toLocaleDateString(undefined,{timeZone:activeTimeZone()})
 }
-export function localDateTime(value) { if(value == null) return ''; const date = new Date(value); return Number.isFinite(date.getTime()) ? `${calendarDay(date)}T${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}` : '' }
+export const localDateTime = value => zonedLocal(value)
 
 export function calendarItems(tasks, entries) {
   const items = []
@@ -46,7 +47,7 @@ export const itemsOnDay = (items, day) => items.filter(item=>item.startDate<=day
 export const itemsInMonth = (items, day) => { const first=`${day.slice(0,7)}-01`,last=shiftDay(shiftMonth(first,1),-1);return items.filter(item=>item.startDate<=last&&item.endDate>=first) }
 export function calendarTime(item) {
   if (item.allDay) return 'All day'
-  const time = value => new Date(value).toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'})
+  const time = value => new Date(value).toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit',timeZone:activeTimeZone()})
   return item.kind==='deadline' ? `Due ${time(item.startAt)}` : item.endAt ? `${time(item.startAt)} – ${time(item.endAt)}` : time(item.startAt)
 }
 export function entryDraft(day, kind='appointment', entry=null) {
@@ -60,7 +61,7 @@ export function entryPayload(draft) {
     if(!validDay(draft.startDate)||!validDay(draft.endDate)||draft.endDate<draft.startDate)throw new Error('Choose an end date on or after the start date.')
     return {...payload,startDate:draft.startDate,endDate:draft.endDate}
   }
-  const start = new Date(draft.startLocal), end = new Date(draft.endLocal)
+  const start = new Date(localToInstant(draft.startLocal)), end = new Date(localToInstant(draft.endLocal))
   if(!Number.isFinite(start.getTime())||!Number.isFinite(end.getTime())||end<=start) throw new Error('Choose an end time after the start time.')
   if(localDateTime(start)!==draft.startLocal.slice(0,16)||localDateTime(end)!==draft.endLocal.slice(0,16))throw new Error('That local time does not exist in your time zone. Choose another time.')
   return {...payload,startAt:start.toISOString(),endAt:end.toISOString()}

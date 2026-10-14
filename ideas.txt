@@ -1,6 +1,7 @@
 add calendar functionality
 add assignment functionality
 add the ability to attach a file to something and add a prompt to an ai and for it to create a more digestible version
+add ability to attach tasks and files and other media to appointments and marks on calendar
 
 resume job tailor:
 Get job by links
