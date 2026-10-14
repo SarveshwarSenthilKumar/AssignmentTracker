@@ -1,4 +1,6 @@
 export const SHORTCUTS = [
+  {id:'assistant-toggle',scope:'Assistant',label:'Summon or hide the workspace assistant (works in editors)',key:'j',alt:true,typing:true,keys:'Alt + J'},
+  {id:'assistant-dismiss',scope:'Assistant',label:'Close the assistant panel',key:'Escape',typing:true,keys:'Esc'},
   {id:'nav-calendar',scope:'Platform',label:'Go to Calendar',key:'7',alt:true,keys:'Alt + 7'},
   {id:'calendar-new',scope:'Calendar',label:'Add a personal appointment',key:'n',keys:'N'},
   {id:'calendar-marker',scope:'Calendar',label:'Add a date marker',key:'n',shift:true,keys:'Shift + N'},
@@ -73,6 +75,6 @@ export const isTyping = target => Boolean(target?.closest?.('input:not([type="ch
 export function matchesShortcut(event, shortcut) {
   const key = event.key.length === 1 ? event.key.toLowerCase() : event.key
   const expected = shortcut.key.length === 1 ? shortcut.key.toLowerCase() : shortcut.key
-  const keyMatches = key === expected || shortcut.alt && event.code === `Digit${shortcut.key}`
+  const keyMatches = key === expected || shortcut.alt && (event.code === `Digit${shortcut.key}` || event.code === `Key${shortcut.key.toUpperCase()}`)
   return keyMatches && Boolean(event.altKey) === Boolean(shortcut.alt) && Boolean(event.shiftKey) === Boolean(shortcut.shift) && (shortcut.mod ? Boolean(event.ctrlKey || event.metaKey) : !event.ctrlKey && !event.metaKey)
 }

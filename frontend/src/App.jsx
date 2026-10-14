@@ -1,4 +1,6 @@
 import TimeZoneSettings from './components/TimeZoneSettings'
+import AssistantChat from './components/AssistantChat'
+import { SHORTCUTS, matchesShortcut } from './lib/shortcuts'
 import { localToInstant, zonedLocal } from './lib/timeZone'
 import { taskDueLabel } from './lib/calendar'
 import CalendarPage from './components/CalendarPage'
@@ -74,6 +76,24 @@ function App() {
   const [pdfs, setPdfs] = useState([])
   const [pdfFolders, setPdfFolders] = useState([])
   const [selectedPDFFolder, setSelectedPDFFolder] = useState('all')
+  const [assistantOpen,setAssistantOpen]=useState(false),[assistantGeneration,setAssistantGeneration]=useState(0),[assistantCalendarId,setAssistantCalendarId]=useState(null)
+  useEffect(()=>{
+    if(!isAuthenticated){setAssistantOpen(false);return}
+    const shortcut=SHORTCUTS.find(item=>item.id==='assistant-toggle')
+    const listener=event=>{if(!event.repeat&&!event.isComposing&&matchesShortcut(event,shortcut)){event.preventDefault();event.stopImmediatePropagation();setAssistantOpen(previous=>!previous)}}
+    window.addEventListener('keydown',listener,true);return()=>window.removeEventListener('keydown',listener,true)
+  },[isAuthenticated])
+  const openAssistantSource=source=>{
+    if(selectedPDF && !(source.type==='document'&&source.id===selectedPDF))return false
+    if(source.type==='document'){setSelectedPDF(source.id);return true}
+    if(source.type==='task'){
+      const task=todos.find(task=>task._id===source.id);if(!task)return false
+      setSelectedFolder('all');if(page==='tasks')setSelectedTask(task);else {pendingLibraryTask.current=task;navigate('tasks')}
+      return true
+    }
+    if(source.type==='calendar'){setAssistantCalendarId(source.id);navigate('calendar');return true}
+    return false
+  }
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -99,22 +119,23 @@ function App() {
     dismiss: () => { if(!showCommandMenu&&!showFolderModal&&!showPDFUploadModal&&!selectedTask&&!contextMenu)return false; setShowCommandMenu(false); setShowFolderModal(false); setShowPDFUploadModal(false); setSelectedTask(null); setContextMenu(null) },
     commands: () => { setShowCommandMenu(true); setTimeout(() => commandInputRef.current?.focus(),0) },
     search: () => { const field = page === 'documents' ? document.querySelector('[aria-label="Search documents"]') : page === 'shortcuts' ? document.querySelector('[aria-label="Search keyboard shortcuts"]') : page === 'tasks' ? inputRef.current : null; if(!field)return false; field.focus() },
-  }, isAuthenticated && !selectedPDF && !taskConfirmation.pending)
+  }, isAuthenticated && !assistantOpen && !selectedPDF && !taskConfirmation.pending)
   useShortcuts('Tasks', { 'new-task': () => inputRef.current?.focus(), 'task-folder': () => setShowFolderModal(true),
     'save-task': () => {if(editingFolder)updateFolder(editingFolder);else [...editingTodos].forEach(id=>saveEdit(id))},
     'edit-task': () => {const id=document.activeElement?.closest('[data-task-id]')?.dataset.taskId; const task=todos.find(task=>task._id===id); if(task)startEditing(task)},
     'advance-task': () => {const id=document.activeElement?.closest('[data-task-id]')?.dataset.taskId; if(id)cycleTodoStatus(id)},
     'delete-task': () => {const id=document.activeElement?.closest('[data-task-id]')?.dataset.taskId; if(id)deleteTodo(id)},
-  }, isAuthenticated && page === 'tasks' && !selectedPDF && !taskConfirmation.pending)
+  }, isAuthenticated && !assistantOpen && page === 'tasks' && !selectedPDF && !taskConfirmation.pending)
 
   useShortcuts('Canvas', {
     'calendar-file': () => document.querySelector('[data-canvas-import] input[type="file"]')?.click(),
     'calendar-import': () => { if(icsFile) document.querySelector('[data-canvas-import] form')?.requestSubmit(); else setError('Choose an ICS calendar file first.') },
-  }, isAuthenticated && page === 'canvas' && !selectedPDF && !syncing)
+  }, isAuthenticated && !assistantOpen && page === 'canvas' && !selectedPDF && !syncing)
 
   // Click outside to save edit
   useEffect(() => {
     const handleClickOutside = (event) => {
+      if (event.target.closest('[data-assistant-ui]')) return
       editingTodos.forEach((id) => {
         const ref = editRefs.current[id]
         if (ref && !ref.contains(event.target)) {
@@ -163,6 +184,7 @@ function App() {
   // Click outside to close task detail modal
   useEffect(() => {
     const handleClickOutside = (event) => {
+      if (event.target.closest('[data-assistant-ui]')) return
       if (selectedTask && event.target.closest('.task-detail-modal') === null) {
         setSelectedTask(null)
       }
@@ -177,6 +199,7 @@ function App() {
   // Click outside to close context menu
   useEffect(() => {
     const handleClickOutside = (event) => {
+      if (event.target.closest('[data-assistant-ui]')) return
       if (contextMenu && !event.target.closest('.context-menu')) {
         setContextMenu(null)
       }
@@ -1276,10 +1299,10 @@ function App() {
         <header className="platform-header"><a className="platform-brand" href="#/tasks">Assignment Tracker</a><nav aria-label="Main navigation">{[['tasks','Tasks'],['calendar','Calendar'],['documents','Documents'],['visualization','Visualization'],['canvas','Canvas'],['account','Account'],['shortcuts','Shortcuts']].map(([key,label]) => <a key={key} href={`#/${key}`} aria-current={page===key?'page':undefined}>{key==='shortcuts'&&<Keyboard size={15}/>} {label}</a>)}</nav><button className="platform-signout" onClick={logout}><LogOut size={16}/>Sign out</button></header>
         <div className="platform-page-title"><h1>{page==='tasks'?'Tasks':page==='calendar'?'Calendar':page==='documents'?'Document library':page==='visualization'?'Task visualization':page==='canvas'?'Canvas integration':page==='account'?'Account':'Keyboard shortcuts'}</h1><p>{page==='tasks'?'Plan your work and track progress.':page==='calendar'?'Plan deadlines, assignments, and personal events in one place.':page==='documents'?'Organize and edit your files.':page==='visualization'?'Explore relationships, deadlines, and progress across your workspace.':page==='canvas'?'Manage your course connection and imports.':page==='account'?'Review your profile and workspace activity.':'A searchable reference for navigation and actions.'}</p></div>
         <InlineConfirmation {...taskConfirmation} />
-        {page==='calendar' && <CalendarPage documents={pdfs} documentFolders={pdfFolders} onDocumentsChange={setPdfs} onOpenDocument={setSelectedPDF} tasks={todos} token={token} keyboardEnabled={!selectedPDF} onOpenTask={task=>{pendingLibraryTask.current=task;setSelectedFolder('all');navigate('tasks')}} onRefreshTasks={fetchTodos} onSyncCanvas={syncCanvas} onCanvasSettings={()=>navigate('canvas')} canvasStatus={canvasStatus} syncing={syncing} />}
+        {page==='calendar' && <CalendarPage focusEntryId={assistantCalendarId} onEntryFocused={()=>setAssistantCalendarId(null)} documents={pdfs} documentFolders={pdfFolders} onDocumentsChange={setPdfs} onOpenDocument={setSelectedPDF} tasks={todos} token={token} keyboardEnabled={!selectedPDF&&!assistantOpen} onOpenTask={task=>{pendingLibraryTask.current=task;setSelectedFolder('all');navigate('tasks')}} onRefreshTasks={fetchTodos} onSyncCanvas={syncCanvas} onCanvasSettings={()=>navigate('canvas')} canvasStatus={canvasStatus} syncing={syncing} />}
         {canvasNotice && <div role="status" className="calendar-feedback">{canvasNotice}<button onClick={()=>setCanvasNotice('')} aria-label="Dismiss Canvas sync notice"><X size={15}/></button></div>}
         {page==='shortcuts' && <ShortcutsPage />}
-        {page==='visualization' && <TaskVisualization token={token} onTasksChange={setTodos} onOpenTask={task => { pendingLibraryTask.current = task; setSelectedFolder('all'); navigate('tasks') }} loading={loading} keyboardEnabled={!selectedPDF} tasks={todos} folders={folders} documents={pdfs} onOpenDocument={setSelectedPDF} onStatusChange={updateTodoStatus} onEditTask={task=>{setSelectedFolder('all');navigate('tasks');startEditing(task)}} />}
+        {page==='visualization' && <TaskVisualization token={token} onTasksChange={setTodos} onOpenTask={task => { pendingLibraryTask.current = task; setSelectedFolder('all'); navigate('tasks') }} loading={loading} keyboardEnabled={!selectedPDF&&!assistantOpen} tasks={todos} folders={folders} documents={pdfs} onOpenDocument={setSelectedPDF} onStatusChange={updateTodoStatus} onEditTask={task=>{setSelectedFolder('all');navigate('tasks');startEditing(task)}} />}
 
         {error && (
           <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-lg">
@@ -1309,7 +1332,7 @@ function App() {
           </div>
         )}
 
-        {page === 'documents' && <DocumentLibrary tasks={todos} onOpenTask={task => { setSelectedFolder('all'); if (page === 'tasks') setSelectedTask(task); else { pendingLibraryTask.current = task; navigate('tasks') } }} keyboardEnabled={!selectedPDF} documents={pdfs} folders={pdfFolders} token={token} onOpen={setSelectedPDF} onUpload={() => setShowPDFUploadModal(true)} onDocumentsChange={setPdfs} onFoldersChange={setPdfFolders} selectedFolder={selectedPDFFolder} onSelectFolder={setSelectedPDFFolder} />}
+        {page === 'documents' && <DocumentLibrary tasks={todos} onOpenTask={task => { setSelectedFolder('all'); if (page === 'tasks') setSelectedTask(task); else { pendingLibraryTask.current = task; navigate('tasks') } }} keyboardEnabled={!selectedPDF&&!assistantOpen} documents={pdfs} folders={pdfFolders} token={token} onOpen={setSelectedPDF} onUpload={() => setShowPDFUploadModal(true)} onDocumentsChange={setPdfs} onFoldersChange={setPdfFolders} selectedFolder={selectedPDFFolder} onSelectFolder={setSelectedPDFFolder} />}
 
         {page === 'tasks' && <>
         {/* Folders Section */}
@@ -1739,6 +1762,7 @@ function App() {
 
               <TimeZoneSettings />
               <AccountReset token={token} disabled={syncing || testing || !!selectedPDF} onReset={() => {
+                setAssistantOpen(false);setAssistantGeneration(previous=>previous+1);setAssistantCalendarId(null)
                 try { pdfs.forEach(file => sessionStorage.removeItem(`document-draft:${file._id}`)) } catch { /* Storage may be unavailable. */ }
                 setTodos([]); setFolders([]); setPdfs([]); setPdfFolders([])
                 setSelectedFolder(null); setSelectedPDFFolder('all'); setSelectedTask(null); setSelectedPDF(null)
@@ -2102,6 +2126,9 @@ function App() {
             pdfFolders={pdfFolders}
           />
         )}
+
+        <button data-assistant-ui type="button" className="assistant-launcher" onClick={()=>setAssistantOpen(previous=>!previous)} aria-expanded={assistantOpen} aria-label="Open workspace assistant" hidden={assistantOpen}><span>Ask assistant</span><kbd>Alt + J</kbd></button>
+        <AssistantChat key={`${user?.id}:${assistantGeneration}`} open={assistantOpen} onClose={()=>setAssistantOpen(false)} token={token} section={page} documentId={selectedPDF} documentName={pdfs.find(file=>file._id===selectedPDF)?.name} onOpenSource={openAssistantSource}/>
 
         {/* PDF Editor */}
         {selectedPDF && (

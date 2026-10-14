@@ -8,7 +8,7 @@ import InlineConfirmation from './InlineConfirmation'
 import { CALENDAR_LABELS, calendarDay, shiftMonth, monthDays, dayLabel, calendarItems, itemsOnDay, itemsInMonth, calendarTime, entryDraft, entryPayload } from '../lib/calendar'
 import './CalendarPage.css'
 
-export default function CalendarPage({ tasks, documents=[], documentFolders=[], onDocumentsChange, onOpenDocument, token, onOpenTask, onRefreshTasks, onSyncCanvas, onCanvasSettings, canvasStatus, syncing, keyboardEnabled=true }) {
+export default function CalendarPage({ tasks, documents=[], documentFolders=[], onDocumentsChange, onOpenDocument, token, onOpenTask, onRefreshTasks, onSyncCanvas, onCanvasSettings, canvasStatus, syncing, keyboardEnabled=true,focusEntryId,onEntryFocused }) {
   const today=calendarDay(new Date()), zone=activeTimeZone()
   const [anchor,setAnchor]=useState(today),[selectedDay,setSelectedDay]=useState(today),[view,setView]=useState('month'),[entries,setEntries]=useState([]),[query,setQuery]=useState('')
   const [sources,setSources]=useState(new Set(Object.keys(CALENDAR_LABELS))),[hideDone,setHideDone]=useState(false),[selectedId,setSelectedId]=useState(null),[draft,setDraft]=useState(null)
@@ -22,6 +22,13 @@ export default function CalendarPage({ tasks, documents=[], documentFolders=[], 
     request('/api/calendar-entries',{signal:controller.signal}).then(data=>{if(!Array.isArray(data))throw new Error('Unexpected calendar response.');setEntries(data)}).catch(error=>{if(error.name!=='AbortError')setError(error.message)}).finally(()=>{if(!controller.signal.aborted)setLoading(false)})
     return()=>controller.abort()
   },[token])
+  useEffect(()=>{
+    if(loading||!focusEntryId)return
+    const entry=entries.find(entry=>entry._id===focusEntryId)
+    if(entry){const day=entry.allDay?entry.startDate:calendarDay(entry.startAt);setAnchor(day);setSelectedDay(day);setSelectedId(`entry:${entry._id}`);setQuery('');setSources(new Set(Object.keys(CALENDAR_LABELS)));setHideDone(false)}
+    else setError('That calendar entry is no longer available.')
+    onEntryFocused?.()
+  },[loading,entries,focusEntryId])
   useEffect(()=>{if(!draft)return;const previous=document.activeElement;panel.current?.scrollIntoView({block:'nearest'});panel.current?.querySelector('input')?.focus();return()=>previous?.focus?.({preventScroll:true})},[draft?._id,!!draft])
   const all=useMemo(()=>calendarItems(tasks,entries),[tasks,entries,zone])
   const filtered=useMemo(()=>all.filter(item=>sources.has(item.source)&&(!hideDone||!item.done)&&`${item.title} ${item.notes||''} ${item.location||''} ${item.context||''}`.toLowerCase().includes(query.toLowerCase())),[all,sources,hideDone,query])

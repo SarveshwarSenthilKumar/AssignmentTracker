@@ -15,6 +15,7 @@ const { calendarLinksOwned: validateCalendarLinks } = require('./calendarLinks')
 const { collectCanvasPages } = require('./canvasPagination');
 const { parseCalendarICS } = require('./calendarICS');
 const { canvasIdentity, canvasTaskFields } = require('./canvasTasks');
+const { assistantRequest, workspaceContext, responsePayload, responseText, responseSources } = require('./assistant');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -362,6 +363,63 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 // Routes
+const aiRequests = new Map();
+const aiModel = () => process.env.OPENAI_MODEL || 'gpt-4.1-mini';
+app.get('/api/assistant/status', authenticateToken, (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json({ configured: !!process.env.OPENAI_API_KEY, model: aiModel() });
+});
+app.post('/api/assistant/chat', authenticateToken, async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  let request;
+  try { request = assistantRequest(req.body); } catch (error) { return res.status(400).json({ message: error.message }); }
+  if (!process.env.OPENAI_API_KEY) return res.status(503).json({ message: 'The assistant is not connected yet. Configure OPENAI_API_KEY on the backend to enable answers.' });
+  const userId = String(req.user.userId), now = Date.now();
+  for (const [id, state] of aiRequests) if (!state.busy && now - state.start >= 600000) aiRequests.delete(id);
+  const state = aiRequests.get(userId) || { start: now, count: 0, busy: false };
+  if (state.busy) return res.status(409).json({ message: 'An answer is already in progress. Wait or stop that request first.' });
+  if (state.count >= 20) return res.status(429).json({ message: 'You have reached the chat request limit. Try again in a few minutes.' });
+  state.busy = true; state.count++; aiRequests.set(userId, state);
+  const controller = new AbortController(), timeout = setTimeout(() => controller.abort(), 60000);
+  const disconnected = () => { if (!res.writableEnded) controller.abort(); };
+  res.on('close', disconnected);
+  try {
+    const user = await User.findById(userId).select('username email timeZone createdAt canvasUrl lastCanvasSync').lean();
+    if (!user) return res.status(404).json({ message: 'Account not found.' });
+    let tasks=[],entries=[],documents=[],folders=[],documentFolders=[],totals={};
+    if (request.includeWorkspace) {
+      const owner = { user: userId }, active = { user: userId, deletedAt: null };
+      const results = await Promise.all([
+        Todo.find(owner).select('text description status dueDate folder dependsOn links calendarDate calendarAllDay calendarEndDate calendarLastDate calendarLocation calendarContext').sort({updatedAt:-1,createdAt:-1}).limit(250).lean(),
+        CalendarEntry.find(owner).sort({updatedAt:-1}).limit(250).lean(),
+        PDF.find(active).select('name originalName mimeType pdfFolder taskIds todo updatedAt').sort({updatedAt:-1}).limit(200).lean(),
+        Folder.find(owner).select('name').limit(100).lean(), PDFFolder.find(owner).select('name').limit(100).lean(),
+        Todo.countDocuments(owner), CalendarEntry.countDocuments(owner), PDF.countDocuments(active)
+      ]);
+      [tasks,entries,documents,folders,documentFolders]=results;
+      totals={tasks:results[5],calendarEntries:results[6],documents:results[7],includedTasks:tasks.length,includedCalendarEntries:entries.length,includedDocuments:documents.length};
+    }
+    let file = null;
+    if (request.includeDocument && request.documentId) {
+      file = await PDF.findOne({ _id: request.documentId, user: userId, deletedAt: null }).select('name originalName mimeType pdfData');
+      if (!file) return res.status(404).json({ message: 'The open document is unavailable or does not belong to your account.' });
+    }
+    if (controller.signal.aborted) { if (res.destroyed) return; throw new Error('Request timed out.'); }
+    const context = workspaceContext({user,tasks,entries,documents,folders,documentFolders,totals},request);
+    const response = await fetch('https://api.openai.com/v1/responses', {
+      method:'POST', headers:{Authorization:`Bearer ${process.env.OPENAI_API_KEY}`,'Content-Type':'application/json'},
+      body:JSON.stringify(responsePayload(request,context,file,aiModel())), signal:controller.signal
+    });
+    if (!response.ok) {
+      const message = response.status === 429 ? 'The AI service is busy or its usage limit has been reached. Try again later.' : response.status === 401 || response.status === 403 ? 'The AI connection could not authenticate. Check the backend API key and model access.' : 'The AI service could not answer this request. Try again, or turn off open-file context.';
+      return res.status(502).json({ message });
+    }
+    const data = await response.json(), text = responseText(data);
+    res.json({text,sources:responseSources(text,context),context:{...totals,section:request.section,screenIncluded:request.includeScreen,workspaceIncluded:request.includeWorkspace,document:context.openDocument||null},partial:data.status==='incomplete'});
+  } catch (error) {
+    if (!res.destroyed) res.status(502).json({ message: controller.signal.aborted ? 'The AI request timed out. Try again.' : 'Could not get an answer. Check the AI connection and try again.' });
+  } finally { clearTimeout(timeout); res.off('close',disconnected); state.busy=false; if (res.destroyed && !res.writableEnded) res.end(); }
+});
 app.get('/api/account/preferences', authenticateToken, async (req, res) => {
   try {
     const user = await User.findById(req.user.userId).select('timeZone');
