@@ -5,7 +5,7 @@ async function resetAccountWorkspace({ userId, models, startSession }) {
     await session.withTransaction(async () => {
       const owner = { user: userId };
       deleted = {};
-      for (const [key, model] of [['tasks', models.Todo], ['documents', models.PDF], ['taskFolders', models.Folder], ['documentFolders', models.PDFFolder]]) {
+      for (const [key, model] of [['tasks', models.Todo], ['documents', models.PDF], ['taskFolders', models.Folder], ['documentFolders', models.PDFFolder], ['calendarEntries', models.CalendarEntry]]) {
         const result = await model.deleteMany(owner, { session });
         deleted[key] = result.deletedCount;
       }

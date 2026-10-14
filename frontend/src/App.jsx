@@ -1,3 +1,5 @@
+import { taskDueLabel } from './lib/calendar'
+import CalendarPage from './components/CalendarPage'
 import TaskDependencies from './components/TaskDependencies'
 import { dependencySummary } from './lib/taskDependencies'
 import TaskVisualization from './components/TaskVisualization'
@@ -23,7 +25,7 @@ function App() {
   const taskConfirmation = useInlineConfirm()
   const readPage = () => {
     const route = window.location.hash.replace(/^#\/?/, '')
-    return ['tasks','documents','visualization','canvas','account','shortcuts'].includes(route) ? route : 'tasks'
+    return ['tasks','calendar','documents','visualization','canvas','account','shortcuts'].includes(route) ? route : 'tasks'
   }
   const pendingLibraryTask = useRef(null)
   const [page, setPage] = useState(readPage)
@@ -56,6 +58,7 @@ function App() {
   const [canvasUrl, setCanvasUrl] = useState('')
   const [canvasToken, setCanvasToken] = useState('')
   const [canvasStatus, setCanvasStatus] = useState(null)
+  const [canvasNotice, setCanvasNotice] = useState('')
   const [syncing, setSyncing] = useState(false)
   const [testing, setTesting] = useState(false)
   const [icsFile, setIcsFile] = useState(null)
@@ -89,7 +92,7 @@ function App() {
 
   useShortcuts('Platform', {
     'nav-tasks': () => navigate('tasks'), 'nav-documents': () => navigate('documents'),
-    'nav-canvas': () => navigate('canvas'), 'nav-account': () => navigate('account'),
+    'nav-calendar': () => navigate('calendar'), 'nav-canvas': () => navigate('canvas'), 'nav-account': () => navigate('account'),
     'nav-visualization': () => navigate('visualization'), 'nav-shortcuts': () => navigate('shortcuts'), help: () => navigate('shortcuts'),
     dismiss: () => { if(!showCommandMenu&&!showFolderModal&&!showPDFUploadModal&&!selectedTask&&!contextMenu)return false; setShowCommandMenu(false); setShowFolderModal(false); setShowPDFUploadModal(false); setSelectedTask(null); setContextMenu(null) },
     commands: () => { setShowCommandMenu(true); setTimeout(() => commandInputRef.current?.focus(),0) },
@@ -816,7 +819,7 @@ function App() {
                 {todo.dueDate && (
                   <div className="flex items-center gap-2 text-slate-400 text-xs">
                     <Calendar size={12} />
-                    <span>Due: {new Date(todo.dueDate).toLocaleDateString()}</span>
+                    <span>Due: {taskDueLabel(todo)}</span>
                   </div>
                 )}
               </>
@@ -1119,7 +1122,7 @@ function App() {
   }
 
   const syncCanvas = async () => {
-    setSyncing(true)
+    setCanvasNotice(''); setSyncing(true)
     try {
       const response = await fetch('/api/canvas/sync', {
         method: 'POST',
@@ -1143,9 +1146,9 @@ function App() {
 
       // Show success message
       if (data.errors && data.errors.length > 0) {
-        setError(`Synced ${data.syncedCount} items with ${data.errors.length} errors: ${data.errors.join(', ')}`)
+        setCanvasNotice(`Canvas synced ${data.syncedCount} items. Some sources could not refresh: ${data.errors.join('; ')}`)
       } else {
-        setError(`Successfully synced ${data.syncedCount} items from Canvas`)
+        setCanvasNotice(`Canvas synced ${data.syncedCount} items. Their dates are now reflected in Calendar.`)
       }
     } catch (err) {
       if (err.message === 'Invalid or expired token') {
@@ -1228,7 +1231,7 @@ function App() {
       const data = await response.json()
       await fetchTodos()
       await fetchFolders()
-      setError(`Successfully imported ${data.importedCount} events from calendar`)
+      setError(null); setCanvasNotice(`Imported ${data.importedCount} calendar items. Their dates are now available in Calendar.`)
       setIcsFile(null)
       setShowCanvasModal(false)
     } catch (err) {
@@ -1267,9 +1270,11 @@ function App() {
   return (
     <div className="min-h-screen py-8 px-4">
       <div className="app-shell w-full max-w-[1440px] mx-auto">
-        <header className="platform-header"><a className="platform-brand" href="#/tasks">Assignment Tracker</a><nav aria-label="Main navigation">{[['tasks','Tasks'],['documents','Documents'],['visualization','Visualization'],['canvas','Canvas'],['account','Account'],['shortcuts','Shortcuts']].map(([key,label]) => <a key={key} href={`#/${key}`} aria-current={page===key?'page':undefined}>{key==='shortcuts'&&<Keyboard size={15}/>} {label}</a>)}</nav><button className="platform-signout" onClick={logout}><LogOut size={16}/>Sign out</button></header>
-        <div className="platform-page-title"><h1>{page==='tasks'?'Tasks':page==='documents'?'Document library':page==='visualization'?'Task visualization':page==='canvas'?'Canvas integration':page==='account'?'Account':'Keyboard shortcuts'}</h1><p>{page==='tasks'?'Plan your work and track progress.':page==='documents'?'Organize and edit your files.':page==='visualization'?'Explore relationships, deadlines, and progress across your workspace.':page==='canvas'?'Manage your course connection and imports.':page==='account'?'Review your profile and workspace activity.':'A searchable reference for navigation and actions.'}</p></div>
+        <header className="platform-header"><a className="platform-brand" href="#/tasks">Assignment Tracker</a><nav aria-label="Main navigation">{[['tasks','Tasks'],['calendar','Calendar'],['documents','Documents'],['visualization','Visualization'],['canvas','Canvas'],['account','Account'],['shortcuts','Shortcuts']].map(([key,label]) => <a key={key} href={`#/${key}`} aria-current={page===key?'page':undefined}>{key==='shortcuts'&&<Keyboard size={15}/>} {label}</a>)}</nav><button className="platform-signout" onClick={logout}><LogOut size={16}/>Sign out</button></header>
+        <div className="platform-page-title"><h1>{page==='tasks'?'Tasks':page==='calendar'?'Calendar':page==='documents'?'Document library':page==='visualization'?'Task visualization':page==='canvas'?'Canvas integration':page==='account'?'Account':'Keyboard shortcuts'}</h1><p>{page==='tasks'?'Plan your work and track progress.':page==='calendar'?'Plan deadlines, assignments, and personal events in one place.':page==='documents'?'Organize and edit your files.':page==='visualization'?'Explore relationships, deadlines, and progress across your workspace.':page==='canvas'?'Manage your course connection and imports.':page==='account'?'Review your profile and workspace activity.':'A searchable reference for navigation and actions.'}</p></div>
         <InlineConfirmation {...taskConfirmation} />
+        {page==='calendar' && <CalendarPage tasks={todos} token={token} keyboardEnabled={!selectedPDF} onOpenTask={task=>{pendingLibraryTask.current=task;setSelectedFolder('all');navigate('tasks')}} onRefreshTasks={fetchTodos} onSyncCanvas={syncCanvas} onCanvasSettings={()=>navigate('canvas')} canvasStatus={canvasStatus} syncing={syncing} />}
+        {canvasNotice && <div role="status" className="calendar-feedback">{canvasNotice}<button onClick={()=>setCanvasNotice('')} aria-label="Dismiss Canvas sync notice"><X size={15}/></button></div>}
         {page==='shortcuts' && <ShortcutsPage />}
         {page==='visualization' && <TaskVisualization token={token} onTasksChange={setTodos} onOpenTask={task => { pendingLibraryTask.current = task; setSelectedFolder('all'); navigate('tasks') }} loading={loading} keyboardEnabled={!selectedPDF} tasks={todos} folders={folders} documents={pdfs} onOpenDocument={setSelectedPDF} onStatusChange={updateTodoStatus} onEditTask={task=>{setSelectedFolder('all');navigate('tasks');startEditing(task)}} />}
 
@@ -1735,7 +1740,7 @@ function App() {
                 setSelectedFolder(null); setSelectedPDFFolder('all'); setSelectedTask(null); setSelectedPDF(null)
                 setExpandedTodos(new Set()); setEditingTodos(new Set()); setEditData({}); editRefs.current = {}
                 setInput(''); setDueDate(''); setSortBy('createdAt'); setSortOrder('desc')
-                setCanvasUrl(''); setCanvasToken(''); setCanvasStatus({ hasCredentials: false, canvasUrl: null, lastCanvasSync: null }); setIcsFile(null)
+                setCanvasNotice(''); setCanvasUrl(''); setCanvasToken(''); setCanvasStatus({ hasCredentials: false, canvasUrl: null, lastCanvasSync: null }); setIcsFile(null)
                 setContextMenu(null); setError(null); setErrorDetails(null); setShowErrorDetails(false); setShowPDFUploadModal(false)
                 setShowFolderModal(false); setEditingFolder(null); setEditFolderName(''); setNewFolderName(''); setNewFolderColor('#64788b')
                 setDraggedTodo(null); setCommandInput(''); setShowCommandMenu(false); pendingLibraryTask.current = null
@@ -1921,7 +1926,7 @@ function App() {
                 <label className="block text-slate-400 text-sm mb-2">Due Date</label>
                 <p className="text-slate-300 text-sm">
                   {selectedTask.dueDate
-                    ? new Date(selectedTask.dueDate).toLocaleDateString() + ' at ' + new Date(selectedTask.dueDate).toLocaleTimeString()
+                    ? taskDueLabel(selectedTask,true)
                     : 'No due date'}
                 </p>
               </div>

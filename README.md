@@ -132,7 +132,7 @@ Shared surface, border, text, and control tokens live in `frontend/src/theme.css
 
 ### Navigation and keyboard shortcuts
 
-The primary pages are `/#/tasks`, `/#/documents`, `/#/visualization`, `/#/canvas`, `/#/account`, and `/#/shortcuts`. Hash routes support direct links, reloads, and browser Back/Forward without server routing changes. The navigation is neutral and shows the current page.
+The primary pages are `/#/tasks`, `/#/calendar`, `/#/documents`, `/#/visualization`, `/#/canvas`, `/#/account`, and `/#/shortcuts`. Hash routes support direct links, reloads, and browser Back/Forward without server routing changes. The navigation is neutral and shows the current page.
 
 The searchable Shortcuts page is generated from the same registry used by the keyboard handlers. Alt+1 through Alt+5 switch pages; Ctrl/Cmd+K opens commands; `?` opens the reference. Context-specific shortcuts cover document management, task editing, calendar import, and document/visual editing. Text-entry controls retain typing behavior, checkboxes do not block document action shortcuts, and Tab/Shift+Tab use normal focus navigation. Destructive task deletion uses inline confirmation; Escape cancels that confirmation. Editor navigation does not discard unsaved work.
 
@@ -150,7 +150,7 @@ While editing a task, use Insert in description to place a document reference at
 
 ### Clean account reset
 
-Account → Clean account reset permanently clears tasks, document files and backups (including Trash), task/document folders, and Canvas credentials/sync history. It preserves the login and profile identity. The inline form requires the current password and the exact phrase `RESET`. Local drafts for the account's loaded documents and workspace UI state are cleared after success.
+Account → Clean account reset permanently clears tasks, document files and backups (including Trash), task/document folders, personal calendar entries, and Canvas credentials/sync history. It preserves the login and profile identity. The inline form requires the current password and the exact phrase `RESET`. Local drafts for the account's loaded documents and workspace UI state are cleared after success.
 
 The owner-scoped reset uses a MongoDB transaction and therefore requires Atlas or a replica set. Standalone MongoDB connections reject reset without deleting data. The single-server API blocks concurrent writes during reset and rejects reset while other authenticated write operations are active. Multi-instance deployments must coordinate this write guard across instances before enabling resets.
 
@@ -159,3 +159,13 @@ The owner-scoped reset uses a MongoDB transaction and therefore requires Atlas o
 Task details, expanded task cards, and the visualization inspector include Task connections. Add a task that should come before or after the current task, including tasks in other folders. The connection saves immediately and appears at both ends. Completion counts and statuses update from the linked task records. Circular sequences are flagged for review; no connection prevents starting, completing, or reopening a task.
 
 The visualization draws arrows from prerequisite to follow-up, colored sage when the prerequisite is completed and muted amber otherwise. Sequence mode arranges acyclic chains from left to right and places circular or unresolved sequences in a final column. Filters hide arrows to tasks outside the current selection; the inspector still shows the full relationships. Duplicate and self-links are rejected or deduplicated. Deleting tasks removes their stored prerequisite references, and account reset clears all task connections along with the tasks.
+
+### Workspace calendar
+
+Open Calendar or press Alt+7. Month and agenda views combine task deadlines, Canvas assignments/imported events, and personal appointments/date markers. Task dates and completion are derived from the task records; opening a deadline takes you to the original task. Undated tasks appear in a separate list until given a due date. Search and source/completion filters apply to both views. Times use the browser's displayed time zone; all-day dates retain their date-only meaning.
+
+Create, edit, mark complete, or delete personal appointments and markers through inline controls. Appointments support start/end times, all-day ranges, notes, and locations. Markers support one date or an inclusive date range. Personal entries are saved in the owner-scoped `CalendarEntry` collection through `/api/calendar-entries`; they are not sent to Canvas. Deletion uses inline confirmation. Clean account reset includes this collection in its transaction.
+
+Canvas sync follows same-origin pagination links, retrieves personal calendar events and course calendar events in batches of ten contexts, and refreshes existing titles/dates while preserving task status, notes, folders, and prerequisites. Event and assignment IDs are distinguished by source type. Calendar queries use `all_events=true`, as documented in the [Canvas Calendar Events API](https://canvas.instructure.com/doc/api/calendar_events.html); list pagination follows the [Canvas pagination guidance](https://canvas.instructure.com/doc/api/file.pagination.html). Partial sync failures remain visible. Sync is manual through the existing Canvas connection.
+
+ICS import handles UTC timestamps, named IANA time zones, folded lines, UID updates, and exclusive all-day end dates. Invalid dates are skipped instead of being replaced with today's date; floating times without a time zone use UTC. Recurrence rules are not expanded locally. Calendar shortcuts include N for an appointment, Shift+N for a marker, T for today, [ / ] for month navigation, / for search, and Escape to dismiss a form or details. They are listed on the Shortcuts page.

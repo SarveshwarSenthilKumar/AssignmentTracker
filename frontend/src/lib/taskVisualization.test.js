@@ -31,3 +31,9 @@ test('deadline bins use Chicago dates including UTC midnight and month boundarie
  assert.equal(series[0].day,'2026-10-31');assert.equal(series[0].todo,1);assert.equal(series[1].day,'2026-11-01')
  assert.equal(deadlineSeries(tasks,now)[1]['in-progress'],1)
 })
+test('all-day imported dates are not shifted to the previous day or overdue before that day ends',()=>{
+ const task={_id:'day',status:'todo',dueDate:'2026-10-13T00:00:00Z',calendarAllDay:true,calendarDate:'2026-10-13'}
+ const metrics=taskMetrics([task],now);assert.equal(metrics.overdue,0);assert.equal(metrics.dueSoon,1)
+ assert.equal(deadlineSeries([task],now)[0].todo,1)
+ assert.equal(taskMetrics([task],new Date('2026-10-14T18:00:00Z')).overdue,1)
+})

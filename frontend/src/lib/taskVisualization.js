@@ -1,4 +1,5 @@
 import { dependencyEdges, dependencyLayout } from './taskDependencies.js'
+import { validDay } from './calendar.js'
 import { documentTaskIds } from './taskAttachments.js'
 export const STATUS_LABELS = { todo: 'To do', 'in-progress': 'In progress', completed: 'Completed' }
 export const taskStatus = task => task.status === 'completed' || task.status === 'in-progress' ? task.status : 'todo'
@@ -10,17 +11,18 @@ export function dayKey(value, zone = 'America/Chicago') {
   return `${parts.year}-${parts.month}-${parts.day}`
 }
 export function addDays(day, count) { const date = new Date(`${day}T12:00:00Z`); date.setUTCDate(date.getUTCDate() + count); return date.toISOString().slice(0, 10) }
-export const isOverdue = (task, now) => taskStatus(task) !== 'completed' && task.dueDate && Number.isFinite(new Date(task.dueDate).getTime()) && new Date(task.dueDate).getTime() < new Date(now).getTime()
+export const isOverdue = (task, now) => taskStatus(task) !== 'completed' && (task.calendarAllDay && validDay(task.calendarDate) ? task.calendarDate < dayKey(now) : task.dueDate && Number.isFinite(new Date(task.dueDate).getTime()) && new Date(task.dueDate).getTime() < new Date(now).getTime())
+const taskDay = task => task.calendarAllDay && validDay(task.calendarDate) ? task.calendarDate : task.dueDate ? dayKey(task.dueDate) : null
 export function taskMetrics(tasks, now = new Date()) {
   const time = new Date(now).getTime(), weekEnd = time + 7 * 86400000
   const counts = { todo: 0, 'in-progress': 0, completed: 0 }
   let overdue = 0, dueSoon = 0, undated = 0
   for (const task of tasks) {
     counts[taskStatus(task)]++
-    const day = task.dueDate ? dayKey(task.dueDate) : null
+    const day = taskDay(task)
     if (!day) undated++
     if (isOverdue(task, now)) overdue++
-    if (taskStatus(task) !== 'completed' && day && new Date(task.dueDate).getTime() >= time && new Date(task.dueDate).getTime() <= weekEnd) dueSoon++
+    if (taskStatus(task) !== 'completed' && day && (task.calendarAllDay ? day >= dayKey(now) && day <= dayKey(weekEnd) : new Date(task.dueDate).getTime() >= time && new Date(task.dueDate).getTime() <= weekEnd)) dueSoon++
   }
   return { total: tasks.length, counts, overdue, dueSoon, undated, completion: tasks.length ? Math.round(counts.completed / tasks.length * 100) : 0 }
 }
@@ -28,7 +30,7 @@ export function deadlineSeries(tasks, now = new Date(), days = 14) {
   const today = dayKey(now)
   const series = Array.from({ length: days }, (_, index) => ({ day: addDays(today, index), todo: 0, 'in-progress': 0, completed: 0 }))
   const lookup = new Map(series.map(bin => [bin.day, bin]))
-  for (const task of tasks) { const key = task.dueDate ? dayKey(task.dueDate) : null; const bin = lookup.get(key); if (bin) bin[taskStatus(task)]++ }
+  for (const task of tasks) { const bin = lookup.get(taskDay(task)); if (bin) bin[taskStatus(task)]++ }
   return series
 }
 export function buildTaskGraph(tasks, folders, documents = [], mode = 'folder') {

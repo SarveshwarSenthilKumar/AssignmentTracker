@@ -20,7 +20,7 @@ export default function AccountReset({ token, onReset, disabled = false }) {
   }
   return <section className="mt-6 rounded-xl border border-slate-600 bg-slate-800/40 p-4" aria-label="Clean account reset">
     <h4 className="text-base font-semibold text-slate-100 flex gap-2 items-center"><RotateCcw size={17}/>Clean account reset</h4>
-    <p className="text-sm text-slate-300 mt-2 leading-relaxed">Start with an empty workspace. Permanently removes all tasks, descriptions, links, uploaded files, document edits, original backups, Trash, and both sets of folders. Also disconnects Canvas and clears its sync history and local document drafts.</p>
+    <p className="text-sm text-slate-300 mt-2 leading-relaxed">Start with an empty workspace. Permanently removes all tasks, descriptions, links, uploaded files, document edits, original backups, Trash, both sets of folders, and personal calendar appointments and date markers. Also disconnects Canvas and clears its sync history and local document drafts.</p>
     <p className="text-xs text-slate-400 mt-2">Your username, email, password, and login remain. This cannot be undone.</p>
     {done && <p role="status" className="mt-3 text-sm text-slate-200">Reset complete. Your workspace is empty and Canvas is disconnected.</p>}
     {!open ? <button type="button" disabled={disabled} onClick={() => { setDone(false); setOpen(true) }} className="mt-4 px-3 py-2 rounded-lg border border-slate-500 text-sm text-slate-200 hover:bg-slate-700 disabled:opacity-50">Reset account data…</button> : <form onSubmit={submit} className="mt-4 space-y-3" aria-busy={busy}>

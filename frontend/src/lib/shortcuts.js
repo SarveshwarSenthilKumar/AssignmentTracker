@@ -1,4 +1,12 @@
 export const SHORTCUTS = [
+  {id:'nav-calendar',scope:'Platform',label:'Go to Calendar',key:'7',alt:true,keys:'Alt + 7'},
+  {id:'calendar-new',scope:'Calendar',label:'Add a personal appointment',key:'n',keys:'N'},
+  {id:'calendar-marker',scope:'Calendar',label:'Add a date marker',key:'n',shift:true,keys:'Shift + N'},
+  {id:'calendar-today',scope:'Calendar',label:'Jump to today',key:'t',keys:'T'},
+  {id:'calendar-prev',scope:'Calendar',label:'Previous calendar month',key:'[',keys:'['},
+  {id:'calendar-next',scope:'Calendar',label:'Next calendar month',key:']',keys:']'},
+  {id:'calendar-search',scope:'Calendar',label:'Search the calendar',key:'/',keys:'/'},
+  {id:'calendar-dismiss',scope:'Calendar',label:'Dismiss calendar form or details',key:'Escape',typing:true,keys:'Esc'},
   {id:'nav-tasks',scope:'Platform',label:'Go to Tasks',key:'1',alt:true,keys:'Alt + 1'},
   {id:'nav-documents',scope:'Platform',label:'Go to Documents',key:'2',alt:true,keys:'Alt + 2'},
   {id:'nav-canvas',scope:'Platform',label:'Go to Canvas integration',key:'3',alt:true,keys:'Alt + 3'},

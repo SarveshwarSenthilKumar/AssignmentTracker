@@ -10,6 +10,10 @@ const { documentAction } = require('./documentActions');
 const { deletePDFPage, insertPDFPages } = require('./pdfPages');
 const { resetAccountWorkspace } = require('./accountReset');
 const { dependencyChange } = require('./taskDependencies');
+const { calendarEntry } = require('./calendarEntries');
+const { collectCanvasPages } = require('./canvasPagination');
+const { parseCalendarICS } = require('./calendarICS');
+const { canvasIdentity, canvasTaskFields } = require('./canvasTasks');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -129,6 +133,12 @@ const todoSchema = new mongoose.Schema({
     type: Date,
     default: null,
   },
+  calendarEndDate: { type: Date, default: null },
+  calendarAllDay: { type: Boolean, default: false },
+  calendarDate: { type: String, default: null },
+  calendarLastDate: { type: String, default: null },
+  calendarLocation: { type: String, default: '' },
+  calendarContext: { type: String, default: '' },
   canvasId: {
     type: String,
     default: null,
@@ -141,6 +151,18 @@ const todoSchema = new mongoose.Schema({
 });
 
 const Todo = mongoose.model('Todo', todoSchema);
+
+const CalendarEntry = mongoose.model('CalendarEntry', new mongoose.Schema({
+  user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  title: { type: String, required: true, maxlength: 200 },
+  kind: { type: String, enum: ['appointment','marker'], required: true },
+  notes: { type: String, default: '', maxlength: 4000 },
+  location: { type: String, default: '', maxlength: 300 },
+  allDay: { type: Boolean, default: true },
+  startDate: { type: String, required: true }, endDate: { type: String, required: true },
+  startAt: { type: Date, default: null }, endAt: { type: Date, default: null },
+  done: { type: Boolean, default: false },
+}, { timestamps: true }));
 
 // Document storage (legacy PDF collection remains compatible).
 const pdfSchema = new mongoose.Schema({
@@ -344,7 +366,7 @@ app.post('/api/user/reset', authenticateToken, async (req, res) => {
     if (!await bcrypt.compare(req.body.password, user.password)) return res.status(401).json({ message: 'The password is incorrect. No data was reset.' });
     if ((accountWrites.get(userId) || 0) !== 1 || resettingAccounts.has(userId)) return res.status(409).json({ message: 'Wait for uploads, saves, and imports to finish, then try the reset again.' });
     resettingAccounts.add(userId); locked = true;
-    const deleted = await resetAccountWorkspace({ userId, models: { Todo, PDF, Folder, PDFFolder, User }, startSession: () => mongoose.startSession() });
+    const deleted = await resetAccountWorkspace({ userId, models: { Todo, PDF, Folder, PDFFolder, User, CalendarEntry }, startSession: () => mongoose.startSession() });
     res.json({ message: 'Account workspace reset.', deleted });
   } catch (error) {
     const unsupported = /Transaction numbers|replica set|mongos/i.test(error.message);
@@ -353,6 +375,35 @@ app.post('/api/user/reset', authenticateToken, async (req, res) => {
 });
 
 // Get all todos
+app.get('/api/calendar-entries', authenticateToken, async (req, res) => {
+  try { res.json(await CalendarEntry.find({ user: req.user.userId }).sort({ startDate: 1, startAt: 1 })); }
+  catch { res.status(500).json({ message: 'Could not load your calendar entries.' }); }
+});
+app.post('/api/calendar-entries', authenticateToken, async (req, res) => {
+  let entry;
+  try { entry = calendarEntry(req.body); } catch (error) { return res.status(400).json({ message: error.message }); }
+  try { res.status(201).json(await CalendarEntry.create({ ...entry, user: req.user.userId })); }
+  catch { res.status(500).json({ message: 'Could not create the calendar entry.' }); }
+});
+app.put('/api/calendar-entries/:id', authenticateToken, async (req, res) => {
+  let entry;
+  try { entry = calendarEntry(req.body); } catch (error) { return res.status(400).json({ message: error.message }); }
+  if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: 'Invalid calendar entry.' });
+  try {
+    const updated = await CalendarEntry.findOneAndUpdate({ _id: req.params.id, user: req.user.userId }, { $set: entry }, { new: true, runValidators: true });
+    if (!updated) return res.status(404).json({ message: 'Calendar entry not found.' });
+    res.json(updated);
+  } catch { res.status(500).json({ message: 'Could not update the calendar entry.' }); }
+});
+app.delete('/api/calendar-entries/:id', authenticateToken, async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: 'Invalid calendar entry.' });
+  try {
+    const removed = await CalendarEntry.findOneAndDelete({ _id: req.params.id, user: req.user.userId });
+    if (!removed) return res.status(404).json({ message: 'Calendar entry not found.' });
+    res.json({ id: removed._id });
+  } catch { res.status(500).json({ message: 'Could not delete the calendar entry.' }); }
+});
+
 app.get('/api/todos', authenticateToken, async (req, res) => {
   try {
     const todos = await Todo.find({ user: req.user.userId }).sort({ createdAt: -1 });
@@ -406,7 +457,11 @@ app.put('/api/todos/:id', authenticateToken, async (req, res) => {
     if (description !== undefined) updateData.description = description;
     if (links !== undefined) updateData.links = links;
     if (text !== undefined) updateData.text = text;
-    if (dueDate !== undefined) updateData.dueDate = dueDate;
+    if (dueDate !== undefined) {
+      updateData.dueDate = dueDate;
+      const current = await Todo.findOne({ _id: req.params.id, user: req.user.userId });
+      if (current && (current.dueDate?.getTime() ?? null) !== (dueDate ? new Date(dueDate).getTime() : null)) Object.assign(updateData, { calendarEndDate: null, calendarAllDay: false, calendarDate: null, calendarLastDate: null });
+    }
 
     const todo = await Todo.findOneAndUpdate(
       { _id: req.params.id, user: req.user.userId },
@@ -585,7 +640,7 @@ app.post('/api/canvas/test', authenticateToken, async (req, res) => {
 
     try {
       // Test with calendar endpoint instead (may have different permissions)
-      const testResponse = await fetchFromCanvas(canvasUrl, canvasToken, '/api/v1/calendar_events?per_page=1');
+      const { items: testResponse } = await fetchCanvasPage(canvasUrl, canvasToken, '/api/v1/calendar_events?per_page=1');
 
       res.json({
         success: true,
@@ -607,7 +662,7 @@ app.post('/api/canvas/test', authenticateToken, async (req, res) => {
 });
 
 // Helper function to fetch from Canvas API
-const fetchFromCanvas = (canvasUrl, canvasToken, endpoint) => {
+const fetchCanvasPage = (canvasUrl, canvasToken, endpoint) => {
   return new Promise((resolve, reject) => {
     try {
       // Ensure canvasUrl doesn't have trailing slash
@@ -617,14 +672,14 @@ const fetchFromCanvas = (canvasUrl, canvasToken, endpoint) => {
       const options = {
         headers: {
           'Authorization': `Bearer ${canvasToken}`,
-          'Accept': 'application/json'
+          'Accept': 'application/json+canvas-string-ids'
         }
       };
 
 
 
 
-      https.get(url, options, (res) => {
+      const request = https.get(url, options, (res) => {
         let data = '';
         res.on('data', chunk => data += chunk);
         res.on('end', () => {
@@ -645,7 +700,7 @@ const fetchFromCanvas = (canvasUrl, canvasToken, endpoint) => {
           try {
             const parsed = JSON.parse(data);
 
-            resolve(parsed);
+            resolve({ items: parsed, link: res.headers.link });
           } catch (e) {
             // Check if response is HTML (authentication error)
             if (data.toLowerCase().includes('<html') || data.toLowerCase().includes('<!doctype')) {
@@ -659,12 +714,15 @@ const fetchFromCanvas = (canvasUrl, canvasToken, endpoint) => {
 
         reject(new Error(`Canvas API request failed: ${e.message}`));
       });
+      request.setTimeout(20000, () => request.destroy(new Error('Canvas request timed out.')));
     } catch (e) {
 
       reject(new Error(`Invalid Canvas URL: ${e.message}`));
     }
   });
 };
+
+const fetchFromCanvas = (canvasUrl, canvasToken, endpoint) => collectCanvasPages(canvasUrl, canvasToken, endpoint, fetchCanvasPage);
 
 // Sync Canvas data
 app.post('/api/canvas/sync', authenticateToken, async (req, res) => {
@@ -677,11 +735,13 @@ app.post('/api/canvas/sync', authenticateToken, async (req, res) => {
 
     let syncedCount = 0;
     let errors = [];
+    let courseContexts = [];
 
     // Fetch courses first
     try {
 
       const courses = await fetchFromCanvas(user.canvasUrl, user.canvasToken, '/api/v1/courses?per_page=100');
+      courseContexts = courses.map(course => `course_${course.id}`);
 
 
       for (const course of courses) {
@@ -697,21 +757,15 @@ app.post('/api/canvas/sync', authenticateToken, async (req, res) => {
 
 
           for (const assignment of courseAssignments) {
-            if (!assignment.due_at) continue;
-
-            const existingTodo = await Todo.findOne({
-              canvasId: String(assignment.id),
-              user: req.user.userId
-            });
+            const existingTodo = await Todo.findOne(canvasIdentity(req.user.userId, assignment, 'assignment'));
 
             if (!existingTodo) {
               const todo = new Todo({
-                text: assignment.name,
+                ...canvasTaskFields(assignment, 'assignment', course.name),
                 description: assignment.description || '',
                 links: assignment.html_url ? [assignment.html_url] : [],
-                status: new Date(assignment.due_at) < new Date() ? 'todo' : 'todo',
+                status: 'todo',
                 user: req.user.userId,
-                dueDate: new Date(assignment.due_at),
                 canvasId: String(assignment.id),
                 canvasType: 'assignment'
               });
@@ -719,7 +773,8 @@ app.post('/api/canvas/sync', authenticateToken, async (req, res) => {
               syncedCount++;
 
             } else {
-
+              Object.assign(existingTodo, canvasTaskFields(assignment, 'assignment', course.name));
+              await existingTodo.save(); syncedCount++;
             }
           }
         } catch (e) {
@@ -738,27 +793,28 @@ app.post('/api/canvas/sync', authenticateToken, async (req, res) => {
       const calendarEvents = await fetchFromCanvas(
         user.canvasUrl,
         user.canvasToken,
-        '/api/v1/calendar_events?per_page=100'
+        '/api/v1/calendar_events?type=event&all_events=true&per_page=100'
       );
-
-
-
+      for (let index = 0; index < courseContexts.length; index += 10) {
+        const query = new URLSearchParams({ type: 'event', all_events: 'true', per_page: '100' });
+        courseContexts.slice(index, index + 10).forEach(context => query.append('context_codes[]', context));
+        try { calendarEvents.push(...await fetchFromCanvas(user.canvasUrl, user.canvasToken, `/api/v1/calendar_events?${query}`)); }
+        catch (error) { errors.push(`Course calendar events: ${error.message}`); }
+      }
+      const seenEvents = new Set();
       for (const event of calendarEvents) {
-        if (!event.start_at) continue;
+        if (!event.start_at || event.hidden || event.workflow_state === 'deleted' || seenEvents.has(String(event.id))) continue;
+        seenEvents.add(String(event.id));
 
-        const existingTodo = await Todo.findOne({
-          canvasId: String(event.id),
-          user: req.user.userId
-        });
+        const existingTodo = await Todo.findOne(canvasIdentity(req.user.userId, event, 'calendar_event'));
 
         if (!existingTodo) {
           const todo = new Todo({
-            text: event.title,
+            ...canvasTaskFields(event, 'calendar_event'),
             description: event.description || '',
             links: event.html_url ? [event.html_url] : [],
-            status: new Date(event.start_at) < new Date() ? 'todo' : 'todo',
+            status: 'todo',
             user: req.user.userId,
-            dueDate: new Date(event.start_at),
             canvasId: String(event.id),
             canvasType: 'calendar_event'
           });
@@ -766,7 +822,8 @@ app.post('/api/canvas/sync', authenticateToken, async (req, res) => {
           syncedCount++;
 
         } else {
-
+          Object.assign(existingTodo, canvasTaskFields(event, 'calendar_event'));
+          await existingTodo.save(); syncedCount++;
         }
       }
     } catch (e) {
@@ -1118,7 +1175,7 @@ app.post('/api/calendar/import', authenticateToken, upload.single('icsFile'), as
     const icsContent = req.file.buffer.toString('utf-8');
 
 
-    const events = parseICS(icsContent);
+    const events = parseCalendarICS(icsContent);
 
 
     let importedCount = 0;
@@ -1163,11 +1220,7 @@ app.post('/api/calendar/import', authenticateToken, upload.single('icsFile'), as
       }
 
       // Check if event already exists by combining summary and date
-      const existingTodo = await Todo.findOne({
-        user: req.user.userId,
-        text: event.summary,
-        dueDate: event.startDate
-      });
+      const existingTodo = await Todo.findOne({ user: req.user.userId, ...(event.uid ? { canvasType: 'calendar_event', $or: [{ canvasId: `ics:${event.uid}` }, { canvasId: null, text: event.summary, dueDate: event.startDate }] } : { text: event.summary, dueDate: event.startDate }) });
 
       if (!existingTodo) {
         const todo = new Todo({
@@ -1177,12 +1230,19 @@ app.post('/api/calendar/import', authenticateToken, upload.single('icsFile'), as
           status: new Date(event.startDate) < new Date() ? 'todo' : 'todo',
           user: req.user.userId,
           dueDate: new Date(event.startDate),
+          calendarEndDate: event.endDate || null,
+          calendarAllDay: !!event.allDay,
+          calendarDate: event.calendarDate,
+          calendarLastDate: event.calendarLastDate || null,
+          canvasId: event.uid ? `ics:${event.uid}` : null,
           folder: folderId,
           canvasType: 'calendar_event'
         });
         await todo.save();
         importedCount++;
-
+      } else {
+        Object.assign(existingTodo, { text: event.summary, dueDate: event.startDate, calendarEndDate: event.endDate || null, calendarAllDay: !!event.allDay, calendarDate: event.calendarDate, calendarLastDate: event.calendarLastDate || null, ...(event.uid ? { canvasId: `ics:${event.uid}` } : {}) });
+        await existingTodo.save(); importedCount++;
       }
     }
 
@@ -1224,72 +1284,12 @@ function extractCourseName(summary, description) {
 
 // Generate consistent color for course name
 function generateCourseColor(courseName) {
-  const colors = ['#0ea5e9', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#ef4444', '#6366f1', '#14b8a6'];
+  const colors = ['#64788b', '#78808b', '#7c8980', '#978975', '#8d7c7c', '#6d7d80'];
   let hash = 0;
   for (let i = 0; i < courseName.length; i++) {
     hash = courseName.charCodeAt(i) + ((hash << 5) - hash);
   }
   return colors[Math.abs(hash) % colors.length];
-}
-
-// Parse ICS file content
-function parseICS(icsContent) {
-  const events = [];
-  const lines = icsContent.split('\n');
-  let currentEvent = null;
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim();
-
-    if (line === 'BEGIN:VEVENT') {
-      currentEvent = {};
-    } else if (line === 'END:VEVENT' && currentEvent) {
-      events.push(currentEvent);
-      currentEvent = null;
-    } else if (currentEvent) {
-      if (line.startsWith('SUMMARY:')) {
-        currentEvent.summary = line.substring(8).replace(/\\/g, '');
-      } else if (line.startsWith('DESCRIPTION:')) {
-        currentEvent.description = line.substring(12).replace(/\\/g, '').replace(/\\n/g, '\n');
-      } else if (line.startsWith('DTSTART:')) {
-        currentEvent.startDate = parseICSDate(line.substring(8));
-      } else if (line.startsWith('DTSTART;')) {
-        const dateMatch = line.match(/DTSTART[^:]*:(.+)/);
-        if (dateMatch) {
-          currentEvent.startDate = parseICSDate(dateMatch[1]);
-        }
-      } else if (line.startsWith('URL:')) {
-        currentEvent.url = line.substring(4);
-      }
-    }
-  }
-
-  return events;
-}
-
-// Parse ICS date format
-function parseICSDate(icsDate) {
-  try {
-    // Format: 20240915T143000Z or 20240915T143000
-    const cleanDate = icsDate.replace(/Z$/, '');
-
-    if (cleanDate.length < 15) {
-
-      return new Date(); // Return current date if invalid
-    }
-
-    const year = parseInt(cleanDate.substring(0, 4));
-    const month = parseInt(cleanDate.substring(4, 6)) - 1;
-    const day = parseInt(cleanDate.substring(6, 8));
-    const hour = parseInt(cleanDate.substring(9, 11));
-    const minute = parseInt(cleanDate.substring(11, 13));
-    const second = parseInt(cleanDate.substring(13, 15)) || 0;
-
-    return new Date(year, month, day, hour, minute, second);
-  } catch (e) {
-
-    return new Date();
-  }
 }
 
 app.use((error, req, res, next) => {
