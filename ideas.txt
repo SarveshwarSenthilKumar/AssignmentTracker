@@ -1,6 +1,8 @@
 
 try to connect to canvas to see if you can get details of assignments and provide a time estimate
 add the ability to attach a file to something and add a prompt to an ai and for it to create a more digestible version
+add the ability to create specific questions based off of weaknesses and to grade it using ai
+change from openai api to gemini
 
 resume job tailor:
 Get job by links
