@@ -1,4 +1,6 @@
 export const SHORTCUTS = [
+  {id:'assistant-resize',scope:'Assistant',label:'Resize using a focused edge or corner handle (10 px steps; Shift for 40 px)',key:'ArrowRight',keys:'Arrow keys / Shift + Arrow keys'},
+  {id:'assistant-reset-size',scope:'Assistant',label:'Reset assistant size with a resize handle focused',key:'Home',keys:'Home'},
   {id:'nav-assistant',scope:'Platform',label:'Open the AI assistant page',key:'8',alt:true,typing:true,keys:'Alt + 8'},
   {id:'assistant-new',scope:'Assistant',label:'Start a new chat',key:'o',mod:true,shift:true,typing:true,keys:'Ctrl / Cmd + Shift + O'},
   {id:'assistant-history',scope:'Assistant',label:'Toggle chat history',key:'b',mod:true,shift:true,typing:true,keys:'Ctrl / Cmd + Shift + B'},

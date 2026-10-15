@@ -70,3 +70,49 @@
 @media(max-width:500px){.assistant-header p{display:none}.assistant-header h2{font-size:12px}.assistant-header{gap:6px;padding:12px 10px}.assistant-header>div:first-child>svg{display:none}.assistant-header>div:last-child{gap:4px}.assistant-header>div:last-child>button{padding:5px 7px}.assistant-panel.is-page .assistant-header h2{font-size:13px}.assistant-context-settings>summary{font-size:11px}}
 .assistant-panel.has-history.is-page,.assistant-panel.has-history.is-page.is-expanded{min-height:540px}
 @media(max-width:700px){.assistant-panel.has-history.is-page,.assistant-panel.has-history.is-page.is-expanded{min-height:500px}}
+/* User-controlled assistant size; pointer movement updates only these CSS variables. */
+.assistant-panel.has-history.is-resizable:not(.is-page){inset:auto;left:var(--assistant-x,12px);top:var(--assistant-y,12px);right:auto;bottom:auto;width:var(--assistant-width,min(760px,calc(100vw - 24px)));height:var(--assistant-height,calc(100dvh - 24px));min-width:0;min-height:0;max-width:none;max-height:none;border-radius:12px}
+.assistant-panel.has-history.is-resizable.is-page,.assistant-panel.has-history.is-resizable.is-page.is-expanded{width:var(--assistant-width,100%);height:var(--assistant-height,calc(100dvh - 225px));min-width:0;min-height:0;max-width:100%;max-height:none}
+.assistant-panel.is-resizable{container-name:assistant-size;container-type:size;transition:width .16s ease,height .16s ease,left .16s ease,top .16s ease}
+.assistant-panel.is-resizable.is-interacting{transition:none!important;will-change:width,height,left,top}
+.assistant-panel.is-resizable:not(.is-page)>.assistant-header{cursor:grab;touch-action:none;flex-shrink:0;flex-wrap:wrap;row-gap:7px}
+.assistant-panel.is-resizable.is-interacting>.assistant-header{cursor:grabbing}
+.assistant-panel.is-resizable .assistant-expand{display:inline-flex!important}
+.assistant-panel.is-resizable>.assistant-header>div:last-child{flex-wrap:wrap;justify-content:flex-end}
+.assistant-panel.is-resizable .assistant-thread{overflow:auto;overscroll-behavior:contain}
+.assistant-panel.is-resizable .assistant-thread>.assistant-messages{min-height:100px;flex:1 0 100px}
+.assistant-panel.is-resizable .assistant-thread>.assistant-composer,.assistant-panel.is-resizable .assistant-thread>.assistant-chat-toolbar,.assistant-panel.is-resizable .assistant-thread>.assistant-notice,.assistant-panel.is-resizable .assistant-thread>.assistant-archived-banner{flex-shrink:0}
+.assistant-panel.is-resizable .assistant-history{position:static;inset:auto;box-shadow:none;width:225px;flex-basis:225px}
+.assistant-panel.is-resizable .assistant-resize-handle{position:absolute;z-index:8;display:block;border:0;background:transparent;box-shadow:none;padding:0;margin:0;border-radius:0;touch-action:none;user-select:none;min-width:0;min-height:0;opacity:.7}
+.assistant-panel.is-resizable .assistant-resize-handle:hover,.assistant-panel.is-resizable .assistant-resize-handle:focus-visible{filter:none;opacity:1;background:#98aabd20}
+.assistant-resize-handle.resize-n{top:0;left:18px;right:18px;height:7px;cursor:n-resize}
+.assistant-resize-handle.resize-s{bottom:0;left:18px;right:18px;height:7px;cursor:s-resize}
+.assistant-resize-handle.resize-e{right:0;top:18px;bottom:18px;width:7px;cursor:e-resize}
+.assistant-resize-handle.resize-w{left:0;top:18px;bottom:18px;width:7px;cursor:w-resize}
+.assistant-resize-handle.resize-ne,.assistant-resize-handle.resize-nw,.assistant-resize-handle.resize-se,.assistant-resize-handle.resize-sw{width:20px;height:20px}
+.assistant-resize-handle.resize-ne{right:0;top:0;cursor:ne-resize}.assistant-resize-handle.resize-nw{left:0;top:0;cursor:nw-resize}.assistant-resize-handle.resize-se{right:0;bottom:0;cursor:se-resize}.assistant-resize-handle.resize-sw{left:0;bottom:0;cursor:sw-resize}
+.assistant-resize-handle.resize-se::after{content:'';position:absolute;right:5px;bottom:5px;width:8px;height:8px;border-right:2px solid var(--text-muted);border-bottom:2px solid var(--text-muted);border-radius:0 0 2px 0}
+@container assistant-size (max-width:680px){
+  .assistant-panel.is-resizable .assistant-workspace{position:relative}
+  .assistant-panel.is-resizable .assistant-history{position:absolute;inset:0 auto 0 0;z-index:5;width:min(290px,90%);flex-basis:auto;box-shadow:8px 0 25px #0004}
+  .assistant-panel.is-resizable .assistant-chat-toolbar{flex-wrap:wrap;gap:7px;padding:10px 12px}
+  .assistant-panel.is-resizable .assistant-chat-toolbar>div:last-child{max-width:none}
+  .assistant-panel.is-resizable .assistant-messages{padding:12px}
+  .assistant-panel.is-resizable .assistant-composer{padding:10px}
+  .assistant-panel.is-resizable .assistant-context-settings>summary>span{display:block;margin:4px 0 0}
+  .assistant-panel.is-resizable .assistant-welcome>.assistant-starters{grid-template-columns:1fr}
+  .assistant-panel.is-resizable .assistant-file-actions small{flex-basis:100%}
+}
+@container assistant-size (max-height:500px){
+  .assistant-panel.is-resizable .assistant-header{padding:8px 12px}
+  .assistant-panel.is-resizable .assistant-header p{display:none}
+  .assistant-panel.is-resizable .assistant-composer textarea{min-height:48px;max-height:100px}
+  .assistant-panel.is-resizable .assistant-context-settings{max-height:160px}
+  .assistant-panel.is-resizable .assistant-diagnostics{max-height:160px}
+  .assistant-panel.is-resizable .assistant-files{max-height:170px}
+}
+@media(pointer:coarse){.assistant-resize-handle.resize-n,.assistant-resize-handle.resize-s{height:12px}.assistant-resize-handle.resize-e,.assistant-resize-handle.resize-w{width:12px}.assistant-resize-handle.resize-ne,.assistant-resize-handle.resize-nw,.assistant-resize-handle.resize-se,.assistant-resize-handle.resize-sw{width:24px;height:24px}}
+@media(prefers-reduced-motion:reduce){.assistant-panel.is-resizable{transition:none}}
+.assistant-panel.is-resizable>.assistant-header>div:last-child{max-width:100%}
+.assistant-size-readout{display:none;position:absolute;z-index:9;bottom:12px;left:50%;transform:translateX(-50%);pointer-events:none;padding:4px 9px;border:1px solid var(--border);border-radius:5px;color:var(--text-secondary);background:var(--surface-elevated);font:11px/1.5 ui-monospace,Consolas,monospace;box-shadow:0 3px 12px #0003}
+.assistant-panel.is-interacting .assistant-size-readout{display:block}
