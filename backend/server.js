@@ -439,20 +439,24 @@ app.post('/api/assistant/chat', authenticateToken, async (req, res) => {
       [tasks,entries,documents,folders,documentFolders]=results;
       totals={tasks:results[5],calendarEntries:results[6],documents:results[7],includedTasks:tasks.length,includedCalendarEntries:entries.length,includedDocuments:documents.length};
     }
-    let file = null;
-    if (request.includeDocument && request.documentId) {
+    let file=[];
+    const fileIds=[...new Set([...request.documentIds,...(request.includeDocument&&request.documentId?[request.documentId]:[])])];
+    if(fileIds.length){
       stage='read_document';
-      file = await PDF.findOne({ _id: request.documentId, user: userId, deletedAt: null }).select('name originalName mimeType pdfData');
-      if (!file) { await finishConversation(turn,null,'The selected document is unavailable. Turn off open-file context or open another file, then retry.');turnFinished=true;return aiFailure(res,state,404,'document_unavailable','The open document is unavailable or does not belong to your account.','Refresh Documents or turn off open-file context and resend.',{traceId,stage}); }
+      file=await PDF.find({_id:{$in:fileIds},user:userId,deletedAt:null}).select('name originalName mimeType pdfData');
+      if(file.length!==fileIds.length){await finishConversation(turn,null,'One or more attached documents are unavailable. Remove them and retry.');turnFinished=true;return aiFailure(res,state,404,'document_unavailable','An attached document is unavailable or does not belong to your account.','Remove unavailable attachments or turn off open-file context, then resend.',{traceId,stage});}
+      file.sort((a,b)=>fileIds.indexOf(String(a._id))-fileIds.indexOf(String(b._id)));
+      if(file.reduce((total,item)=>total+(item.pdfData?.length||0),0)>20*1024*1024){await finishConversation(turn,null,'Attached files exceed the combined 20 MB limit. Remove a file and retry.');turnFinished=true;return aiFailure(res,state,400,'file_limit','Attached files exceed the combined 20 MB limit.','Remove a file and retry.',{traceId,stage});}
+      turn.messages.at(-1).attachments=file.map(item=>({id:String(item._id),name:String(item.name||'Attached file').slice(0,200),mimeType:item.mimeType}));
     }
     if (controller.signal.aborted) { if (res.destroyed) return; throw new Error('Request timed out.'); }
     const context = workspaceContext({user,tasks,entries,documents,folders,documentFolders,totals},request);
     const payload=await responsePayload(request,context,file,aiModel());stage='gemini';
-    const result=await callAssistantAPI(payload,{apiKey:process.env.GEMINI_API_KEY,signal:controller.signal,traceId,metadata:{kind:'chat',requestBytes:Buffer.byteLength(JSON.stringify(payload)),workspaceCharacters:JSON.stringify(context).length,screenCharacters:request.screen.length,historyMessages:request.messages.length,fileBytes:file?.pdfData?.length||0}});
+    const result=await callAssistantAPI(payload,{apiKey:process.env.GEMINI_API_KEY,signal:controller.signal,traceId,metadata:{kind:'chat',requestBytes:Buffer.byteLength(JSON.stringify(payload)),workspaceCharacters:JSON.stringify(context).length,screenCharacters:request.screen.length,historyMessages:request.messages.length,fileBytes:file.reduce((total,item)=>total+(item.pdfData?.length||0),0)}});
     providerReport=result.diagnostics;
     stage='parse_answer';const data=result.data,text=responseText(data);state.lastResult={...result.diagnostics,httpStatus:200,totalElapsedMs:Date.now()-started};
     res.set('X-Assistant-Trace-Id',traceId);
-    const answer={content:text,sources:responseSources(text,context).slice(0,40),context:{...totals,section:request.section,screenIncluded:request.includeScreen,workspaceIncluded:request.includeWorkspace,document:context.openDocument||null,historyMessages:request.messages.length},partial:data.candidates?.[0]?.finishReason==='MAX_TOKENS'};
+    const answer={content:text,sources:responseSources(text,context).slice(0,40),context:{...totals,section:request.section,screenIncluded:request.includeScreen,workspaceIncluded:request.includeWorkspace,document:context.openDocument||null,documents:context.openDocuments||[],historyMessages:request.messages.length},partial:data.candidates?.[0]?.finishReason==='MAX_TOKENS'||text.length===12000};
     stage='save_conversation';const conversation=await finishConversation(turn,answer);turnFinished=true;
     res.json({text,sources:answer.sources,diagnostics:state.lastResult,context:answer.context,partial:answer.partial,conversation});
   } catch (error) {

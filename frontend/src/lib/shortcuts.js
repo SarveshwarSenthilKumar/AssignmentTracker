@@ -1,5 +1,9 @@
 export const SHORTCUTS = [
-  {id:'assistant-toggle',scope:'Assistant',label:'Summon or hide the workspace assistant (works in editors)',key:'j',alt:true,typing:true,keys:'Alt + J'},
+  {id:'nav-assistant',scope:'Platform',label:'Open the AI assistant page',key:'8',alt:true,typing:true,keys:'Alt + 8'},
+  {id:'assistant-new',scope:'Assistant',label:'Start a new chat',key:'o',mod:true,shift:true,typing:true,keys:'Ctrl / Cmd + Shift + O'},
+  {id:'assistant-history',scope:'Assistant',label:'Toggle chat history',key:'b',mod:true,shift:true,typing:true,keys:'Ctrl / Cmd + Shift + B'},
+  {id:'assistant-search',scope:'Assistant',label:'Search saved conversations',key:'f',mod:true,shift:true,typing:true,keys:'Ctrl / Cmd + Shift + F'},
+  {id:'assistant-toggle',scope:'Assistant',label:'Toggle the floating assistant; focus the composer on its page (works in editors)',key:'j',alt:true,typing:true,keys:'Alt + J'},
   {id:'assistant-dismiss',scope:'Assistant',label:'Close the assistant panel',key:'Escape',typing:true,keys:'Esc'},
   {id:'nav-calendar',scope:'Platform',label:'Go to Calendar',key:'7',alt:true,keys:'Alt + 7'},
   {id:'calendar-new',scope:'Calendar',label:'Add a personal appointment',key:'n',keys:'N'},

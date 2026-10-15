@@ -1,6 +1,18 @@
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { ArrowUpRight } from 'lucide-react'
+import { Children, isValidElement, useState } from 'react'
+
+function CodeBlock({children}) {
+  const [copied,setCopied]=useState('')
+  const code=Children.toArray(children).find(isValidElement)
+  const language=code?.props.className?.replace(/^language-/,'')||'Code'
+  const copy=async()=>{
+    try{await navigator.clipboard.writeText(String(code?.props.children??''));setCopied('Copied')}
+    catch{setCopied('Select code to copy')}
+  }
+  return <div className="assistant-code-block"><div><span>{language}</span><button type="button" onClick={copy}>{copied||'Copy code'}</button><span className="sr-only" role="status">{copied}</span></div><pre>{children}</pre></div>
+}
 
 // Transform citations in prose without breaking Markdown structure or code samples.
 function workspaceCitations(sources) {
@@ -31,6 +43,7 @@ export default function AssistantMarkdown({content,sources=[],onOpenSource}) {
     remarkPlugins={[remarkGfm,workspaceCitations(sources)]}
     skipHtml
     components={{
+      pre:CodeBlock,
       a:({href,children})=>{
         const key=href?.startsWith('#assistant-source/')?href.slice('#assistant-source/'.length):null
         const source=key&&sources.find(item=>`${item.type}:${item.id}`===key)

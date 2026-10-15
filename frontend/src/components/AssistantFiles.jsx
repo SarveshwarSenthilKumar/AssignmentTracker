@@ -1,0 +1,13 @@
+import { useRef, useState } from 'react'
+import { Paperclip, Upload, X, FileText } from 'lucide-react'
+
+export default function AssistantFiles({documents,selected,onChange,onUpload,disabled,uploading}) {
+  const [query,setQuery]=useState(''),[picker,setPicker]=useState(false)
+  const input=useRef(null)
+  const available=documents.filter(item=>!item.deletedAt&&`${item.name} ${item.originalName||''}`.toLowerCase().includes(query.toLowerCase()))
+  return <div className="assistant-files" onDragOver={event=>{if(event.dataTransfer.types.includes('Files'))event.preventDefault()}} onDrop={event=>{if(event.dataTransfer.files.length){event.preventDefault();event.stopPropagation();if(!disabled)onUpload(event.dataTransfer.files)}}}>
+    <div className="assistant-file-actions"><button type="button" disabled={disabled} onClick={()=>setPicker(!picker)} aria-expanded={picker}><Paperclip size={14}/>Attach files{selected.length?` (${selected.length})`:''}</button><button type="button" disabled={disabled} onClick={()=>input.current?.click()}><Upload size={14}/>{uploading?'Uploading…':'Upload'}</button><small>Files are stored in Documents · drop files here</small><input type="file" multiple hidden ref={input} onChange={event=>{onUpload(event.target.files);event.target.value=''}} aria-label="Upload files for this conversation"/></div>
+    {!!selected.length&&<div className="assistant-file-chips">{selected.map(id=><span key={id}><FileText size={12}/><span>{documents.find(item=>item._id===id)?.name||'Unavailable file'}</span><button type="button" disabled={disabled} aria-label={`Remove ${documents.find(item=>item._id===id)?.name||'file'} from context`} onClick={()=>onChange(selected.filter(value=>value!==id))}><X size={12}/></button></span>)}</div>}
+    {picker&&<div className="assistant-file-picker"><label htmlFor="assistant-file-search">Choose from your document library</label><input id="assistant-file-search" type="search" value={query} onChange={event=>setQuery(event.target.value)} placeholder="Search documents…"/><div>{available.slice(0,60).map(item=><label key={item._id}><input type="checkbox" disabled={disabled||(!selected.includes(item._id)&&selected.length>=5)} checked={selected.includes(item._id)} onChange={event=>onChange(event.target.checked?[...selected,item._id]:selected.filter(id=>id!==item._id))}/><FileText size={13}/><span>{item.name}</span></label>)}{!available.length&&<p>No matching documents. Upload a file to get started.</p>}</div><small>Up to 5 attachments · 10 MB per upload · 20 MB total context including the open file. Unsupported formats are metadata only.</small><button type="button" onClick={()=>setPicker(false)}>Done</button></div>}
+  </div>
+}

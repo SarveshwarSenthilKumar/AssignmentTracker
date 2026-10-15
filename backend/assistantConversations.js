@@ -6,6 +6,7 @@ const messageSchema=new mongoose.Schema({
   content:{type:String,required:true,maxlength:12000},
   sources:{type:[{type:{type:String},id:String,title:String,_id:false}],default:[]},
   context:mongoose.Schema.Types.Mixed,
+  attachments:{type:[{id:String,name:String,mimeType:String,_id:false}],default:[]},
   partial:Boolean,failed:Boolean,
   createdAt:{type:Date,default:Date.now},
 });
@@ -13,7 +14,7 @@ const schema=new mongoose.Schema({
   user:{type:mongoose.Schema.Types.ObjectId,ref:'User',required:true},
   title:{type:String,default:'New chat',maxlength:120},
   pinned:{type:Boolean,default:false},archived:{type:Boolean,default:false},
-  settings:{workspace:{type:Boolean,default:true},screen:{type:Boolean,default:true},file:{type:Boolean,default:true}},
+  settings:{workspace:{type:Boolean,default:true},screen:{type:Boolean,default:true},file:{type:Boolean,default:true},responseStyle:{type:String,enum:['concise','balanced','detailed'],default:'balanced'},documentIds:{type:[String],default:[]}},
   messages:{type:[messageSchema],default:[]},
   revision:{type:Number,default:0},
   generationId:String,generatingUntil:Date,generationError:String,
@@ -73,6 +74,8 @@ function registerConversationRoutes(app,authenticateToken){
     if(req.body.title!==undefined){if(typeof req.body.title!=='string'||!req.body.title.trim()||req.body.title.trim().length>120)return res.status(400).json({message:'Enter a chat title between 1 and 120 characters.'});changes.title=req.body.title.trim();}
     for(const key of ['pinned','archived'])if(req.body[key]!==undefined){if(typeof req.body[key]!=='boolean')return res.status(400).json({message:'Invalid chat setting.'});changes[key]=req.body[key];}
     if(req.body.settings!==undefined){for(const key of ['workspace','screen','file']){if(typeof req.body.settings?.[key]!=='boolean')return res.status(400).json({message:'Choose which context to share.'});changes[`settings.${key}`]=req.body.settings[key];}}
+    if(req.body.settings?.responseStyle!==undefined){if(!['concise','balanced','detailed'].includes(req.body.settings.responseStyle))return res.status(400).json({message:'Choose a valid response length.'});changes['settings.responseStyle']=req.body.settings.responseStyle;}
+    if(req.body.settings?.documentIds!==undefined){const ids=req.body.settings.documentIds;if(!Array.isArray(ids)||ids.length>5||ids.some(id=>typeof id!=='string'||!ID.test(id)))return res.status(400).json({message:'Attach up to five valid documents.'});changes['settings.documentIds']=[...new Set(ids)];}
     if(!Number.isInteger(req.body.revision)||!Object.keys(changes).length)return res.status(400).json({message:'Refresh this chat before saving changes.'});
     try{const chat=await AssistantConversation.findOneAndUpdate({...available(req.user.userId,req.params.id),revision:req.body.revision},{$set:changes,$inc:{revision:1}},{new:true,runValidators:true});if(!chat)return res.status(409).json({message:'This chat changed or is generating a reply. Reopen it and try again.'});res.json(publicConversation(chat));}
     catch{res.status(500).json({message:'Could not update this chat.'});}
@@ -111,7 +114,7 @@ async function prepareConversation(user,body){
     history.unshift({role:message.role,content});characters+=content.length;
   }
   const generationId=randomUUID();
-  const settings={workspace:body.includeWorkspace,screen:body.includeScreen,file:body.includeDocument};
+  const settings={workspace:body.includeWorkspace,screen:body.includeScreen,file:body.fileContext??body.includeDocument,responseStyle:body.responseStyle||'balanced',documentIds:body.documentIds||[]};
   const updates={generationId,generatingUntil:new Date(Date.now()+120000),generationError:'',settings};
   if(!regenerate)updates.messages=messages;
   if(!chat.messages.length)updates.title=body.question.trim().replace(/\s+/g,' ').slice(0,120);

@@ -28,13 +28,14 @@ function App() {
   const { isAuthenticated, token, logout, user, loading: authLoading } = useAuth()
   const taskConfirmation = useInlineConfirm()
   const readPage = () => {
-    const route = window.location.hash.replace(/^#\/?/, '')
-    return ['tasks','calendar','documents','visualization','canvas','account','shortcuts'].includes(route) ? route : 'tasks'
+    const route = window.location.hash.replace(/^#\/?/, '').split('/')[0]
+    return ['tasks','calendar','documents','visualization','canvas','account','shortcuts','assistant'].includes(route) ? route : 'tasks'
   }
   const pendingLibraryTask = useRef(null)
   const [page, setPage] = useState(readPage)
-  const navigate = next => { window.location.hash = `/${next}`; setPage(next); setShowCommandMenu(false); window.scrollTo({top:0}) }
-  useEffect(() => { const change = () => { setPage(readPage()); setShowCommandMenu(false); setContextMenu(null); setSelectedTask(pendingLibraryTask.current); pendingLibraryTask.current = null; setShowFolderModal(false); window.scrollTo({top:0}) }; window.addEventListener('hashchange',change); return () => window.removeEventListener('hashchange',change) }, [])
+  const [assistantRouteId,setAssistantRouteId]=useState(()=>window.location.hash.match(/^#\/assistant\/([a-f\d]{24})$/i)?.[1]||null)
+  const navigate = next => { if(next==='assistant')setAssistantRouteId(null); window.location.hash = `/${next}`; setPage(next); setShowCommandMenu(false); window.scrollTo({top:0}) }
+  useEffect(() => { const change = () => { setPage(readPage()); setAssistantRouteId(window.location.hash.match(/^#\/assistant\/([a-f\d]{24})$/i)?.[1]||null); setShowCommandMenu(false); setContextMenu(null); setSelectedTask(pendingLibraryTask.current); pendingLibraryTask.current = null; setShowFolderModal(false); window.scrollTo({top:0}) }; window.addEventListener('hashchange',change); return () => window.removeEventListener('hashchange',change) }, [])
   const [todos, setTodos] = useState([])
   const [folders, setFolders] = useState([])
   const [selectedFolder, setSelectedFolder] = useState(null)
@@ -80,9 +81,13 @@ function App() {
   useEffect(()=>{
     if(!isAuthenticated){setAssistantOpen(false);return}
     const shortcut=SHORTCUTS.find(item=>item.id==='assistant-toggle')
-    const listener=event=>{if(!event.repeat&&!event.isComposing&&matchesShortcut(event,shortcut)){event.preventDefault();event.stopImmediatePropagation();setAssistantOpen(previous=>!previous)}}
+    const listener=event=>{
+      if(event.repeat||event.isComposing)return
+      if(matchesShortcut(event,SHORTCUTS.find(item=>item.id==='nav-assistant'))){event.preventDefault();event.stopImmediatePropagation();setAssistantOpen(false);navigate('assistant');return}
+      if(matchesShortcut(event,shortcut)){event.preventDefault();event.stopImmediatePropagation();if(page==='assistant'&&!selectedPDF)document.getElementById('assistant-question')?.focus();else setAssistantOpen(previous=>!previous)}
+    }
     window.addEventListener('keydown',listener,true);return()=>window.removeEventListener('keydown',listener,true)
-  },[isAuthenticated])
+  },[isAuthenticated,page,selectedPDF])
   const openAssistantSource=source=>{
     if(selectedPDF && !(source.type==='document'&&source.id===selectedPDF))return false
     if(source.type==='document'){setSelectedPDF(source.id);return true}
@@ -1296,8 +1301,8 @@ function App() {
   return (
     <div className="min-h-screen py-8 px-4">
       <div className="app-shell w-full max-w-[1440px] mx-auto">
-        <header className="platform-header"><a className="platform-brand" href="#/tasks">Assignment Tracker</a><nav aria-label="Main navigation">{[['tasks','Tasks'],['calendar','Calendar'],['documents','Documents'],['visualization','Visualization'],['canvas','Canvas'],['account','Account'],['shortcuts','Shortcuts']].map(([key,label]) => <a key={key} href={`#/${key}`} aria-current={page===key?'page':undefined}>{key==='shortcuts'&&<Keyboard size={15}/>} {label}</a>)}</nav><button className="platform-signout" onClick={logout}><LogOut size={16}/>Sign out</button></header>
-        <div className="platform-page-title"><h1>{page==='tasks'?'Tasks':page==='calendar'?'Calendar':page==='documents'?'Document library':page==='visualization'?'Task visualization':page==='canvas'?'Canvas integration':page==='account'?'Account':'Keyboard shortcuts'}</h1><p>{page==='tasks'?'Plan your work and track progress.':page==='calendar'?'Plan deadlines, assignments, and personal events in one place.':page==='documents'?'Organize and edit your files.':page==='visualization'?'Explore relationships, deadlines, and progress across your workspace.':page==='canvas'?'Manage your course connection and imports.':page==='account'?'Review your profile and workspace activity.':'A searchable reference for navigation and actions.'}</p></div>
+        <header className="platform-header"><a className="platform-brand" href="#/tasks">Assignment Tracker</a><nav aria-label="Main navigation">{[['tasks','Tasks'],['calendar','Calendar'],['documents','Documents'],['assistant','AI assistant'],['visualization','Visualization'],['canvas','Canvas'],['account','Account'],['shortcuts','Shortcuts']].map(([key,label]) => <a key={key} href={`#/${key}`} aria-current={page===key?'page':undefined}>{key==='shortcuts'&&<Keyboard size={15}/>} {label}</a>)}</nav><button className="platform-signout" onClick={logout}><LogOut size={16}/>Sign out</button></header>
+        <div className="platform-page-title"><h1>{page==='tasks'?'Tasks':page==='calendar'?'Calendar':page==='documents'?'Document library':page==='visualization'?'Task visualization':page==='canvas'?'Canvas integration':page==='account'?'Account':page==='assistant'?'AI assistant':'Keyboard shortcuts'}</h1><p>{page==='tasks'?'Plan your work and track progress.':page==='calendar'?'Plan deadlines, assignments, and personal events in one place.':page==='documents'?'Organize and edit your files.':page==='visualization'?'Explore relationships, deadlines, and progress across your workspace.':page==='canvas'?'Manage your course connection and imports.':page==='account'?'Review your profile and workspace activity.':page==='assistant'?'Think, write, learn, and work with your files in a dedicated conversation workspace.':'A searchable reference for navigation and actions.'}</p></div>
         <InlineConfirmation {...taskConfirmation} />
         {page==='calendar' && <CalendarPage focusEntryId={assistantCalendarId} onEntryFocused={()=>setAssistantCalendarId(null)} documents={pdfs} documentFolders={pdfFolders} onDocumentsChange={setPdfs} onOpenDocument={setSelectedPDF} tasks={todos} token={token} keyboardEnabled={!selectedPDF&&!assistantOpen} onOpenTask={task=>{pendingLibraryTask.current=task;setSelectedFolder('all');navigate('tasks')}} onRefreshTasks={fetchTodos} onSyncCanvas={syncCanvas} onCanvasSettings={()=>navigate('canvas')} canvasStatus={canvasStatus} syncing={syncing} />}
         {canvasNotice && <div role="status" className="calendar-feedback">{canvasNotice}<button onClick={()=>setCanvasNotice('')} aria-label="Dismiss Canvas sync notice"><X size={15}/></button></div>}
@@ -2127,8 +2132,8 @@ function App() {
           />
         )}
 
-        <button data-assistant-ui type="button" className="assistant-launcher" onClick={()=>setAssistantOpen(previous=>!previous)} aria-expanded={assistantOpen} aria-label="Open workspace assistant" hidden={assistantOpen}><span>Ask assistant</span><kbd>Alt + J</kbd></button>
-        <AssistantChat key={`${user?.id}:${assistantGeneration}`} open={assistantOpen} onClose={()=>setAssistantOpen(false)} token={token} section={page} documentId={selectedPDF} documentName={pdfs.find(file=>file._id===selectedPDF)?.name} onOpenSource={openAssistantSource}/>
+        <button data-assistant-ui type="button" className="assistant-launcher" onClick={()=>setAssistantOpen(previous=>!previous)} aria-expanded={assistantOpen} aria-label="Open workspace assistant" hidden={assistantOpen||(page==='assistant'&&!selectedPDF)}><span>Ask assistant</span><kbd>Alt + J</kbd></button>
+        <AssistantChat key={`${user?.id}:${assistantGeneration}`} open={assistantOpen||(page==='assistant'&&!selectedPDF)} mode={page==='assistant'&&!selectedPDF?'page':'panel'} routeConversationId={assistantRouteId} onConversationChange={id=>{if(page!=='assistant')return;const hash=id?'#/assistant/'+id:'#/assistant';window.history.replaceState(null,'',hash);setAssistantRouteId(id)}} onOpenPage={()=>{setAssistantOpen(false);navigate('assistant')}} documents={pdfs} onDocumentsChange={setPdfs} onClose={()=>setAssistantOpen(false)} token={token} section={page} documentId={selectedPDF} documentName={pdfs.find(file=>file._id===selectedPDF)?.name} onOpenSource={openAssistantSource}/>
 
         {/* PDF Editor */}
         {selectedPDF && (
