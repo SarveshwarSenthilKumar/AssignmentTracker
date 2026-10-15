@@ -1,4 +1,12 @@
 export const SHORTCUTS = [
+  {id:'nav-workspace',scope:'Platform',label:'Open the customizable workspace',key:'9',alt:true,typing:true,keys:'Alt + 9'},
+  {id:'workspace-new',scope:'Workspace',label:'Open the window and tool picker',key:'n',alt:true,keys:'Alt + N'},
+  {id:'workspace-tile',scope:'Workspace',label:'Tile visible windows',key:'t',alt:true,keys:'Alt + T'},
+  {id:'workspace-focus',scope:'Workspace',label:'Toggle full-screen workspace',key:'f',alt:true,keys:'Alt + F'},
+  {id:'workspace-undo',scope:'Workspace',label:'Undo a layout change outside text fields',key:'z',mod:true,keys:'Ctrl / Cmd + Z'},
+  {id:'workspace-redo',scope:'Workspace',label:'Redo a layout change outside text fields',key:'z',mod:true,shift:true,keys:'Ctrl / Cmd + Shift + Z'},
+  {id:'workspace-dismiss',scope:'Workspace',label:'Dismiss the tool picker/settings or exit full-screen workspace',key:'Escape',keys:'Esc'},
+  {id:'workspace-move-window',scope:'Workspace',label:'Move a focused window header (Shift increases step)',key:'ArrowRight',alt:true,keys:'Alt + Arrow keys / Alt + Shift + Arrow keys'},
   {id:'assistant-resize',scope:'Assistant',label:'Resize using a focused edge or corner handle (10 px steps; Shift for 40 px)',key:'ArrowRight',keys:'Arrow keys / Shift + Arrow keys'},
   {id:'assistant-reset-size',scope:'Assistant',label:'Reset assistant size with a resize handle focused',key:'Home',keys:'Home'},
   {id:'nav-assistant',scope:'Platform',label:'Open the AI assistant page',key:'8',alt:true,typing:true,keys:'Alt + 8'},

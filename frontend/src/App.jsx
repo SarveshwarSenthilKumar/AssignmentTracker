@@ -1,5 +1,6 @@
 import TimeZoneSettings from './components/TimeZoneSettings'
 import AccountAISettings from './components/AccountAISettings'
+import WorkflowWorkspace from './components/WorkflowWorkspace'
 import AssistantChat from './components/AssistantChat'
 import { SHORTCUTS, matchesShortcut } from './lib/shortcuts'
 import { localToInstant, zonedLocal } from './lib/timeZone'
@@ -30,7 +31,7 @@ function App() {
   const taskConfirmation = useInlineConfirm()
   const readPage = () => {
     const route = window.location.hash.replace(/^#\/?/, '').split('/')[0]
-    return ['tasks','calendar','documents','visualization','canvas','account','shortcuts','assistant'].includes(route) ? route : 'tasks'
+    return ['tasks','calendar','documents','visualization','canvas','account','shortcuts','assistant','workspace'].includes(route) ? route : 'tasks'
   }
   const pendingLibraryTask = useRef(null)
   const [page, setPage] = useState(readPage)
@@ -84,6 +85,7 @@ function App() {
     const shortcut=SHORTCUTS.find(item=>item.id==='assistant-toggle')
     const listener=event=>{
       if(event.repeat||event.isComposing)return
+      if(matchesShortcut(event,SHORTCUTS.find(item=>item.id==='nav-workspace'))){event.preventDefault();event.stopImmediatePropagation();setAssistantOpen(false);navigate('workspace');return}
       if(matchesShortcut(event,SHORTCUTS.find(item=>item.id==='nav-assistant'))){event.preventDefault();event.stopImmediatePropagation();setAssistantOpen(false);navigate('assistant');return}
       if(matchesShortcut(event,shortcut)){event.preventDefault();event.stopImmediatePropagation();if(page==='assistant'&&!selectedPDF)document.getElementById('assistant-question')?.focus();else setAssistantOpen(previous=>!previous)}
     }
@@ -1302,9 +1304,10 @@ function App() {
   return (
     <div className="min-h-screen py-8 px-4">
       <div className="app-shell w-full max-w-[1440px] mx-auto">
-        <header className="platform-header"><a className="platform-brand" href="#/tasks">Assignment Tracker</a><nav aria-label="Main navigation">{[['tasks','Tasks'],['calendar','Calendar'],['documents','Documents'],['assistant','AI assistant'],['visualization','Visualization'],['canvas','Canvas'],['account','Account'],['shortcuts','Shortcuts']].map(([key,label]) => <a key={key} href={`#/${key}`} aria-current={page===key?'page':undefined}>{key==='shortcuts'&&<Keyboard size={15}/>} {label}</a>)}</nav><button className="platform-signout" onClick={logout}><LogOut size={16}/>Sign out</button></header>
-        <div className="platform-page-title"><h1>{page==='tasks'?'Tasks':page==='calendar'?'Calendar':page==='documents'?'Document library':page==='visualization'?'Task visualization':page==='canvas'?'Canvas integration':page==='account'?'Account':page==='assistant'?'AI assistant':'Keyboard shortcuts'}</h1><p>{page==='tasks'?'Plan your work and track progress.':page==='calendar'?'Plan deadlines, assignments, and personal events in one place.':page==='documents'?'Organize and edit your files.':page==='visualization'?'Explore relationships, deadlines, and progress across your workspace.':page==='canvas'?'Manage your course connection and imports.':page==='account'?'Review your profile and workspace activity.':page==='assistant'?'Think, write, learn, and work with your files in a dedicated conversation workspace.':'A searchable reference for navigation and actions.'}</p></div>
+        <header className="platform-header"><a className="platform-brand" href="#/tasks">Assignment Tracker</a><nav aria-label="Main navigation">{[['workspace','Workspace'],['tasks','Tasks'],['calendar','Calendar'],['documents','Documents'],['assistant','AI assistant'],['visualization','Visualization'],['canvas','Canvas'],['account','Account'],['shortcuts','Shortcuts']].map(([key,label]) => <a key={key} href={`#/${key}`} aria-current={page===key?'page':undefined}>{key==='shortcuts'&&<Keyboard size={15}/>} {label}</a>)}</nav><button className="platform-signout" onClick={logout}><LogOut size={16}/>Sign out</button></header>
+        <div className="platform-page-title"><h1>{page==='workspace'?'Workspace':page==='tasks'?'Tasks':page==='calendar'?'Calendar':page==='documents'?'Document library':page==='visualization'?'Task visualization':page==='canvas'?'Canvas integration':page==='account'?'Account':page==='assistant'?'AI assistant':'Keyboard shortcuts'}</h1><p>{page==='workspace'?'Build a personal workflow with tabs, tools, and movable windows.':page==='tasks'?'Plan your work and track progress.':page==='calendar'?'Plan deadlines, assignments, and personal events in one place.':page==='documents'?'Organize and edit your files.':page==='visualization'?'Explore relationships, deadlines, and progress across your workspace.':page==='canvas'?'Manage your course connection and imports.':page==='account'?'Review your profile and workspace activity.':page==='assistant'?'Think, write, learn, and work with your files in a dedicated conversation workspace.':'A searchable reference for navigation and actions.'}</p></div>
         <InlineConfirmation {...taskConfirmation} />
+        <WorkflowWorkspace key={'workspace:'+user?.id+':'+assistantGeneration} open={page==='workspace'} token={token} userId={user?.id} tasks={todos} folders={folders} documents={pdfs} documentFolders={pdfFolders} onTasksChange={setTodos} onOpenTask={task=>setSelectedTask(task)} onStatusChange={updateTodoStatus} onOpenDocument={setSelectedPDF} onUpload={()=>{setSelectedPDFFolder('all');setShowPDFUploadModal(true)}} onNavigate={navigate} onOpenCalendarEntry={entry=>{setAssistantCalendarId(entry._id);navigate('calendar')}} onOpenAssistant={()=>setAssistantOpen(true)} keyboardEnabled={!selectedPDF&&!assistantOpen&&!selectedTask&&!showPDFUploadModal&&!showCommandMenu}/>
         {page==='calendar' && <CalendarPage focusEntryId={assistantCalendarId} onEntryFocused={()=>setAssistantCalendarId(null)} documents={pdfs} documentFolders={pdfFolders} onDocumentsChange={setPdfs} onOpenDocument={setSelectedPDF} tasks={todos} token={token} keyboardEnabled={!selectedPDF&&!assistantOpen} onOpenTask={task=>{pendingLibraryTask.current=task;setSelectedFolder('all');navigate('tasks')}} onRefreshTasks={fetchTodos} onSyncCanvas={syncCanvas} onCanvasSettings={()=>navigate('canvas')} canvasStatus={canvasStatus} syncing={syncing} />}
         {canvasNotice && <div role="status" className="calendar-feedback">{canvasNotice}<button onClick={()=>setCanvasNotice('')} aria-label="Dismiss Canvas sync notice"><X size={15}/></button></div>}
         {page==='shortcuts' && <ShortcutsPage />}
@@ -1769,7 +1772,7 @@ function App() {
               <TimeZoneSettings />
               <AccountAISettings token={token}/>
               <AccountReset token={token} disabled={syncing || testing || !!selectedPDF} onReset={() => {
-                setAssistantOpen(false);setAssistantGeneration(previous=>previous+1);setAssistantCalendarId(null)
+                window.dispatchEvent(new CustomEvent('workspace-reset',{detail:user?.id}));setAssistantOpen(false);setAssistantGeneration(previous=>previous+1);setAssistantCalendarId(null)
                 try { pdfs.forEach(file => sessionStorage.removeItem(`document-draft:${file._id}`)) } catch { /* Storage may be unavailable. */ }
                 setTodos([]); setFolders([]); setPdfs([]); setPdfFolders([])
                 setSelectedFolder(null); setSelectedPDFFolder('all'); setSelectedTask(null); setSelectedPDF(null)

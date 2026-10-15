@@ -19,6 +19,7 @@ const { assistantRequest, workspaceContext, responsePayload, responseText, respo
 const { diagnostic, callAssistantAPI, AssistantAPIError, safeMessage } = require('./assistantDiagnostics');
 const { randomUUID } = require('node:crypto');
 const { createAssistantCredentials } = require('./assistantCredentials');
+const { registerWorkspaceSettings } = require('./workspaceSettings');
 const { AssistantConversation, registerConversationRoutes, prepareConversation, finishConversation } = require('./assistantConversations');
 
 const app = express();
@@ -37,6 +38,8 @@ mongoose.connect(process.env.MONGODB_URI)
 
 // User Schema
 const userSchema = new mongoose.Schema({
+  workflowLayout: { type: mongoose.Schema.Types.Mixed, select: false },
+  workflowRevision: { type: Number, default: 0, select: false },
   geminiApiKeyEncrypted: { type: String, select: false },
   geminiApiKeyLastFour: { type: String, select: false },
   geminiApiKeyUpdatedAt: { type: Date, select: false },
@@ -388,6 +391,7 @@ function aiFailure(res,state,status,category,message,action,extra={}) {
   res.status(status).json({message:report.message,diagnostics:report});
 }
 assistantCredentials.registerRoutes(app,authenticateToken,userId=>{const state=aiRequests.get(userId);if(state)state.lastResult=null});
+registerWorkspaceSettings(app,authenticateToken,User);
 async function aiCredential(req,res,state,traceId){
   let credential;
   try{credential=await assistantCredentials.resolve(req.user.userId)}catch{aiFailure(res,state,503,'configuration','Could not load your saved AI settings.','Try again or review AI settings on the Account page.',{traceId,stage:'configuration'});return null}
