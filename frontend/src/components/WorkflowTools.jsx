@@ -34,9 +34,50 @@ function NotesPane({pane,onNoteChange}){
 }
 function FocusPane({tasks,onOpenTask}){
   const [duration,setDuration]=useState(25),[remaining,setRemaining]=useState(1500),[deadline,setDeadline]=useState(null),[taskId,setTaskId]=useState(''),[done,setDone]=useState(false)
-  useEffect(()=>{if(!deadline)return;const tick=()=>{const left=Math.max(0,Math.ceil((deadline-Date.now())/1000));setRemaining(left);if(!left){setDeadline(null);setDone(true)}};tick();const timer=setInterval(tick,500);return()=>clearInterval(timer)},[deadline])
+  useEffect(()=>{
+    if(!deadline)return
+    const tick=()=>{
+      const left=Math.max(0,Math.ceil((deadline-Date.now())/1000))
+      setRemaining(left)
+      if(!left){setDeadline(null);setDone(true)}
+    }
+    tick()
+    const timer=setInterval(tick,500)
+    return()=>clearInterval(timer)
+  },[deadline])
   const task=tasks.find(item=>item._id===taskId)
-  return <div className="workflow-focus"><p className="workflow-eyebrow">FOCUS SESSION</p><div className="workflow-timer" role="timer" aria-label="Remaining focus time">{String(Math.floor(remaining/60)).padStart(2,'0')}<span>:</span>{String(remaining%60).padStart(2,'0')}</div><div className="workflow-focus-presets">{[15,25,50].map(minutes=><button type="button" key={minutes} disabled={!!deadline} aria-pressed={minutes===duration} onClick={()=>{setDuration(minutes);setRemaining(minutes*60);setDone(false)}}>{minutes} min</button>)}</div><select aria-label="Task for focus session" value={taskId} onChange={event=>setTaskId(event.target.value)}><option value="">Focus without a task</option>{tasks.filter(item=>taskStatus(item)!=='completed').map(item=><option key={item._id} value={item._id}>{item.text}</option>)}</select><div className="workflow-focus-actions"><button type="button" onClick={()=>{if(deadline){setRemaining(Math.max(0,Math.ceil((deadline-Date.now())/1000)));setDeadline(null)}else{setDone(false);setDeadline(Date.now()+(remaining||duration*60)*1000)}}>{deadline?<Pause size={15}/>:<Play size={15}/>} {deadline?'Pause':remaining===duration*60?'Start':'Resume'}</button><button type="button" onClick={()=>{setDeadline(null);setRemaining(duration*60);setDone(false)}}><RotateCcw size={14}/>Reset</button></div>{task&&<button type="button" onClick={()=>onOpenTask(task)}>Open focus task ↗</button>}{done&&<p role="status">Session complete. Take a break when you are ready.</p>}<small>The timer continues while you switch workflow tabs. Reloading resets this timer; task status stays unchanged.</small></div>
+  const toggleTimer=()=>{
+    if(deadline){
+      setRemaining(Math.max(0,Math.ceil((deadline-Date.now())/1000)))
+      setDeadline(null)
+    }else{
+      setDone(false)
+      setDeadline(Date.now()+(remaining||duration*60)*1000)
+    }
+  }
+  const resetTimer=()=>{setDeadline(null);setRemaining(duration*60);setDone(false)}
+  return <div className="workflow-focus">
+    <p className="workflow-eyebrow">FOCUS SESSION</p>
+    <div className="workflow-timer" role="timer" aria-label="Remaining focus time">
+      {String(Math.floor(remaining/60)).padStart(2,'0')}<span>:</span>{String(remaining%60).padStart(2,'0')}
+    </div>
+    <div className="workflow-focus-presets">
+      {[15,25,50].map(minutes=><button type="button" key={minutes} disabled={!!deadline} aria-pressed={minutes===duration} onClick={()=>{setDuration(minutes);setRemaining(minutes*60);setDone(false)}}>{minutes} min</button>)}
+    </div>
+    <select aria-label="Task for focus session" value={taskId} onChange={event=>setTaskId(event.target.value)}>
+      <option value="">Focus without a task</option>
+      {tasks.filter(item=>taskStatus(item)!=='completed').map(item=><option key={item._id} value={item._id}>{item.text}</option>)}
+    </select>
+    <div className="workflow-focus-actions">
+      <button type="button" onClick={toggleTimer}>
+        {deadline?<Pause size={15}/>:<Play size={15}/>} {deadline?'Pause':remaining===duration*60?'Start':'Resume'}
+      </button>
+      <button type="button" onClick={resetTimer}><RotateCcw size={14}/>Reset</button>
+    </div>
+    {task&&<button type="button" onClick={()=>onOpenTask(task)}>Open focus task ↗</button>}
+    {done&&<p role="status">Session complete. Take a break when you are ready.</p>}
+    <small>The timer continues while you switch workflow tabs. Reloading resets this timer; task status stays unchanged.</small>
+  </div>
 }
 export default function WorkflowTools({pane,onNoteChange,active,...props}){
   const mapTasks=useMemo(()=>props.tasks,[props.tasks])
