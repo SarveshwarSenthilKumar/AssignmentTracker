@@ -1,4 +1,5 @@
 import TimeZoneSettings from './components/TimeZoneSettings'
+import AccountAISettings from './components/AccountAISettings'
 import AssistantChat from './components/AssistantChat'
 import { SHORTCUTS, matchesShortcut } from './lib/shortcuts'
 import { localToInstant, zonedLocal } from './lib/timeZone'
@@ -1766,6 +1767,7 @@ function App() {
               </div>
 
               <TimeZoneSettings />
+              <AccountAISettings token={token}/>
               <AccountReset token={token} disabled={syncing || testing || !!selectedPDF} onReset={() => {
                 setAssistantOpen(false);setAssistantGeneration(previous=>previous+1);setAssistantCalendarId(null)
                 try { pdfs.forEach(file => sessionStorage.removeItem(`document-draft:${file._id}`)) } catch { /* Storage may be unavailable. */ }

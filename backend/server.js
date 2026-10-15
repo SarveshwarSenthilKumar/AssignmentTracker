@@ -18,6 +18,7 @@ const { canvasIdentity, canvasTaskFields } = require('./canvasTasks');
 const { assistantRequest, workspaceContext, responsePayload, responseText, responseSources } = require('./assistant');
 const { diagnostic, callAssistantAPI, AssistantAPIError, safeMessage } = require('./assistantDiagnostics');
 const { randomUUID } = require('node:crypto');
+const { createAssistantCredentials } = require('./assistantCredentials');
 const { AssistantConversation, registerConversationRoutes, prepareConversation, finishConversation } = require('./assistantConversations');
 
 const app = express();
@@ -36,6 +37,9 @@ mongoose.connect(process.env.MONGODB_URI)
 
 // User Schema
 const userSchema = new mongoose.Schema({
+  geminiApiKeyEncrypted: { type: String, select: false },
+  geminiApiKeyLastFour: { type: String, select: false },
+  geminiApiKeyUpdatedAt: { type: Date, select: false },
   timeZone: { type: String, default: '' },
   username: {
     type: String,
@@ -73,6 +77,7 @@ const userSchema = new mongoose.Schema({
 });
 
 const User = mongoose.model('User', userSchema);
+const assistantCredentials = createAssistantCredentials(User);
 
 // Folder Schema
 const folderSchema = new mongoose.Schema({
@@ -382,15 +387,26 @@ function aiFailure(res,state,status,category,message,action,extra={}) {
   if (report.retryable && report.retryAfterSeconds) res.set('Retry-After',String(report.retryAfterSeconds));
   res.status(status).json({message:report.message,diagnostics:report});
 }
-app.get('/api/assistant/status', authenticateToken, (req, res) => {
+assistantCredentials.registerRoutes(app,authenticateToken,userId=>{const state=aiRequests.get(userId);if(state)state.lastResult=null});
+async function aiCredential(req,res,state,traceId){
+  let credential;
+  try{credential=await assistantCredentials.resolve(req.user.userId)}catch{aiFailure(res,state,503,'configuration','Could not load your saved AI settings.','Try again or review AI settings on the Account page.',{traceId,stage:'configuration'});return null}
+  if(credential.accountMissing){aiFailure(res,state,404,'account_unavailable','Account not found.','Sign in again.',{traceId,stage:'configuration'});return null}
+  if(!credential.apiKey){aiFailure(res,state,503,'configuration',credential.needsReplacement?'Your saved Gemini key needs to be replaced.':'The assistant is not connected yet.',credential.needsReplacement?'Replace your API key in Account → AI settings. The saved credential could not be decrypted.':'Add your Gemini API key in Account → AI settings.',{traceId,stage:'configuration'});return null}
+  return credential;
+}
+app.get('/api/assistant/status', authenticateToken, async (req, res) => {
   res.set('Cache-Control', 'no-store');
-  const state=aiState(String(req.user.userId));
-  res.json({ configured: !!process.env.GEMINI_API_KEY?.trim(), model:safeMessage(aiModel(),[process.env.GEMINI_API_KEY]), lastResult:state.lastResult, limits:{used:state.count,limit:20,windowSeconds:600,resetAt:new Date(state.start+600000).toISOString(),inProgress:state.busy} });
+  try{
+    const state=aiState(String(req.user.userId)),credential=await assistantCredentials.resolve(req.user.userId);
+    if(credential.accountMissing)return res.status(404).json({message:'Account not found.'});
+    res.json({...assistantCredentials.describe(credential),model:safeMessage(aiModel(),[credential.apiKey]),lastResult:state.lastResult,limits:{used:state.count,limit:20,windowSeconds:600,resetAt:new Date(state.start+600000).toISOString(),inProgress:state.busy}});
+  }catch{res.status(503).json({message:'Could not load AI connection settings.'})}
 });
 app.post('/api/assistant/test', authenticateToken, async (req,res) => {
   res.set('Cache-Control','no-store');
   const state=aiState(String(req.user.userId)),traceId=randomUUID();
-  if (!process.env.GEMINI_API_KEY?.trim()) return aiFailure(res,state,503,'configuration','The AI API key is not configured.','Set GEMINI_API_KEY on the backend and restart it.',{traceId,stage:'configuration'});
+  const credential=await aiCredential(req,res,state,traceId);if(!credential)return;
   if (state.busy) return aiFailure(res,null,409,'request_in_progress','Another AI request is still running for this account.','Wait for it to finish or stop the request in the tab where it started.',{traceId,retryable:true,retryAfterSeconds:1,stage:'application'});
   if (Date.now()-state.testStart>=60000) { state.testStart=Date.now();state.testCount=0; }
   if (state.testCount>=5) return aiFailure(res,state,429,'test_limit','The API connection test limit was reached.','Wait for the test timer before checking again.',{traceId,retryable:true,retryAfterSeconds:Math.ceil((state.testStart+60000-Date.now())/1000),stage:'application'});
@@ -399,7 +415,7 @@ app.post('/api/assistant/test', authenticateToken, async (req,res) => {
   const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),20000);
   const disconnected=()=>{if(!res.writableEnded)controller.abort()};res.on('close',disconnected);
   try {
-    const result=await callAssistantAPI({model:aiModel(),contents:[{role:'user',parts:[{text:'Reply with OK.'}]}],generationConfig:{maxOutputTokens:1024},store:false},{apiKey:process.env.GEMINI_API_KEY,signal:controller.signal,traceId,metadata:{kind:'connection_test'}});
+    const result=await callAssistantAPI({model:aiModel(),contents:[{role:'user',parts:[{text:'Reply with OK.'}]}],generationConfig:{maxOutputTokens:1024},store:false},{apiKey:credential.apiKey,signal:controller.signal,traceId,metadata:{kind:'connection_test'}});
     providerReport=result.diagnostics;
     responseText(result.data);
     state.lastResult={...result.diagnostics,httpStatus:200};res.set('X-Assistant-Trace-Id',traceId);res.json({configured:true,model:result.diagnostics.model,diagnostics:state.lastResult});
@@ -413,7 +429,7 @@ app.post('/api/assistant/chat', authenticateToken, async (req, res) => {
   const userId=String(req.user.userId),state=aiState(userId),traceId=randomUUID(),started=Date.now();
   let request,stage='validation',providerReport=null,turn=null,turnFinished=false;
   try { request = assistantRequest({...req.body,messages:[{role:'user',content:req.body.regenerate===true?'Regenerate the last answer.':req.body.question}]}); } catch (error) { return aiFailure(res,state,400,'validation',error.message,'Review the question and context options, then try again.',{traceId,stage}); }
-  if (!process.env.GEMINI_API_KEY?.trim()) return aiFailure(res,state,503,'configuration','The assistant is not connected yet.','Set GEMINI_API_KEY on the backend and restart it.',{traceId,stage:'configuration'});
+  const credential=await aiCredential(req,res,state,traceId);if(!credential)return;
   if (state.busy) return aiFailure(res,null,409,'request_in_progress','Another AI request is still running for this account.','Wait for it to finish or stop the request in the tab where it started.',{traceId,retryable:true,retryAfterSeconds:1,stage:'application'});
   if (state.count >= 20) return aiFailure(res,state,429,'app_limit','This account reached the app’s chat request limit.','Wait until the application limit resets. This is separate from Gemini billing and rate limits.',{traceId,retryable:true,retryAfterSeconds:Math.ceil((state.start+600000-Date.now())/1000),stage:'application'});
   state.busy = true; state.count++;
@@ -452,7 +468,7 @@ app.post('/api/assistant/chat', authenticateToken, async (req, res) => {
     if (controller.signal.aborted) { if (res.destroyed) return; throw new Error('Request timed out.'); }
     const context = workspaceContext({user,tasks,entries,documents,folders,documentFolders,totals},request);
     const payload=await responsePayload(request,context,file,aiModel());stage='gemini';
-    const result=await callAssistantAPI(payload,{apiKey:process.env.GEMINI_API_KEY,signal:controller.signal,traceId,metadata:{kind:'chat',requestBytes:Buffer.byteLength(JSON.stringify(payload)),workspaceCharacters:JSON.stringify(context).length,screenCharacters:request.screen.length,historyMessages:request.messages.length,fileBytes:file.reduce((total,item)=>total+(item.pdfData?.length||0),0)}});
+    const result=await callAssistantAPI(payload,{apiKey:credential.apiKey,signal:controller.signal,traceId,metadata:{kind:'chat',requestBytes:Buffer.byteLength(JSON.stringify(payload)),workspaceCharacters:JSON.stringify(context).length,screenCharacters:request.screen.length,historyMessages:request.messages.length,fileBytes:file.reduce((total,item)=>total+(item.pdfData?.length||0),0)}});
     providerReport=result.diagnostics;
     stage='parse_answer';const data=result.data,text=responseText(data);state.lastResult={...result.diagnostics,httpStatus:200,totalElapsedMs:Date.now()-started};
     res.set('X-Assistant-Trace-Id',traceId);

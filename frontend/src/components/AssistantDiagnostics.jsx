@@ -11,7 +11,7 @@ export default function AssistantDiagnostics({status,result,testing,checking,bus
     catch {setCopyMessage('Could not access the clipboard. You can select and copy the details below.')}
   }
   return <details className="assistant-diagnostics"><summary>AI connection & diagnostics{result?.category&&<span>{result.category.replaceAll('_',' ')}</span>}</summary><div>
-    <p>Model: <strong>{status?.model||'Checking…'}</strong> · API key: {status==null?'Checking…':status.configured?'Configured':'Not configured'}</p><small>A configured key has not necessarily passed an API test.</small>
+    <p>Model: <strong>{status?.model||'Checking…'}</strong> · API key: {status==null?'Checking…':status.configured?'Configured':'Not configured'}</p><small>{status?.source==='account'?'Uses your saved account key. ':status?.source==='server'?'Uses the shared server key. ':''}A configured key has not necessarily passed an API test. Manage your key on the Account page.</small>
     {status?.limits&&<small>App requests: {status.limits.used} / {status.limits.limit} per {status.limits.windowSeconds/60} minutes · {status.limits.inProgress?'Request in progress':'No active request'}</small>}
     <div className="assistant-diagnostic-actions"><button type="button" disabled={busy||testing||!status?.configured||testWait>0} onClick={onTest}>{testing?'Testing…':testWait>0?`Test in ${retryLabel(testWait)}`:'Test API connection'}</button><button type="button" disabled={checking||busy||testing} onClick={onRefresh}>{checking?'Refreshing…':'Refresh settings'}</button>{result&&<button type="button" onClick={copy}>Copy diagnostics</button>}</div>
     <small>The test sends a short “Reply with OK” request. No workspace data is sent; a successful test uses a few API tokens.</small>
