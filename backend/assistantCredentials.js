@@ -1,5 +1,16 @@
 const { randomBytes, createCipheriv, createDecipheriv, hkdfSync } = require('node:crypto');
 
+function normalizeApiKey(value){
+  if(typeof value!=='string'||value.length>2048)return '';
+  let key=value.trim(),previous;
+  do{
+    previous=key;
+    key=key.replace(/^["'`“”‘’]+|["'`“”‘’]+$/g,'').trim();
+    key=key.replace(/^(?:authorization\s*:\s*)?bearer(?:\s+|$)/i,'').trim();
+  }while(key!==previous);
+  return key;
+}
+
 function encryptionKey(source){
   const secret=source==='env'?process.env.AI_KEY_ENCRYPTION_KEY:process.env.JWT_SECRET;
   if(typeof secret!=='string'||!secret.trim())throw new Error('Credential encryption is not configured.');
@@ -45,8 +56,8 @@ function createAssistantCredentials(User){
       catch{res.status(503).json({message:'Could not load AI account settings.'})}
     });
     app.put('/api/account/ai-settings',authenticateToken,async(req,res)=>{
-      const key=typeof req.body.apiKey==='string'?req.body.apiKey.trim():'';
-      if(!/^[A-Za-z0-9_-]{20,256}$/.test(key)||key.startsWith('sk-'))return res.status(400).json({message:'Enter a Gemini API key from Google AI Studio, without quotes or a Bearer prefix.'});
+      const key=normalizeApiKey(req.body.apiKey);
+      if(!/^[A-Za-z0-9_-]{20,256}$/.test(key)||key.startsWith('sk-'))return res.status(400).json({message:'Enter a valid Gemini API key from Google AI Studio. Surrounding quotes, spaces and a Bearer prefix are removed automatically.'});
       let encrypted;
       try{encrypted=encryptKey(key,req.user.userId)}catch{return res.status(503).json({message:'The backend needs AI_KEY_ENCRYPTION_KEY or JWT_SECRET configured before it can save API keys.'})}
       try{
