@@ -178,7 +178,7 @@ Appointments and date markers support linked tasks, existing documents, and uplo
 
 ## Workspace AI assistant
 
-Open the built-in assistant with **Alt + J** or its navigation button. Escape closes the panel. The assistant answers general questions and questions about your tasks, assignments, calendar, documents and profile, with links back to referenced items. It is read-only and cannot change account data. Conversation history stays in the current tab and clears on reload, logout or account reset.
+Open the built-in assistant with **Alt + J** or its navigation button. Escape closes the panel. The assistant answers general questions and questions about your tasks, assignments, calendar, documents and profile, with links back to referenced items. It is read-only and cannot change account data. Conversations are saved to your account in MongoDB and remain available across reloads, devices and sign-ins. Account reset permanently deletes active and archived chats.
 
 Set `GEMINI_API_KEY` in `backend/.env` (or the backend host's environment) using a [Google AI Studio key](https://aistudio.google.com/apikey), then restart the backend. `GEMINI_MODEL` defaults to `gemini-3.8-flash`; choose another compatible model if needed. The browser never receives the key. All AI requests use Google's native [Gemini generateContent API](https://ai.google.dev/api/generate-content). No OpenAI credential or endpoint is used.
 
@@ -187,6 +187,15 @@ Context switches control fresh owner-scoped workspace records, visible page text
 PDFs and supported images, audio and video use native Gemini inline inputs, with a 10 MB saved-file limit. DOCX text is extracted on the backend with Mammoth; XLSX values are extracted with ExcelJS. Text and code files are included as UTF-8 text. Extracted text is limited to 80,000 characters; spreadsheets also cap sheets, rows and cells. Formatting, charts, embedded media and uncached spreadsheet formula results are not included. Unsupported or unreadable files remain metadata only, with an explicit notice beneath the answer. File support also depends on the selected model. See Google's [document processing guidance](https://ai.google.dev/gemini-api/docs/document-processing).
 
 Workspace context is bounded to 250 recent tasks, 250 calendar entries, 200 active document metadata records and 100 folders per kind. Coverage counts disclose truncation. Canvas credentials, passwords and unrelated users' records are excluded. The backend allows one active request per account and 20 chat requests per ten minutes, aborts timed-out requests, and performs no automatic provider retries. Requests disable response storage; Google API data handling and retention policies still apply.
+
+
+### Saved conversations
+
+The assistant opens as an expandable conversation workspace with a collapsible history sidebar. Search matches chat titles and saved message text, with separate Recent and Archived views and paginated older conversations. Chat controls support automatic titles, renaming, pinning, archiving/restoring, permanent deletion with inline confirmation, message copying and Markdown export. The most recent chat reopens when you return. Context switches are saved per conversation; each new question uses fresh selected workspace/screen/file context rather than storing raw screen captures or file bytes in chat history.
+
+Questions and Markdown answers, timestamps, source links, context summaries and partial-response indicators are stored under the signed-in account. Failed or interrupted questions remain available to retry. Regenerate replaces the latest answer after a new response succeeds; a failed regeneration preserves the existing answer. Use a message's branch action to continue separately, or edit an earlier question in a new branch while preserving the original conversation. Draft text is retained while switching chats within the current session.
+
+All conversation read/write/export data is owner-scoped. Server-side saved messages supply conversation history; the browser cannot inject a different transcript. Generation leases and revision checks prevent overlapping replies or another tab silently overwriting a chat. Saved history is limited to 300 messages per conversation; start a new chat or branch when full. Gemini receives up to 20 recent messages and 40,000 history characters, with individual prior messages shortened to 4,000 characters. Older messages remain viewable in saved history. Long or interrupted requests can be reopened and retried; the backend does not automatically resend questions to Gemini.
 
 ## AI connection diagnostics
 

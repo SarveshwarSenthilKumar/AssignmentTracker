@@ -18,6 +18,7 @@ const { canvasIdentity, canvasTaskFields } = require('./canvasTasks');
 const { assistantRequest, workspaceContext, responsePayload, responseText, responseSources } = require('./assistant');
 const { diagnostic, callAssistantAPI, AssistantAPIError, safeMessage } = require('./assistantDiagnostics');
 const { randomUUID } = require('node:crypto');
+const { AssistantConversation, registerConversationRoutes, prepareConversation, finishConversation } = require('./assistantConversations');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -406,11 +407,12 @@ app.post('/api/assistant/test', authenticateToken, async (req,res) => {
     if(!res.destroyed){if(error instanceof AssistantAPIError){state.lastResult={...error.diagnostics,httpStatus:error.status};res.set('X-Assistant-Trace-Id',traceId);res.status(error.status).json({message:error.message,diagnostics:state.lastResult});}else aiFailure(res,state,502,'empty_response','The API responded without a usable answer.','Check the configured model and its output token requirements.',{traceId,stage:'parse_answer',source:'gemini',providerStatus:providerReport?.providerStatus,providerRequestId:providerReport?.providerRequestId,inputTokens:providerReport?.inputTokens,outputTokens:providerReport?.outputTokens});}
   } finally {clearTimeout(timeout);res.off('close',disconnected);state.busy=false;if(res.destroyed&&!res.writableEnded)res.end();}
 });
+registerConversationRoutes(app, authenticateToken);
 app.post('/api/assistant/chat', authenticateToken, async (req, res) => {
   res.set('Cache-Control', 'no-store');
   const userId=String(req.user.userId),state=aiState(userId),traceId=randomUUID(),started=Date.now();
-  let request,stage='validation',providerReport=null;
-  try { request = assistantRequest(req.body); } catch (error) { return aiFailure(res,state,400,'validation',error.message,'Review the question and context options, then try again.',{traceId,stage}); }
+  let request,stage='validation',providerReport=null,turn=null,turnFinished=false;
+  try { request = assistantRequest({...req.body,messages:[{role:'user',content:req.body.regenerate===true?'Regenerate the last answer.':req.body.question}]}); } catch (error) { return aiFailure(res,state,400,'validation',error.message,'Review the question and context options, then try again.',{traceId,stage}); }
   if (!process.env.GEMINI_API_KEY?.trim()) return aiFailure(res,state,503,'configuration','The assistant is not connected yet.','Set GEMINI_API_KEY on the backend and restart it.',{traceId,stage:'configuration'});
   if (state.busy) return aiFailure(res,null,409,'request_in_progress','Another AI request is still running for this account.','Wait for it to finish or stop the request in the tab where it started.',{traceId,retryable:true,retryAfterSeconds:1,stage:'application'});
   if (state.count >= 20) return aiFailure(res,state,429,'app_limit','This account reached the app’s chat request limit.','Wait until the application limit resets. This is separate from Gemini billing and rate limits.',{traceId,retryable:true,retryAfterSeconds:Math.ceil((state.start+600000-Date.now())/1000),stage:'application'});
@@ -419,9 +421,11 @@ app.post('/api/assistant/chat', authenticateToken, async (req, res) => {
   const disconnected = () => { if (!res.writableEnded) controller.abort(); };
   res.on('close', disconnected);
   try {
+    stage='load_conversation';
+    turn=await prepareConversation(userId,req.body);request.messages=turn.history;
     stage='load_workspace';
     const user = await User.findById(userId).select('username email timeZone createdAt canvasUrl lastCanvasSync').lean();
-    if (!user) return aiFailure(res,state,404,'account_unavailable','Account not found.','Sign in again and retry.',{traceId,stage});
+    if (!user) { await finishConversation(turn,null,'Account not found.');turnFinished=true;return aiFailure(res,state,404,'account_unavailable','Account not found.','Sign in again and retry.',{traceId,stage}); }
     let tasks=[],entries=[],documents=[],folders=[],documentFolders=[],totals={};
     if (request.includeWorkspace) {
       const owner = { user: userId }, active = { user: userId, deletedAt: null };
@@ -439,7 +443,7 @@ app.post('/api/assistant/chat', authenticateToken, async (req, res) => {
     if (request.includeDocument && request.documentId) {
       stage='read_document';
       file = await PDF.findOne({ _id: request.documentId, user: userId, deletedAt: null }).select('name originalName mimeType pdfData');
-      if (!file) return aiFailure(res,state,404,'document_unavailable','The open document is unavailable or does not belong to your account.','Refresh Documents or turn off open-file context and resend.',{traceId,stage});
+      if (!file) { await finishConversation(turn,null,'The selected document is unavailable. Turn off open-file context or open another file, then retry.');turnFinished=true;return aiFailure(res,state,404,'document_unavailable','The open document is unavailable or does not belong to your account.','Refresh Documents or turn off open-file context and resend.',{traceId,stage}); }
     }
     if (controller.signal.aborted) { if (res.destroyed) return; throw new Error('Request timed out.'); }
     const context = workspaceContext({user,tasks,entries,documents,folders,documentFolders,totals},request);
@@ -448,13 +452,18 @@ app.post('/api/assistant/chat', authenticateToken, async (req, res) => {
     providerReport=result.diagnostics;
     stage='parse_answer';const data=result.data,text=responseText(data);state.lastResult={...result.diagnostics,httpStatus:200,totalElapsedMs:Date.now()-started};
     res.set('X-Assistant-Trace-Id',traceId);
-    res.json({text,sources:responseSources(text,context),diagnostics:state.lastResult,context:{...totals,section:request.section,screenIncluded:request.includeScreen,workspaceIncluded:request.includeWorkspace,document:context.openDocument||null},partial:data.candidates?.[0]?.finishReason==='MAX_TOKENS'});
+    const answer={content:text,sources:responseSources(text,context).slice(0,40),context:{...totals,section:request.section,screenIncluded:request.includeScreen,workspaceIncluded:request.includeWorkspace,document:context.openDocument||null,historyMessages:request.messages.length},partial:data.candidates?.[0]?.finishReason==='MAX_TOKENS'};
+    stage='save_conversation';const conversation=await finishConversation(turn,answer);turnFinished=true;
+    res.json({text,sources:answer.sources,diagnostics:state.lastResult,context:answer.context,partial:answer.partial,conversation});
   } catch (error) {
+    if(turn&&!turnFinished){try{await finishConversation(turn,null,controller.signal.aborted?'Request stopped or timed out. Retry your question.':'The reply could not be completed. Retry your question.');turnFinished=true;}catch{}}
     if (!res.destroyed) {
+      if(stage==='load_conversation')return aiFailure(res,state,error.status||500,'conversation',error.status?error.message:'Could not load the saved conversation.','Reopen the chat and try again.',{traceId,stage});
+      if(stage==='save_conversation')return aiFailure(res,state,503,'conversation_save','The answer could not be saved.','Reopen the chat to check its saved state before retrying.',{traceId,stage});
       if(error instanceof AssistantAPIError){state.lastResult={...error.diagnostics,httpStatus:error.status,totalElapsedMs:Date.now()-started};res.set('X-Assistant-Trace-Id',traceId);if(error.diagnostics.retryable&&error.diagnostics.retryAfterSeconds)res.set('Retry-After',String(error.diagnostics.retryAfterSeconds));res.status(error.status).json({message:error.message,diagnostics:state.lastResult});}
       else aiFailure(res,state,502,controller.signal.aborted?'timeout':stage==='parse_answer'?'empty_response':'workspace_unavailable',controller.signal.aborted?'The AI request timed out.':stage==='parse_answer'?'Gemini returned no usable answer.':'Could not load workspace context for the assistant.',controller.signal.aborted?'Try a smaller request.':stage==='parse_answer'?'Try another question or check the model’s output token requirements.':'Check the backend database connection and try again.',{traceId,stage,totalElapsedMs:Date.now()-started,retryable:true,source:providerReport?'gemini':'application',providerStatus:providerReport?.providerStatus,providerRequestId:providerReport?.providerRequestId,inputTokens:providerReport?.inputTokens,outputTokens:providerReport?.outputTokens});
     }
-  } finally { clearTimeout(timeout); res.off('close',disconnected); state.busy=false; if (res.destroyed && !res.writableEnded) res.end(); }
+  } finally { if(turn&&!turnFinished){try{await finishConversation(turn,null,'The reply was interrupted. Retry your question.');}catch{}} clearTimeout(timeout); res.off('close',disconnected); state.busy=false; if (res.destroyed && !res.writableEnded) res.end(); }
 });
 app.get('/api/account/preferences', authenticateToken, async (req, res) => {
   try {
@@ -484,7 +493,7 @@ app.post('/api/user/reset', authenticateToken, async (req, res) => {
     if (!await bcrypt.compare(req.body.password, user.password)) return res.status(401).json({ message: 'The password is incorrect. No data was reset.' });
     if ((accountWrites.get(userId) || 0) !== 1 || resettingAccounts.has(userId)) return res.status(409).json({ message: 'Wait for uploads, saves, and imports to finish, then try the reset again.' });
     resettingAccounts.add(userId); locked = true;
-    const deleted = await resetAccountWorkspace({ userId, models: { Todo, PDF, Folder, PDFFolder, User, CalendarEntry }, startSession: () => mongoose.startSession() });
+    const deleted = await resetAccountWorkspace({ userId, models: { Todo, PDF, Folder, PDFFolder, User, CalendarEntry, AssistantConversation }, startSession: () => mongoose.startSession() });
     res.json({ message: 'Account workspace reset.', deleted });
   } catch (error) {
     const unsupported = /Transaction numbers|replica set|mongos/i.test(error.message);

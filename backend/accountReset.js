@@ -9,6 +9,10 @@ async function resetAccountWorkspace({ userId, models, startSession }) {
         const result = await model.deleteMany(owner, { session });
         deleted[key] = result.deletedCount;
       }
+      if (models.AssistantConversation) {
+        const result = await models.AssistantConversation.deleteMany(owner, { session });
+        deleted.assistantConversations = result.deletedCount;
+      }
       const result = await models.User.updateOne({ _id: userId }, { $set: { canvasUrl: null, canvasToken: null, lastCanvasSync: null } }, { session });
       if (result.matchedCount !== 1) throw new Error('Account no longer exists.');
     });
