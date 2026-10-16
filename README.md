@@ -61,6 +61,8 @@ Search for a city to choose from matching locations, or use **Detect from IP** t
 
 ## 📖 Full Setup & Deployment Guide
 
+To export public TXST Bobcat Organization Hub events to JSON or CSV, see [TXST event scraper](backend/TXST_EVENTS.md).
+
 See [SETUP.md](./SETUP.md) for:
 - Detailed local development setup
 - MongoDB Atlas configuration
