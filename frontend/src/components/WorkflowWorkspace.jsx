@@ -33,6 +33,11 @@ export default function WorkflowWorkspace({open,token,userId,keyboardEnabled=tru
     catch(error){if(error.name!=='AbortError')setCalendarError(error.message)}finally{if(!controller.signal.aborted)setCalendarLoading(false)}
   }
   useEffect(()=>{if(open)refreshCalendar()},[open,token])
+  useEffect(()=>{
+    const changed=()=>{if(open)refreshCalendar()}
+    window.addEventListener('calendar-changed',changed)
+    return()=>window.removeEventListener('calendar-changed',changed)
+  },[open,token])
   useEffect(()=>()=>calendarController.current?.abort(),[])
   useEffect(()=>{
     if(!open||!ready)return

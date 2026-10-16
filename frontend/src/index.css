@@ -28,3 +28,7 @@
 .pdf-settings-panel > div { padding: 18px; }
 @media(max-width:640px) { .inline-confirmation { flex-wrap: wrap; } .inline-confirmation > div { margin-left: auto; } .app-shell h1 { font-size: 24px; } }
 @media(prefers-reduced-motion:reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0ms !important; animation-duration: 0ms !important; } }
+
+.calendar-undo{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0;font-size:12px}
+.calendar-undo button{padding:7px 10px;border:1px solid var(--border-strong);border-radius:6px;background:var(--surface-raised);color:var(--text-primary)}
+.calendar-undo button:disabled{opacity:.45}.calendar-undo [role=alert]{color:var(--danger)}

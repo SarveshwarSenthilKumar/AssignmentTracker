@@ -1,7 +1,7 @@
 const { scrapeTxstEvents } = require('./scrapeTxstEvents');
 
 // Shared public data: no personal calendar records or credentials are involved.
-function registerTxstCalendar(app, authenticateToken, User) {
+function registerTxstCalendar(app, authenticateToken, User, history) {
   let events = [], updatedAt = null, attemptedAt = 0, syncing = false;
   let warning = '', progress = '', complete = false;
   const refresh = () => {
@@ -58,7 +58,11 @@ function registerTxstCalendar(app, authenticateToken, User) {
     else if(action==='restore') update={$set:{hiddenCalendarIds:[],hideTxstEvents:false}};
     else return res.status(400).json({message:'Choose a valid calendar item or action.'});
     try {
-      const user=await User.findByIdAndUpdate(req.user.userId,update,{new:true,runValidators:true}).select('hiddenCalendarIds hideTxstEvents').lean();
+      const user=await history.mutate(req.user.userId,action==='restore'?'restore removed events':action==='hide-many'?'remove matching events':action==='hide-txst'?'remove all TXST events':'remove event',async session=>{
+        const previous=await User.findById(req.user.userId).session(session).lean();
+        const saved=await User.findByIdAndUpdate(req.user.userId,update,{new:true,runValidators:true,session}).select('hiddenCalendarIds hideTxstEvents').lean();
+        return {value:saved,kind:'visibility',before:{hiddenCalendarIds:previous.hiddenCalendarIds||[],hideTxstEvents:!!previous.hideTxstEvents},after:{hiddenCalendarIds:saved.hiddenCalendarIds||[],hideTxstEvents:!!saved.hideTxstEvents}};
+      });
       if(!user)return res.status(404).json({message:'Account not found.'});
       res.json({hiddenCalendarIds:user.hiddenCalendarIds||[],hideTxstEvents:!!user.hideTxstEvents});
     } catch { res.status(500).json({message:'Could not save calendar visibility.'}); }

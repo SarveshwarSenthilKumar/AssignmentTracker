@@ -12,6 +12,7 @@ const { resetAccountWorkspace } = require('./accountReset');
 const { dependencyChange } = require('./taskDependencies');
 const { calendarEntry } = require('./calendarEntries');
 const { registerTxstCalendar } = require('./txstCalendar');
+const { createCalendarHistory } = require('./calendarHistory');
 const { calendarLinksOwned: validateCalendarLinks } = require('./calendarLinks');
 const { collectCanvasPages } = require('./canvasPagination');
 const { parseCalendarICS } = require('./calendarICS');
@@ -40,6 +41,7 @@ mongoose.connect(process.env.MONGODB_URI)
 // User Schema
 const userSchema = new mongoose.Schema({
   hiddenCalendarIds: { type: [String], default: [] },
+  calendarHistoryRevision: { type: Number, default: 0 },
   hideTxstEvents: { type: Boolean, default: false },
   workflowLayout: { type: mongoose.Schema.Types.Mixed, select: false },
   workflowRevision: { type: Number, default: 0, select: false },
@@ -520,7 +522,7 @@ app.post('/api/user/reset', authenticateToken, async (req, res) => {
     if (!await bcrypt.compare(req.body.password, user.password)) return res.status(401).json({ message: 'The password is incorrect. No data was reset.' });
     if ((accountWrites.get(userId) || 0) !== 1 || resettingAccounts.has(userId)) return res.status(409).json({ message: 'Wait for uploads, saves, and imports to finish, then try the reset again.' });
     resettingAccounts.add(userId); locked = true;
-    const deleted = await resetAccountWorkspace({ userId, models: { Todo, PDF, Folder, PDFFolder, User, CalendarEntry, AssistantConversation }, startSession: () => mongoose.startSession() });
+    const deleted = await resetAccountWorkspace({ userId, models: { Todo, PDF, Folder, PDFFolder, User, CalendarEntry, AssistantConversation, CalendarChange: calendarHistory.Change }, startSession: () => mongoose.startSession() });
     res.json({ message: 'Account workspace reset.', deleted });
   } catch (error) {
     const unsupported = /Transaction numbers|replica set|mongos/i.test(error.message);
@@ -532,7 +534,9 @@ app.post('/api/user/reset', authenticateToken, async (req, res) => {
 async function calendarLinksOwned(entry, userId, previous = {}) {
   return validateCalendarLinks(entry, userId, previous, { Todo, PDF });
 }
-registerTxstCalendar(app, authenticateToken, User);
+const calendarHistory = createCalendarHistory({mongoose,User,CalendarEntry});
+calendarHistory.register(app,authenticateToken);
+registerTxstCalendar(app, authenticateToken, User, calendarHistory);
 app.get('/api/calendar-entries', authenticateToken, async (req, res) => {
   try { res.json(await CalendarEntry.find({ user: req.user.userId }).sort({ startDate: 1, startAt: 1 })); }
   catch { res.status(500).json({ message: 'Could not load your calendar entries.' }); }
@@ -542,7 +546,11 @@ app.post('/api/calendar-entries', authenticateToken, async (req, res) => {
   try { entry = calendarEntry(req.body); } catch (error) { return res.status(400).json({ message: error.message }); }
   try {
     if (!await calendarLinksOwned(entry, req.user.userId)) return res.status(400).json({ message: 'Choose tasks and active documents from your account.' });
-    res.status(201).json(await CalendarEntry.create({ ...entry, user: req.user.userId }));
+    const created=await calendarHistory.mutate(req.user.userId,'create event',async session=>{
+      const [document]=await CalendarEntry.create([{...entry,user:req.user.userId}],{session});
+      return {value:document,kind:'entry',entryId:document._id,before:null,after:document.toObject()};
+    });
+    res.status(201).json(created);
   }
   catch { res.status(500).json({ message: 'Could not create the calendar entry.' }); }
 });
@@ -554,7 +562,12 @@ app.put('/api/calendar-entries/:id', authenticateToken, async (req, res) => {
     const current = await CalendarEntry.findOne({ _id: req.params.id, user: req.user.userId });
     if (!current) return res.status(404).json({ message: 'Calendar entry not found.' });
     if (!await calendarLinksOwned(entry, req.user.userId, current)) return res.status(400).json({ message: 'Choose tasks and active documents from your account.' });
-    const updated = await CalendarEntry.findOneAndUpdate({ _id: req.params.id, user: req.user.userId }, { $set: entry }, { new: true, runValidators: true });
+    const updated = await calendarHistory.mutate(req.user.userId,'edit event',async session=>{
+      const before=await CalendarEntry.findOne({_id:req.params.id,user:req.user.userId}).session(session).lean();
+      if(!before)throw new Error('Calendar entry not found.');
+      const document=await CalendarEntry.findOneAndUpdate({_id:req.params.id,user:req.user.userId},{$set:entry},{new:true,runValidators:true,session});
+      return {value:document,kind:'entry',entryId:document._id,before,after:document.toObject()};
+    });
     if (!updated) return res.status(404).json({ message: 'Calendar entry not found.' });
     res.json(updated);
   } catch { res.status(500).json({ message: 'Could not update the calendar entry.' }); }
@@ -562,7 +575,11 @@ app.put('/api/calendar-entries/:id', authenticateToken, async (req, res) => {
 app.delete('/api/calendar-entries/:id', authenticateToken, async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: 'Invalid calendar entry.' });
   try {
-    const removed = await CalendarEntry.findOneAndDelete({ _id: req.params.id, user: req.user.userId });
+    const removed = await calendarHistory.mutate(req.user.userId,'delete event',async session=>{
+      const document=await CalendarEntry.findOneAndDelete({_id:req.params.id,user:req.user.userId},{session});
+      if(!document)throw new Error('Calendar entry not found.');
+      return {value:document,kind:'entry',entryId:document._id,before:document.toObject(),after:null};
+    });
     if (!removed) return res.status(404).json({ message: 'Calendar entry not found.' });
     res.json({ id: removed._id });
   } catch { res.status(500).json({ message: 'Could not delete the calendar entry.' }); }

@@ -1,4 +1,5 @@
 export const SHORTCUTS = [
+  {id:'calendar-undo',scope:'Calendar',label:'Undo the latest saved calendar change outside text fields',key:'z',mod:true,keys:'Ctrl / Cmd + Z'},
   {id:'nav-workspace',scope:'Platform',label:'Open the customizable workspace',key:'9',alt:true,typing:true,keys:'Alt + 9'},
   {id:'workspace-new',scope:'Workspace',label:'Open the window and tool picker',key:'n',alt:true,keys:'Alt + N'},
   {id:'workspace-tile',scope:'Workspace',label:'Tile visible windows',key:'t',alt:true,keys:'Alt + T'},

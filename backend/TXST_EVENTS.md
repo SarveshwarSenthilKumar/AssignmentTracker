@@ -1,5 +1,13 @@
 # TXST event scraper
 
+## Calendar undo
+
+The full Calendar page and Workspace calendar windows have an Undo button. Ctrl+Z (Cmd+Z on Mac) undoes the latest saved calendar change outside text fields. Within Workspace, focus must be inside the calendar window; other windows retain layout undo. Text inputs keep their normal text undo.
+
+History covers new personal events, edits (including completion and attachments saved through the event form), personal event deletion, single removals, matching-name bulk removals, removing all TXST events, and restoring excluded events. Each bulk operation is one undo step. Undo restores deleted personal entries with their original IDs. Each step is consumed after a successful undo; this does not provide redo. History is account-specific, stored in MongoDB without an application history-count limit, and survives reloads, navigation, and backend restarts. Account reset intentionally clears history. Changes made before this feature, edits made through other features such as task editing or the assistant, unsaved form text, and changes at TXST itself are outside this history. Concurrent changes to an affected entry are detected rather than overwritten.
+
+**Setup:** restart the backend and reload the frontend. Calendar writes and undo use MongoDB transactions so an action and its history commit together; use MongoDB Atlas or a replica set (a standalone MongoDB server needs replica-set configuration). No new packages or manual schema migration are required. Automated tests, builds, browser QA, and live probes have not been run, following repository instructions.
+
 Requires Node.js 18 or newer. No additional packages, database, server, or API key are needed.
 
 From the `backend` directory:

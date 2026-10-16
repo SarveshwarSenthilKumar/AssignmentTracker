@@ -9,6 +9,7 @@ import { CALENDAR_LABELS, calendarDay, shiftMonth, monthDays, dayLabel, calendar
 import './CalendarPage.css'
 import useTxstEvents from '../hooks/useTxstEvents'
 import SimilarEvents from './SimilarEvents'
+import CalendarUndo from './CalendarUndo'
 
 function CampusEventDetails({event}) {
   const text=value=>value==null?'':typeof value==='string'?value:Array.isArray(value)?value.map(text).filter(Boolean).join(', '):typeof value==='object'?text(value.name||value.title||value.label||''):String(value)
@@ -23,14 +24,20 @@ export default function CalendarPage({ tasks, documents=[], documentFolders=[], 
   const [attachmentBusy,setAttachmentBusy]=useState(false)
   const {campus,refreshCampus,changeVisibility}=useTxstEvents(token)
   const [similarTarget,setSimilarTarget]=useState(null)
+  const [calendarRevision,setCalendarRevision]=useState(0)
+  useEffect(()=>{
+    const changed=()=>setCalendarRevision(value=>value+1)
+    window.addEventListener('calendar-changed',changed)
+    return()=>window.removeEventListener('calendar-changed',changed)
+  },[])
   const changeAttachment=(key,action,id)=>setDraft(previous=>({...previous,[key]:action==='add'?[...new Set([...(previous[key]||[]),id])]:(previous[key]||[]).filter(value=>value!==id)}))
   const lock=useRef(false), panel=useRef(null), search=useRef(null), confirmation=useInlineConfirm()
-  const request=async(url,options={})=>{const response=await fetch(url,{...options,headers:{Authorization:`Bearer ${token}`,...options.headers}});const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.message||'Could not update your calendar.');return data}
+  const request=async(url,options={})=>{const response=await fetch(url,{...options,headers:{Authorization:`Bearer ${token}`,...options.headers}});const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.message||'Could not update your calendar.');if(options.method&&options.method!=='GET')window.dispatchEvent(new Event('calendar-changed'));return data}
   useEffect(()=>{
     const controller=new AbortController();setLoading(true);setError('')
     request('/api/calendar-entries',{signal:controller.signal}).then(data=>{if(!Array.isArray(data))throw new Error('Unexpected calendar response.');setEntries(data)}).catch(error=>{if(error.name!=='AbortError')setError(error.message)}).finally(()=>{if(!controller.signal.aborted)setLoading(false)})
     return()=>controller.abort()
-  },[token])
+  },[token,calendarRevision])
   useEffect(()=>{
     if(loading||!focusEntryId)return
     const entry=entries.find(entry=>entry._id===focusEntryId)
@@ -52,7 +59,7 @@ export default function CalendarPage({ tasks, documents=[], documentFolders=[], 
     const result=await request(id?`/api/calendar-entries/${id}`:'/api/calendar-entries',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
     setEntries(prev=>id?prev.map(entry=>entry._id===id?result:entry):[...prev,result]);setDraft(null);setSelectedId(`entry:${result._id}`);const date=result.allDay?result.startDate:calendarDay(result.startAt);setSelectedDay(date);setAnchor(date);setNotice(id?'Calendar entry updated.':'Calendar entry added.')
   })}
-  const remove=async entry=>{if(!await confirmation.ask(`Delete “${entry.title}” from your personal calendar? This cannot be undone.`,'Delete entry'))return;run(async()=>{await request(`/api/calendar-entries/${entry._id}`,{method:'DELETE'});setEntries(prev=>prev.filter(item=>item._id!==entry._id));setSelectedId(null);setDraft(null);setNotice('Calendar entry deleted.')})}
+  const remove=async entry=>{if(!await confirmation.ask(`Delete “${entry.title}” from your personal calendar? You can restore it with Undo.`,'Delete entry'))return;run(async()=>{await request(`/api/calendar-entries/${entry._id}`,{method:'DELETE'});setEntries(prev=>prev.filter(item=>item._id!==entry._id));setSelectedId(null);setDraft(null);setNotice('Calendar entry deleted.')})}
   const toggleDone=entry=>run(async()=>{const result=await request(`/api/calendar-entries/${entry._id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(entryPayload({...entryDraft(selectedDay,entry.kind,entry),done:!entry.done}))});setEntries(prev=>prev.map(item=>item._id===entry._id?result:item))})
   const removeExternal=item=>run(async()=>{await changeVisibility('hide',item.id);setSelectedId(null);setNotice('Event removed. Use Restore removed events to bring it back.')})
   const removeTxst=()=>run(async()=>{await changeVisibility('hide-txst');setSelectedId(null);setNotice('All TXST events removed. Use Restore removed events to bring them back.')})
@@ -62,6 +69,7 @@ export default function CalendarPage({ tasks, documents=[], documentFolders=[], 
   return <section className="calendar-page" aria-label="Workspace calendar" aria-busy={loading||busy}>
     <div className="calendar-heading"><div><CalendarDays size={21}/><div><h2>Your calendar</h2><p>Task deadlines, Canvas assignments, TXST events, appointments, and date markers · {zone}</p></div></div><div className="calendar-actions"><button type="button" disabled={busy||loading||attachmentBusy} onClick={refresh} aria-label="Refresh calendar"><RefreshCw size={15}/></button><button type="button" disabled={busy||loading||syncing||!canvasStatus?.hasCredentials} onClick={onSyncCanvas}><RefreshCw size={15}/>{syncing?'Syncing…':'Sync Canvas'}</button>{!canvasStatus?.hasCredentials&&<button type="button" onClick={onCanvasSettings}>Connect Canvas</button>}<button type="button" disabled={busy||loading||attachmentBusy} onClick={()=>openForm()}><Plus size={15}/>Appointment</button><button type="button" disabled={busy||loading||attachmentBusy} onClick={()=>openForm('marker')}><Plus size={15}/>Date marker</button></div></div>
     <InlineConfirmation {...confirmation} reveal/>
+    <CalendarUndo token={token} enabled={keyboardEnabled&&!busy&&!attachmentBusy&&!confirmation.pending&&!similarTarget} globalShortcut/>
     {similarTarget&&<SimilarEvents key={similarTarget.id} target={similarTarget} items={all} onClose={()=>setSimilarTarget(null)} onRemove={async ids=>{await changeVisibility('hide-many',ids);setSelectedId(null);setNotice(`${ids.length} events removed from your calendar.`)}}/>}
     <div className={`calendar-feedback ${campus.warning?'is-error':''}`} role={campus.warning?'alert':'status'}>
       <span>{campus.syncing ? campus.progress || 'Loading TXST events…' : campus.warning || `${campus.hideTxstEvents?0:campus.events.filter(event=>!(campus.hiddenCalendarIds||[]).includes(`txst:${event.id}`)).length} TXST events in your calendar`}{campus.updatedAt && ` · Last synced ${new Date(campus.updatedAt).toLocaleString(undefined,{timeZone:zone})}`}</span>

@@ -7,6 +7,7 @@ import AssistantMarkdown from './AssistantMarkdown'
 import useInlineConfirm from '../hooks/useInlineConfirm'
 import InlineConfirmation from './InlineConfirmation'
 import SimilarEvents from './SimilarEvents'
+import CalendarUndo from './CalendarUndo'
 
 function TaskPane({tasks,folders,token,onTasksChange,onOpenTask,onStatusChange}){
   const [query,setQuery]=useState(''),[folder,setFolder]=useState('all'),[status,setStatus]=useState('active'),[text,setText]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('')
@@ -21,7 +22,7 @@ function TaskPane({tasks,folders,token,onTasksChange,onOpenTask,onStatusChange})
   const advance=async task=>{if(busy)return;setBusy(true);setError('');try{await onStatusChange(task._id,taskStatus(task)==='completed'?'todo':taskStatus(task)==='todo'?'in-progress':'completed')}catch(error){setError(error.message)}finally{setBusy(false)}}
   return <div className="workflow-tool"><div className="workflow-stats"><span><strong>{metrics.counts.todo}</strong>To do</span><span><strong>{metrics.counts['in-progress']}</strong>In progress</span><span><strong>{metrics.completion}%</strong>Complete</span></div><div className="workflow-tool-filters"><label className="workflow-search"><Search size={13}/><input aria-label="Search window tasks" value={query} onChange={event=>setQuery(event.target.value)} placeholder="Search tasks…"/></label><select aria-label="Task status filter" value={status} onChange={event=>setStatus(event.target.value)}><option value="active">Active</option><option value="all">All tasks</option>{Object.entries(STATUS_LABELS).map(([key,label])=><option key={key} value={key}>{label}</option>)}</select><select aria-label="Task folder filter" value={folder} onChange={event=>setFolder(event.target.value)}><option value="all">All folders</option><option value="">Inbox</option>{folders.map(folder=><option key={folder._id} value={folder._id}>{folder.name}</option>)}</select></div><form className="workflow-quick-add" onSubmit={create}><input aria-label="New task in this window" maxLength={1000} placeholder="Add a task…" value={text} disabled={busy} onChange={event=>setText(event.target.value)}/><button type="submit" disabled={busy||!text.trim()}><Plus size={14}/></button></form>{error&&<p role="alert" className="workflow-error">{error}</p>}<div className="workflow-task-list">{visible.map(task=><div key={task._id}><button type="button" className={`workflow-task-state state-${taskStatus(task)}`} disabled={busy} onClick={()=>advance(task)} title="Advance status" aria-label={`Advance ${task.text}: ${STATUS_LABELS[taskStatus(task)]}`}>{taskStatus(task)==='completed'?<Check size={13}/>:taskStatus(task)==='in-progress'?<span>◐</span>:<span>○</span>}</button><button type="button" onClick={()=>onOpenTask(task)}><strong>{task.text}</strong><small>{taskDueLabel(task,true)} · {STATUS_LABELS[taskStatus(task)]}</small></button><ArrowUpRight size={13}/></div>)}{!visible.length&&<p className="workflow-empty">No tasks match these filters.</p>}</div></div>
 }
-function AgendaPane({tasks,entries,calendarLoading,calendarError,onRefreshCalendar,onOpenTask,onOpenCalendarEntry,onNavigate,campus,onRefreshCampus,onCalendarVisibility,token}){
+function AgendaPane({tasks,entries,calendarLoading,calendarError,onRefreshCalendar,onOpenTask,onOpenCalendarEntry,onNavigate,campus,onRefreshCampus,onCalendarVisibility,token,active,keyboardEnabled}){
   const [query,setQuery]=useState(''),[past,setPast]=useState(false)
   const [limit,setLimit]=useState(100),[showTxst,setShowTxst]=useState(true)
   const [similarTarget,setSimilarTarget]=useState(null)
@@ -29,12 +30,13 @@ function AgendaPane({tasks,entries,calendarLoading,calendarError,onRefreshCalend
   const confirmation=useInlineConfirm(),[deleting,setDeleting]=useState(false),[deleteError,setDeleteError]=useState('')
   const today=calendarDay(new Date()),items=calendarItems(tasks,entries,campus?.events||[]).filter(item=>!(campus?.hiddenCalendarIds||[]).includes(item.id)&&!(campus?.hideTxstEvents&&item.source==='txst')&&(showTxst||item.source!=='txst')&&(past||item.endDate>=today)&&`${item.title} ${item.location} ${item.context||''}`.toLowerCase().includes(query.toLowerCase()))
   const removeItem=async item=>{
-    if(item.entry&&!await confirmation.ask(`Permanently delete “${item.title}”? This cannot be undone.`,'Delete event'))return
+    if(item.entry&&!await confirmation.ask(`Delete “${item.title}”? You can restore it with Undo.`,'Delete event'))return
     setDeleting(true);setDeleteError('')
     try {
       if(item.entry){
         const response=await fetch(`/api/calendar-entries/${item.entry._id}`,{method:'DELETE',headers:{Authorization:`Bearer ${token}`}})
         if(!response.ok){const data=await response.json().catch(()=>({}));throw new Error(data.message||'Could not delete event.')}
+        window.dispatchEvent(new Event('calendar-changed'))
         await onRefreshCalendar()
       }else await onCalendarVisibility('hide',item.id)
     }catch(error){setDeleteError(error.message)}finally{setDeleting(false)}
@@ -43,7 +45,8 @@ function AgendaPane({tasks,entries,calendarLoading,calendarError,onRefreshCalend
     setDeleting(true);setDeleteError('')
     try{await onCalendarVisibility(action)}catch(error){setDeleteError(error.message)}finally{setDeleting(false)}
   }
-  return <div className="workflow-tool">
+  return <div className="workflow-tool" data-calendar-undo>
+    <CalendarUndo token={token} enabled={active&&keyboardEnabled&&!deleting&&!confirmation.pending&&!similarTarget}/>
     <div className="workflow-tool-filters"><label className="workflow-search"><Search size={13}/><input aria-label="Search agenda window" value={query} onChange={event=>{setQuery(event.target.value);setLimit(100)}} placeholder="Search agenda…"/></label><button type="button" disabled={calendarLoading} onClick={onRefreshCalendar}>Refresh</button><button type="button" disabled={campus?.syncing} onClick={onRefreshCampus}>Refresh TXST</button><button type="button" onClick={()=>onNavigate('calendar')}>Full calendar ↗</button></div>
     <label className="workflow-checkbox"><input type="checkbox" checked={past} onChange={event=>setPast(event.target.checked)}/>Include past entries</label>
     <label className="workflow-checkbox"><input type="checkbox" checked={showTxst} onChange={event=>setShowTxst(event.target.checked)}/>TXST events</label>
@@ -116,7 +119,7 @@ function FocusPane({tasks,onOpenTask}){
 export default function WorkflowTools({pane,onNoteChange,active,...props}){
   const mapTasks=useMemo(()=>props.tasks,[props.tasks])
   if(pane.type==='tasks')return <TaskPane {...props}/>
-  if(pane.type==='calendar')return <AgendaPane {...props}/>
+  if(pane.type==='calendar')return <AgendaPane {...props} active={active}/>
   if(pane.type==='documents')return <DocumentsPane {...props}/>
   if(pane.type==='notes')return <NotesPane pane={pane} onNoteChange={onNoteChange}/>
   if(pane.type==='focus')return <FocusPane {...props}/>
