@@ -2,7 +2,12 @@
 try to connect to canvas to see if you can get details of assignments and provide a time estimate
 add the ability to attach a file to something and add a prompt to an ai and for it to create a more digestible version
 add the ability to create specific questions based off of weaknesses and to grade it using ai
-
+only events by a certain group
+add grouped meetings for every week or regular time interval
+check every day by keeping track of last checked
+add an algorithm to only do most interesting
+add block events feature
+add location preferences
 
 resume job tailor:
 Get job by links
