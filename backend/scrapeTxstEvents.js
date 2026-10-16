@@ -9,7 +9,7 @@ async function requestJson(url, { delay = 500, retries = 3 } = {}) {
     await wait(delay);
     try {
       const response = await fetch(url, {
-        headers: { Accept: 'application/json', 'User-Agent': 'AssignmentTracker-EventCollector/1.0' },
+        headers: { Accept: 'application/json', 'User-Agent': 'AssignmentTracker-EventCollector/1.0', 'X-Requested-With': 'XMLHttpRequest', Referer: `${BASE}/engage/events` },
         signal: AbortSignal.timeout(30000),
       });
       if (!response.ok) {
@@ -60,13 +60,17 @@ async function scrapeTxstEvents({ from, to, delay = 500, pageSize = 100, onProgr
   const errors = [];
   let listingComplete = false;
   let reportedTotal = null;
+  const endsAfter = from || new Date().toISOString();
   try {
     for (let skip = 0; ; ) {
       const url = new URL('/engage/api/discovery/event/search', BASE);
       url.searchParams.set('skip', skip);
       url.searchParams.set('take', pageSize);
-      url.searchParams.set('orderByField', 'startsOn');
+      url.searchParams.set('orderByField', 'endsOn');
       url.searchParams.set('orderByDirection', 'ascending');
+      url.searchParams.set('status', 'Approved');
+      url.searchParams.set('endsAfter', endsAfter);
+      url.searchParams.set('query', '');
       if (from) url.searchParams.set('startsAfter', from);
       if (to) url.searchParams.set('startsBefore', to);
       const page = await requestJson(url, { delay });
@@ -84,6 +88,7 @@ async function scrapeTxstEvents({ from, to, delay = 500, pageSize = 100, onProgr
         const id = item.id ?? item.eventId;
         if (id == null) throw new Error('An event listing is missing its ID.');
         listings.set(String(id), item);
+        onEvent(normalizeEvent(item, null));
       }
       skip += items.length;
       onProgress(`Collected ${listings.size} event listings`);

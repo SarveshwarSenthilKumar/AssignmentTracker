@@ -14,11 +14,13 @@ By default, writes `exports/txst-events.json`, relative to the working directory
 
 The scraper requests public discovery search pages, deduplicates event IDs, and fetches individual details sequentially. Requests have timeouts, retries for transient failures, and a default 500 ms delay. Use `--delay 1000` to slow requests further. Errors are saved with partial results and the process exits with status 1 if collection is incomplete. `complete` means all pages and details in the returned search were collected; it does not guarantee access to every event in the institution's records. Output files at the selected paths are overwritten.
 
-Without date filters, the site determines the search's date range. Historical events may require `--from` and may no longer be available publicly. Private, restricted, removed, and unpublished events cannot be collected. Details absent from the public response remain empty or null. This does not sign in, RSVP, or download image files.
+Without date filters, the scraper collects approved upcoming and ongoing public events, using the website's `endsAfter`, `status`, and sort parameters. Historical events require `--from` and may no longer be available publicly. Private, restricted, removed, and unpublished events cannot be collected. Details absent from the public response remain empty or null. This does not sign in, RSVP, or download image files.
 
 ## Calendar integration
 
 Open the app's Calendar page to automatically load all events returned by the public search, alongside your personal entries and task deadlines. No manual export or CLI command is needed. Restart the backend after installing this change; no new dependencies or environment variables are required.
+
+The Workspace calendar window uses the same TXST loading hook and cache as the full Calendar page. Both views include a `Refresh TXST` button and report loading or upstream failures. The Workspace agenda includes a TXST visibility checkbox and a Show more button for lists exceeding 100 entries. Clicking a campus event in the Workspace agenda opens its TXST page. Listing data appears as soon as each search page arrives, before individual detail requests finish.
 
 TXST events have a separate source filter (enabled by default), a monthly count, and details with descriptions, locations, organizations, categories, themes, benefits, and a link to the source event where available. Times follow your account's time zone. TXST events are read-only and do not create personal tasks or calendar records. Public events missing a valid start time cannot be placed on the calendar.
 

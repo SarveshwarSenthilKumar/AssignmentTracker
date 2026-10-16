@@ -7,6 +7,7 @@ import useInlineConfirm from '../hooks/useInlineConfirm'
 import InlineConfirmation from './InlineConfirmation'
 import { CALENDAR_LABELS, calendarDay, shiftMonth, monthDays, dayLabel, calendarItems, itemsOnDay, itemsInMonth, calendarTime, entryDraft, entryPayload } from '../lib/calendar'
 import './CalendarPage.css'
+import useTxstEvents from '../hooks/useTxstEvents'
 
 function CampusEventDetails({event}) {
   const text=value=>value==null?'':typeof value==='string'?value:Array.isArray(value)?value.map(text).filter(Boolean).join(', '):typeof value==='object'?text(value.name||value.title||value.label||''):String(value)
@@ -19,9 +20,7 @@ export default function CalendarPage({ tasks, documents=[], documentFolders=[], 
   const [sources,setSources]=useState(new Set(Object.keys(CALENDAR_LABELS))),[hideDone,setHideDone]=useState(false),[selectedId,setSelectedId]=useState(null),[draft,setDraft]=useState(null)
   const [loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('')
   const [attachmentBusy,setAttachmentBusy]=useState(false)
-  const [campus,setCampus]=useState({events:[],syncing:true,progress:'Loading TXST events…',warning:'',updatedAt:null})
-  const [campusRefresh,setCampusRefresh]=useState(0)
-  const campusRefreshRequested=useRef(false)
+  const {campus,refreshCampus}=useTxstEvents(token)
   const changeAttachment=(key,action,id)=>setDraft(previous=>({...previous,[key]:action==='add'?[...new Set([...(previous[key]||[]),id])]:(previous[key]||[]).filter(value=>value!==id)}))
   const lock=useRef(false), panel=useRef(null), search=useRef(null), confirmation=useInlineConfirm()
   const request=async(url,options={})=>{const response=await fetch(url,{...options,headers:{Authorization:`Bearer ${token}`,...options.headers}});const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.message||'Could not update your calendar.');return data}
@@ -30,32 +29,6 @@ export default function CalendarPage({ tasks, documents=[], documentFolders=[], 
     request('/api/calendar-entries',{signal:controller.signal}).then(data=>{if(!Array.isArray(data))throw new Error('Unexpected calendar response.');setEntries(data)}).catch(error=>{if(error.name!=='AbortError')setError(error.message)}).finally(()=>{if(!controller.signal.aborted)setLoading(false)})
     return()=>controller.abort()
   },[token])
-  useEffect(()=>{
-    const controller=new AbortController()
-    let timer
-    const refreshRequested=campusRefreshRequested.current
-    campusRefreshRequested.current=false
-    const load=async(force=false)=>{
-      try {
-        const data=await request(force?'/api/calendar/txst-events/refresh':'/api/calendar/txst-events',{method:force?'POST':'GET',signal:controller.signal})
-        if(!Array.isArray(data.events))throw new Error('Could not read TXST events.')
-        if(controller.signal.aborted)return
-        setCampus(data)
-        timer=setTimeout(()=>load(),data.syncing?3000:60000)
-      } catch(error) {
-        if(controller.signal.aborted)return
-        setCampus(previous=>({...previous,syncing:false,progress:'',warning:error.message}))
-        timer=setTimeout(()=>load(),60000)
-      }
-    }
-    load(refreshRequested)
-    return()=>{controller.abort();clearTimeout(timer)}
-  },[token,campusRefresh])
-  const refreshCampus=()=>{
-    campusRefreshRequested.current=true
-    setCampus(previous=>({...previous,syncing:true,warning:'',progress:'Refreshing TXST events…'}))
-    setCampusRefresh(value=>value+1)
-  }
   useEffect(()=>{
     if(loading||!focusEntryId)return
     const entry=entries.find(entry=>entry._id===focusEntryId)

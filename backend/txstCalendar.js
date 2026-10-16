@@ -30,9 +30,9 @@ function registerTxstCalendar(app, authenticateToken) {
         }
         complete = result.complete;
         if (result.complete) updatedAt = result.scrapedAt;
-        else warning = 'Some TXST events could not be loaded. Available events are shown; try refreshing later.';
+        else warning = `Some TXST events could not be loaded. ${result.errors[0]?.message || 'Try refreshing later.'}`;
       })
-      .catch(() => { complete = false; warning = 'TXST events are temporarily unavailable. Try refreshing later.'; })
+      .catch(error => { complete = false; warning = `TXST events are temporarily unavailable: ${error.message}`; })
       .finally(() => { syncing = false; progress = ''; });
   };
   const respond = (req, res) => {
