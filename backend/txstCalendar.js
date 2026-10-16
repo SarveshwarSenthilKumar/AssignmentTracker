@@ -50,9 +50,10 @@ function registerTxstCalendar(app, authenticateToken, User) {
   app.get('/api/calendar/txst-events', authenticateToken, respond);
   app.post('/api/calendar/txst-events/refresh', authenticateToken, respond);
   app.put('/api/calendar/visibility', authenticateToken, async (req,res)=>{
-    const {action,id}=req.body||{};
+    const {action,id,ids}=req.body||{};
     let update;
     if(action==='hide' && typeof id==='string' && /^(?:txst:[\w-]{1,100}|task:[a-f\d]{24})$/i.test(id)) update={$addToSet:{hiddenCalendarIds:id}};
+    else if(action==='hide-many' && Array.isArray(ids) && ids.length>0 && ids.length<=10000 && ids.every(value=>typeof value==='string'&&/^(?:txst:[\w-]{1,100}|(?:task|entry):[a-f\d]{24})$/i.test(value))) update={$addToSet:{hiddenCalendarIds:{$each:[...new Set(ids)]}}};
     else if(action==='hide-txst') update={$set:{hideTxstEvents:true}};
     else if(action==='restore') update={$set:{hiddenCalendarIds:[],hideTxstEvents:false}};
     else return res.status(400).json({message:'Choose a valid calendar item or action.'});

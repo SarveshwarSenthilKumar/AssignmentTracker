@@ -6,6 +6,7 @@ import TaskVisualization from './TaskVisualization'
 import AssistantMarkdown from './AssistantMarkdown'
 import useInlineConfirm from '../hooks/useInlineConfirm'
 import InlineConfirmation from './InlineConfirmation'
+import SimilarEvents from './SimilarEvents'
 
 function TaskPane({tasks,folders,token,onTasksChange,onOpenTask,onStatusChange}){
   const [query,setQuery]=useState(''),[folder,setFolder]=useState('all'),[status,setStatus]=useState('active'),[text,setText]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('')
@@ -23,6 +24,8 @@ function TaskPane({tasks,folders,token,onTasksChange,onOpenTask,onStatusChange})
 function AgendaPane({tasks,entries,calendarLoading,calendarError,onRefreshCalendar,onOpenTask,onOpenCalendarEntry,onNavigate,campus,onRefreshCampus,onCalendarVisibility,token}){
   const [query,setQuery]=useState(''),[past,setPast]=useState(false)
   const [limit,setLimit]=useState(100),[showTxst,setShowTxst]=useState(true)
+  const [similarTarget,setSimilarTarget]=useState(null)
+  const allItems=calendarItems(tasks,entries,campus?.events||[]).filter(item=>!(campus?.hiddenCalendarIds||[]).includes(item.id)&&!(campus?.hideTxstEvents&&item.source==='txst'))
   const confirmation=useInlineConfirm(),[deleting,setDeleting]=useState(false),[deleteError,setDeleteError]=useState('')
   const today=calendarDay(new Date()),items=calendarItems(tasks,entries,campus?.events||[]).filter(item=>!(campus?.hiddenCalendarIds||[]).includes(item.id)&&!(campus?.hideTxstEvents&&item.source==='txst')&&(showTxst||item.source!=='txst')&&(past||item.endDate>=today)&&`${item.title} ${item.location} ${item.context||''}`.toLowerCase().includes(query.toLowerCase()))
   const removeItem=async item=>{
@@ -45,11 +48,12 @@ function AgendaPane({tasks,entries,calendarLoading,calendarError,onRefreshCalend
     <label className="workflow-checkbox"><input type="checkbox" checked={past} onChange={event=>setPast(event.target.checked)}/>Include past entries</label>
     <label className="workflow-checkbox"><input type="checkbox" checked={showTxst} onChange={event=>setShowTxst(event.target.checked)}/>TXST events</label>
     <InlineConfirmation {...confirmation} reveal/>
+    {similarTarget&&<SimilarEvents key={similarTarget.id} target={similarTarget} items={allItems} onClose={()=>setSimilarTarget(null)} onRemove={ids=>onCalendarVisibility('hide-many',ids)}/>}
     {deleteError&&<p role="alert" className="workflow-error">{deleteError}</p>}
     <div className="workflow-tool-filters"><button type="button" disabled={deleting||campus?.hideTxstEvents} onClick={()=>changeVisibility('hide-txst')}>Remove all TXST events</button>{(campus?.hideTxstEvents||campus?.hiddenCalendarIds?.length>0)&&<button type="button" disabled={deleting} onClick={()=>changeVisibility('restore')}>Restore removed events</button>}</div>
     {campus&&<p role={campus.warning?'alert':'status'} className={campus.warning?'workflow-error':''}>{campus.syncing?campus.progress||'Loading TXST events…':campus.warning||`${campus.hideTxstEvents?0:campus.events.filter(event=>!(campus.hiddenCalendarIds||[]).includes(`txst:${event.id}`)).length} TXST events in your calendar`}</p>}
     {calendarError&&<p role="alert" className="workflow-error">{calendarError}</p>}{calendarLoading&&<p role="status">Loading calendar…</p>}
-    <div className="workflow-agenda">{items.slice(0,limit).map(item=><div className="workflow-calendar-row" key={item.id}><button type="button" onClick={()=>item.campusEvent?window.open(item.campusEvent.url,'_blank','noopener,noreferrer'):item.task?onOpenTask(item.task):onOpenCalendarEntry?onOpenCalendarEntry(item.entry):onNavigate('calendar')}><time>{dayLabel(item.startDate,{month:'short',day:'numeric'})}</time><span><strong>{item.title}</strong><small>{calendarTime(item)} · {CALENDAR_LABELS[item.source]}{item.done?' · Completed':''}</small>{item.location&&<small>{item.location}</small>}</span><ArrowUpRight size={12}/></button><button type="button" disabled={deleting} aria-label={`Remove ${item.title} from calendar`} onClick={()=>removeItem(item)}>Remove</button></div>)}{!items.length&&!calendarLoading&&<p className="workflow-empty">{campus?.syncing?'Loading campus events…':'No matching upcoming entries.'}</p>}</div>
+    <div className="workflow-agenda">{items.slice(0,limit).map(item=><div className="workflow-calendar-row" key={item.id}><button type="button" onClick={()=>item.campusEvent?window.open(item.campusEvent.url,'_blank','noopener,noreferrer'):item.task?onOpenTask(item.task):onOpenCalendarEntry?onOpenCalendarEntry(item.entry):onNavigate('calendar')}><time>{dayLabel(item.startDate,{month:'short',day:'numeric'})}</time><span><strong>{item.title}</strong><small>{calendarTime(item)} · {CALENDAR_LABELS[item.source]}{item.done?' · Completed':''}</small>{item.location&&<small>{item.location}</small>}</span><ArrowUpRight size={12}/></button><button type="button" disabled={deleting} aria-label={`Remove ${item.title} from calendar`} onClick={()=>removeItem(item)}>Remove</button><button type="button" disabled={deleting} onClick={()=>setSimilarTarget(item)}>Remove similar</button></div>)}{!items.length&&!calendarLoading&&<p className="workflow-empty">{campus?.syncing?'Loading campus events…':'No matching upcoming entries.'}</p>}</div>
     {items.length>limit&&<button type="button" onClick={()=>setLimit(value=>value+100)}>Show more ({items.length-limit} remaining)</button>}
   </div>
 }

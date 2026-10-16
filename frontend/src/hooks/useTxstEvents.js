@@ -51,11 +51,11 @@ export default function useTxstEvents(token, active=true) {
     visibilityVersion.current++
     const previousPreferences={hiddenCalendarIds:campus.hiddenCalendarIds||[],hideTxstEvents:!!campus.hideTxstEvents}
     setCampus(previous=>({...previous,
-      hiddenCalendarIds:action==='restore'?[]:action==='hide'?[...new Set([...(previous.hiddenCalendarIds||[]),id])]:previous.hiddenCalendarIds||[],
+      hiddenCalendarIds:action==='restore'?[]:['hide','hide-many'].includes(action)?[...new Set([...(previous.hiddenCalendarIds||[]),...(action==='hide-many'?id:[id])])]:previous.hiddenCalendarIds||[],
       hideTxstEvents:action==='restore'?false:action==='hide-txst'?true:!!previous.hideTxstEvents,
     }))
     try {
-      const response=await fetch('/api/calendar/visibility',{method:'PUT',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({action,id}),signal:AbortSignal.timeout(20000)})
+      const response=await fetch('/api/calendar/visibility',{method:'PUT',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify(action==='hide-many'?{action,ids:id}:{action,id}),signal:AbortSignal.timeout(20000)})
       const data=await response.json().catch(()=>({}))
       if(response.status===404)throw new Error('The backend is missing the event removal update. Restart or redeploy the backend, then try again.')
       if(!response.ok)throw new Error(data.message||'Could not update calendar visibility.')
