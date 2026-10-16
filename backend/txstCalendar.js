@@ -51,6 +51,8 @@ function registerTxstCalendar(app, authenticateToken, User, history) {
   app.post('/api/calendar/txst-events/refresh', authenticateToken, respond);
   app.put('/api/calendar/visibility', authenticateToken, async (req,res)=>{
     const {action,id,ids}=req.body||{};
+    if(action==='hide'&&(ids!==undefined||typeof id!=='string'))return res.status(400).json({message:'Single event removal requires exactly one event ID.'});
+    if(action==='hide-many'&&id!==undefined)return res.status(400).json({message:'Use the matching event selection for bulk removal.'});
     let update;
     if(action==='hide' && typeof id==='string' && /^(?:txst:[\w-]{1,100}|task:[a-f\d]{24})$/i.test(id)) update={$addToSet:{hiddenCalendarIds:id}};
     else if(action==='hide-many' && Array.isArray(ids) && ids.length>0 && ids.length<=10000 && ids.every(value=>typeof value==='string'&&/^(?:txst:[\w-]{1,100}|(?:task|entry):[a-f\d]{24})$/i.test(value))) update={$addToSet:{hiddenCalendarIds:{$each:[...new Set(ids)]}}};

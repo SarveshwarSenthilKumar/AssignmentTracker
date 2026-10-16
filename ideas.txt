@@ -15,6 +15,9 @@ create a summary of all the events for the day and present most interested
 link social media and get interests
 create a webpage which summarizes all the events for the day in just frontend and place qr code on apartment
 add the ability to connect to other unis and not js txst
+keep track of deleted and removed events for algorithm
+create a page to look at just events
+add all events despite preferences buttopn
 
 resume job tailor:
 Get job by links

@@ -46,6 +46,10 @@ export default function useTxstEvents(token, active=true) {
     setRevision(value=>value+1)
   }
   const changeVisibility=async(action,id)=>{
+    // Single removal always carries exactly one stable event ID; name matching
+    // is only allowed through the explicit, reviewed batch action.
+    if(action==='hide'&&(typeof id!=='string'||!id))throw new Error('Select one event to remove.')
+    if(action==='hide-many'&&(!Array.isArray(id)||!id.length))throw new Error('Select the matching events to remove.')
     if(mutation.current)throw new Error('A calendar change is still saving. Try again in a moment.')
     mutation.current=true
     visibilityVersion.current++
