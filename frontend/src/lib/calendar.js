@@ -1,5 +1,5 @@
 import { activeTimeZone, zonedLocal, localToInstant } from './timeZone.js'
-export const CALENDAR_LABELS = { tasks: 'Task deadlines', canvas: 'Canvas & imports', appointment: 'Appointments', marker: 'Date markers' }
+export const CALENDAR_LABELS = { tasks: 'Task deadlines', canvas: 'Canvas & imports', txst: 'TXST events', appointment: 'Appointments', marker: 'Date markers' }
 export const validDay = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(`${value}T12:00:00Z`)) && new Date(`${value}T12:00:00Z`).toISOString().slice(0,10) === value
 export function calendarDay(value) {
   if (value == null) return null
@@ -22,7 +22,7 @@ export function taskDueLabel(task, includeTime=false) {
 }
 export const localDateTime = value => zonedLocal(value)
 
-export function calendarItems(tasks, entries) {
+export function calendarItems(tasks, entries, campusEvents = []) {
   const items = []
   for (const task of tasks) {
     if (!task.dueDate || !Number.isFinite(Date.parse(task.dueDate))) continue
@@ -40,6 +40,14 @@ export function calendarItems(tasks, entries) {
     const endDate = entry.allDay ? entry.endDate || startDate : calendarDay(new Date(Date.parse(entry.endAt)-1))
     if (!validDay(startDate) || !validDay(endDate)) continue
     items.push({id:`entry:${entry._id}`,title:entry.title,source:entry.kind,kind:entry.kind,startDate,endDate,allDay:entry.allDay,startAt:entry.startAt,endAt:entry.endAt,notes:entry.notes,location:entry.location,done:!!entry.done,entry})
+  }
+  for (const event of campusEvents) {
+    if (!event.startsOn || !Number.isFinite(Date.parse(event.startsOn))) continue
+    const startDate = calendarDay(event.startsOn)
+    const endAt = event.endsOn && Date.parse(event.endsOn) > Date.parse(event.startsOn) ? event.endsOn : null
+    const endDate = endAt ? calendarDay(new Date(Date.parse(endAt)-1)) : startDate
+    const text = value => value == null ? '' : typeof value === 'string' ? value : Array.isArray(value) ? value.map(text).filter(Boolean).join(', ') : value.name || value.title || value.address || ''
+    items.push({id:`txst:${event.id}`,title:event.name || 'TXST event',source:'txst',kind:'event',startDate,endDate,allDay:false,startAt:event.startsOn,endAt,done:false,notes:event.description || '',location:text(event.location) || text(event.address),context:text(event.organizations),campusEvent:event})
   }
   return items.sort((a,b)=>a.startDate.localeCompare(b.startDate) || Number(b.allDay)-Number(a.allDay) || String(a.startAt||'').localeCompare(String(b.startAt||'')) || a.title.localeCompare(b.title))
 }

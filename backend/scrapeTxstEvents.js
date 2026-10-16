@@ -55,7 +55,7 @@ function normalizeEvent(listing, detail) {
   };
 }
 
-async function scrapeTxstEvents({ from, to, delay = 500, pageSize = 100, onProgress = () => {} } = {}) {
+async function scrapeTxstEvents({ from, to, delay = 500, pageSize = 100, onProgress = () => {}, onEvent = () => {} } = {}) {
   const listings = new Map();
   const errors = [];
   let listingComplete = false;
@@ -110,6 +110,7 @@ async function scrapeTxstEvents({ from, to, delay = 500, pageSize = 100, onProgr
       errors.push({ stage: 'detail', id, message: error.message });
     }
     events.push(normalizeEvent(listing, detail));
+    onEvent(events[events.length - 1]);
     onProgress(`Fetched details ${events.length}/${listings.size}`);
   }
   return {

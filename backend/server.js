@@ -11,6 +11,7 @@ const { deletePDFPage, insertPDFPages } = require('./pdfPages');
 const { resetAccountWorkspace } = require('./accountReset');
 const { dependencyChange } = require('./taskDependencies');
 const { calendarEntry } = require('./calendarEntries');
+const { registerTxstCalendar } = require('./txstCalendar');
 const { calendarLinksOwned: validateCalendarLinks } = require('./calendarLinks');
 const { collectCanvasPages } = require('./canvasPagination');
 const { parseCalendarICS } = require('./calendarICS');
@@ -529,6 +530,7 @@ app.post('/api/user/reset', authenticateToken, async (req, res) => {
 async function calendarLinksOwned(entry, userId, previous = {}) {
   return validateCalendarLinks(entry, userId, previous, { Todo, PDF });
 }
+registerTxstCalendar(app, authenticateToken);
 app.get('/api/calendar-entries', authenticateToken, async (req, res) => {
   try { res.json(await CalendarEntry.find({ user: req.user.userId }).sort({ startDate: 1, startAt: 1 })); }
   catch { res.status(500).json({ message: 'Could not load your calendar entries.' }); }
