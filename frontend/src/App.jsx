@@ -29,6 +29,7 @@ import PDFUploadModal from './components/PDFUploadModal'
 function App() {
   const { isAuthenticated, token, logout, user, loading: authLoading } = useAuth()
   const taskConfirmation = useInlineConfirm()
+  const deletingTaskIds=useRef(new Set())
   const readPage = () => {
     const route = window.location.hash.replace(/^#\/?/, '').split('/')[0]
     return ['tasks','calendar','documents','visualization','canvas','account','shortcuts','assistant','workspace'].includes(route) ? route : 'tasks'
@@ -873,8 +874,12 @@ function App() {
   }
 
   const deleteTodo = async (id) => {
+    if(deletingTaskIds.current.has(id))return
     const task=todos.find(task=>task._id===id)
+    if(!task)return
     if (!await taskConfirmation.ask(`Delete “${task?.text || 'this task'}”? This cannot be undone.`, 'Delete task')) return
+    if(deletingTaskIds.current.has(id))return
+    deletingTaskIds.current.add(id)
     try {
       const response = await fetch(`/api/todos/${id}`, {
         method: 'DELETE',
@@ -891,7 +896,11 @@ function App() {
         }
         throw new Error(errorMessage)
       }
-      setTodos(todos.filter(t => t._id !== id))
+      setTodos(previous=>previous.filter(item=>item._id!==id).map(item=>({...item,dependsOn:(item.dependsOn||[]).filter(dependency=>String(dependency?._id||dependency)!==String(id))})))
+      setSelectedTask(previous=>previous?._id===id?null:previous)
+      setExpandedTodos(previous=>{const next=new Set(previous);next.delete(id);return next})
+      setEditingTodos(previous=>{const next=new Set(previous);next.delete(id);return next})
+      setEditData(previous=>{const next={...previous};delete next[id];return next})
     } catch (err) {
       if (err.message === 'Invalid or expired token') {
         logout()
@@ -900,7 +909,7 @@ function App() {
         setErrorDetails(err.stack || err.toString())
         setShowErrorDetails(false)
       }
-    }
+    } finally {deletingTaskIds.current.delete(id)}
   }
 
   const createFolder = async (e) => {
@@ -1306,7 +1315,7 @@ function App() {
       <div className="app-shell w-full max-w-[1440px] mx-auto">
         <header className="platform-header"><a className="platform-brand" href="#/tasks">Assignment Tracker</a><nav aria-label="Main navigation">{[['workspace','Workspace'],['tasks','Tasks'],['calendar','Calendar'],['documents','Documents'],['assistant','AI assistant'],['visualization','Visualization'],['canvas','Canvas'],['account','Account'],['shortcuts','Shortcuts']].map(([key,label]) => <a key={key} href={`#/${key}`} aria-current={page===key?'page':undefined}>{key==='shortcuts'&&<Keyboard size={15}/>} {label}</a>)}</nav><button className="platform-signout" onClick={logout}><LogOut size={16}/>Sign out</button></header>
         <div className="platform-page-title"><h1>{page==='workspace'?'Workspace':page==='tasks'?'Tasks':page==='calendar'?'Calendar':page==='documents'?'Document library':page==='visualization'?'Task visualization':page==='canvas'?'Canvas integration':page==='account'?'Account':page==='assistant'?'AI assistant':'Keyboard shortcuts'}</h1><p>{page==='workspace'?'Build a personal workflow with tabs, tools, and movable windows.':page==='tasks'?'Plan your work and track progress.':page==='calendar'?'Plan deadlines, assignments, and personal events in one place.':page==='documents'?'Organize and edit your files.':page==='visualization'?'Explore relationships, deadlines, and progress across your workspace.':page==='canvas'?'Manage your course connection and imports.':page==='account'?'Review your profile and workspace activity.':page==='assistant'?'Think, write, learn, and work with your files in a dedicated conversation workspace.':'A searchable reference for navigation and actions.'}</p></div>
-        <InlineConfirmation {...taskConfirmation} />
+        <InlineConfirmation {...taskConfirmation} reveal />
         <WorkflowWorkspace key={'workspace:'+user?.id+':'+assistantGeneration} open={page==='workspace'} token={token} userId={user?.id} tasks={todos} folders={folders} documents={pdfs} documentFolders={pdfFolders} onTasksChange={setTodos} onOpenTask={task=>setSelectedTask(task)} onStatusChange={updateTodoStatus} onOpenDocument={setSelectedPDF} onUpload={()=>{setSelectedPDFFolder('all');setShowPDFUploadModal(true)}} onNavigate={navigate} onOpenCalendarEntry={entry=>{setAssistantCalendarId(entry._id);navigate('calendar')}} onOpenAssistant={()=>setAssistantOpen(true)} keyboardEnabled={!selectedPDF&&!assistantOpen&&!selectedTask&&!showPDFUploadModal&&!showCommandMenu}/>
         {page==='calendar' && <CalendarPage focusEntryId={assistantCalendarId} onEntryFocused={()=>setAssistantCalendarId(null)} documents={pdfs} documentFolders={pdfFolders} onDocumentsChange={setPdfs} onOpenDocument={setSelectedPDF} tasks={todos} token={token} keyboardEnabled={!selectedPDF&&!assistantOpen} onOpenTask={task=>{pendingLibraryTask.current=task;setSelectedFolder('all');navigate('tasks')}} onRefreshTasks={fetchTodos} onSyncCanvas={syncCanvas} onCanvasSettings={()=>navigate('canvas')} canvasStatus={canvasStatus} syncing={syncing} />}
         {canvasNotice && <div role="status" className="calendar-feedback">{canvasNotice}<button onClick={()=>setCanvasNotice('')} aria-label="Dismiss Canvas sync notice"><X size={15}/></button></div>}
