@@ -1,7 +1,7 @@
 const { scrapeTxstEvents } = require('./scrapeTxstEvents');
 
 // Shared public data: no personal calendar records or credentials are involved.
-function registerTxstCalendar(app, authenticateToken) {
+function registerTxstCalendar(app, authenticateToken, User) {
   let events = [], updatedAt = null, attemptedAt = 0, syncing = false;
   let warning = '', progress = '', complete = false;
   const refresh = () => {
@@ -35,15 +35,33 @@ function registerTxstCalendar(app, authenticateToken) {
       .catch(error => { complete = false; warning = `TXST events are temporarily unavailable: ${error.message}`; })
       .finally(() => { syncing = false; progress = ''; });
   };
-  const respond = (req, res) => {
+  const respond = async (req, res) => {
+    let preferences;
+    try {
+      preferences = await User.findById(req.user.userId).select('hiddenCalendarIds hideTxstEvents').lean();
+      if (!preferences) return res.status(404).json({message:'Account not found.'});
+    } catch { return res.status(500).json({message:'Could not load calendar preferences.'}); }
     const interval = complete ? 60 * 60 * 1000 : 5 * 60 * 1000;
     const refreshRequested = req.method === 'POST';
     if (!syncing && Date.now() - attemptedAt >= (refreshRequested ? 60000 : interval)) refresh();
     res.set('Cache-Control', 'no-store');
-    res.json({ events: events.map(({ raw, ...event }) => event), syncing, progress, warning, complete, updatedAt });
+    res.json({ events: events.map(({ raw, ...event }) => event), syncing, progress, warning, complete, updatedAt, hiddenCalendarIds:preferences.hiddenCalendarIds||[], hideTxstEvents:!!preferences.hideTxstEvents });
   };
   app.get('/api/calendar/txst-events', authenticateToken, respond);
   app.post('/api/calendar/txst-events/refresh', authenticateToken, respond);
+  app.put('/api/calendar/visibility', authenticateToken, async (req,res)=>{
+    const {action,id}=req.body||{};
+    let update;
+    if(action==='hide' && typeof id==='string' && /^(?:txst:[\w-]{1,100}|task:[a-f\d]{24})$/i.test(id)) update={$addToSet:{hiddenCalendarIds:id}};
+    else if(action==='hide-txst') update={$set:{hideTxstEvents:true}};
+    else if(action==='restore') update={$set:{hiddenCalendarIds:[],hideTxstEvents:false}};
+    else return res.status(400).json({message:'Choose a valid calendar item or action.'});
+    try {
+      const user=await User.findByIdAndUpdate(req.user.userId,update,{new:true,runValidators:true}).select('hiddenCalendarIds hideTxstEvents').lean();
+      if(!user)return res.status(404).json({message:'Account not found.'});
+      res.json({hiddenCalendarIds:user.hiddenCalendarIds||[],hideTxstEvents:!!user.hideTxstEvents});
+    } catch { res.status(500).json({message:'Could not save calendar visibility.'}); }
+  });
 }
 
 module.exports = { registerTxstCalendar };

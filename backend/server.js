@@ -39,6 +39,8 @@ mongoose.connect(process.env.MONGODB_URI)
 
 // User Schema
 const userSchema = new mongoose.Schema({
+  hiddenCalendarIds: { type: [String], default: [] },
+  hideTxstEvents: { type: Boolean, default: false },
   workflowLayout: { type: mongoose.Schema.Types.Mixed, select: false },
   workflowRevision: { type: Number, default: 0, select: false },
   geminiApiKeyEncrypted: { type: String, select: false },
@@ -530,7 +532,7 @@ app.post('/api/user/reset', authenticateToken, async (req, res) => {
 async function calendarLinksOwned(entry, userId, previous = {}) {
   return validateCalendarLinks(entry, userId, previous, { Todo, PDF });
 }
-registerTxstCalendar(app, authenticateToken);
+registerTxstCalendar(app, authenticateToken, User);
 app.get('/api/calendar-entries', authenticateToken, async (req, res) => {
   try { res.json(await CalendarEntry.find({ user: req.user.userId }).sort({ startDate: 1, startAt: 1 })); }
   catch { res.status(500).json({ message: 'Could not load your calendar entries.' }); }

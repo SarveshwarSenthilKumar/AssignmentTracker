@@ -36,5 +36,12 @@ export default function useTxstEvents(token, active=true) {
     setCampus(previous=>({...previous,syncing:true,warning:'',progress:'Refreshing TXST events…'}))
     setRevision(value=>value+1)
   }
-  return {campus,refreshCampus}
+  const changeVisibility=async(action,id)=>{
+    const response=await fetch('/api/calendar/visibility',{method:'PUT',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({action,id})})
+    const data=await response.json()
+    if(!response.ok)throw new Error(data.message||'Could not update calendar visibility.')
+    setCampus(previous=>({...previous,...data}))
+    setRevision(value=>value+1)
+  }
+  return {campus,refreshCampus,changeVisibility}
 }
