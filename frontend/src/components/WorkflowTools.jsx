@@ -26,7 +26,7 @@ function AgendaPane({tasks,entries,calendarLoading,calendarError,onRefreshCalend
   const confirmation=useInlineConfirm(),[deleting,setDeleting]=useState(false),[deleteError,setDeleteError]=useState('')
   const today=calendarDay(new Date()),items=calendarItems(tasks,entries,campus?.events||[]).filter(item=>!(campus?.hiddenCalendarIds||[]).includes(item.id)&&!(campus?.hideTxstEvents&&item.source==='txst')&&(showTxst||item.source!=='txst')&&(past||item.endDate>=today)&&`${item.title} ${item.location} ${item.context||''}`.toLowerCase().includes(query.toLowerCase()))
   const removeItem=async item=>{
-    if(!await confirmation.ask(item.entry?`Permanently delete “${item.title}”? This cannot be undone.`:`Remove “${item.title}” from your calendar? You can restore it later. ${item.task?'The task stays in your task list.':''}`,'Remove event'))return
+    if(item.entry&&!await confirmation.ask(`Permanently delete “${item.title}”? This cannot be undone.`,'Delete event'))return
     setDeleting(true);setDeleteError('')
     try {
       if(item.entry){
@@ -37,7 +37,6 @@ function AgendaPane({tasks,entries,calendarLoading,calendarError,onRefreshCalend
     }catch(error){setDeleteError(error.message)}finally{setDeleting(false)}
   }
   const changeVisibility=async action=>{
-    if(action==='hide-txst'&&!await confirmation.ask('Remove all TXST events, including future synced events? You can restore them later.','Remove TXST events'))return
     setDeleting(true);setDeleteError('')
     try{await onCalendarVisibility(action)}catch(error){setDeleteError(error.message)}finally{setDeleting(false)}
   }
@@ -45,10 +44,10 @@ function AgendaPane({tasks,entries,calendarLoading,calendarError,onRefreshCalend
     <div className="workflow-tool-filters"><label className="workflow-search"><Search size={13}/><input aria-label="Search agenda window" value={query} onChange={event=>{setQuery(event.target.value);setLimit(100)}} placeholder="Search agenda…"/></label><button type="button" disabled={calendarLoading} onClick={onRefreshCalendar}>Refresh</button><button type="button" disabled={campus?.syncing} onClick={onRefreshCampus}>Refresh TXST</button><button type="button" onClick={()=>onNavigate('calendar')}>Full calendar ↗</button></div>
     <label className="workflow-checkbox"><input type="checkbox" checked={past} onChange={event=>setPast(event.target.checked)}/>Include past entries</label>
     <label className="workflow-checkbox"><input type="checkbox" checked={showTxst} onChange={event=>setShowTxst(event.target.checked)}/>TXST events</label>
-    <InlineConfirmation {...confirmation}/>
+    <InlineConfirmation {...confirmation} reveal/>
     {deleteError&&<p role="alert" className="workflow-error">{deleteError}</p>}
     <div className="workflow-tool-filters"><button type="button" disabled={deleting||campus?.hideTxstEvents} onClick={()=>changeVisibility('hide-txst')}>Remove all TXST events</button>{(campus?.hideTxstEvents||campus?.hiddenCalendarIds?.length>0)&&<button type="button" disabled={deleting} onClick={()=>changeVisibility('restore')}>Restore removed events</button>}</div>
-    {campus&&<p role={campus.warning?'alert':'status'} className={campus.warning?'workflow-error':''}>{campus.syncing?campus.progress||'Loading TXST events…':campus.warning||`${campus.events.length} TXST events loaded`}</p>}
+    {campus&&<p role={campus.warning?'alert':'status'} className={campus.warning?'workflow-error':''}>{campus.syncing?campus.progress||'Loading TXST events…':campus.warning||`${campus.hideTxstEvents?0:campus.events.filter(event=>!(campus.hiddenCalendarIds||[]).includes(`txst:${event.id}`)).length} TXST events in your calendar`}</p>}
     {calendarError&&<p role="alert" className="workflow-error">{calendarError}</p>}{calendarLoading&&<p role="status">Loading calendar…</p>}
     <div className="workflow-agenda">{items.slice(0,limit).map(item=><div className="workflow-calendar-row" key={item.id}><button type="button" onClick={()=>item.campusEvent?window.open(item.campusEvent.url,'_blank','noopener,noreferrer'):item.task?onOpenTask(item.task):onOpenCalendarEntry?onOpenCalendarEntry(item.entry):onNavigate('calendar')}><time>{dayLabel(item.startDate,{month:'short',day:'numeric'})}</time><span><strong>{item.title}</strong><small>{calendarTime(item)} · {CALENDAR_LABELS[item.source]}{item.done?' · Completed':''}</small>{item.location&&<small>{item.location}</small>}</span><ArrowUpRight size={12}/></button><button type="button" disabled={deleting} aria-label={`Remove ${item.title} from calendar`} onClick={()=>removeItem(item)}>Remove</button></div>)}{!items.length&&!calendarLoading&&<p className="workflow-empty">{campus?.syncing?'Loading campus events…':'No matching upcoming entries.'}</p>}</div>
     {items.length>limit&&<button type="button" onClick={()=>setLimit(value=>value+100)}>Show more ({items.length-limit} remaining)</button>}
