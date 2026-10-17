@@ -1,16 +1,20 @@
 const zone = 'America/Chicago';
 const $ = id => document.getElementById(id);
-const dayOf = value => new Intl.DateTimeFormat('en-CA', {timeZone:zone,year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(value));
+const dayOf = value => {const parts=new Intl.DateTimeFormat('en-US',{timeZone:zone,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date(value));const get=type=>parts.find(part=>part.type===type).value;return `${get('year')}-${get('month')}-${get('day')}`;};
 const today = () => dayOf(Date.now());
 const text = value => value == null ? '' : typeof value === 'string' ? value : Array.isArray(value) ? value.map(text).filter(Boolean).join(', ') : typeof value === 'object' ? text(value.name || value.title || value.label || value.address) : String(value);
 const plain = value => { const doc=new DOMParser().parseFromString(String(value||''),'text/html');doc.querySelectorAll('script,style').forEach(node=>node.remove());return (doc.body.textContent||'').replace(/\s+/g,' ').trim(); };
 const safeUrl = value => {try{const url=new URL(value);return ['https:','http:'].includes(url.protocol)?url.href:null;}catch{return null;}};
-let events=[], metadata={}, qrSvg='', lastDay=today();
+let events=[], metadata={}, qrSvg='', lastDay=today(), month=today().slice(0,7), loading=false, localPreview=false, loadError='';
+const shiftDay=(day,count)=>{const date=new Date(`${day}T12:00:00Z`);date.setUTCDate(date.getUTCDate()+count);return date.toISOString().slice(0,10);};
+const label=day=>new Date(`${day}T12:00:00Z`).toLocaleDateString('en-US',{timeZone:'UTC',weekday:'long',month:'long',day:'numeric',year:'numeric'});
+const eventTime=value=>new Date(value).toLocaleTimeString('en-US',{timeZone:zone,hour:'numeric',minute:'2-digit'});
+const onDay=(event,day)=>dayOf(event.start)<=day&&dayOf(event.end?event.end-1:event.start)>=day;
 $('date').value=today();
 function node(tag,content,className){const element=document.createElement(tag);element.textContent=content;if(className)element.className=className;return element;}
 function ingest(data){
   const items=Array.isArray(data)?data:data?.events;
-  if(!Array.isArray(items))throw new Error('Choose a JSON event export with an events array.');
+  if(!Array.isArray(items))throw new Error('Expected an event export with an events array.');
   metadata=Array.isArray(data)?{}:data;
   events=items.filter(event=>event&&Number.isFinite(Date.parse(event.startsOn||event.startDate))).map(event=>{
     const start=Date.parse(event.startsOn||event.startDate), rawEnd=Date.parse(event.endsOn||event.endDate);
@@ -26,11 +30,15 @@ function render(){
   const day=$('date').value;if(!/^\d{4}-\d{2}-\d{2}$/.test(day))return;
   const query=$('search').value.trim().toLowerCase(),category=$('category').value,now=Date.now();
   $('day-heading').textContent=new Date(`${day}T12:00:00Z`).toLocaleDateString('en-US',{timeZone:'UTC',weekday:'long',month:'long',day:'numeric',year:'numeric'});
-  const selected=events.filter(event=>dayOf(event.start)<=day&&dayOf(event.end?event.end-1:event.start)>=day&&(!category||event.categories.includes(category))&&(!$('food').checked||/free\s*food|freefood/i.test(event.benefits))&&`${event.name} ${event.location} ${event.organization} ${event.description}`.toLowerCase().includes(query));
+  const matching=events.filter(event=>(!category||event.categories.includes(category))&&(!$('food').checked||/free\s*food|freefood/i.test(event.benefits))&&`${event.name} ${event.location} ${event.organization} ${event.description}`.toLowerCase().includes(query));
+  const selected=matching.filter(event=>onDay(event,day));
+  renderCalendar(matching,day);
+  $('agenda-label').textContent=label(day);
+  $('agenda-empty').textContent=selected.length?'':loading?'Loading events…':'No events for this day. Select another date or choose Next event.';
   $('count').textContent=selected.length;$('events').replaceChildren();
   const stamp=Date.parse(metadata.scrapedAt||metadata.updatedAt);
   $('freshness').textContent=Number.isFinite(stamp)?`Updated ${new Date(stamp).toLocaleString('en-US',{timeZone:zone,month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})} CT${now-stamp>86400000?' · Data is over a day old':''}${metadata.complete===false?' · Partial collection':''}`:'No published update yet';
-  $('message').textContent=selected.length?'':events.length?'No events match this day and these filters. Try another date or clear the filters.':'No event data has been published yet. The page owner can publish a TXST event export as events.json.';
+  $('message').textContent=loadError||(!events.length&&!loading?'No events are available in the current export. Publish an updated events.json or import an export below.':`Showing ${events.length} loaded events across the calendar. Select a day to see its lineup.${localPreview?' Local file preview; automatic reload is paused.':''}`);
   const time=value=>new Date(value).toLocaleTimeString('en-US',{timeZone:zone,hour:'numeric',minute:'2-digit'});
   selected.forEach(event=>{
     const card=node('article','','event');const heading=node('div','','event-top');
@@ -42,10 +50,39 @@ function render(){
     if(event.organization)card.append(node('p',event.organization,'organizer'));
     card.append(node('p',event.description.length>230?`${event.description.slice(0,227)}…`:event.description||'Open the event page for the full details.','description'));
     const bottom=node('div','','event-bottom');const tags=node('span',event.categories.join(' · '),'tags');bottom.append(tags);
-    if(event.url){const link=node('a','Details & RSVP ↗');link.href=event.url;link.target='_blank';link.rel='noopener noreferrer';bottom.append(link);}card.append(bottom);$('events').append(card);
+    const details=node('button','Full details');details.addEventListener('click',()=>showEvent(event));bottom.append(details);card.append(bottom);$('events').append(card);
   });
 }
-async function load(){try{const response=await fetch('events.json',{cache:'no-store'});if(!response.ok)throw new Error('Event data could not be loaded.');ingest(await response.json());}catch(error){$('freshness').textContent='Event data unavailable';$('message').textContent=`${error.message} Serve this folder over HTTP, or choose an event export below.`;}}
+function renderCalendar(items,selectedDay){
+  $('month-label').textContent=new Date(`${month}-01T12:00:00Z`).toLocaleDateString('en-US',{timeZone:'UTC',month:'long',year:'numeric'});
+  const first=`${month}-01`,start=shiftDay(first,-new Date(`${first}T12:00:00Z`).getUTCDay());
+  $('calendar-grid').replaceChildren();
+  for(let index=0;index<42;index++){
+    const day=shiftDay(start,index),dayEvents=items.filter(event=>onDay(event,day));
+    const cell=node('div','',`calendar-cell${day.slice(0,7)!==month?' outside':''}${day===selectedDay?' selected':''}${day===today()?' is-today':''}`);
+    const select=node('button',day.slice(-2).replace(/^0/,''),'day-number');select.setAttribute('aria-label',`${label(day)}: ${dayEvents.length} events`);select.setAttribute('aria-pressed',String(day===selectedDay));select.addEventListener('click',()=>selectDay(day));cell.append(select);
+    dayEvents.slice(0,3).forEach(event=>{const button=node('button',`${eventTime(event.start)} ${event.name}`,'calendar-event');button.title=`${event.name} · ${event.location}`;button.addEventListener('click',()=>{selectDay(day);showEvent(event);});cell.append(button);});
+    if(dayEvents.length>3){const more=node('button',`+${dayEvents.length-3} more`,'more-events');more.addEventListener('click',()=>{selectDay(day);$('agenda-label').scrollIntoView({block:'nearest'});});cell.append(more);}
+    if(dayEvents.length)cell.append(node('span',String(dayEvents.length),'mobile-count'));
+    $('calendar-grid').append(cell);
+  }
+}
+function selectDay(day){$('date').value=day;month=day.slice(0,7);render();}
+function showEvent(event){
+  const detail=$('event-detail');detail.replaceChildren(node('p',label(dayOf(event.start)),'eyebrow'),node('h2',event.name),node('p',`${eventTime(event.start)}${event.end?` – ${eventTime(event.end)}${dayOf(event.end-1)!==dayOf(event.start)?` (${label(dayOf(event.end-1))})`:''}`,'event-time'),node('p',event.location,'location'));
+  if(event.organization)detail.append(node('p',event.organization,'organizer'));
+  detail.append(node('p',event.description||'See the original event page for details.','full-description'));
+  if(event.categories.length)detail.append(node('p',event.categories.join(' · '),'tags'));
+  if(event.benefits)detail.append(node('p',`Benefits: ${event.benefits}`));
+  if(event.url){const link=node('a','Open original event & RSVP ↗');link.href=event.url;link.target='_blank';link.rel='noopener noreferrer';detail.append(link);}
+  if(!$('event-dialog').open)$('event-dialog').showModal();
+}
+async function load(){
+  if(loading)return;loading=true;loadError='';$('reload').disabled=true;
+  try{const response=await fetch(new URL('events.json',location.href),{cache:'no-store',signal:AbortSignal.timeout(20000)});if(!response.ok)throw new Error(`Event data could not be loaded (HTTP ${response.status}).`);const data=await response.json();localPreview=false;ingest(data);}
+  catch(error){loadError=`${error.message} ${location.protocol==='file:'?'Start the static HTTP server instead of opening index.html directly.':'Check that events.json is in the same hosted folder as this page.'} ${events.length?'Previously loaded events are still shown.':'You can also import an export at the bottom of the page.'}`;}
+  finally{loading=false;$('reload').disabled=false;render();}
+}
 function makeQr(){
   const url=safeUrl($('share-url').value.trim());
   if(!url){$('qr-status').textContent='Enter a complete public https:// or http:// URL.';return;}
@@ -57,11 +94,15 @@ function makeQr(){
     $('qr-status').textContent=/localhost|127\.0\.0\.1/.test(new URL(url).hostname)?'This is a local address. Use your public hosted URL before printing for residents.':'Ready to print. Make sure residents can open this public URL.';
   }catch(error){$('qr-status').textContent=error.message;}
 }
-['search','date','category','food'].forEach(id=>$(id).addEventListener('input',render));
-$('today').addEventListener('click',()=>{$('date').value=today();render();});
+['search','category','food'].forEach(id=>$(id).addEventListener('input',render));
+$('date').addEventListener('input',()=>{if($('date').value)selectDay($('date').value);});
+$('today').addEventListener('click',()=>selectDay(today()));
+['previous-month','next-month'].forEach((id,index)=>$(id).addEventListener('click',()=>{const date=new Date(`${month}-01T12:00:00Z`);date.setUTCMonth(date.getUTCMonth()+(index===0?-1:1));selectDay(date.toISOString().slice(0,10));}));
+$('next-event').addEventListener('click',()=>{const event=events.find(event=>dayOf(event.end?event.end-1:event.start)>=$('date').value);if(event){$('search').value='';$('category').value='';$('food').checked=false;selectDay(onDay(event,$('date').value)?$('date').value:dayOf(event.start));}else $('message').textContent='No later events in this export. Reload updated event data or choose an earlier date.';});
+$('reload').addEventListener('click',load);$('close-event').addEventListener('click',()=>$('event-dialog').close());
 $('make-qr').addEventListener('click',makeQr);$('print').addEventListener('click',()=>window.print());
 $('download').addEventListener('click',()=>{const url=URL.createObjectURL(new Blob([qrSvg],{type:'image/svg+xml'}));const link=document.createElement('a');link.href=url;link.download='today-bobcats-qr.svg';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);});
-$('import').addEventListener('change',async event=>{try{const file=event.target.files[0];if(!file)return;if(file.size>25*1024*1024)throw new Error('Choose an export smaller than 25 MB.');ingest(JSON.parse(await file.text()));$('freshness').append(' · Local preview only');}catch(error){$('message').textContent=error.message;}});
+$('import').addEventListener('change',async event=>{try{const file=event.target.files[0];if(!file)return;if(file.size>25*1024*1024)throw new Error('Choose an export smaller than 25 MB.');const data=JSON.parse(await file.text());localPreview=true;loadError='';ingest(data);}catch(error){$('message').textContent=error.message;}});
 if(['http:','https:'].includes(location.protocol)){$('share-url').value=new URL('./',location.href).href;makeQr();}
-setInterval(()=>{const next=today();if(next!==lastDay){if($('date').value===lastDay)$('date').value=next;lastDay=next;}render();},60000);
+setInterval(()=>{const next=today();if(next!==lastDay){if($('date').value===lastDay){$('date').value=next;month=next.slice(0,7);}lastDay=next;}if(localPreview)render();else load();},60000);
 load();

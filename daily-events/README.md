@@ -19,6 +19,12 @@ A frontend-only version can read a published static JSON file containing public 
 
 ## Status
 
+The page now opens as a month calendar with a selected-day agenda. Click a date to see its events, or click an event for full details and its source/RSVP link. On small screens, date cells show event counts; selecting a date displays readable cards below the grid. Previous/next month, Today, the date picker, and Next event help navigate beyond today's events. Filters apply to the calendar and agenda together.
+
+Calendar dates use explicit year/month/day parts in America/Chicago rather than assuming a locale formats dates as ISO strings. This avoids an empty date picker and missed date matches on browsers with different locale formatting. The current export contains real event data; the calendar uses that existing file without running a new scrape.
+
+The browser reloads events.json every minute and updates the calendar automatically. It retains previously loaded events and displays errors if a reload fails. A manually imported file pauses automatic reload until Reload events is selected. Automatic browser reload reads the static export; it does not execute the scraper. Updating the source export still requires the separate publishing step below.
+
 Implemented as standalone HTML, CSS, and JavaScript. It remains separate from the Assignment Tracker frontend and backend. No build or package installation is needed.
 
 ## Run locally
