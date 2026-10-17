@@ -40,8 +40,13 @@ function App() {
   const navigate = next => { if(next==='assistant')setAssistantRouteId(null); window.location.hash = `/${next}`; setPage(next); setShowCommandMenu(false); window.scrollTo({top:0}) }
   useEffect(() => { const change = () => { setPage(readPage()); setAssistantRouteId(window.location.hash.match(/^#\/assistant\/([a-f\d]{24})$/i)?.[1]||null); setShowCommandMenu(false); setContextMenu(null); setSelectedTask(pendingLibraryTask.current); pendingLibraryTask.current = null; setShowFolderModal(false); window.scrollTo({top:0}) }; window.addEventListener('hashchange',change); return () => window.removeEventListener('hashchange',change) }, [])
   const [todos, setTodos] = useState([])
+  const [selectedTaskIds,setSelectedTaskIds]=useState(new Set())
+  const [bulkDeleting,setBulkDeleting]=useState(false)
+  const bulkDeleteLock=useRef(false)
+  const toggleTaskSelection=id=>setSelectedTaskIds(previous=>{const next=new Set(previous);next.has(id)?next.delete(id):next.add(id);return next})
   const [folders, setFolders] = useState([])
   const [selectedFolder, setSelectedFolder] = useState(null)
+  useEffect(()=>{setSelectedTaskIds(new Set())},[selectedFolder,token])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -671,7 +676,7 @@ function App() {
         tabIndex={0}
         role="article"
         aria-label={todo.text}
-        draggable={!isEditing}
+        draggable={!isEditing&&!selectedTaskIds.has(todo._id)}
         onDragStart={(e) => handleDragStart(e, todo)}
         onDragEnd={handleDragEnd}
         className="group"
@@ -686,6 +691,7 @@ function App() {
             " hover:shadow-lg"
           )}
         >
+          <input type="checkbox" checked={selectedTaskIds.has(todo._id)} disabled={bulkDeleting} aria-label={`Select ${todo.text} for bulk deletion`} onClick={event=>event.stopPropagation()} onChange={()=>toggleTaskSelection(todo._id)} className="w-4 h-4 flex-shrink-0 accent-red-400"/>
           <button
             onClick={(e) => { e.stopPropagation(); cycleTodoStatus(todo._id) }}
             className={cn(
@@ -910,6 +916,30 @@ function App() {
         setShowErrorDetails(false)
       }
     } finally {deletingTaskIds.current.delete(id)}
+  }
+
+  const deleteSelectedTasks=async()=>{
+    if(bulkDeleteLock.current)return
+    const visible=new Set(filteredTodos.map(task=>task._id))
+    const ids=[...selectedTaskIds].filter(id=>visible.has(id))
+    if(!ids.length)return
+    bulkDeleteLock.current=true
+    try{
+      if(!await taskConfirmation.ask(`Permanently delete ${ids.length} selected ${ids.length===1?'task':'tasks'}? Unselected tasks will stay. This cannot be undone.`,'Delete selected tasks'))return
+      setBulkDeleting(true)
+      const response=await fetch('/api/todos/bulk-delete',{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({ids})})
+      const data=await response.json().catch(()=>({}))
+      if(!response.ok)throw new Error(data.message||'Could not delete selected tasks. Restart the updated backend if this action is unavailable.')
+      if(!Array.isArray(data.deletedIds))throw new Error('Unexpected deletion response. Refresh the task list.')
+      const removed=new Set(data.deletedIds)
+      setTodos(previous=>previous.filter(task=>!removed.has(task._id)).map(task=>({...task,dependsOn:(task.dependsOn||[]).filter(id=>!removed.has(String(id?._id||id)))})))
+      setSelectedTaskIds(new Set())
+      setSelectedTask(previous=>removed.has(previous?._id)?null:previous)
+      setExpandedTodos(previous=>new Set([...previous].filter(id=>!removed.has(id))))
+      setEditingTodos(previous=>new Set([...previous].filter(id=>!removed.has(id))))
+      setEditData(previous=>Object.fromEntries(Object.entries(previous).filter(([id])=>!removed.has(id))))
+    }catch(error){setError(error.message);await fetchTodos()}
+    finally{bulkDeleteLock.current=false;setBulkDeleting(false)}
   }
 
   const createFolder = async (e) => {
@@ -1535,6 +1565,7 @@ function App() {
           </div>
         </div>
 
+        {!loading&&filteredTodos.length>0&&<div className="task-bulk-actions" role="group" aria-label="Bulk task actions"><label><input type="checkbox" disabled={bulkDeleting} checked={filteredTodos.every(task=>selectedTaskIds.has(task._id))} ref={element=>{if(element)element.indeterminate=filteredTodos.some(task=>selectedTaskIds.has(task._id))&&!filteredTodos.every(task=>selectedTaskIds.has(task._id))}} onChange={event=>setSelectedTaskIds(event.target.checked?new Set(filteredTodos.map(task=>task._id)):new Set())}/>Select all in this list</label><span aria-live="polite">{filteredTodos.filter(task=>selectedTaskIds.has(task._id)).length} selected</span><button type="button" disabled={bulkDeleting||!filteredTodos.some(task=>selectedTaskIds.has(task._id))} onClick={deleteSelectedTasks}><Trash2 size={15}/>{bulkDeleting?'Deleting…':'Delete selected'}</button><button type="button" disabled={bulkDeleting||!selectedTaskIds.size} onClick={()=>setSelectedTaskIds(new Set())}>Clear selection</button></div>}
         {loading ? (
           <div className="flex justify-center py-12">
             <Loader2 className="animate-spin text-primary-500" size={40} />

@@ -659,6 +659,14 @@ app.put('/api/todos/:id', authenticateToken, async (req, res) => {
 });
 
 // Delete a todo
+app.post('/api/todos/bulk-delete', authenticateToken, async (req,res)=>{
+  const ids=req.body?.ids;
+  if(!Array.isArray(ids)||!ids.length||ids.length>10000||ids.some(id=>typeof id!=='string'||!/^[a-f\d]{24}$/i.test(id)))return res.status(400).json({message:'Select between 1 and 10,000 valid tasks.'});
+  try{
+    const result=await deleteTasksAndConnections({user:req.user.userId,_id:{$in:[...new Set(ids)]}});
+    res.json({message:`Deleted ${result.deletedCount} tasks.`,deletedCount:result.deletedCount,deletedIds:result.deletedIds});
+  }catch{res.status(500).json({message:'Could not complete bulk deletion. Refresh the task list before retrying.'});}
+});
 app.delete('/api/todos/:id([a-fA-F0-9]{24})', authenticateToken, async (req, res) => {
   try {
     const todo = await Todo.findOneAndDelete({ _id: req.params.id, user: req.user.userId });
@@ -678,7 +686,7 @@ async function deleteTasksAndConnections(filter) {
   const ids = tasks.map(task => task._id);
   const result = await Todo.deleteMany({ user: filter.user, _id: { $in: ids } });
   if (ids.length) await Todo.updateMany({ user: filter.user, dependsOn: { $in: ids } }, { $pull: { dependsOn: { $in: ids } } });
-  return result;
+  return {...result,deletedIds:ids.map(String)};
 }
 app.delete('/api/todos/folder/:folderId', authenticateToken, async (req, res) => {
   try {
