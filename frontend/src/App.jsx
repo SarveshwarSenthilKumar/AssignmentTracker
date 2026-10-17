@@ -1,4 +1,5 @@
 import TimeZoneSettings from './components/TimeZoneSettings'
+import { readApiJson } from './lib/apiResponse'
 import AccountAISettings from './components/AccountAISettings'
 import WorkflowWorkspace from './components/WorkflowWorkspace'
 import AssistantChat from './components/AssistantChat'
@@ -172,7 +173,7 @@ function App() {
             })
             .then(res => {
               if (!res.ok) throw new Error('Failed to update todo')
-              return res.json()
+              return readApiJson(res)
             })
             .then(updatedTodo => {
               setTodos(todos.map(t => t._id === id ? updatedTodo : t))
@@ -225,7 +226,7 @@ function App() {
     }
   }, [contextMenu])
 
-  const fetchTodos = async () => {
+  const fetchTodos = async (reportErrors=true) => {
     try {
       const response = await fetch('/api/todos', {
         headers: {
@@ -233,7 +234,7 @@ function App() {
         }
       })
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
+        const errorData = await readApiJson(response).catch(() => ({}))
         const errorMessage = errorData.message || errorData.error || 'Failed to fetch todos'
         if (errorMessage === 'Invalid or expired token') {
           logout()
@@ -241,12 +242,13 @@ function App() {
         }
         throw new Error(errorMessage)
       }
-      const data = await response.json()
+      const data = await readApiJson(response)
+      if(!Array.isArray(data))throw new Error('The task API returned an invalid task list. Existing tasks have been kept.');
       setTodos(data)
     } catch (err) {
       if (err.message === 'Invalid or expired token') {
         logout()
-      } else {
+      } else if(reportErrors) {
         setError(err.message)
         setErrorDetails(err.stack || err.toString())
         setShowErrorDetails(false)
@@ -264,7 +266,7 @@ function App() {
         }
       })
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
+        const errorData = await readApiJson(response).catch(() => ({}))
         const errorMessage = errorData.message || errorData.error || 'Failed to fetch folders'
         if (errorMessage === 'Invalid or expired token') {
           logout()
@@ -272,7 +274,7 @@ function App() {
         }
         throw new Error(errorMessage)
       }
-      const data = await response.json()
+      const data = await readApiJson(response)
       setFolders(data)
     } catch (err) {
       if (err.message === 'Invalid or expired token') {
@@ -293,7 +295,7 @@ function App() {
         }
       })
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
+        const errorData = await readApiJson(response).catch(() => ({}))
         const errorMessage = errorData.message || errorData.error || 'Failed to fetch PDFs'
         if (errorMessage === 'Invalid or expired token') {
           logout()
@@ -301,7 +303,7 @@ function App() {
         }
         throw new Error(errorMessage)
       }
-      const data = await response.json()
+      const data = await readApiJson(response)
       setPdfs(data)
     } catch (err) {
       if (err.message === 'Invalid or expired token') {
@@ -325,7 +327,7 @@ function App() {
         }
       })
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
+        const errorData = await readApiJson(response).catch(() => ({}))
         const errorMessage = errorData.message || errorData.error || 'Failed to fetch PDF folders'
         if (errorMessage === 'Invalid or expired token') {
           logout()
@@ -333,7 +335,7 @@ function App() {
         }
         throw new Error(errorMessage)
       }
-      const data = await response.json()
+      const data = await readApiJson(response)
       setPdfFolders(data)
     } catch (err) {
       if (err.message === 'Invalid or expired token') {
@@ -362,7 +364,7 @@ function App() {
         }),
       })
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
+        const errorData = await readApiJson(response).catch(() => ({}))
         const errorMessage = errorData.message || errorData.error || 'Failed to add todo'
         if (errorMessage === 'Invalid or expired token') {
           logout()
@@ -370,7 +372,7 @@ function App() {
         }
         throw new Error(errorMessage)
       }
-      const newTodo = await response.json()
+      const newTodo = await readApiJson(response)
       setTodos([...todos, newTodo])
       setInput('')
       setDueDate('')
@@ -396,7 +398,7 @@ function App() {
         body: JSON.stringify({ status: newStatus }),
       })
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
+        const errorData = await readApiJson(response).catch(() => ({}))
         const errorMessage = errorData.message || errorData.error || 'Failed to update todo'
         if (errorMessage === 'Invalid or expired token') {
           logout()
@@ -404,7 +406,7 @@ function App() {
         }
         throw new Error(errorMessage)
       }
-      const updatedTodo = await response.json()
+      const updatedTodo = await readApiJson(response)
       setTodos(todos.map(t => t._id === id ? updatedTodo : t))
 
     } catch (err) {
@@ -500,7 +502,7 @@ function App() {
         }),
       })
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
+        const errorData = await readApiJson(response).catch(() => ({}))
         const errorMessage = errorData.message || errorData.error || 'Failed to update todo'
         if (errorMessage === 'Invalid or expired token') {
           logout()
@@ -508,7 +510,7 @@ function App() {
         }
         throw new Error(errorMessage)
       }
-      const updatedTodo = await response.json()
+      const updatedTodo = await readApiJson(response)
       setTodos(todos.map(t => t._id === id ? updatedTodo : t))
       cancelEditing(id)
     } catch (err) {
@@ -894,7 +896,7 @@ function App() {
         }
       })
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
+        const errorData = await readApiJson(response).catch(() => ({}))
         const errorMessage = errorData.message || errorData.error || 'Failed to delete todo'
         if (errorMessage === 'Invalid or expired token') {
           logout()
@@ -928,7 +930,7 @@ function App() {
       if(!await taskConfirmation.ask(`Permanently delete ${ids.length} selected ${ids.length===1?'task':'tasks'}? Unselected tasks will stay. This cannot be undone.`,'Delete selected tasks'))return
       setBulkDeleting(true)
       const response=await fetch('/api/todos/bulk-delete',{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({ids})})
-      const data=await response.json().catch(()=>({}))
+      const data=await readApiJson(response)
       if(!response.ok)throw new Error(data.message||'Could not delete selected tasks. Restart the updated backend if this action is unavailable.')
       if(!Array.isArray(data.deletedIds))throw new Error('Unexpected deletion response. Refresh the task list.')
       const removed=new Set(data.deletedIds)
@@ -938,7 +940,7 @@ function App() {
       setExpandedTodos(previous=>new Set([...previous].filter(id=>!removed.has(id))))
       setEditingTodos(previous=>new Set([...previous].filter(id=>!removed.has(id))))
       setEditData(previous=>Object.fromEntries(Object.entries(previous).filter(([id])=>!removed.has(id))))
-    }catch(error){setError(error.message);await fetchTodos()}
+    }catch(error){setError(error.message);await fetchTodos(false)}
     finally{bulkDeleteLock.current=false;setBulkDeleting(false)}
   }
 
@@ -956,7 +958,7 @@ function App() {
         body: JSON.stringify({ name: newFolderName.trim(), color: newFolderColor }),
       })
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
+        const errorData = await readApiJson(response).catch(() => ({}))
         const errorMessage = errorData.message || errorData.error || 'Failed to create folder'
         if (errorMessage === 'Invalid or expired token') {
           logout()
@@ -964,7 +966,7 @@ function App() {
         }
         throw new Error(errorMessage)
       }
-      const newFolder = await response.json()
+      const newFolder = await readApiJson(response)
       setFolders([...folders, newFolder])
       setNewFolderName('')
       setShowFolderModal(false)
@@ -988,7 +990,7 @@ function App() {
         }
       })
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
+        const errorData = await readApiJson(response).catch(() => ({}))
         const errorMessage = errorData.message || errorData.error || 'Failed to delete folder'
         if (errorMessage === 'Invalid or expired token') {
           logout()
@@ -1024,7 +1026,7 @@ function App() {
         }
       })
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
+        const errorData = await readApiJson(response).catch(() => ({}))
         const errorMessage = errorData.message || errorData.error || 'Failed to delete folder tasks'
         if (errorMessage === 'Invalid or expired token') {
           logout()
@@ -1032,7 +1034,7 @@ function App() {
         }
         throw new Error(errorMessage)
       }
-      const data = await response.json()
+      const data = await readApiJson(response)
       await fetchTodos()
       setError(`Deleted ${data.deletedCount} tasks from folder`)
       setContextMenu(null)
@@ -1058,7 +1060,7 @@ function App() {
         body: JSON.stringify({ name: editFolderName.trim() })
       })
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
+        const errorData = await readApiJson(response).catch(() => ({}))
         const errorMessage = errorData.message || errorData.error || 'Failed to update folder'
         if (errorMessage === 'Invalid or expired token') {
           logout()
@@ -1066,7 +1068,7 @@ function App() {
         }
         throw new Error(errorMessage)
       }
-      const updatedFolder = await response.json()
+      const updatedFolder = await readApiJson(response)
       setFolders(folders.map(f => f._id === id ? updatedFolder : f))
       setEditingFolder(null)
       setEditFolderName('')
@@ -1110,7 +1112,7 @@ function App() {
         }
       })
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
+        const errorData = await readApiJson(response).catch(() => ({}))
         const errorMessage = errorData.message || errorData.error || 'Failed to clear inbox'
         if (errorMessage === 'Invalid or expired token') {
           logout()
@@ -1118,7 +1120,7 @@ function App() {
         }
         throw new Error(errorMessage)
       }
-      const data = await response.json()
+      const data = await readApiJson(response)
       await fetchTodos()
       setError(`Cleared ${data.deletedCount} tasks from inbox`)
       setContextMenu(null)
@@ -1141,7 +1143,7 @@ function App() {
         }
       })
       if (response.ok) {
-        const data = await response.json()
+        const data = await readApiJson(response)
         setCanvasStatus(data)
         setCanvasUrl(data.canvasUrl || '')
       }
@@ -1172,7 +1174,7 @@ function App() {
         body: JSON.stringify({ canvasUrl, canvasToken })
       })
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
+        const errorData = await readApiJson(response).catch(() => ({}))
         const errorMessage = errorData.message || errorData.error || 'Failed to save Canvas credentials'
         if (errorMessage === 'Invalid or expired token') {
           logout()
@@ -1204,7 +1206,7 @@ function App() {
         }
       })
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
+        const errorData = await readApiJson(response).catch(() => ({}))
         const errorMessage = errorData.message || errorData.error || 'Failed to sync Canvas'
         if (errorMessage === 'Invalid or expired token') {
           logout()
@@ -1212,7 +1214,7 @@ function App() {
         }
         throw new Error(errorMessage)
       }
-      const data = await response.json()
+      const data = await readApiJson(response)
       await fetchTodos()
       await fetchCanvasStatus()
       setError(null)
@@ -1252,7 +1254,7 @@ function App() {
         },
         body: JSON.stringify({ canvasUrl, canvasToken })
       })
-      const data = await response.json()
+      const data = await readApiJson(response)
       if (data.success) {
         setError(`Canvas connection successful: ${data.response}`)
       } else {
@@ -1292,7 +1294,7 @@ function App() {
       })
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
+        const errorData = await readApiJson(response).catch(() => ({}))
         const errorMessage = errorData.message || errorData.error || 'Failed to import calendar'
         if (errorMessage === 'Invalid or expired token') {
           logout()
@@ -1301,7 +1303,7 @@ function App() {
         throw new Error(errorMessage)
       }
 
-      const data = await response.json()
+      const data = await readApiJson(response)
       await fetchTodos()
       await fetchFolders()
       setError(null); setCanvasNotice(`Imported ${data.importedCount} calendar items. Their dates are now available in Calendar.`)

@@ -1487,4 +1487,11 @@ app.use((error, req, res, next) => {
   next(error);
 });
 
+app.use('/api', (req,res)=>res.status(404).json({message:'API endpoint not found. Restart or redeploy the backend after updating the app.'}));
+app.use((error,req,res,next)=>{
+  if(res.headersSent)return next(error);
+  const status=Number(error.status||error.statusCode);
+  res.status(status>=400&&status<=599?status:500).json({message:error.type==='entity.parse.failed'?'The request body is not valid JSON.':'The API could not complete this request. Check the backend logs and try again.'});
+});
+
 app.listen(PORT);
