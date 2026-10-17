@@ -681,7 +681,7 @@ function App() {
         draggable={!isEditing&&!selectedTaskIds.has(todo._id)}
         onDragStart={(e) => handleDragStart(e, todo)}
         onDragEnd={handleDragEnd}
-        className="group"
+        className={cn("group task-selectable",selectedTaskIds.has(todo._id)&&"is-bulk-selected")}
         ref={(el) => { if (isEditing) editRefs.current[todo._id] = el }}
       >
         <div
@@ -693,7 +693,7 @@ function App() {
             " hover:shadow-lg"
           )}
         >
-          <input type="checkbox" checked={selectedTaskIds.has(todo._id)} disabled={bulkDeleting} aria-label={`Select ${todo.text} for bulk deletion`} onClick={event=>event.stopPropagation()} onChange={()=>toggleTaskSelection(todo._id)} className="w-4 h-4 flex-shrink-0 accent-red-400"/>
+          <input type="checkbox" checked={selectedTaskIds.has(todo._id)} disabled={bulkDeleting} aria-label={`Select ${todo.text} for bulk deletion`} onClick={event=>event.stopPropagation()} onChange={()=>toggleTaskSelection(todo._id)} className="task-select-checkbox"/>
           <button
             onClick={(e) => { e.stopPropagation(); cycleTodoStatus(todo._id) }}
             className={cn(
@@ -1567,7 +1567,7 @@ function App() {
           </div>
         </div>
 
-        {!loading&&filteredTodos.length>0&&<div className="task-bulk-actions" role="group" aria-label="Bulk task actions"><label><input type="checkbox" disabled={bulkDeleting} checked={filteredTodos.every(task=>selectedTaskIds.has(task._id))} ref={element=>{if(element)element.indeterminate=filteredTodos.some(task=>selectedTaskIds.has(task._id))&&!filteredTodos.every(task=>selectedTaskIds.has(task._id))}} onChange={event=>setSelectedTaskIds(event.target.checked?new Set(filteredTodos.map(task=>task._id)):new Set())}/>Select all in this list</label><span aria-live="polite">{filteredTodos.filter(task=>selectedTaskIds.has(task._id)).length} selected</span><button type="button" disabled={bulkDeleting||!filteredTodos.some(task=>selectedTaskIds.has(task._id))} onClick={deleteSelectedTasks}><Trash2 size={15}/>{bulkDeleting?'Deleting…':'Delete selected'}</button><button type="button" disabled={bulkDeleting||!selectedTaskIds.size} onClick={()=>setSelectedTaskIds(new Set())}>Clear selection</button></div>}
+        {!loading&&filteredTodos.length>0&&<div className={cn("task-bulk-actions",filteredTodos.some(task=>selectedTaskIds.has(task._id))&&"has-selection")} role="group" aria-label="Bulk task actions"><label><input type="checkbox" disabled={bulkDeleting} checked={filteredTodos.every(task=>selectedTaskIds.has(task._id))} ref={element=>{if(element)element.indeterminate=filteredTodos.some(task=>selectedTaskIds.has(task._id))&&!filteredTodos.every(task=>selectedTaskIds.has(task._id))}} onChange={event=>setSelectedTaskIds(event.target.checked?new Set(filteredTodos.map(task=>task._id)):new Set())}/>Select all</label><span className="task-selection-count" aria-live="polite">{filteredTodos.filter(task=>selectedTaskIds.has(task._id)).length} selected</span><div className="task-selection-actions"><button className="task-selection-delete" type="button" disabled={bulkDeleting||!filteredTodos.some(task=>selectedTaskIds.has(task._id))} onClick={deleteSelectedTasks}><Trash2 size={15}/>{bulkDeleting?'Deleting…':'Delete selected'}</button><button className="task-selection-clear" type="button" disabled={bulkDeleting||!selectedTaskIds.size} onClick={()=>setSelectedTaskIds(new Set())}><X size={14}/>Clear</button></div></div>}
         {loading ? (
           <div className="flex justify-center py-12">
             <Loader2 className="animate-spin text-primary-500" size={40} />
