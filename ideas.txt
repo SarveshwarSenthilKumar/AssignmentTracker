@@ -21,6 +21,9 @@ add all events despite preferences button
 add a page in settings to change all like wallpaper, the font size, general aesthetic, ai content toggle and update it to change the platform universally
 add a github style completion graph for tasks
 do complete iterative bug testing for each file
+add autonomous updates and figure out hosting for site
+add an algorithm and summary and other  features
+add dark mode
 
 resume job tailor:
 Get job by links
