@@ -1,0 +1,31 @@
+Daily campus events webpage
+
+Core idea:
+Create a frontend-only webpage that summarizes all available public events for the day. Place a QR code at the apartment so residents can scan it and see today's events on their phones.
+
+Page ideas:
+- Today's date and events in America/Chicago time.
+- Event cards with name, start/end time, location, organizer, and a short summary.
+- Original event links for full details and RSVPs.
+- Highlight events happening now and those starting soon.
+- Filters for free food, free events, categories, and location when supplied by the source.
+- Clear messages when no events are listed or the data is unavailable.
+- Last updated time so residents know how fresh the information is.
+
+Frontend-only data approach:
+- Read event data from a published static JSON file.
+- Optionally export that file with the existing TXST scraper as a separate publishing step.
+- Filter for events overlapping today, including events that began yesterday.
+- Avoid relying on direct browser scraping unless the source permits browser access.
+
+Apartment QR code:
+- Point the QR code to the hosted webpage so it stays useful when the event list changes.
+- Use a short heading such as "What's happening today?"
+- Include the readable webpage URL below the QR code.
+- Place the printed code in an approved apartment lobby, common area, or noticeboard.
+
+Next steps:
+- Choose the page name and hosting URL.
+- Decide how the static event data will be updated.
+- Build the mobile-friendly frontend.
+- Generate and print the QR code once the public URL is ready.
