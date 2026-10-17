@@ -1,14 +1,17 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="description" content="Your daily guide to public TXST campus events. Find something happening today.">
   <title>Today, Bobcats — Campus events</title>
+  <meta name="color-scheme" content="dark light">
+  <script>try{document.documentElement.dataset.theme=localStorage.getItem('daily-events-theme')==='light'?'light':'dark';}catch{}</script>
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="theme.css">
   <script src="vendor/qrcode.js" defer></script><script src="app.js" defer></script>
 </head>
 <body>
-  <header><a class="brand" href="./">TODAY, <strong>BOBCATS.</strong></a><a href="#share">Get the QR poster ↗</a></header>
+  <header><a class="brand" href="./">TODAY, <strong>BOBCATS.</strong></a><div class="header-actions"><a href="#share">Get the QR poster ↗</a><button id="theme-toggle" type="button" aria-label="Switch to light mode">Light mode</button></div></header>
   <main>
     <section class="hero"><p class="eyebrow">SAN MARCOS, TEXAS · YOUR DAILY CAMPUS EDIT</p><h1>A little less scrolling.<br><em>A little more showing up.</em></h1><p>Find your next study break, new connection, or reason to leave the apartment. Here’s what’s happening around TXST.</p><div class="date-strip"><span id="day-heading"></span><span>America/Chicago · Central time</span></div></section>
     <section class="controls" aria-label="Event filters"><label class="search">Search events<input id="search" type="search" placeholder="Name, place, or organization…"></label><label>Day<input id="date" type="date"></label><label>Category<select id="category"><option value="">All categories</option></select></label><label class="checkbox"><input id="food" type="checkbox">Free food</label><button id="today">Today</button></section>

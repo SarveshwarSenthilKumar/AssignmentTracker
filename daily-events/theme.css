@@ -1,0 +1,36 @@
+.header-actions{display:flex;align-items:center;gap:18px}.header-actions a{text-decoration:none}.header-actions button{white-space:nowrap}
+:root[data-theme=light]{color-scheme:light}
+@media screen{
+  :root[data-theme=dark]{color-scheme:dark;background:#111714;color:#e7ece5}
+  [data-theme=dark] body{background:#111714}
+  [data-theme=dark] header,[data-theme=dark] footer,[data-theme=dark] .date-strip{border-color:#344039}
+  [data-theme=dark] .brand strong,[data-theme=dark] h1 em,[data-theme=dark] .event-time{color:#e4ac9c}
+  [data-theme=dark] .hero>p:not(.eyebrow),[data-theme=dark] label,[data-theme=dark] .description,[data-theme=dark] .date-strip span:last-child,[data-theme=dark] .list-heading p,[data-theme=dark] .data-note,[data-theme=dark] footer,[data-theme=dark] .agenda-panel>p{color:#acb9ab}
+  [data-theme=dark] .controls,[data-theme=dark] .weekdays{background:#202c24}
+  [data-theme=dark] input,[data-theme=dark] select{background:#141d17;color:#e7ece5;border-color:#465447}
+  [data-theme=dark] input::placeholder{color:#95a291}
+  [data-theme=dark] button{background:#253229;color:#e7ece5;border-color:#465447}
+  [data-theme=dark] button:hover:not(:disabled){background:#354638}
+  [data-theme=dark] input:focus,[data-theme=dark] select:focus,[data-theme=dark] button:focus-visible,[data-theme=dark] a:focus-visible{outline-color:#e4ac9c}
+  [data-theme=dark] .month-panel,[data-theme=dark] .event,[data-theme=dark] #event-dialog{background:#19221b;color:#e7ece5;border-color:#3b493d}
+  [data-theme=dark] .weekdays,[data-theme=dark] .calendar-cell,[data-theme=dark] .event-bottom{border-color:#344039}
+  [data-theme=dark] .calendar-cell.outside{background:#131a15;color:#9aa595}
+  [data-theme=dark] .calendar-cell.selected{background:#352b26;box-shadow:inset 0 0 0 2px #cc9685}
+  [data-theme=dark] .day-number,[data-theme=dark] .more-events{background:transparent}
+  [data-theme=dark] .is-today .day-number{background:#bd8574;color:#131a15}
+  [data-theme=dark] .calendar-event{background:#2d4031;color:#e3eddf;border-left-color:#a5bd8f}
+  [data-theme=dark] .calendar-event:hover{background:#3d5542}
+  [data-theme=dark] .mobile-count,[data-theme=dark] .list-heading h2 span{background:#334b36;color:#e3eddf}
+  [data-theme=dark] .badge{background:#403b2d;color:#eee0bf}
+  [data-theme=dark] .badge.live{background:#334e32;color:#d2ebc4}
+  [data-theme=dark] .organizer,[data-theme=dark] .tags{color:#a6b99a}
+  [data-theme=dark] #message{background:#19221b;color:#bccbb5;border-color:#3b493d!important}
+  [data-theme=dark] .share{background:#233227}
+  [data-theme=dark] .share>div:not(.poster)>p{color:#bbcbb4}
+  /* The printable QR poster stays high contrast and scanner friendly. */
+  [data-theme=dark] .poster{background:#fffef8;color:#252b26;border-color:#d0d7c6}
+  [data-theme=dark] .poster>p{color:#58624f}
+  [data-theme=dark] #event-dialog::backdrop{background:#000a}
+}
+@media(max-width:600px){header{height:auto;min-height:80px;gap:12px;flex-wrap:wrap;padding-top:16px;padding-bottom:16px}.header-actions{gap:12px;font-size:11px}}
+@media print{:root{color-scheme:light}}

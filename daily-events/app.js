@@ -1,5 +1,8 @@
 const zone = 'America/Chicago';
 const $ = id => document.getElementById(id);
+function syncThemeToggle(){const dark=document.documentElement.dataset.theme!=='light';$('theme-toggle').textContent=dark?'Light mode':'Dark mode';$('theme-toggle').setAttribute('aria-label',`Switch to ${dark?'light':'dark'} mode`);}
+syncThemeToggle();
+$('theme-toggle').addEventListener('click',()=>{const theme=document.documentElement.dataset.theme==='light'?'dark':'light';document.documentElement.dataset.theme=theme;try{localStorage.setItem('daily-events-theme',theme);}catch{}syncThemeToggle();});
 const dayOf = value => {const parts=new Intl.DateTimeFormat('en-US',{timeZone:zone,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date(value));const get=type=>parts.find(part=>part.type===type).value;return `${get('year')}-${get('month')}-${get('day')}`;};
 const today = () => dayOf(Date.now());
 const text = value => value == null ? '' : typeof value === 'string' ? value : Array.isArray(value) ? value.map(text).filter(Boolean).join(', ') : typeof value === 'object' ? text(value.name || value.title || value.label || value.address) : String(value);
