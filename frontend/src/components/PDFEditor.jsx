@@ -1131,7 +1131,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     }
   }
 
-  const handleAddPages = async ({ mode, placement, range, files }) => {
+  const handleAddPages = async ({ mode, placement, range = '', files = [] }) => {
     if (!numPages || deletingPageRef.current || insertingRef.current) return false
     handleTextDragEnd(); commitText()
     deletingPageRef.current = true; setDeletingPage(true); setActionError(null)
@@ -1355,6 +1355,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       >
         <InsertPanel onPages={exportImage ? undefined : handleAddPages} pageNumber={pageNumber} onFiles={insertFiles} onInsert={insertGenerated} color={currentColor} busy={inserting || !pageBase || pageBase.page !== pageNumber || deletingPage} />
         <div className="pdf-editor-tool-options">
+        {!exportImage&&<button type="button" className="pdf-control" disabled={loading||!numPages||!pageBase||pageBase.page!==pageNumber||deletingPage||inserting} title={`Insert a blank page after page ${pageNumber}`} onClick={()=>handleAddPages({mode:'blank',placement:'after'})}><Plus size={16}/>Blank page after</button>}
         <button type="button" className={cn('pdf-control',currentTool==='calculate'&&'is-active')} aria-pressed={currentTool==='calculate'} title="Drag a box over one readable math expression" onClick={()=>{commitText();setCurrentTool('calculate')}}><Calculator size={16}/>Calculate selection</button>
         {currentTool==='calculate'&&<label className="pdf-math-mode">Recognition <select aria-label="Math recognition mode" value={calculationMode} onChange={event=>setCalculationMode(event.target.value)}><option value="auto">Auto · AI fallback</option><option value="vision">Handwriting / AI</option><option value="text">Text only · local</option></select></label>}
         {!exportImage && <button onClick={() => setShowPages(v => !v)} aria-label="Toggle pages" aria-expanded={showPages} className={cn('p-2 rounded-lg', showPages ? 'bg-indigo-500/20 text-indigo-300' : 'text-slate-400')} title="Pages"><PanelLeft size={20} /></button>}

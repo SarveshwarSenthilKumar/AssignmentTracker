@@ -1,5 +1,7 @@
 # 📝 Todo App
 
+The PDF editor toolbar includes **Blank page after**, which inserts an empty page immediately after the current page, matches its displayed size/orientation, shifts later annotation page numbers, saves the document, and opens the inserted page. The control is unavailable for images and while pages are loading or another page operation is running. This uses the existing page-insertion API; page operations clear the annotation undo stack. No tests or browser QA were run.
+
 The PDF eraser has Whole stroke, Precision (partial vector-stroke removal), and Objects (whole text/image annotations) modes, round/square shapes, 2–160 pt sizes, size presets, and pen/highlighter filters. A cursor outline shows its page-scaled footprint. Eraser settings are remembered in this browser. Erasing affects annotations only, never original PDF content, and each gesture can be undone. Pen widths now support 1–40 pt in 0.5 pt increments with exact numeric input; text supports 6–144 pt with a numeric input. Tests and browser QA were not run, per repository instructions.
 
 The PDF editor defaults to dark pages, inverting the displayed page, annotations, and page thumbnails for comfortable reading. Use Light pages / Dark pages in the editor header to toggle; your preference is remembered in this browser. This is a view-only filter: saved PDFs, downloads, and images sent for math recognition keep original colors. Images/photos on the displayed page also invert. No tests or browser QA were run for this change.
