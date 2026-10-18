@@ -457,6 +457,8 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const [currentPath, setCurrentPath] = useState([])
   const [usePressure, setUsePressure] = useState(true)
   const [saveStatus, setSaveStatus] = useState('saved') // saved | dirty | saving | error
+  const pageDragRef=useRef(null)
+  const [pageDropTarget,setPageDropTarget]=useState(null)
   const [showPages, setShowPages] = useState(() => !exportImage && window.innerWidth >= 768)
   const [deletingPage, setDeletingPage] = useState(false)
   const deletingPageRef = useRef(false)
@@ -862,6 +864,16 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     setCurrentTool('select')
   }
 
+  const pasteSnippet = () => {
+    if (!snippet || pageBase?.page !== pageNumber || inserting || deletingPage) return
+    try {
+      addImageInsert(snippet)
+      setActionError(null)
+    } catch (error) {
+      setActionError(error.message)
+    }
+  }
+
   const insertFiles = async (files) => {
     if (insertingRef.current || deletingPageRef.current) return
     if (!pageBase || pageBase.page !== pageNumber) { setActionError('Wait for the page to load before inserting content.'); return }
@@ -1161,7 +1173,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     }
   }
 
-  const handleAddPages = async ({ mode, placement, range = '', files = [] }) => {
+  const handleAddPages = async ({ mode, placement, range = '', files = [], sourcePage = pageNumber, targetIndex }) => {
     if (!numPages || deletingPageRef.current || insertingRef.current) return false
     handleTextDragEnd(); commitText()
     deletingPageRef.current = true; setDeletingPage(true); setActionError(null)
@@ -1172,8 +1184,8 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       for (const file of files) sources.push(await new Promise((resolve, reject) => {
         const reader = new FileReader(); reader.onload = () => resolve(reader.result.split(',')[1]); reader.onerror = () => reject(new Error(`Could not read ${file.name}.`)); reader.readAsDataURL(file)
       }))
-      const position = placement === 'start' ? 0 : placement === 'end' ? numPages : placement === 'before' ? pageNumber - 1 : pageNumber
-      const response = await fetch(`/api/pdfs/${pdfId}/pages`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ mode, position, range, currentPage: pageNumber, sources, annotations: cleanForSave(pathsRef.current) }) })
+      const position = mode === 'reorder' ? targetIndex : placement === 'start' ? 0 : placement === 'end' ? numPages : placement === 'before' ? pageNumber - 1 : pageNumber
+      const response = await fetch(`/api/pdfs/${pdfId}/pages`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ mode, position, range, currentPage: sourcePage, sources, annotations: cleanForSave(pathsRef.current) }) })
       const result = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(result.message || 'Could not add pages. The combined files and edits may be too large.')
       const bytes = Uint8Array.from(atob(result.pdfData), c => c.charCodeAt(0))
@@ -1187,6 +1199,14 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       return true
     } catch (error) { setActionError(error.message); return false }
     finally { deletingPageRef.current = false; setDeletingPage(false) }
+  }
+
+  const handlePageDrop = (event, targetPage) => {
+    event.preventDefault();event.stopPropagation()
+    const sourcePage=pageDragRef.current
+    pageDragRef.current=null;setPageDropTarget(null)
+    if(!sourcePage||sourcePage===targetPage)return
+    handleAddPages({mode:'reorder',sourcePage,targetIndex:targetPage-1})
   }
 
   const handleZoomIn = () => setScale(prev => Math.min(prev + 0.25, 4.0))
@@ -1493,7 +1513,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
           <div className="pdf-history-actions"><button className="pdf-control" onClick={undo} disabled={historyCount.undo === 0} title="Undo (Ctrl+Z)" aria-label="Undo"><Undo size={17}/></button><button className="pdf-control" onClick={redo} disabled={historyCount.redo === 0} title="Redo (Ctrl+Shift+Z)" aria-label="Redo"><Redo size={17}/></button></div>
           <button className="pdf-control" onClick={() => setShowSettings(v => !v)} aria-expanded={showSettings}><Settings size={16}/><span>Settings</span></button>
           <button type="button" className={cn('pdf-control',currentTool==='snippet'&&'is-active')} aria-pressed={currentTool==='snippet'} disabled={copyingSnippet} onClick={()=>{commitText();setCurrentTool('snippet')}} title="Drag a rectangle to copy PDF content and annotations">{copyingSnippet?'Copying…':'Copy region'}</button>
-        <button type="button" className="pdf-control" disabled={!snippet||!pageBase||pageBase.page!==pageNumber||inserting||deletingPage} onClick={()=>{try{addImageInsert(snippet);setActionError(null)}catch(error){setActionError(error.message)}} title="Paste the copied region onto the current page">Paste snippet</button>
+        <button type="button" className="pdf-control" disabled={!snippet||!pageBase||pageBase.page!==pageNumber||inserting||deletingPage} onClick={pasteSnippet} title="Paste the copied region onto the current page">Paste snippet</button>
         {currentTool==='snippet'&&<span className="text-slate-300 text-sm">Drag a region to copy. {snippet?'Snippet ready — open any page and paste.':'Then open a destination page and paste.'}</span>}
         {!exportImage&&<button type="button" className="pdf-control" aria-pressed={continuousView} disabled={deletingPage||inserting} title="Toggle continuous scrolling through all PDF pages" onClick={()=>{handleTextDragEnd();commitText();setContinuousView(value=>!value)}}><Files size={16}/><span>{continuousView?'Continuous view':'Single page'}</span></button>}
           <button type="button" className="pdf-control" aria-pressed={darkPages} title="Invert page colors for comfortable reading; exported files keep their original colors" onClick={()=>setDarkPages(value=>!value)}>{darkPages?<Sun size={16}/>:<Moon size={16}/>}<span>{darkPages?'Light pages':'Dark pages'}</span></button>
@@ -1629,11 +1649,20 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         {showPages && pdfFile && !pdfError && (
           <aside className="pdf-pages w-48 sm:w-56 shrink-0 overflow-y-auto border-r border-white/10 bg-slate-900/90" aria-label="Document pages">
             <div className="sticky top-0 z-10 bg-slate-900 px-4 py-4 border-b border-white/5 flex items-center justify-between"><span className="text-xs font-semibold uppercase tracking-widest text-slate-300">Pages</span><span className="text-xs text-slate-500">{numPages || '…'} total</span></div>
+            <p className="px-4 py-2 text-xs text-slate-400">Drag pages to reorder · Alt+↑/↓</p>
             <Document options={PDF_OPTIONS} file={pdfFile} loading={<p className="p-4 text-xs text-slate-400">Loading previews…</p>}>
               {Array.from({ length: numPages || 0 }, (_, index) => {
                 const n = index + 1
                 const count = drawingPaths.filter(item => (item.page || 1) === n).length
-                return <button key={n} onClick={() => goToPage(n)} aria-label={`Go to page ${n}${count ? `, ${count} annotations` : ''}`} aria-current={pageNumber === n ? 'page' : undefined} className={cn('pdf-page-tile', pageNumber === n && 'is-selected')}>
+                return <button key={n} type="button" disabled={deletingPage||inserting} draggable={!deletingPage&&!inserting&&numPages>1}
+                  onDragStart={event=>{pageDragRef.current=n;event.dataTransfer.effectAllowed='move';event.dataTransfer.setData('text/plain',String(n))}}
+                  onDragOver={event=>{if(!pageDragRef.current||deletingPage||inserting)return;event.preventDefault();event.dataTransfer.dropEffect='move';setPageDropTarget(n)}}
+                  onDrop={event=>handlePageDrop(event,n)}
+                  onDragEnd={()=>{pageDragRef.current=null;setPageDropTarget(null)}}
+                  onKeyDown={event=>{if(event.altKey&&(event.key==='ArrowUp'||event.key==='ArrowDown')){event.preventDefault();const target=n+(event.key==='ArrowUp'?-1:1);if(target>=1&&target<=numPages)handleAddPages({mode:'reorder',sourcePage:n,targetIndex:target-1})}}}
+                  title="Drag to move this page here; Alt+Up/Down also reorders"
+                  style={{outline:pageDropTarget===n?'2px solid #8fa5b9':undefined,outlineOffset:-2,cursor:deletingPage||inserting?'wait':'grab'}}
+                  onClick={() => goToPage(n)} aria-label={`Go to page ${n}${count ? `, ${count} annotations` : ''}`} aria-current={pageNumber === n ? 'page' : undefined} className={cn('pdf-page-tile', pageNumber === n && 'is-selected')}>
                   <div className="pdf-page-preview"><PagePreview pageNumber={n} />{count > 0 && <span className="pdf-page-badge">{count} {count === 1 ? 'edit' : 'edits'}</span>}</div>
                   <span className="flex items-center justify-between mt-3 text-xs"><span>Page {n}</span>{pageNumber === n && <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" />}</span>
                 </button>

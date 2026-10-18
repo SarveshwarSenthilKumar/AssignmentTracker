@@ -37,6 +37,20 @@ async function insertPDFPages(bytes, { position, sources = [], range = '', mode 
   const document = await PDFDocument.load(bytes);
   const count = document.getPageCount();
   if (!Number.isInteger(position) || position < 0 || position > count) throw new Error('Choose a valid insertion position.');
+  if (mode === 'reorder') {
+    if (!Number.isInteger(currentPage) || currentPage < 1 || currentPage > count || position >= count) throw new Error('Choose valid pages to reorder.');
+    const order = Array.from({ length: count }, (_, index) => index + 1);
+    order.splice(position, 0, order.splice(currentPage - 1, 1)[0]);
+    const page = document.getPage(currentPage - 1);
+    document.removePage(currentPage - 1);
+    document.insertPage(position, page);
+    const pageNumbers = new Map(order.map((original, index) => [original, index + 1]));
+    const remaining = annotations.map(item => {
+      if (!pageNumbers.has(item.page ?? 1)) throw new Error('An annotation refers to a missing page.');
+      return { ...item, page: pageNumbers.get(item.page ?? 1) };
+    });
+    return { bytes: Buffer.from(await document.save()), annotations: remaining, numPages: count, insertedPages: 0, firstInsertedPage: position + 1 };
+  }
   const added = [];
   if (mode === 'blank' || mode === 'duplicate') {
     if (!Number.isInteger(currentPage) || currentPage < 1 || currentPage > count) throw new Error('Choose a valid current page.');
