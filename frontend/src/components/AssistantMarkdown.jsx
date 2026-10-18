@@ -43,9 +43,26 @@ function workspaceCitations(sources) {
   }
 }
 
-export default function AssistantMarkdown({content,sources=[],onOpenSource}) {
+// Markdown normally collapses additional blank lines. The document converter
+// keeps deliberate vertical gaps between prose blocks without changing code/math.
+function documentSpacing(){
+  return tree=>{
+    const children=[]
+    for(const node of tree.children||[]){
+      const previous=children[children.length-1]
+      const extra=(node.position?.start.line||0)-(previous?.position?.end.line||0)-2
+      if(previous&&extra>0&&node.type!=='math'&&previous.type!=='math'){
+        children.push({type:'paragraph',data:{hName:'div',hProperties:{className:['markdown-blank-lines'],style:`height:${extra * 1.6}em`,'aria-hidden':'true'}},children:[]})
+      }
+      children.push(node)
+    }
+    tree.children=children
+  }
+}
+
+export default function AssistantMarkdown({content,sources=[],onOpenSource,preserveSpacing=false}) {
   return <div className="assistant-markdown"><ReactMarkdown
-    remarkPlugins={[remarkGfm,remarkMath,workspaceCitations(sources)]}
+    remarkPlugins={[remarkGfm,remarkMath,workspaceCitations(sources),...(preserveSpacing?[documentSpacing]:[])]}
     rehypePlugins={[[rehypeKatex,{trust:false,strict:'ignore',throwOnError:false,maxExpand:1000,maxSize:20,errorColor:'#cfb1b1',output:'htmlAndMathml'}]]}
     skipHtml
     components={{

@@ -15,3 +15,19 @@
 .markdown-pdf-paper .assistant-markdown h1,.markdown-pdf-paper .assistant-markdown h2,.markdown-pdf-paper .assistant-markdown h3,.markdown-pdf-paper .assistant-markdown h4 { break-after:avoid; page-break-after:avoid; }
 .markdown-pdf-paper .assistant-markdown p { orphans:3; widows:3; }
 .markdown-pdf-paper .markdown-pdf-formula { break-inside:avoid; }
+
+/* Preserve user spacing in prose without introducing whitespace into KaTeX's
+   positioned glyphs, table layout, or the Markdown block containers. */
+.markdown-pdf-paper .assistant-markdown p,
+.markdown-pdf-paper .assistant-markdown li,
+.markdown-pdf-paper .assistant-markdown h1,
+.markdown-pdf-paper .assistant-markdown h2,
+.markdown-pdf-paper .assistant-markdown h3,
+.markdown-pdf-paper .assistant-markdown h4,
+.markdown-pdf-paper .assistant-markdown h5,
+.markdown-pdf-paper .assistant-markdown h6,
+.markdown-pdf-paper .assistant-markdown th,
+.markdown-pdf-paper .assistant-markdown td { white-space:pre-wrap; tab-size:4; }
+.markdown-pdf-paper .assistant-markdown .katex,
+.markdown-pdf-paper .assistant-markdown .katex * { white-space:nowrap; }
+.markdown-pdf-paper .markdown-blank-lines { display:block; margin:0; padding:0; }
