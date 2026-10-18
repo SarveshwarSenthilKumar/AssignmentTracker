@@ -432,6 +432,8 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   useEffect(()=>{try{localStorage.setItem('pdf-editor-continuous',String(continuousView))}catch{}},[continuousView])
   const [darkPages,setDarkPages]=useState(()=>{try{return localStorage.getItem('pdf-editor-dark-pages')!=='false'}catch{return true}})
   useEffect(()=>{try{localStorage.setItem('pdf-editor-dark-pages',String(darkPages))}catch{}},[darkPages])
+  const [snippet,setSnippet]=useState(null),[copyingSnippet,setCopyingSnippet]=useState(false)
+  const snippetCopyRef=useRef(false)
   const [showCalculator,setShowCalculator]=useState(false)
   const [calculationBox,setCalculationBox]=useState(null),[calculationSelection,setCalculationSelection]=useState(null)
   const [calculationMode,setCalculationMode]=useState('auto')
@@ -933,9 +935,10 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const handlePointerDown = (e) => {
     if (e.pointerType === 'mouse' && e.button !== 0) return
     if (!overlayRef.current) return
-    if(currentTool==='calculate'){
+    if(currentTool==='calculate'||currentTool==='snippet'){
+      viewerRef.current?.focus({preventScroll:true})
       e.preventDefault();const point=toLocal(e)
-      calculationDrag.current={point,pointerId:e.pointerId,page:pageNumber}
+      calculationDrag.current={point,pointerId:e.pointerId,page:pageNumber,tool:currentTool}
       setCalculationBox({x:point.x,y:point.y,width:0,height:0})
       overlayRef.current.setPointerCapture(e.pointerId);return
     }
@@ -1010,6 +1013,23 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       setCalculationBox(box)
       if(box.width<3||box.height<3)return
       const page=calculationPage.current,generation=++calculationGeneration.current
+      if(start.tool==='snippet'){
+        if(snippetCopyRef.current)return
+        snippetCopyRef.current=true;setCopyingSnippet(true);setActionError(null)
+        const annotations=pathsRef.current.filter(item=>(item.page||1)===start.page)
+        ;(async()=>{
+          try{
+            if(!page||page.pageNumber!==start.page)throw new Error('Wait for this page to load before copying a region.')
+            const viewport=page.getViewport({scale:1})
+            const clipped={x:Math.max(0,box.x),y:Math.max(0,box.y),width:Math.min(viewport.width,box.x+box.width)-Math.max(0,box.x),height:Math.min(viewport.height,box.y+box.height)-Math.max(0,box.y)}
+            if(clipped.width<3||clipped.height<3)throw new Error('Select a region inside the page.')
+            const dataUrl=await mathSelectionImage(page,clipped,annotations,0)
+            setSnippet({dataUrl,width:clipped.width,height:clipped.height,label:`Snippet from page ${start.page}`})
+          }catch(error){setActionError(error.message||'Could not copy this region.')}
+          finally{snippetCopyRef.current=false;setCopyingSnippet(false)}
+        })()
+        return
+      }
       recognitionController.current?.abort()
       const controller=new AbortController();recognitionController.current=controller
       const annotations=pathsRef.current.filter(item=>(item.page||1)===start.page)
@@ -1395,7 +1415,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
                   >
                     {pageItems.filter(i => i.points).map((s) => renderStroke(s, s.id))}
                     {currentTool==='eraser'&&<rect ref={eraserCursorRef} width={eraserSize} height={eraserSize} rx={eraserShape==='round'?eraserSize/2:0} fill="#8fa5b918" stroke="#526c83" strokeWidth={1.3/scale} style={{display:'none'}}/>}
-                    {currentTool==='calculate'&&calculationBox&&<rect x={calculationBox.x} y={calculationBox.y} width={calculationBox.width} height={calculationBox.height} fill="#8fa5b933" stroke="#8fa5b9" strokeWidth={1.5/scale} strokeDasharray={`${4/scale} ${3/scale}`}/>}
+                    {(currentTool==='calculate'||currentTool==='snippet')&&calculationBox&&<rect x={calculationBox.x} y={calculationBox.y} width={calculationBox.width} height={calculationBox.height} fill="#8fa5b933" stroke="#8fa5b9" strokeWidth={1.5/scale} strokeDasharray={`${4/scale} ${3/scale}`}/>}
                     {currentPath.length > 0 &&
                       renderStroke(
                         {
@@ -1472,7 +1492,10 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
           <button type="button" className="pdf-control" aria-expanded={showCalculator} onClick={()=>{commitText();setShowCalculator(value=>!value)}}><Calculator size={16}/><span>Calculator</span></button>
           <div className="pdf-history-actions"><button className="pdf-control" onClick={undo} disabled={historyCount.undo === 0} title="Undo (Ctrl+Z)" aria-label="Undo"><Undo size={17}/></button><button className="pdf-control" onClick={redo} disabled={historyCount.redo === 0} title="Redo (Ctrl+Shift+Z)" aria-label="Redo"><Redo size={17}/></button></div>
           <button className="pdf-control" onClick={() => setShowSettings(v => !v)} aria-expanded={showSettings}><Settings size={16}/><span>Settings</span></button>
-          {!exportImage&&<button type="button" className="pdf-control" aria-pressed={continuousView} disabled={deletingPage||inserting} title="Toggle continuous scrolling through all PDF pages" onClick={()=>{handleTextDragEnd();commitText();setContinuousView(value=>!value)}}><Files size={16}/><span>{continuousView?'Continuous view':'Single page'}</span></button>}
+          <button type="button" className={cn('pdf-control',currentTool==='snippet'&&'is-active')} aria-pressed={currentTool==='snippet'} disabled={copyingSnippet} onClick={()=>{commitText();setCurrentTool('snippet')}} title="Drag a rectangle to copy PDF content and annotations">{copyingSnippet?'Copying…':'Copy region'}</button>
+        <button type="button" className="pdf-control" disabled={!snippet||!pageBase||pageBase.page!==pageNumber||inserting||deletingPage} onClick={()=>{try{addImageInsert(snippet);setActionError(null)}catch(error){setActionError(error.message)}} title="Paste the copied region onto the current page">Paste snippet</button>
+        {currentTool==='snippet'&&<span className="text-slate-300 text-sm">Drag a region to copy. {snippet?'Snippet ready — open any page and paste.':'Then open a destination page and paste.'}</span>}
+        {!exportImage&&<button type="button" className="pdf-control" aria-pressed={continuousView} disabled={deletingPage||inserting} title="Toggle continuous scrolling through all PDF pages" onClick={()=>{handleTextDragEnd();commitText();setContinuousView(value=>!value)}}><Files size={16}/><span>{continuousView?'Continuous view':'Single page'}</span></button>}
           <button type="button" className="pdf-control" aria-pressed={darkPages} title="Invert page colors for comfortable reading; exported files keep their original colors" onClick={()=>setDarkPages(value=>!value)}>{darkPages?<Sun size={16}/>:<Moon size={16}/>}<span>{darkPages?'Light pages':'Dark pages'}</span></button>
           <button className="pdf-control pdf-control-primary" onClick={handleSave} disabled={saveStatus === 'saving'}><Save size={16}/><span>Save</span></button>
           <button className="pdf-control" onClick={handleDownload} disabled={downloading} title={exportImage ? 'Download edited image as PNG' : 'Download PDF with annotations'}>{downloading ? <Loader2 className="animate-spin" size={16}/> : <Download size={16}/>}<span>{downloading ? 'Exporting…' : 'Download'}</span></button>
@@ -1552,7 +1575,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
           <span className="text-slate-300 text-sm">Drag around one complete expression. {calculationMode==='text'?'Local text recognition only.':'AI sends only the selected image to Gemini; review its transcription.'}</span>
         ) : currentTool === 'select' ? (
           <span className="text-slate-300 text-sm">Drag content to move · drag corners to resize</span>
-        ) : currentTool !== 'eraser' ? (
+        ) : currentTool !== 'eraser' && currentTool !== 'snippet' ? (
           <div className="flex items-center gap-2">
             <span className="text-slate-400 text-sm">Size:</span>
             <input
@@ -1619,7 +1642,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
           </aside>
         )}
       {/* PDF Viewer */}
-      <div tabIndex={0} aria-label="PDF canvas; paste or drop images here" onDragOver={e => { e.preventDefault() }} onDrop={e => { e.preventDefault(); insertFiles(Array.from(e.dataTransfer.files)) }} onPaste={e => { if (e.target.closest('textarea, input')) return; const files = Array.from(e.clipboardData.files); if (files.length) { e.preventDefault(); insertFiles(files) } }} ref={viewerRef} className="pdf-editor-canvas flex-1 min-w-0 overflow-auto bg-slate-950">
+      <div tabIndex={0} aria-label="PDF canvas; paste or drop images here" onDragOver={e => { e.preventDefault() }} onDrop={e => { e.preventDefault(); insertFiles(Array.from(e.dataTransfer.files)) }} onPaste={e => { if (e.target.closest('textarea, input')) return; const files = Array.from(e.clipboardData.files); if (files.length) { e.preventDefault(); insertFiles(files) } else if(snippet){e.preventDefault();if(pageBase?.page===pageNumber&&!inserting&&!deletingPage){try{addImageInsert(snippet)}catch(error){setActionError(error.message)}}} }} ref={viewerRef} className="pdf-editor-canvas flex-1 min-w-0 overflow-auto bg-slate-950">
         <div className="flex min-h-full w-fit min-w-full items-start justify-center p-8">
           {pdfError ? (
             <div className="text-center py-12">

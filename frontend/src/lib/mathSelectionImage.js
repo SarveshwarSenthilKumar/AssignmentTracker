@@ -6,9 +6,9 @@ export function selectionHasInk(items,box){
   })
 }
 
-export async function mathSelectionImage(page,box,items){
+export async function mathSelectionImage(page,box,items,padding=5){
   const viewport=page.getViewport({scale:1})
-  const x=Math.max(0,box.x-5),y=Math.max(0,box.y-5),width=Math.min(viewport.width-x,box.width+10),height=Math.min(viewport.height-y,box.height+10)
+  const x=Math.max(0,box.x-padding),y=Math.max(0,box.y-padding),width=Math.min(viewport.width-x,box.width+padding*2),height=Math.min(viewport.height-y,box.height+padding*2)
   if(width<=0||height<=0)throw new Error('Select an area inside the page.')
   const scale=Math.min(3,1600/Math.max(width,height)),canvas=document.createElement('canvas')
   canvas.width=Math.max(1,Math.ceil(width*scale));canvas.height=Math.max(1,Math.ceil(height*scale))
