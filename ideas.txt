@@ -42,6 +42,9 @@ fix markdown to pdf and make sure it lines up
 add support for pen buttons
 fix bugs
 add support to track for finger scrolling
+add ability to shrink toolbar for tools
+add ability to open page on teh side
+add ability to open the ai assistant on the side while in full mode
 
 resume job tailor:
 Get job by links
