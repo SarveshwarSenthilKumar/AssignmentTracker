@@ -1,5 +1,7 @@
 # 📝 Todo App
 
+Task dragging uses a compact floating preview and a single insertion line, with pointer visuals updated once per animation frame outside React. Wheel/trackpad scrolling stays native; edge scrolling eases in and pauses for manual scrolling. Drops update immediately while saving, with rollback if saving fails. Escape cancels a drag. No browser QA or automated checks were run for this change, following repository instructions.
+
 Tasks default to Custom order. Drag a task onto the upper or lower half of another card to place it before or after that task; the insertion line shows the destination. Dropping into a different status column also updates the moved task's status. A drag from another sort mode switches to Custom order after saving. Ordering saves to your account and survives reloads; other sort modes remain available. Restart the backend after updating. Reordering uses MongoDB transactions (Atlas or a replica set), like calendar undo. This change has not been tested or browser-verified, following repository instructions.
 
 Account → Action confirmations lets you separately disable task-deletion confirmations (including bulk deletion) and other standard action confirmations. Both are enabled by default and save to your account. Disabling them makes the relevant actions immediate; account reset still requires its password and RESET confirmation. Restart the backend after updating to enable these preferences.

@@ -1,5 +1,5 @@
 import TimeZoneSettings from './components/TimeZoneSettings'
-import useTaskDragScroll from './hooks/useTaskDragScroll'
+
 import useTaskPointerDrag from './hooks/useTaskPointerDrag'
 import ConfirmationSettings from './components/ConfirmationSettings'
 import { readApiJson } from './lib/apiResponse'
@@ -58,8 +58,8 @@ function App() {
   const [showProfileModal, setShowProfileModal] = useState(false)
   const [newFolderName, setNewFolderName] = useState('')
   const [newFolderColor, setNewFolderColor] = useState('#64788b')
-  const [draggedTodo, setDraggedTodo] = useState(null)
-  useTaskDragScroll(page==='tasks'&&!!draggedTodo)
+
+
   const [expandedTodos, setExpandedTodos] = useState(new Set())
   const [editingTodos, setEditingTodos] = useState(new Set())
   const [editData, setEditData] = useState({})
@@ -68,8 +68,8 @@ function App() {
   const inputRef = useRef(null)
   const commandInputRef = useRef(null)
   const [sortBy, setSortBy] = useState('manual')
-  const [dropTarget,setDropTarget]=useState(null),[reordering,setReordering]=useState(false)
-  const reorderLock=useRef(false),dragTask=useRef(null)
+  const [reordering,setReordering]=useState(false)
+  const reorderLock=useRef(false)
   const [sortOrder, setSortOrder] = useState('desc')
   const [editingFolder, setEditingFolder] = useState(null)
   const [editFolderName, setEditFolderName] = useState('')
@@ -436,22 +436,22 @@ function App() {
 
   const beginTaskPointerDrag=useTaskPointerDrag({
     enabled:page==='tasks'&&!bulkDeleting&&!reordering,
-    onStart:task=>{dragTask.current=task;setDraggedTodo(task)},
-    onHover:destination=>setDropTarget(previous=>{
-      const next=destination?.id&&destination.id!==dragTask.current?._id?{id:destination.id,position:destination.position}:null
-      return previous?.id===next?.id&&previous?.position===next?.position?previous:next
-    }),
     onDrop:(moving,destination)=>reorderTasks(moving,todos.find(task=>task._id===destination.id)||null,destination.status,destination.position),
-    onEnd:()=>{dragTask.current=null;setDraggedTodo(null);setDropTarget(null)},
+
   })
   const reorderTasks=async(moving,target,status,position)=>{
     if(reorderLock.current||moving._id===target?._id)return
-    reorderLock.current=true;setReordering(true);setDropTarget(null)
+    reorderLock.current=true;setReordering(true)
     const ordered=getSortedTodos(todos).filter(task=>task._id!==moving._id)
     let index=target?ordered.findIndex(task=>task._id===target._id):ordered.reduce((last,task,i)=>task.status===status?i+1:last,ordered.length)
     if(target&&position==='after')index++
     ordered.splice(Math.max(0,index),0,moving)
     const ids=ordered.map(task=>task._id)
+    const previousSort=sortBy
+    const previousOrder=new Map(todos.map(task=>[task._id,{manualOrder:task.manualOrder,status:task.status,completedAt:task.completedAt}]))
+    const optimisticRanks=new Map(ids.map((id,index)=>[id,index]))
+    setSortBy('manual')
+    setTodos(previous=>previous.map(task=>({...task,manualOrder:optimisticRanks.get(task._id)??task.manualOrder,...(task._id===moving._id&&task.status!==status?{status,completedAt:status==='completed'?new Date().toISOString():null}:{})})))
     try{
       const response=await fetch('/api/todos/reorder',{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({ids,movedId:moving._id,status})})
       const data=await readApiJson(response)
@@ -460,7 +460,10 @@ function App() {
       const ranks=new Map(data.ids.map((id,index)=>[id,index]))
       setTodos(previous=>previous.map(task=>({...task,...(task._id===data.task._id?data.task:{}),...(ranks.has(task._id)?{manualOrder:ranks.get(task._id)}:{})})))
       setSortBy('manual')
-    }catch(error){setError(error.message)}finally{reorderLock.current=false;setReordering(false);dragTask.current=null;setDraggedTodo(null)}
+    }catch(error){
+      setTodos(previous=>previous.map(task=>({...task,...(previousOrder.get(task._id)||{})})))
+      setSortBy(previousSort);setError(error.message)
+    }finally{reorderLock.current=false;setReordering(false)}
   }
 
   const toggleExpand = (id) => {
@@ -694,7 +697,7 @@ function App() {
         draggable={false}
         onDragStart={event=>event.preventDefault()}
         onPointerDown={event=>{if(!isEditing)beginTaskPointerDrag(event,todo)}}
-        className={cn("group task-selectable",draggedTodo?._id===todo._id&&"is-task-dragging",selectedTaskIds.has(todo._id)&&"is-bulk-selected",dropTarget?.id===todo._id&&`task-drop-${dropTarget.position}`)}
+        className={cn("group task-selectable",selectedTaskIds.has(todo._id)&&"is-bulk-selected")}
         ref={(el) => { if (isEditing) editRefs.current[todo._id] = el }}
       >
         <div
@@ -1601,8 +1604,7 @@ function App() {
             <div
               data-task-status="todo"
               className={cn(
-                "transition-all duration-300 rounded-2xl p-3 min-h-[150px]",
-                draggedTodo?.status !== 'todo' && "bg-primary-500/10 border-2 border-dashed border-primary-500/30"
+                "rounded-2xl p-3 min-h-[150px]"
               )}
             >
               <h2 className="text-base font-semibold text-white mb-3 flex items-center gap-2">
@@ -1632,8 +1634,7 @@ function App() {
             <div
               data-task-status="in-progress"
               className={cn(
-                "transition-all duration-300 rounded-2xl p-3 min-h-[150px]",
-                draggedTodo?.status !== 'in-progress' && "bg-yellow-500/10 border-2 border-dashed border-yellow-500/30"
+                "rounded-2xl p-3 min-h-[150px]"
               )}
             >
               <h2 className="text-base font-semibold text-yellow-400 mb-3 flex items-center gap-2">
@@ -1663,8 +1664,7 @@ function App() {
             <div
               data-task-status="completed"
               className={cn(
-                "transition-all duration-300 rounded-2xl p-3 min-h-[150px]",
-                draggedTodo?.status !== 'completed' && "bg-green-500/10 border-2 border-dashed border-green-500/30"
+                "rounded-2xl p-3 min-h-[150px]"
               )}
             >
               <h2 className="text-base font-semibold text-green-400 mb-3 flex items-center gap-2">
@@ -1837,7 +1837,7 @@ function App() {
                 setCanvasNotice(''); setCanvasUrl(''); setCanvasToken(''); setCanvasStatus({ hasCredentials: false, canvasUrl: null, lastCanvasSync: null }); setIcsFile(null)
                 setContextMenu(null); setError(null); setErrorDetails(null); setShowErrorDetails(false); setShowPDFUploadModal(false)
                 setShowFolderModal(false); setEditingFolder(null); setEditFolderName(''); setNewFolderName(''); setNewFolderColor('#64788b')
-                setDraggedTodo(null); setCommandInput(''); setShowCommandMenu(false); pendingLibraryTask.current = null
+                setCommandInput(''); setShowCommandMenu(false); pendingLibraryTask.current = null
               }} />
 
               <button
