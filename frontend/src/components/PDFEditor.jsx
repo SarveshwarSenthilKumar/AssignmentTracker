@@ -2,6 +2,7 @@ import useShortcuts from '../hooks/useShortcuts'
 import useInlineConfirm from '../hooks/useInlineConfirm'
 import InlineConfirmation from './InlineConfirmation'
 import PDFCalculator from './PDFCalculator'
+import { selectionExpression, textInPdfBox } from '../lib/pdfCalculation'
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Document, Page, pdfjs } from 'react-pdf'
 import {
@@ -414,6 +415,9 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const [loading, setLoading] = useState(true)
   const [showSettings, setShowSettings] = useState(false)
   const [showCalculator,setShowCalculator]=useState(false)
+  const [calculationBox,setCalculationBox]=useState(null),[calculationSelection,setCalculationSelection]=useState(null)
+  const calculationDrag=useRef(null),calculationPage=useRef(null),calculationGeneration=useRef(0)
+  useEffect(()=>{calculationGeneration.current++;calculationDrag.current=null;setCalculationBox(null);return()=>{calculationGeneration.current++}},[pageNumber,pdfId,currentTool])
   const settingsFocusRef = useRef(null)
   useEffect(() => {
     if (!showSettings) return
@@ -672,6 +676,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   }
 
   const onPageLoadSuccess = (page) => {
+    calculationPage.current=page
     // Viewport at scale 1 honours the page's own /Rotate, matching what is displayed
     const vp = page.getViewport({ scale: 1 })
     setPageBase({ page: page.pageNumber, w: vp.width, h: vp.height, rotation: page.rotate || 0 })
@@ -908,6 +913,12 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const handlePointerDown = (e) => {
     if (e.pointerType === 'mouse' && e.button !== 0) return
     if (!overlayRef.current) return
+    if(currentTool==='calculate'){
+      e.preventDefault();const point=toLocal(e)
+      calculationDrag.current={point,pointerId:e.pointerId,page:pageNumber}
+      setCalculationBox({x:point.x,y:point.y,width:0,height:0})
+      overlayRef.current.setPointerCapture(e.pointerId);return
+    }
     viewerRef.current?.focus({ preventScroll: true })
 
     if (currentTool === 'select') { setSelectedInsertId(null); return }
@@ -947,6 +958,10 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   }
 
   const handlePointerMove = (e) => {
+    if(calculationDrag.current){
+      const start=calculationDrag.current;if(start.pointerId!==e.pointerId)return
+      const point=toLocal(e);setCalculationBox({x:Math.min(start.point.x,point.x),y:Math.min(start.point.y,point.y),width:Math.abs(point.x-start.point.x),height:Math.abs(point.y-start.point.y)});return
+    }
     if (isErasingRef.current) {
       eraseAt(toLocal(e))
       return
@@ -965,6 +980,24 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   }
 
   const handlePointerUp = (e) => {
+    if(calculationDrag.current){
+      const start=calculationDrag.current;calculationDrag.current=null
+      if(overlayRef.current?.hasPointerCapture(e.pointerId))overlayRef.current.releasePointerCapture(e.pointerId)
+      if(e.type==='pointercancel'){setCalculationBox(null);return}
+      const point=toLocal(e),box={x:Math.min(start.point.x,point.x),y:Math.min(start.point.y,point.y),width:Math.abs(point.x-start.point.x),height:Math.abs(point.y-start.point.y)}
+      setCalculationBox(box)
+      if(box.width<3||box.height<3)return
+      const page=calculationPage.current,generation=++calculationGeneration.current
+      ;(async()=>{
+        try{
+          if(!page||page.pageNumber!==start.page)throw new Error('Wait for this PDF page to load, then select again.')
+          const text=await textInPdfBox(page,box,pdfjs.Util.transform,pathsRef.current.filter(item=>(item.page||1)===start.page))
+          const expression=selectionExpression(text)
+          if(generation!==calculationGeneration.current)return
+          setCalculationSelection({expression,id:generation});setShowCalculator(true)
+        }catch(error){if(generation===calculationGeneration.current){setCalculationSelection({error:error.message,id:generation});setShowCalculator(true)}}
+      })();return
+    }
     overlayRef.current?.releasePointerCapture?.(e.pointerId)
     if (isErasingRef.current) {
       isErasingRef.current = false
@@ -1280,6 +1313,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       >
         <InsertPanel onPages={exportImage ? undefined : handleAddPages} pageNumber={pageNumber} onFiles={insertFiles} onInsert={insertGenerated} color={currentColor} busy={inserting || !pageBase || pageBase.page !== pageNumber || deletingPage} />
         <div className="pdf-editor-tool-options">
+        <button type="button" className={cn('pdf-control',currentTool==='calculate'&&'is-active')} aria-pressed={currentTool==='calculate'} title="Drag a box over one readable math expression" onClick={()=>{commitText();setCurrentTool('calculate')}}><Calculator size={16}/>Calculate selection</button>
         {!exportImage && <button onClick={() => setShowPages(v => !v)} aria-label="Toggle pages" aria-expanded={showPages} className={cn('p-2 rounded-lg', showPages ? 'bg-indigo-500/20 text-indigo-300' : 'text-slate-400')} title="Pages"><PanelLeft size={20} /></button>}
         <div className="pdf-tool-group" role="group" aria-label="Annotation tools">
           {TOOLS.map((tool) => (
@@ -1335,6 +1369,8 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
             />
             <span className="text-white text-sm w-10">{fontSize}pt</span>
           </div>
+        ) : currentTool === 'calculate' ? (
+          <span className="text-slate-300 text-sm">Drag around one line of math to calculate · readable text only</span>
         ) : currentTool === 'select' ? (
           <span className="text-slate-300 text-sm">Drag content to move · drag corners to resize</span>
         ) : currentTool !== 'eraser' ? (
@@ -1386,7 +1422,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
 
       {actionError && <div role="alert" className="flex items-center justify-between gap-3 bg-red-950 px-5 py-2 text-sm text-red-200">{actionError}<button onClick={() => setActionError(null)} aria-label="Dismiss error"><X size={16} /></button></div>}
       <div className="flex flex-1 min-h-0 relative">
-        <PDFCalculator open={showCalculator} onClose={()=>setShowCalculator(false)}/>
+        <PDFCalculator open={showCalculator} onClose={()=>setShowCalculator(false)} selection={calculationSelection}/>
         {showPages && pdfFile && !pdfError && (
           <aside className="pdf-pages w-48 sm:w-56 shrink-0 overflow-y-auto border-r border-white/10 bg-slate-900/90" aria-label="Document pages">
             <div className="sticky top-0 z-10 bg-slate-900 px-4 py-4 border-b border-white/5 flex items-center justify-between"><span className="text-xs font-semibold uppercase tracking-widest text-slate-300">Pages</span><span className="text-xs text-slate-500">{numPages || '…'} total</span></div>
@@ -1466,6 +1502,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
                     style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
                   >
                     {pageItems.filter(i => i.points).map((s) => renderStroke(s, s.id))}
+                    {currentTool==='calculate'&&calculationBox&&<rect x={calculationBox.x} y={calculationBox.y} width={calculationBox.width} height={calculationBox.height} fill="#8fa5b933" stroke="#8fa5b9" strokeWidth={1.5/scale} strokeDasharray={`${4/scale} ${3/scale}`}/>}
                     {currentPath.length > 0 &&
                       renderStroke(
                         {
