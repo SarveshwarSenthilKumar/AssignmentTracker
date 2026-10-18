@@ -1,5 +1,7 @@
 # 📝 Todo App
 
+Account → Action confirmations lets you separately disable task-deletion confirmations (including bulk deletion) and other standard action confirmations. Both are enabled by default and save to your account. Disabling them makes the relevant actions immediate; account reset still requires its password and RESET confirmation. Restart the backend after updating to enable these preferences.
+
 A modern, full-stack todo application with a beautiful UI and cloud database.
 
 Account → Time zone lets you save a time zone or follow your device automatically. Calendar appointments, task deadline inputs and labels, and deadline charts use this preference. Stored event times remain unchanged; date markers and all-day dates keep their original calendar dates.

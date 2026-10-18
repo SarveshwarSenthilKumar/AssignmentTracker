@@ -49,6 +49,8 @@ const userSchema = new mongoose.Schema({
   geminiApiKeyLastFour: { type: String, select: false },
   geminiApiKeyUpdatedAt: { type: Date, select: false },
   timeZone: { type: String, default: '' },
+  confirmTaskDeletion: { type: Boolean, default: true },
+  confirmOtherActions: { type: Boolean, default: true },
   username: {
     type: String,
     required: true,
@@ -496,21 +498,31 @@ app.post('/api/assistant/chat', authenticateToken, async (req, res) => {
 });
 app.get('/api/account/preferences', authenticateToken, async (req, res) => {
   try {
-    const user = await User.findById(req.user.userId).select('timeZone');
+    const user = await User.findById(req.user.userId).select('timeZone confirmTaskDeletion confirmOtherActions');
     if (!user) return res.status(404).json({ message: 'Account not found.' });
-    res.json({ timeZone: user.timeZone || '' });
+    res.json({ timeZone: user.timeZone || '', confirmTaskDeletion:user.confirmTaskDeletion!==false, confirmOtherActions:user.confirmOtherActions!==false });
   } catch { res.status(500).json({ message: 'Could not load account preferences.' }); }
 });
 app.put('/api/account/preferences', authenticateToken, async (req, res) => {
-  const { timeZone } = req.body;
+  const { timeZone,confirmTaskDeletion,confirmOtherActions } = req.body;
+  const update={};
+  if(timeZone!==undefined){
   if (typeof timeZone !== 'string' || timeZone.length > 100) return res.status(400).json({ message: 'Choose a valid time zone.' });
   try { if (timeZone) new Intl.DateTimeFormat('en', { timeZone }).format(); }
   catch { return res.status(400).json({ message: 'Choose a valid time zone.' }); }
+  update.timeZone=timeZone;
+  }
+  for(const [key,value] of Object.entries({confirmTaskDeletion,confirmOtherActions})){
+    if(value===undefined)continue;
+    if(typeof value!=='boolean')return res.status(400).json({message:'Confirmation preferences must be enabled or disabled.'});
+    update[key]=value;
+  }
+  if(!Object.keys(update).length)return res.status(400).json({message:'Choose a preference to update.'});
   try {
-    const user = await User.findByIdAndUpdate(req.user.userId, { $set: { timeZone } }, { new: true }).select('timeZone');
+    const user = await User.findByIdAndUpdate(req.user.userId, { $set: update }, { new: true }).select('timeZone confirmTaskDeletion confirmOtherActions');
     if (!user) return res.status(404).json({ message: 'Account not found.' });
-    res.json({ timeZone: user.timeZone || '' });
-  } catch { res.status(500).json({ message: 'Could not save your time zone.' }); }
+    res.json({ timeZone: user.timeZone || '',confirmTaskDeletion:user.confirmTaskDeletion!==false,confirmOtherActions:user.confirmOtherActions!==false });
+  } catch { res.status(500).json({ message: 'Could not save your account preferences.' }); }
 });
 app.post('/api/user/reset', authenticateToken, async (req, res) => {
   const userId = String(req.user.userId);

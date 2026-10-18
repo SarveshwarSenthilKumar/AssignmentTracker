@@ -24,6 +24,8 @@ do complete iterative bug testing for each file
 add autonomous updates and figure out hosting for site
 add an algorithm and summary and other  features
 add dark mode
+add undo button for deleted tasks
+add option to remove in progress bar
 
 resume job tailor:
 Get job by links

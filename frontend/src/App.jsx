@@ -1,4 +1,5 @@
 import TimeZoneSettings from './components/TimeZoneSettings'
+import ConfirmationSettings from './components/ConfirmationSettings'
 import { readApiJson } from './lib/apiResponse'
 import AccountAISettings from './components/AccountAISettings'
 import WorkflowWorkspace from './components/WorkflowWorkspace'
@@ -29,7 +30,7 @@ import PDFUploadModal from './components/PDFUploadModal'
 
 function App() {
   const { isAuthenticated, token, logout, user, loading: authLoading } = useAuth()
-  const taskConfirmation = useInlineConfirm()
+  const taskConfirmation = useInlineConfirm('tasks')
   const deletingTaskIds=useRef(new Set())
   const readPage = () => {
     const route = window.location.hash.replace(/^#\/?/, '').split('/')[0]
@@ -1812,6 +1813,7 @@ function App() {
               </div>
 
               <TimeZoneSettings />
+              <ConfirmationSettings />
               <AccountAISettings token={token}/>
               <AccountReset token={token} disabled={syncing || testing || !!selectedPDF} onReset={() => {
                 window.dispatchEvent(new CustomEvent('workspace-reset',{detail:user?.id}));setAssistantOpen(false);setAssistantGeneration(previous=>previous+1);setAssistantCalendarId(null)
