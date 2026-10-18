@@ -37,6 +37,7 @@ add a continuous page scroll option
 add document generation
 add subfolders for docs and tasks
 improve document creator with fancy features
+add share with link feature
 
 resume job tailor:
 Get job by links
