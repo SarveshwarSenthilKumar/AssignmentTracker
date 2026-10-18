@@ -9,7 +9,7 @@ import { readApiJson } from '../lib/apiResponse'
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Document, Page, pdfjs } from 'react-pdf'
 import {
-  Calculator, X, Save, Download, Upload, Trash2, Pen, Highlighter, Eraser, ZoomIn, ZoomOut,
+  Moon, Sun, Calculator, X, Save, Download, Upload, Trash2, Pen, Highlighter, Eraser, ZoomIn, ZoomOut,
   PanelLeft, FileText, Maximize, RotateCw, Settings, Tag, Folder, Check, Loader2, Undo, Redo, Type, Move, Minus, Plus, AlertCircle
 } from 'lucide-react'
 import { PDFDocument, rgb, degrees, StandardFonts, LineCapStyle } from 'pdf-lib'
@@ -417,6 +417,8 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const [activeTextId, setActiveTextId] = useState(null)
   const [loading, setLoading] = useState(true)
   const [showSettings, setShowSettings] = useState(false)
+  const [darkPages,setDarkPages]=useState(()=>{try{return localStorage.getItem('pdf-editor-dark-pages')!=='false'}catch{return true}})
+  useEffect(()=>{try{localStorage.setItem('pdf-editor-dark-pages',String(darkPages))}catch{}},[darkPages])
   const [showCalculator,setShowCalculator]=useState(false)
   const [calculationBox,setCalculationBox]=useState(null),[calculationSelection,setCalculationSelection]=useState(null)
   const [calculationMode,setCalculationMode]=useState('auto')
@@ -1323,6 +1325,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
           <button type="button" className="pdf-control" aria-expanded={showCalculator} onClick={()=>{commitText();setShowCalculator(value=>!value)}}><Calculator size={16}/><span>Calculator</span></button>
           <div className="pdf-history-actions"><button className="pdf-control" onClick={undo} disabled={historyCount.undo === 0} title="Undo (Ctrl+Z)" aria-label="Undo"><Undo size={17}/></button><button className="pdf-control" onClick={redo} disabled={historyCount.redo === 0} title="Redo (Ctrl+Shift+Z)" aria-label="Redo"><Redo size={17}/></button></div>
           <button className="pdf-control" onClick={() => setShowSettings(v => !v)} aria-expanded={showSettings}><Settings size={16}/><span>Settings</span></button>
+          <button type="button" className="pdf-control" aria-pressed={darkPages} title="Invert page colors for comfortable reading; exported files keep their original colors" onClick={()=>setDarkPages(value=>!value)}>{darkPages?<Sun size={16}/>:<Moon size={16}/>}<span>{darkPages?'Light pages':'Dark pages'}</span></button>
           <button className="pdf-control pdf-control-primary" onClick={handleSave} disabled={saveStatus === 'saving'}><Save size={16}/><span>Save</span></button>
           <button className="pdf-control" onClick={handleDownload} disabled={downloading} title={exportImage ? 'Download edited image as PNG' : 'Download PDF with annotations'}>{downloading ? <Loader2 className="animate-spin" size={16}/> : <Download size={16}/>}<span>{downloading ? 'Exporting…' : 'Download'}</span></button>
           <button className="pdf-control" onClick={handleClose} title="Close editor" aria-label="Close editor"><X size={18}/></button>
@@ -1448,7 +1451,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       </div>
 
       {actionError && <div role="alert" className="flex items-center justify-between gap-3 bg-red-950 px-5 py-2 text-sm text-red-200">{actionError}<button onClick={() => setActionError(null)} aria-label="Dismiss error"><X size={16} /></button></div>}
-      <div className="flex flex-1 min-h-0 relative">
+      <div className={cn('flex flex-1 min-h-0 relative',darkPages&&'pdf-dark-pages')}>
         <PDFCalculator open={showCalculator} onClose={()=>setShowCalculator(false)} selection={calculationSelection}/>
         {showPages && pdfFile && !pdfError && (
           <aside className="pdf-pages w-48 sm:w-56 shrink-0 overflow-y-auto border-r border-white/10 bg-slate-900/90" aria-label="Document pages">
@@ -1476,7 +1479,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
             </div>
           ) : pdfFile ? (
             <div
-              className="relative shrink-0"
+              className="relative shrink-0 pdf-page-surface"
               style={ready ? { width: renderW, height: renderH } : undefined}
             >
               <Document

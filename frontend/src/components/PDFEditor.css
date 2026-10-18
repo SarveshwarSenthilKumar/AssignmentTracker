@@ -193,3 +193,8 @@
   .pdf-editor-footer { padding: 8px 12px; gap: 8px; }
   .pdf-editor-footer .pdf-delete-page { margin-left: 0; }
 }
+
+/* View-only inversion includes page annotations so dark ink stays readable. */
+.pdf-dark-pages .pdf-page-surface{filter:invert(.92) hue-rotate(180deg)}
+.pdf-dark-pages .pdf-page-preview .react-pdf__Page{filter:invert(.92) hue-rotate(180deg)}
+@media print{.pdf-dark-pages .pdf-page-surface,.pdf-dark-pages .pdf-page-preview .react-pdf__Page{filter:none}}
