@@ -26,6 +26,7 @@ add an algorithm and summary and other  features
 add dark mode
 add undo button for deleted tasks
 add option to remove in progress bar
+create new folders instead of to do in progress and completed
 
 resume job tailor:
 Get job by links
