@@ -27,6 +27,9 @@ add dark mode
 add undo button for deleted tasks
 add option to remove in progress bar
 create new folders instead of to do in progress and completed
+add option to add special links section
+add option to give each folder a descripption
+add ability to give each folder description media
 
 resume job tailor:
 Get job by links
