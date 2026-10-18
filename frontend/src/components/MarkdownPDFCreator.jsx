@@ -3,7 +3,7 @@ import { X, Download, FileText, Loader2 } from 'lucide-react'
 import AssistantMarkdown from './AssistantMarkdown'
 import { readApiJson } from '../lib/apiResponse'
 import { downloadBlob } from '../lib/documentFormats'
-import { prepareMarkdownExport } from '../lib/markdownPdfExport'
+import { prepareMarkdownExport, splitMarkdownExport } from '../lib/markdownPdfExport'
 import './MarkdownPDFCreator.css'
 
 export default function MarkdownPDFCreator({token,folderId,onClose,onCreated}){
@@ -17,16 +17,31 @@ export default function MarkdownPDFCreator({token,folderId,onClose,onCreated}){
       await Promise.all(Array.from(document.fonts).filter(font=>font.family.includes('KaTeX')).map(font=>font.load()))
       await document.fonts.ready
       const element=paper.current
-      if(element.scrollHeight>12000)throw new Error('This document is too long for browser conversion. Split it into shorter documents (about 12 pages each).')
       if(element.querySelector('.katex-error'))throw new Error('A math expression could not be formatted. Correct the highlighted expression before exporting.')
       const exportElement=await prepareMarkdownExport(element)
       const {default:html2pdf}=await import('html2pdf.js')
-      const worker=html2pdf().set({margin:[15,15,18,15],image:{type:'png'},html2canvas:{scale:2,backgroundColor:'#ffffff',logging:false,useCORS:false},jsPDF:{unit:'mm',format,orientation:'portrait',compress:true},enableLinks:true,pagebreak:{mode:['css','legacy'],avoid:['tr','.katex-display','.markdown-pdf-formula','pre','h1','h2','h3','h4']}}).from(exportElement).toPdf()
-      const pdf=await worker.get('pdf')
-      pdf.setProperties({title:title.trim(),creator:'Assignment Tracker'})
-      const pages=pdf.internal.getNumberOfPages()
-      for(let page=1;page<=pages;page++){pdf.setPage(page);pdf.setFontSize(8);pdf.setTextColor(110);pdf.text(`${page} / ${pages}`,pdf.internal.pageSize.getWidth()/2,pdf.internal.pageSize.getHeight()-8,{align:'center'})}
-      const blob=pdf.output('blob'),filename=(title.replace(/[<>:"/\\|?*\u0000-\u001f]/g,'-').replace(/\.pdf$/i,'').trim()||'Markdown document')+'.pdf'
+      const {PDFDocument,StandardFonts,rgb}=await import('pdf-lib')
+      const merged=await PDFDocument.create()
+      const sections=splitMarkdownExport(exportElement)
+      try{
+        for(let index=0;index<sections.chunks.length;index++){
+          setBusy(`Converting section ${index+1} of ${sections.chunks.length}…`)
+          const worker=html2pdf().set({margin:[15,15,18,15],image:{type:'png'},html2canvas:{scale:2,backgroundColor:'#ffffff',logging:false,useCORS:false},jsPDF:{unit:'mm',format,orientation:'portrait',compress:true},enableLinks:true,pagebreak:{mode:['css','legacy'],avoid:['tr','.katex-display','.markdown-pdf-formula','pre','h1','h2','h3','h4']}}).from(sections.chunks[index]).toPdf()
+          const section=await worker.get('pdf')
+          const part=await PDFDocument.load(section.output('arraybuffer'))
+          const pages=await merged.copyPages(part,part.getPageIndices())
+          pages.forEach(page=>merged.addPage(page))
+          // Release each section's canvas before converting the next one.
+          const canvas=await worker.get('canvas');if(canvas){canvas.width=0;canvas.height=0}
+        }
+      }finally{sections.dispose()}
+      merged.setTitle(title.trim());merged.setCreator('Assignment Tracker')
+      const font=await merged.embedFont(StandardFonts.Helvetica),pages=merged.getPages()
+      pages.forEach((page,index)=>{
+        const label=`${index+1} / ${pages.length}`,size=8
+        page.drawText(label,{x:(page.getWidth()-font.widthOfTextAtSize(label,size))/2,y:20,size,font,color:rgb(.43,.43,.43)})
+      })
+      const blob=new Blob([await merged.save()],{type:'application/pdf'}),filename=(title.replace(/[<>:"/\\|?*\u0000-\u001f]/g,'-').replace(/\.pdf$/i,'').trim()||'Markdown document')+'.pdf'
       if(!blob.size)throw new Error('PDF conversion returned an empty file. Try a shorter document.')
       if(!save){downloadBlob(blob,filename);return}
       if(blob.size>10*1024*1024)throw new Error('This PDF exceeds the 10 MB library limit. Download it or split the Markdown into smaller documents.')

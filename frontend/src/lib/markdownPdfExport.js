@@ -63,3 +63,64 @@ export async function prepareMarkdownExport(source){
   }
   return clone
 }
+
+export function splitMarkdownExport(source){
+  const host=document.createElement('div')
+  host.style.cssText='position:absolute;left:-100000px;top:0;pointer-events:none;'
+  document.body.append(host)
+  const limit=3000,chunks=[]
+  const makeChunk=()=>{
+    const paper=source.cloneNode(false),body=source.firstElementChild.cloneNode(false)
+    paper.append(body);host.append(paper);return {paper,body}
+  }
+  let current=makeChunk()
+  // Split oversized blocks recursively, retaining their Markdown wrappers/styles.
+  function* pieces(node){
+    if(node.nodeType===Node.TEXT_NODE){
+      let text=node.textContent
+      while(text.length){
+        let end=Math.min(text.length,1200)
+        const lines=[...text.slice(0,end).matchAll(/\n/g)]
+        if(lines.length>50)end=lines[49].index+1
+        else if(text.length>end){
+          const boundary=Math.max(text.lastIndexOf('\n',end-1),text.lastIndexOf(' ',end-1))
+          if(boundary>0)end=boundary+1
+        }
+        yield document.createTextNode(text.slice(0,end));text=text.slice(end)
+      }
+      return
+    }
+    if(node.nodeType!==Node.ELEMENT_NODE)return
+    const probe=node.cloneNode(true);current.body.append(probe)
+    const height=probe.getBoundingClientRect().height;probe.remove()
+    if(height<=limit){yield node.cloneNode(true);return}
+    if(!node.childNodes.length){
+      // Deliberate blank-line gaps can themselves span many pages.
+      if(node.classList.contains('markdown-blank-lines')){
+        for(let left=height;left>0;left-=limit){const gap=node.cloneNode(false);gap.style.height=`${Math.min(left,limit)}px`;yield gap}
+      }else yield node.cloneNode(true)
+      return
+    }
+    let itemIndex=0
+    for(const child of node.childNodes){
+      for(const part of pieces(child)){
+        const wrapper=node.cloneNode(false)
+        if(node.tagName==='OL')wrapper.start=(Number(node.getAttribute('start'))||1)+itemIndex
+        wrapper.append(part);yield wrapper
+      }
+      if(child.nodeType===Node.ELEMENT_NODE&&child.tagName==='LI')itemIndex++
+    }
+  }
+  try{
+    for(const node of source.firstElementChild.childNodes){
+      for(const part of pieces(node)){
+        current.body.append(part)
+        if(current.paper.scrollHeight>limit&&current.body.childNodes.length>1){
+          part.remove();chunks.push(current.paper);current=makeChunk();current.body.append(part)
+        }
+      }
+    }
+    if(current.body.childNodes.length)chunks.push(current.paper)
+    return {chunks,dispose:()=>host.remove()}
+  }catch(error){host.remove();throw error}
+}
