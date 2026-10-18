@@ -1132,29 +1132,30 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     setScale(Math.max(0.25, Math.min(4, (viewerRef.current.clientWidth - 64) / width)))
   }
 
-  const handleDeletePage = async () => {
+  const handleDeletePage = async (targetPage = pageNumber) => {
     if (!numPages || numPages <= 1 || deletingPageRef.current || insertingRef.current) return
-    commitText()
-    if (!await confirmation.ask(`Delete page ${pageNumber} and its annotations? This cannot be undone.`, 'Delete page')) return
+    handleTextDragEnd(); commitText()
+    if (!await confirmation.ask(`Delete page ${targetPage} and its annotations? This cannot be undone.`, 'Delete page')) return
     deletingPageRef.current = true
     setDeletingPage(true)
     setActionError(null)
     try {
       // Finish older saves before changing page numbers; autosave is paused meanwhile.
       await saveQueueRef.current
-      const response = await fetch(`/api/pdfs/${pdfId}/pages/${pageNumber}`, {
+      const response = await fetch(`/api/pdfs/${pdfId}/pages/${targetPage}`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ annotations: cleanForSave(pathsRef.current) })
       })
-      const result = await response.json()
+      const result = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(result.message || 'Could not delete this page.')
       const bytes = Uint8Array.from(atob(result.pdfData), c => c.charCodeAt(0))
       setPdfFile(new File([bytes], pdfData?.name || 'document.pdf', { type: 'application/pdf' }))
       setPdfData(prev => ({ ...prev, pdfData: result.pdfData }))
       setPageBase(null)
       setNumPages(result.numPages)
-      setPageNumber(Math.min(pageNumber, result.numPages))
+      setPageNumber(Math.min(pageNumber > targetPage ? pageNumber - 1 : pageNumber, result.numPages))
+      setSelectedInsertId(null)
       updatePaths(result.annotations, { silent: true })
       dirtyRef.current = false
       setSaveStatus('saved')
@@ -1534,6 +1535,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         <InsertPanel onPages={exportImage ? undefined : handleAddPages} pageNumber={pageNumber} onFiles={insertFiles} onInsert={insertGenerated} color={currentColor} busy={inserting || !pageBase || pageBase.page !== pageNumber || deletingPage} />
         <div className="pdf-editor-tool-options">
         {!exportImage&&<button type="button" className="pdf-control" disabled={loading||!numPages||!pageBase||pageBase.page!==pageNumber||deletingPage||inserting} title={`Insert a blank page after page ${pageNumber}`} onClick={()=>handleAddPages({mode:'blank',placement:'after'})}><Plus size={16}/>Blank page after</button>}
+        {!exportImage&&<button type="button" className="pdf-control pdf-control-danger" onClick={()=>handleDeletePage()} disabled={!numPages||numPages<=1||deletingPage||inserting} title={numPages===1?'Keep at least one page in the PDF':`Delete page ${pageNumber} and its annotations`}><Trash2 size={16}/>Delete page {pageNumber}</button>}
         <button type="button" className={cn('pdf-control',currentTool==='calculate'&&'is-active')} aria-pressed={currentTool==='calculate'} title="Drag a box over one readable math expression" onClick={()=>{commitText();setCurrentTool('calculate')}}><Calculator size={16}/>Calculate selection</button>
         {currentTool==='calculate'&&<label className="pdf-math-mode">Recognition <select aria-label="Math recognition mode" value={calculationMode} onChange={event=>setCalculationMode(event.target.value)}><option value="auto">Auto · AI fallback</option><option value="vision">Handwriting / AI</option><option value="text">Text only · local</option></select></label>}
         {!exportImage && <button onClick={() => setShowPages(v => !v)} aria-label="Toggle pages" aria-expanded={showPages} className={cn('p-2 rounded-lg', showPages ? 'bg-indigo-500/20 text-indigo-300' : 'text-slate-400')} title="Pages"><PanelLeft size={20} /></button>}
@@ -1654,7 +1656,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
               {Array.from({ length: numPages || 0 }, (_, index) => {
                 const n = index + 1
                 const count = drawingPaths.filter(item => (item.page || 1) === n).length
-                return <button key={n} type="button" disabled={deletingPage||inserting} draggable={!deletingPage&&!inserting&&numPages>1}
+                return <div key={n} className="pdf-page-entry"><button type="button" disabled={deletingPage||inserting} draggable={!deletingPage&&!inserting&&numPages>1}
                   onDragStart={event=>{pageDragRef.current=n;event.dataTransfer.effectAllowed='move';event.dataTransfer.setData('text/plain',String(n))}}
                   onDragOver={event=>{if(!pageDragRef.current||deletingPage||inserting)return;event.preventDefault();event.dataTransfer.dropEffect='move';setPageDropTarget(n)}}
                   onDrop={event=>handlePageDrop(event,n)}
@@ -1666,6 +1668,8 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
                   <div className="pdf-page-preview"><PagePreview pageNumber={n} />{count > 0 && <span className="pdf-page-badge">{count} {count === 1 ? 'edit' : 'edits'}</span>}</div>
                   <span className="flex items-center justify-between mt-3 text-xs"><span>Page {n}</span>{pageNumber === n && <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" />}</span>
                 </button>
+                <button type="button" className="pdf-control pdf-control-danger" style={{margin:'0 12px 12px',fontSize:12}} draggable={false} disabled={numPages<=1||deletingPage||inserting} aria-label={`Delete page ${n}`} title={numPages<=1?'Keep at least one page in the PDF':`Delete page ${n} and its annotations`} onClick={()=>handleDeletePage(n)}><Trash2 size={14}/>Delete page {n}</button>
+                </div>
               })}
             </Document>
           </aside>
@@ -1705,7 +1709,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         >
           Next
         </button>
-      {!exportImage && <button onClick={handleDeletePage} disabled={!numPages || numPages <= 1 || deletingPage || inserting} className="pdf-control pdf-control-danger pdf-delete-page" title={numPages === 1 ? 'Keep at least one page in the PDF' : 'Delete the current page'}><Trash2 size={16} />Delete page</button>}
+      {!exportImage && <button onClick={() => handleDeletePage()} disabled={!numPages || numPages <= 1 || deletingPage || inserting} className="pdf-control pdf-control-danger pdf-delete-page" title={numPages === 1 ? 'Keep at least one page in the PDF' : 'Delete the current page'}><Trash2 size={16} />Delete page</button>}
       </div>}
 
 
