@@ -434,6 +434,35 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   useEffect(()=>{try{localStorage.setItem('pdf-editor-dark-pages',String(darkPages))}catch{}},[darkPages])
   const [snippet,setSnippet]=useState(null),[copyingSnippet,setCopyingSnippet]=useState(false)
   const snippetCopyRef=useRef(false)
+  const editorRootRef=useRef(null),ownsFullscreenRef=useRef(false)
+  const [focusMode,setFocusMode]=useState(false)
+  const exitFocusMode=()=>{
+    setFocusMode(false)
+    if(document.fullscreenElement===editorRootRef.current)document.exitFullscreen?.().catch(()=>{})
+  }
+  const enterFocusMode=()=>{
+    handleTextDragEnd();commitText();setShowSettings(false)
+    if(!['pen','highlighter','text','eraser','select'].includes(currentTool))setCurrentTool('pen')
+    setFocusMode(true)
+    const root=editorRootRef.current
+    if(root?.requestFullscreen&&!document.fullscreenElement){
+      root.requestFullscreen().then(()=>{ownsFullscreenRef.current=true}).catch(()=>{})
+    }
+  }
+  useEffect(()=>{
+    const changed=()=>{
+      if(document.fullscreenElement===editorRootRef.current)ownsFullscreenRef.current=true
+      else if(ownsFullscreenRef.current){ownsFullscreenRef.current=false;setFocusMode(false)}
+    }
+    const escape=event=>{if(event.key==='Escape')setFocusMode(false)}
+    document.addEventListener('fullscreenchange',changed)
+    document.addEventListener('keydown',escape)
+    return()=>{
+      document.removeEventListener('fullscreenchange',changed)
+      document.removeEventListener('keydown',escape)
+      if(ownsFullscreenRef.current&&document.fullscreenElement)document.exitFullscreen?.().catch(()=>{})
+    }
+  },[])
   const [showCalculator,setShowCalculator]=useState(false)
   const [calculationBox,setCalculationBox]=useState(null),[calculationSelection,setCalculationSelection]=useState(null)
   const [calculationMode,setCalculationMode]=useState('auto')
@@ -1504,12 +1533,24 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   )
 
   return (
-    <div className="pdf-editor fixed inset-0 bg-slate-950 flex flex-col z-50" role="region" aria-label="Visual document editor" aria-busy={deletingPage} onPointerDownCapture={e => { if (deletingPage) { e.preventDefault(); e.stopPropagation() } }} onKeyDownCapture={e => { if (deletingPage) { e.preventDefault(); e.stopPropagation() } }}>
+    <div ref={editorRootRef} className={cn("pdf-editor fixed inset-0 bg-slate-950 flex flex-col z-50",focusMode&&"pdf-focus-mode")} role="region" aria-label="Visual document editor" aria-busy={deletingPage} onPointerDownCapture={e => { if (deletingPage) { e.preventDefault(); e.stopPropagation() } }} onKeyDownCapture={e => { if (deletingPage) { e.preventDefault(); e.stopPropagation() } }}>
       {deletingPage && <div className="inline-operation-status" role="status"><Loader2 className="animate-spin" size={17} />Updating pages…</div>}
       <InlineConfirmation {...confirmation} />
+      {focusMode&&<div className="pdf-focus-toolbar" role="toolbar" aria-label="Fullscreen annotation tools" data-keep-text-active>
+        {TOOLS.map(tool=><button key={tool} type="button" className={cn('pdf-tool-button',currentTool===tool&&'is-active')} aria-pressed={currentTool===tool} title={tool==='select'?'Move and resize':tool} aria-label={tool==='select'?'Move and resize':tool} onClick={()=>{commitText();setCurrentTool(tool)}}>{tool==='pen'?<Pen size={18}/>:tool==='highlighter'?<Highlighter size={18}/>:tool==='text'?<Type size={18}/>:tool==='eraser'?<Eraser size={18}/>:<Move size={18}/>}</button>)}
+        <input type="color" aria-label="Annotation color" title="Annotation color" value={currentColor} onChange={event=>handleColorChange(event.target.value)}/>
+        <input type="range" aria-label="Annotation size" title="Annotation size" min={currentTool==='text'?6:currentTool==='eraser'?2:1} max={currentTool==='text'?144:currentTool==='eraser'?160:40} step="1" value={currentTool==='text'?fontSize:currentTool==='eraser'?eraserSize:strokeWidth} onChange={event=>{const size=Number(event.target.value);if(currentTool==='text')handleFontSizeChange(size);else if(currentTool==='eraser')setEraserSize(size);else setStrokeWidth(size)}}/>
+        <button type="button" className="pdf-control" onClick={undo} disabled={!historyCount.undo} title="Undo"><Undo size={17}/></button>
+        <button type="button" className="pdf-control" onClick={redo} disabled={!historyCount.redo} title="Redo"><Redo size={17}/></button>
+        {!exportImage&&<><button type="button" className="pdf-control" disabled={pageNumber<=1} aria-label="Previous page" onClick={()=>goToPage(pageNumber-1)}>‹</button><span className="pdf-focus-page-count">{pageNumber}/{numPages||'…'}</span><button type="button" className="pdf-control" disabled={pageNumber>=numPages} aria-label="Next page" onClick={()=>goToPage(pageNumber+1)}>›</button></>}
+        <button type="button" className="pdf-control" title="Fit page width" aria-label="Fit page width" onClick={handleFitWidth}><Maximize size={17}/></button>
+        <button type="button" className="pdf-control" title="Save" aria-label="Save" onClick={handleSave} disabled={saveStatus==='saving'}><Save size={17}/></button>
+        <button type="button" className="pdf-control" onClick={exitFocusMode} title="Exit fullscreen (Esc)"><X size={17}/><span>Exit</span></button>
+      </div>}
       <header className="pdf-editor-header">
         <div className="pdf-editor-identity"><FileText size={22}/><div><h2 title={pdfData?.name}>{pdfData?.name || 'Document editor'}</h2><div className="pdf-editor-metadata"><span>{exportImage ? 'Image annotations' : `PDF · ${numPages || '…'} pages`}</span><span className={`pdf-save-status is-${saveStatus}`} role="status">{saveStatus === 'saving' ? 'Saving…' : saveStatus === 'saved' ? 'All changes saved' : saveStatus === 'error' ? 'Save failed — retry Save' : 'Unsaved changes'}</span></div></div></div>
         <div className="pdf-editor-actions">
+          <button type="button" className="pdf-control" onClick={enterFocusMode} title="Fullscreen with compact annotation tools"><Maximize size={16}/><span>Fullscreen</span></button>
           <button type="button" className="pdf-control" aria-expanded={showCalculator} onClick={()=>{commitText();setShowCalculator(value=>!value)}}><Calculator size={16}/><span>Calculator</span></button>
           <div className="pdf-history-actions"><button className="pdf-control" onClick={undo} disabled={historyCount.undo === 0} title="Undo (Ctrl+Z)" aria-label="Undo"><Undo size={17}/></button><button className="pdf-control" onClick={redo} disabled={historyCount.redo === 0} title="Redo (Ctrl+Shift+Z)" aria-label="Redo"><Redo size={17}/></button></div>
           <button className="pdf-control" onClick={() => setShowSettings(v => !v)} aria-expanded={showSettings}><Settings size={16}/><span>Settings</span></button>
@@ -1647,8 +1688,8 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
 
       {actionError && <div role="alert" className="flex items-center justify-between gap-3 bg-red-950 px-5 py-2 text-sm text-red-200">{actionError}<button onClick={() => setActionError(null)} aria-label="Dismiss error"><X size={16} /></button></div>}
       <div className={cn('flex flex-1 min-h-0 relative',darkPages&&'pdf-dark-pages')}>
-        <PDFCalculator open={showCalculator} onClose={()=>setShowCalculator(false)} selection={calculationSelection}/>
-        {showPages && pdfFile && !pdfError && (
+        <PDFCalculator open={showCalculator&&!focusMode} onClose={()=>setShowCalculator(false)} selection={calculationSelection}/>
+        {!focusMode && showPages && pdfFile && !pdfError && (
           <aside className="pdf-pages w-48 sm:w-56 shrink-0 overflow-y-auto border-r border-white/10 bg-slate-900/90" aria-label="Document pages">
             <div className="sticky top-0 z-10 bg-slate-900 px-4 py-4 border-b border-white/5 flex items-center justify-between"><span className="text-xs font-semibold uppercase tracking-widest text-slate-300">Pages</span><span className="text-xs text-slate-500">{numPages || '…'} total</span></div>
             <p className="px-4 py-2 text-xs text-slate-400">Drag pages to reorder · Alt+↑/↓</p>
