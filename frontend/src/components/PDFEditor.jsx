@@ -4,6 +4,7 @@ import InlineConfirmation from './InlineConfirmation'
 import PDFCalculator from './PDFCalculator'
 import { eraseAnnotations } from '../lib/pdfEraser'
 import PDFEraserControls from './PDFEraserControls'
+import PDFContinuousView from './PDFContinuousView'
 import { selectionExpression, textInPdfBox } from '../lib/pdfCalculation'
 import { calculate } from '../lib/calculator'
 import { mathSelectionImage, selectionHasInk } from '../lib/mathSelectionImage'
@@ -11,7 +12,7 @@ import { readApiJson } from '../lib/apiResponse'
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Document, Page, pdfjs } from 'react-pdf'
 import {
-  Moon, Sun, Calculator, X, Save, Download, Upload, Trash2, Pen, Highlighter, Eraser, ZoomIn, ZoomOut,
+  Files, Moon, Sun, Calculator, X, Save, Download, Upload, Trash2, Pen, Highlighter, Eraser, ZoomIn, ZoomOut,
   PanelLeft, FileText, Maximize, RotateCw, Settings, Tag, Folder, Check, Loader2, Undo, Redo, Type, Move, Minus, Plus, AlertCircle
 } from 'lucide-react'
 import { PDFDocument, rgb, degrees, StandardFonts, LineCapStyle } from 'pdf-lib'
@@ -427,6 +428,8 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const [activeTextId, setActiveTextId] = useState(null)
   const [loading, setLoading] = useState(true)
   const [showSettings, setShowSettings] = useState(false)
+  const [continuousView,setContinuousView]=useState(()=>{try{return localStorage.getItem('pdf-editor-continuous')==='true'}catch{return false}})
+  useEffect(()=>{try{localStorage.setItem('pdf-editor-continuous',String(continuousView))}catch{}},[continuousView])
   const [darkPages,setDarkPages]=useState(()=>{try{return localStorage.getItem('pdf-editor-dark-pages')!=='false'}catch{return true}})
   useEffect(()=>{try{localStorage.setItem('pdf-editor-dark-pages',String(darkPages))}catch{}},[darkPages])
   const [showCalculator,setShowCalculator]=useState(false)
@@ -1079,9 +1082,16 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     handleTextDragEnd()
     commitText()
     if (!Number.isFinite(n)) return
-    setPageNumber(Math.max(1, Math.min(numPages || 1, Math.trunc(n))))
-    viewerRef.current?.scrollTo({ top: 0, left: 0 })
+    const target=Math.max(1, Math.min(numPages || 1, Math.trunc(n)))
+    setPageNumber(target)
+    if(continuousView&&!exportImage)requestAnimationFrame(()=>viewerRef.current?.querySelector(`[data-continuous-page="${target}"]`)?.scrollIntoView({block:'start'}))
+    else viewerRef.current?.scrollTo({ top: 0, left: 0 })
     if (window.innerWidth < 768) setShowPages(false)
+  }
+
+  const activateContinuousPage=n=>{
+    if(n===pageNumber||deletingPageRef.current||insertingRef.current||isDrawingRef.current||isErasingRef.current||calculationDrag.current)return
+    handleTextDragEnd();commitText();setSelectedInsertId(null);setPageNumber(n)
   }
 
   const handleFitWidth = () => {
@@ -1328,6 +1338,130 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     currentTool === 'text' ? 'text' : currentTool === 'eraser' ? 'cell' : 'crosshair'
   const pageItems = drawingPaths.filter(i => (i.page || 1) === pageNumber)
 
+  const activePageView = (
+            <div
+              className="relative shrink-0 pdf-page-surface"
+              style={ready ? { width: renderW, height: renderH } : undefined}
+            >
+              <Document
+                options={PDF_OPTIONS}
+                file={pdfFile}
+                onLoadSuccess={onDocumentLoadSuccess}
+                onLoadError={onDocumentLoadError}
+                loading={<div className="text-white">Loading document…</div>}
+                error={<div className="text-red-400">Could not render this document</div>}
+                className="shadow-2xl"
+              >
+                <Page
+                  pageNumber={pageNumber}
+                  scale={scale}
+                  rotate={((pageBase?.page === pageNumber ? pageBase.rotation : 0) + rotation) % 360}
+                  renderTextLayer={false}
+                  renderAnnotationLayer={false}
+                  onLoadSuccess={onPageLoadSuccess}
+                  loading={<div className="text-white">Loading page...</div>}
+                  error={<div className="text-red-400">Failed to load page</div>}
+                  className="bg-white"
+                />
+              </Document>
+
+              {/* Annotation overlay: laid out in unrotated page space, then rotated to match the page */}
+              {ready && (
+                <div
+                  ref={overlayRef}
+                  style={{
+                    position: 'absolute',
+                    left: (renderW - pageBase.w * scale) / 2,
+                    top: (renderH - pageBase.h * scale) / 2,
+                    width: pageBase.w * scale,
+                    height: pageBase.h * scale,
+                    transform: `rotate(${rotation}deg)`,
+                    transformOrigin: 'center center',
+                    cursor,
+                    zIndex: 10,
+                    touchAction: 'none',
+                    userSelect: 'none'
+                  }}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onPointerDown={handlePointerDown}
+                  onPointerMove={handlePointerMove}
+                  onPointerUp={handlePointerUp}
+                  onPointerCancel={handlePointerUp}
+                  onPointerLeave={()=>{if(eraserCursorRef.current)eraserCursorRef.current.style.display='none'}}
+                >
+                  <svg
+                    viewBox={`0 0 ${pageBase.w} ${pageBase.h}`}
+                    style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
+                  >
+                    {pageItems.filter(i => i.points).map((s) => renderStroke(s, s.id))}
+                    {currentTool==='eraser'&&<rect ref={eraserCursorRef} width={eraserSize} height={eraserSize} rx={eraserShape==='round'?eraserSize/2:0} fill="#8fa5b918" stroke="#526c83" strokeWidth={1.3/scale} style={{display:'none'}}/>}
+                    {currentTool==='calculate'&&calculationBox&&<rect x={calculationBox.x} y={calculationBox.y} width={calculationBox.width} height={calculationBox.height} fill="#8fa5b933" stroke="#8fa5b9" strokeWidth={1.5/scale} strokeDasharray={`${4/scale} ${3/scale}`}/>}
+                    {currentPath.length > 0 &&
+                      renderStroke(
+                        {
+                          points: currentPath,
+                          color: currentColor,
+                          tool: currentTool,
+                          strokeWidth: currentTool === 'highlighter' ? strokeWidth * 3 : strokeWidth
+                        },
+                        'current'
+                      )}
+                  </svg>
+
+                  {pageItems.filter(i => i.tool === 'image').map(item => (
+                    <div key={item.id} style={{ position: 'absolute', left: item.x * scale, top: item.y * scale, width: item.width * scale, height: item.height * scale, pointerEvents: currentTool === 'select' ? 'auto' : 'none', outline: currentTool === 'select' && selectedInsertId === item.id ? '2px solid #8fa5b9' : undefined, touchAction: 'none', cursor: currentTool === 'select' ? 'move' : 'pointer', zIndex: selectedInsertId === item.id ? 25 : 15 }}
+                      onPointerDown={e => {
+                        e.stopPropagation(); e.preventDefault()
+                        if (currentTool === 'eraser') { handleDeleteText(item.id); return }
+                        if (e.pointerType === 'mouse' && e.button !== 0) return
+                        setSelectedInsertId(item.id)
+                        e.currentTarget.setPointerCapture(e.pointerId)
+                        handleTextDragStart(e, item)
+                      }}
+                      onPointerMove={handleTextDragMove}
+                      onPointerUp={e => { if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId); handleTextDragEnd() }}
+                      onPointerCancel={() => handleTextDragEnd(true)}
+                      onLostPointerCapture={() => handleTextDragEnd()}>
+                      <img src={item.dataUrl} alt={item.label || 'Inserted image'} draggable={false} style={{ width: '100%', height: '100%', display: 'block' }} />
+                      {currentTool === 'select' && selectedInsertId === item.id && <InsertHandles item={item} onStart={handleResizeStart} onMove={handleTextDragMove} onEnd={handleTextDragEnd} />}
+                      {currentTool === 'select' && selectedInsertId === item.id && <div className="pdf-insert-controls" onPointerDown={e => e.stopPropagation()}>
+                        <span className="text-xs">Drag to move</span>
+                        <button aria-label="Shrink insert" title="Shrink insert" onClick={() => resizeInsert(item.id, 0.8)}><Minus size={16} /></button>
+                        <button aria-label="Enlarge insert" title="Enlarge insert" onClick={() => resizeInsert(item.id, 1.25)}><Plus size={16} /></button>
+                        <button aria-label="Delete insert" title="Delete insert" onClick={() => handleDeleteText(item.id)}><Trash2 size={16} /></button>
+                      </div>}
+                    </div>
+                  ))}
+
+                  {pageItems.filter(i => i.tool === 'text').map((item) => (
+                    <TextAnnotation
+                      key={item.id}
+                      item={item}
+                      scale={scale}
+                      isActive={activeTextId === item.id}
+                      tool={currentTool}
+                      textareaRef={textareaRef}
+                      onClick={handleTextClick}
+                      onChange={handleTextChange}
+                      onCommit={commitText}
+                      onDelete={handleDeleteText}
+                      onFontDelta={handleFontDelta}
+                      onColorChange={handleAnnotationColorChange}
+                      onDragStart={handleTextDragStart}
+                      onDragMove={handleTextDragMove}
+                      onDragEnd={handleTextDragEnd}
+                      onResizeStart={handleResizeStart}
+                      selected={selectedInsertId === item.id}
+                      onSelect={setSelectedInsertId}
+                      onSave={handleSave}
+                      onDownload={handleDownload}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+  )
+
   return (
     <div className="pdf-editor fixed inset-0 bg-slate-950 flex flex-col z-50" role="region" aria-label="Visual document editor" aria-busy={deletingPage} onPointerDownCapture={e => { if (deletingPage) { e.preventDefault(); e.stopPropagation() } }} onKeyDownCapture={e => { if (deletingPage) { e.preventDefault(); e.stopPropagation() } }}>
       {deletingPage && <div className="inline-operation-status" role="status"><Loader2 className="animate-spin" size={17} />Updating pages…</div>}
@@ -1338,6 +1472,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
           <button type="button" className="pdf-control" aria-expanded={showCalculator} onClick={()=>{commitText();setShowCalculator(value=>!value)}}><Calculator size={16}/><span>Calculator</span></button>
           <div className="pdf-history-actions"><button className="pdf-control" onClick={undo} disabled={historyCount.undo === 0} title="Undo (Ctrl+Z)" aria-label="Undo"><Undo size={17}/></button><button className="pdf-control" onClick={redo} disabled={historyCount.redo === 0} title="Redo (Ctrl+Shift+Z)" aria-label="Redo"><Redo size={17}/></button></div>
           <button className="pdf-control" onClick={() => setShowSettings(v => !v)} aria-expanded={showSettings}><Settings size={16}/><span>Settings</span></button>
+          {!exportImage&&<button type="button" className="pdf-control" aria-pressed={continuousView} disabled={deletingPage||inserting} title="Toggle continuous scrolling through all PDF pages" onClick={()=>{handleTextDragEnd();commitText();setContinuousView(value=>!value)}}><Files size={16}/><span>{continuousView?'Continuous view':'Single page'}</span></button>}
           <button type="button" className="pdf-control" aria-pressed={darkPages} title="Invert page colors for comfortable reading; exported files keep their original colors" onClick={()=>setDarkPages(value=>!value)}>{darkPages?<Sun size={16}/>:<Moon size={16}/>}<span>{darkPages?'Light pages':'Dark pages'}</span></button>
           <button className="pdf-control pdf-control-primary" onClick={handleSave} disabled={saveStatus === 'saving'}><Save size={16}/><span>Save</span></button>
           <button className="pdf-control" onClick={handleDownload} disabled={downloading} title={exportImage ? 'Download edited image as PNG' : 'Download PDF with annotations'}>{downloading ? <Loader2 className="animate-spin" size={16}/> : <Download size={16}/>}<span>{downloading ? 'Exporting…' : 'Download'}</span></button>
@@ -1493,127 +1628,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
               <button onClick={() => { setPdfError(null); setLoading(true); fetchPDF() }} className="mt-4 px-4 py-2 rounded-lg bg-indigo-600 text-white">Retry loading</button>
             </div>
           ) : pdfFile ? (
-            <div
-              className="relative shrink-0 pdf-page-surface"
-              style={ready ? { width: renderW, height: renderH } : undefined}
-            >
-              <Document
-                options={PDF_OPTIONS}
-                file={pdfFile}
-                onLoadSuccess={onDocumentLoadSuccess}
-                onLoadError={onDocumentLoadError}
-                loading={<div className="text-white">Loading document…</div>}
-                error={<div className="text-red-400">Could not render this document</div>}
-                className="shadow-2xl"
-              >
-                <Page
-                  pageNumber={pageNumber}
-                  scale={scale}
-                  rotate={((pageBase?.page === pageNumber ? pageBase.rotation : 0) + rotation) % 360}
-                  renderTextLayer={false}
-                  renderAnnotationLayer={false}
-                  onLoadSuccess={onPageLoadSuccess}
-                  loading={<div className="text-white">Loading page...</div>}
-                  error={<div className="text-red-400">Failed to load page</div>}
-                  className="bg-white"
-                />
-              </Document>
-
-              {/* Annotation overlay: laid out in unrotated page space, then rotated to match the page */}
-              {ready && (
-                <div
-                  ref={overlayRef}
-                  style={{
-                    position: 'absolute',
-                    left: (renderW - pageBase.w * scale) / 2,
-                    top: (renderH - pageBase.h * scale) / 2,
-                    width: pageBase.w * scale,
-                    height: pageBase.h * scale,
-                    transform: `rotate(${rotation}deg)`,
-                    transformOrigin: 'center center',
-                    cursor,
-                    zIndex: 10,
-                    touchAction: 'none',
-                    userSelect: 'none'
-                  }}
-                  onMouseDown={(e) => e.preventDefault()}
-                  onPointerDown={handlePointerDown}
-                  onPointerMove={handlePointerMove}
-                  onPointerUp={handlePointerUp}
-                  onPointerCancel={handlePointerUp}
-                  onPointerLeave={()=>{if(eraserCursorRef.current)eraserCursorRef.current.style.display='none'}}
-                >
-                  <svg
-                    viewBox={`0 0 ${pageBase.w} ${pageBase.h}`}
-                    style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
-                  >
-                    {pageItems.filter(i => i.points).map((s) => renderStroke(s, s.id))}
-                    {currentTool==='eraser'&&<rect ref={eraserCursorRef} width={eraserSize} height={eraserSize} rx={eraserShape==='round'?eraserSize/2:0} fill="#8fa5b918" stroke="#526c83" strokeWidth={1.3/scale} style={{display:'none'}}/>}
-                    {currentTool==='calculate'&&calculationBox&&<rect x={calculationBox.x} y={calculationBox.y} width={calculationBox.width} height={calculationBox.height} fill="#8fa5b933" stroke="#8fa5b9" strokeWidth={1.5/scale} strokeDasharray={`${4/scale} ${3/scale}`}/>}
-                    {currentPath.length > 0 &&
-                      renderStroke(
-                        {
-                          points: currentPath,
-                          color: currentColor,
-                          tool: currentTool,
-                          strokeWidth: currentTool === 'highlighter' ? strokeWidth * 3 : strokeWidth
-                        },
-                        'current'
-                      )}
-                  </svg>
-
-                  {pageItems.filter(i => i.tool === 'image').map(item => (
-                    <div key={item.id} style={{ position: 'absolute', left: item.x * scale, top: item.y * scale, width: item.width * scale, height: item.height * scale, pointerEvents: currentTool === 'select' ? 'auto' : 'none', outline: currentTool === 'select' && selectedInsertId === item.id ? '2px solid #8fa5b9' : undefined, touchAction: 'none', cursor: currentTool === 'select' ? 'move' : 'pointer', zIndex: selectedInsertId === item.id ? 25 : 15 }}
-                      onPointerDown={e => {
-                        e.stopPropagation(); e.preventDefault()
-                        if (currentTool === 'eraser') { handleDeleteText(item.id); return }
-                        if (e.pointerType === 'mouse' && e.button !== 0) return
-                        setSelectedInsertId(item.id)
-                        e.currentTarget.setPointerCapture(e.pointerId)
-                        handleTextDragStart(e, item)
-                      }}
-                      onPointerMove={handleTextDragMove}
-                      onPointerUp={e => { if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId); handleTextDragEnd() }}
-                      onPointerCancel={() => handleTextDragEnd(true)}
-                      onLostPointerCapture={() => handleTextDragEnd()}>
-                      <img src={item.dataUrl} alt={item.label || 'Inserted image'} draggable={false} style={{ width: '100%', height: '100%', display: 'block' }} />
-                      {currentTool === 'select' && selectedInsertId === item.id && <InsertHandles item={item} onStart={handleResizeStart} onMove={handleTextDragMove} onEnd={handleTextDragEnd} />}
-                      {currentTool === 'select' && selectedInsertId === item.id && <div className="pdf-insert-controls" onPointerDown={e => e.stopPropagation()}>
-                        <span className="text-xs">Drag to move</span>
-                        <button aria-label="Shrink insert" title="Shrink insert" onClick={() => resizeInsert(item.id, 0.8)}><Minus size={16} /></button>
-                        <button aria-label="Enlarge insert" title="Enlarge insert" onClick={() => resizeInsert(item.id, 1.25)}><Plus size={16} /></button>
-                        <button aria-label="Delete insert" title="Delete insert" onClick={() => handleDeleteText(item.id)}><Trash2 size={16} /></button>
-                      </div>}
-                    </div>
-                  ))}
-
-                  {pageItems.filter(i => i.tool === 'text').map((item) => (
-                    <TextAnnotation
-                      key={item.id}
-                      item={item}
-                      scale={scale}
-                      isActive={activeTextId === item.id}
-                      tool={currentTool}
-                      textareaRef={textareaRef}
-                      onClick={handleTextClick}
-                      onChange={handleTextChange}
-                      onCommit={commitText}
-                      onDelete={handleDeleteText}
-                      onFontDelta={handleFontDelta}
-                      onColorChange={handleAnnotationColorChange}
-                      onDragStart={handleTextDragStart}
-                      onDragMove={handleTextDragMove}
-                      onDragEnd={handleTextDragEnd}
-                      onResizeStart={handleResizeStart}
-                      selected={selectedInsertId === item.id}
-                      onSelect={setSelectedInsertId}
-                      onSave={handleSave}
-                      onDownload={handleDownload}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
+            continuousView&&!exportImage ? <PDFContinuousView key={pdfId+':'+numPages} file={pdfFile} count={numPages} currentPage={pageNumber} activePage={activePageView} scale={scale} rotation={rotation} fallback={pageBase} annotations={drawingPaths} renderStroke={renderStroke} onActivate={activateContinuousPage} viewer={viewerRef} options={PDF_OPTIONS}/> : activePageView
           ) : (
             <div className="text-slate-400">No document data available</div>
           )}

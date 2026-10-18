@@ -1,0 +1,38 @@
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import { Document, Page } from 'react-pdf'
+
+const EMPTY=[]
+const ContinuousPage=memo(function ContinuousPage({number,active,activePage,scale,rotation,fallback,items,renderStroke,onActivate,viewer}){
+  const ref=useRef(null),[near,setNear]=useState(active),[base,setBase]=useState(null)
+  useEffect(()=>{
+    const observer=new IntersectionObserver(entries=>setNear(entries[0].isIntersecting),{root:viewer.current,rootMargin:'1000px 0px'})
+    if(ref.current)observer.observe(ref.current)
+    return()=>observer.disconnect()
+  },[viewer])
+  const dimensions=base||fallback||{w:612,h:792,rotation:0},quarter=rotation%180!==0
+  const width=(quarter?dimensions.h:dimensions.w)*scale,height=(quarter?dimensions.w:dimensions.h)*scale
+  return <section ref={ref} className={`pdf-continuous-page${active?' is-active':''}`} data-continuous-page={number} aria-label={`Page ${number}`}>
+    <div className="pdf-continuous-label"><span>Page {number}</span><button type="button" aria-pressed={active} onClick={()=>onActivate(number)}>{active?'Editing this page':'Edit page'}</button></div>
+    {active?activePage:<div role="button" tabIndex={0} aria-label={`Activate page ${number} for editing`} onClick={()=>onActivate(number)} onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();onActivate(number)}} className="pdf-page-surface pdf-passive-page" style={{width,height}}>
+      {near?<Page pageNumber={number} scale={scale} rotate={(dimensions.rotation+rotation)%360} renderTextLayer={false} renderAnnotationLayer={false} onLoadSuccess={page=>{const viewport=page.getViewport({scale:1});setBase(previous=>previous?.w===viewport.width&&previous?.h===viewport.height&&previous?.rotation===page.rotate?previous:{w:viewport.width,h:viewport.height,rotation:page.rotate||0})}} loading={<div className="pdf-continuous-placeholder">Loading page {number}…</div>} error={<div className="pdf-continuous-placeholder">Could not render page {number}. Activate it to retry.</div>}/>:<div className="pdf-continuous-placeholder">Page {number}</div>}
+      {near&&base&&<div className="pdf-passive-annotations" style={{left:(width-base.w*scale)/2,top:(height-base.h*scale)/2,width:base.w*scale,height:base.h*scale,transform:`rotate(${rotation}deg)`}}>
+        <svg viewBox={`0 0 ${base.w} ${base.h}`} style={{position:'absolute',inset:0,width:'100%',height:'100%'}}>{items.filter(item=>item.points).map(item=>renderStroke(item,item.id))}</svg>
+        {items.filter(item=>item.tool==='image').map(item=><img key={item.id} src={item.dataUrl} alt={item.label||'Annotation'} draggable={false} style={{position:'absolute',left:item.x*scale,top:item.y*scale,width:item.width*scale,height:item.height*scale}}/>)}
+        {items.filter(item=>item.tool==='text').map(item=><div key={item.id} style={{position:'absolute',left:item.x*scale,top:item.y*scale,color:item.color||'#000',fontSize:(item.fontSize||16)*scale,fontFamily:'Helvetica, Arial, sans-serif',lineHeight:1.2,whiteSpace:'pre',padding:`${2*scale}px ${4*scale}px`}}>{item.text}</div>)}
+      </div>}
+    </div>}
+  </section>
+})
+
+export default function PDFContinuousView({file,count,currentPage,activePage,scale,rotation,fallback,annotations,renderStroke,onActivate,viewer,options}){
+  const cache=useRef(new Map()),live=useRef(null)
+  live.current={renderStroke,onActivate}
+  const callbacks=useMemo(()=>({renderStroke:(...args)=>live.current.renderStroke(...args),onActivate:n=>live.current.onActivate(n)}),[])
+  const byPage=useMemo(()=>{
+    const map=new Map();for(const item of annotations){const page=item.page||1;if(!map.has(page))map.set(page,[]);map.get(page).push(item)}
+    for(const [page,items]of map){const previous=cache.current.get(page);if(previous?.length===items.length&&items.every((item,index)=>item===previous[index]))map.set(page,previous)}
+    cache.current=map;return map
+  },[annotations])
+  useEffect(()=>{viewer.current?.querySelector(`[data-continuous-page="${currentPage}"]`)?.scrollIntoView({block:'start'})},[]) // Preserve the selected page when switching views.
+  return <Document className="pdf-continuous-document" options={options} file={file} loading={<p>Loading continuous view…</p>} error={<p role="alert">Could not load continuous view. Switch to single-page view to retry.</p>}><div className="pdf-continuous-stack">{Array.from({length:count||1},(_,index)=><ContinuousPage key={index+1} number={index+1} active={currentPage===index+1} activePage={currentPage===index+1?activePage:null} scale={scale} rotation={rotation} fallback={fallback} items={byPage.get(index+1)||EMPTY} renderStroke={callbacks.renderStroke} onActivate={callbacks.onActivate} viewer={viewer}/>)}</div></Document>
+}
