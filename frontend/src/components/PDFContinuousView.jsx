@@ -11,9 +11,14 @@ const ContinuousPage=memo(function ContinuousPage({number,active,activePage,scal
   },[viewer])
   const dimensions=base||fallback||{w:612,h:792,rotation:0},quarter=rotation%180!==0
   const width=(quarter?dimensions.h:dimensions.w)*scale,height=(quarter?dimensions.w:dimensions.h)*scale
+  const handleActivateKeyDown=event=>{
+    if(event.key!=='Enter'&&event.key!==' ')return
+    event.preventDefault()
+    onActivate(number)
+  }
   return <section ref={ref} className={`pdf-continuous-page${active?' is-active':''}`} data-continuous-page={number} aria-label={`Page ${number}`}>
     <div className="pdf-continuous-label"><span>Page {number}</span><button type="button" aria-pressed={active} onClick={()=>onActivate(number)}>{active?'Editing this page':'Edit page'}</button></div>
-    {active?activePage:<div role="button" tabIndex={0} aria-label={`Activate page ${number} for editing`} onClick={()=>onActivate(number)} onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();onActivate(number)}} className="pdf-page-surface pdf-passive-page" style={{width,height}}>
+    {active?activePage:<div role="button" tabIndex={0} aria-label={`Activate page ${number} for editing`} onClick={()=>onActivate(number)} onKeyDown={handleActivateKeyDown} className="pdf-page-surface pdf-passive-page" style={{width,height}}>
       {near?<Page pageNumber={number} scale={scale} rotate={(dimensions.rotation+rotation)%360} renderTextLayer={false} renderAnnotationLayer={false} onLoadSuccess={page=>{const viewport=page.getViewport({scale:1});setBase(previous=>previous?.w===viewport.width&&previous?.h===viewport.height&&previous?.rotation===page.rotate?previous:{w:viewport.width,h:viewport.height,rotation:page.rotate||0})}} loading={<div className="pdf-continuous-placeholder">Loading page {number}…</div>} error={<div className="pdf-continuous-placeholder">Could not render page {number}. Activate it to retry.</div>}/>:<div className="pdf-continuous-placeholder">Page {number}</div>}
       {near&&base&&<div className="pdf-passive-annotations" style={{left:(width-base.w*scale)/2,top:(height-base.h*scale)/2,width:base.w*scale,height:base.h*scale,transform:`rotate(${rotation}deg)`}}>
         <svg viewBox={`0 0 ${base.w} ${base.h}`} style={{position:'absolute',inset:0,width:'100%',height:'100%'}}>{items.filter(item=>item.points).map(item=>renderStroke(item,item.id))}</svg>
