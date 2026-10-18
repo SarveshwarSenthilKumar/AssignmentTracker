@@ -38,6 +38,10 @@ add document generation
 add subfolders for docs and tasks
 improve document creator with fancy features
 add share with link feature
+fix markdown to pdf and make sure it lines up
+add support for pen buttons
+fix bugs
+add support to track for finger scrolling
 
 resume job tailor:
 Get job by links
