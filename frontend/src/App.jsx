@@ -1,4 +1,5 @@
 import TimeZoneSettings from './components/TimeZoneSettings'
+import useTaskDragScroll from './hooks/useTaskDragScroll'
 import ConfirmationSettings from './components/ConfirmationSettings'
 import { readApiJson } from './lib/apiResponse'
 import AccountAISettings from './components/AccountAISettings'
@@ -57,6 +58,7 @@ function App() {
   const [newFolderName, setNewFolderName] = useState('')
   const [newFolderColor, setNewFolderColor] = useState('#64788b')
   const [draggedTodo, setDraggedTodo] = useState(null)
+  useTaskDragScroll(page==='tasks'&&!!draggedTodo)
   const [expandedTodos, setExpandedTodos] = useState(new Set())
   const [editingTodos, setEditingTodos] = useState(new Set())
   const [editData, setEditData] = useState({})
@@ -1599,7 +1601,7 @@ function App() {
           </div>
         </div>
 
-        <p className="task-reorder-hint" role="status">{reordering?'Saving task order…':'Drag a task above or below another to arrange it. Drop into another column to change its status.'}</p>
+        <p className="task-reorder-hint" role="status">{reordering?'Saving task order…':'Drag a task above or below another to arrange it. Hold near the top or bottom to scroll. Drop into another column to change its status.'}</p>
         {!loading&&filteredTodos.length>0&&<div className={cn("task-bulk-actions",filteredTodos.some(task=>selectedTaskIds.has(task._id))&&"has-selection")} role="group" aria-label="Bulk task actions"><label><input type="checkbox" disabled={bulkDeleting} checked={filteredTodos.every(task=>selectedTaskIds.has(task._id))} ref={element=>{if(element)element.indeterminate=filteredTodos.some(task=>selectedTaskIds.has(task._id))&&!filteredTodos.every(task=>selectedTaskIds.has(task._id))}} onChange={event=>setSelectedTaskIds(event.target.checked?new Set(filteredTodos.map(task=>task._id)):new Set())}/>Select all</label><span className="task-selection-count" aria-live="polite">{filteredTodos.filter(task=>selectedTaskIds.has(task._id)).length} selected</span><div className="task-selection-actions"><button className="task-selection-delete" type="button" disabled={bulkDeleting||!filteredTodos.some(task=>selectedTaskIds.has(task._id))} onClick={deleteSelectedTasks}><Trash2 size={15}/>{bulkDeleting?'Deleting…':'Delete selected'}</button><button className="task-selection-clear" type="button" disabled={bulkDeleting||!selectedTaskIds.size} onClick={()=>setSelectedTaskIds(new Set())}><X size={14}/>Clear</button></div></div>}
         {loading ? (
           <div className="flex justify-center py-12">
