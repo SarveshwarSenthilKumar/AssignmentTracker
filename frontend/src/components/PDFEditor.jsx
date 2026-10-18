@@ -643,6 +643,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       if (response.ok) {
         const data = await response.json()
         setPdfData(data)
+        if(data.tags?.includes('handwritten-notebook'))setCurrentTool('pen')
 
         if (data.pdfData) {
           try {
