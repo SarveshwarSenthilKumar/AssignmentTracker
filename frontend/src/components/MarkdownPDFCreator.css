@@ -2,3 +2,16 @@
 
 .markdown-pdf-paper{--surface-base:#ffffff;--surface-panel:#ffffff;--surface-elevated:#f0f3f6;--surface-raised:#eff2f5;--text-primary:#202832;--text-secondary:#40505e;--text-muted:#5b6a78;--border:#c9d2da;--border-strong:#b6c3ce;color-scheme:light}
 .markdown-pdf-paper .assistant-markdown pre,.markdown-pdf-paper .assistant-markdown code{background:#eff2f5;color:#26313c}.markdown-pdf-paper .assistant-markdown .assistant-code-block>div{display:none}.markdown-pdf-paper .assistant-markdown th{background:#eaf0f5;color:#202832}.markdown-pdf-paper .assistant-markdown .assistant-table-scroll{max-width:none;overflow:visible}.markdown-pdf-paper .assistant-markdown .katex-display{background:#fff;overflow:visible;border:0}.markdown-pdf-paper .assistant-markdown .katex{line-height:normal}
+/* Keep document typography separate from assistant UI and page-wide resets. */
+.markdown-pdf-paper .assistant-markdown .katex { display:inline-block; line-height:1.2; font-size:1.12em; }
+.markdown-pdf-paper .katex *, .markdown-pdf-paper .katex *::before, .markdown-pdf-paper .katex *::after { box-sizing:content-box; }
+.markdown-pdf-paper .assistant-markdown .katex-display { display:block; padding:8px 0; margin:16px 0; text-align:center; max-width:100%; overflow-x:auto; overflow-y:hidden; }
+.markdown-pdf-paper .assistant-markdown .katex-display > .katex { display:inline-block; min-width:0; max-width:none; padding:4px 0; text-align:center; }
+.markdown-pdf-paper .assistant-markdown .katex-error { color:#b42318; }
+.markdown-pdf-paper .assistant-markdown pre code { font:inherit; background:transparent; white-space:inherit; }
+.markdown-pdf-paper .assistant-markdown table { table-layout:auto; }
+.markdown-pdf-paper .assistant-markdown thead { display:table-header-group; }
+.markdown-pdf-paper .assistant-markdown li { break-inside:avoid; }
+.markdown-pdf-paper .assistant-markdown h1,.markdown-pdf-paper .assistant-markdown h2,.markdown-pdf-paper .assistant-markdown h3,.markdown-pdf-paper .assistant-markdown h4 { break-after:avoid; page-break-after:avoid; }
+.markdown-pdf-paper .assistant-markdown p { orphans:3; widows:3; }
+.markdown-pdf-paper .markdown-pdf-formula { break-inside:avoid; }

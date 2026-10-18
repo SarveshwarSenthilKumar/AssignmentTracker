@@ -3,6 +3,7 @@ import { X, Download, FileText, Loader2 } from 'lucide-react'
 import AssistantMarkdown from './AssistantMarkdown'
 import { readApiJson } from '../lib/apiResponse'
 import { downloadBlob } from '../lib/documentFormats'
+import { prepareMarkdownExport } from '../lib/markdownPdfExport'
 import './MarkdownPDFCreator.css'
 
 export default function MarkdownPDFCreator({token,folderId,onClose,onCreated}){
@@ -13,11 +14,14 @@ export default function MarkdownPDFCreator({token,folderId,onClose,onCreated}){
     if(lock.current||!markdown.trim()||!title.trim())return
     lock.current=true;setBusy(save?'Saving PDF…':'Preparing PDF…');setError('')
     try{
+      await Promise.all(Array.from(document.fonts).filter(font=>font.family.includes('KaTeX')).map(font=>font.load()))
       await document.fonts.ready
       const element=paper.current
       if(element.scrollHeight>12000)throw new Error('This document is too long for browser conversion. Split it into shorter documents (about 12 pages each).')
+      if(element.querySelector('.katex-error'))throw new Error('A math expression could not be formatted. Correct the highlighted expression before exporting.')
+      const exportElement=await prepareMarkdownExport(element)
       const {default:html2pdf}=await import('html2pdf.js')
-      const worker=html2pdf().set({margin:[15,15,18,15],image:{type:'jpeg',quality:.98},html2canvas:{scale:2,backgroundColor:'#ffffff',logging:false,useCORS:false},jsPDF:{unit:'mm',format,orientation:'portrait',compress:true},enableLinks:true,pagebreak:{mode:['css','legacy'],avoid:['tr','.katex-display','blockquote','pre']}}).from(element).toPdf()
+      const worker=html2pdf().set({margin:[15,15,18,15],image:{type:'png'},html2canvas:{scale:2,backgroundColor:'#ffffff',logging:false,useCORS:false},jsPDF:{unit:'mm',format,orientation:'portrait',compress:true},enableLinks:true,pagebreak:{mode:['css','legacy'],avoid:['tr','.katex-display','.markdown-pdf-formula','pre','h1','h2','h3','h4']}}).from(exportElement).toPdf()
       const pdf=await worker.get('pdf')
       pdf.setProperties({title:title.trim(),creator:'Assignment Tracker'})
       const pages=pdf.internal.getNumberOfPages()
