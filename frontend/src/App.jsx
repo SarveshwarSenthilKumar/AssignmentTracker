@@ -64,7 +64,9 @@ function App() {
   const [selectedTask, setSelectedTask] = useState(null)
   const inputRef = useRef(null)
   const commandInputRef = useRef(null)
-  const [sortBy, setSortBy] = useState('createdAt')
+  const [sortBy, setSortBy] = useState('manual')
+  const [dropTarget,setDropTarget]=useState(null),[reordering,setReordering]=useState(false)
+  const reorderLock=useRef(false),dragTask=useRef(null)
   const [sortOrder, setSortOrder] = useState('desc')
   const [editingFolder, setEditingFolder] = useState(null)
   const [editFolderName, setEditFolderName] = useState('')
@@ -430,7 +432,10 @@ function App() {
   }
 
   const handleDragStart = (e, todo) => {
+    if(reorderLock.current||bulkDeleting){e.preventDefault();return}
+    dragTask.current=todo
     setDraggedTodo(todo)
+    e.dataTransfer.setData('application/x-assignment-task',todo._id)
     e.dataTransfer.effectAllowed = 'move'
     e.target.style.opacity = '0.5'
   }
@@ -438,6 +443,8 @@ function App() {
   const handleDragEnd = (e) => {
     e.target.style.opacity = '1'
     setDraggedTodo(null)
+    dragTask.current=null
+    setDropTarget(null)
   }
 
   const handleDragOver = (e) => {
@@ -447,9 +454,28 @@ function App() {
 
   const handleDrop = async (e, newStatus) => {
     e.preventDefault()
-    if (draggedTodo && draggedTodo.status !== newStatus) {
-      await updateTodoStatus(draggedTodo._id, newStatus)
-    }
+    const moving=dragTask.current||draggedTodo
+    if(!moving)return
+    await reorderTasks(moving,null,newStatus,'after')
+  }
+
+  const reorderTasks=async(moving,target,status,position)=>{
+    if(reorderLock.current||moving._id===target?._id)return
+    reorderLock.current=true;setReordering(true);setDropTarget(null)
+    const ordered=getSortedTodos(todos).filter(task=>task._id!==moving._id)
+    let index=target?ordered.findIndex(task=>task._id===target._id):ordered.reduce((last,task,i)=>task.status===status?i+1:last,ordered.length)
+    if(target&&position==='after')index++
+    ordered.splice(Math.max(0,index),0,moving)
+    const ids=ordered.map(task=>task._id)
+    try{
+      const response=await fetch('/api/todos/reorder',{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({ids,movedId:moving._id,status})})
+      const data=await readApiJson(response)
+      if(!response.ok)throw new Error(data.message||'Could not save task order. Restart the updated backend.')
+      if(!Array.isArray(data.ids)||!data.task)throw new Error('Unexpected task order response. Refresh your tasks.')
+      const ranks=new Map(data.ids.map((id,index)=>[id,index]))
+      setTodos(previous=>previous.map(task=>({...task,...(task._id===data.task._id?data.task:{}),...(ranks.has(task._id)?{manualOrder:ranks.get(task._id)}:{})})))
+      setSortBy('manual')
+    }catch(error){setError(error.message)}finally{reorderLock.current=false;setReordering(false);dragTask.current=null;setDraggedTodo(null)}
   }
 
   const toggleExpand = (id) => {
@@ -542,6 +568,7 @@ function App() {
   const getSortedTodos = (todosToSort) => {
     const sorted = [...todosToSort]
     sorted.sort((a, b) => {
+      if(sortBy==='manual')return (a.manualOrder??Infinity)-(b.manualOrder??Infinity)||new Date(b.createdAt)-new Date(a.createdAt)||a._id.localeCompare(b._id)
       let comparison = 0
 
       if (sortBy === 'createdAt') {
@@ -679,10 +706,12 @@ function App() {
         tabIndex={0}
         role="article"
         aria-label={todo.text}
-        draggable={!isEditing&&!selectedTaskIds.has(todo._id)}
+        draggable={!isEditing&&!bulkDeleting&&!reordering}
+        onDragOver={event=>{const moving=dragTask.current;if(!moving||moving._id===todo._id)return;event.preventDefault();event.stopPropagation();event.dataTransfer.dropEffect='move';const rect=event.currentTarget.getBoundingClientRect();setDropTarget({id:todo._id,position:event.clientY<rect.top+rect.height/2?'before':'after'})}}
+        onDrop={event=>{const moving=dragTask.current;if(!moving)return;event.preventDefault();event.stopPropagation();const rect=event.currentTarget.getBoundingClientRect();reorderTasks(moving,todo,todo.status,event.clientY<rect.top+rect.height/2?'before':'after')}}
         onDragStart={(e) => handleDragStart(e, todo)}
         onDragEnd={handleDragEnd}
-        className={cn("group task-selectable",selectedTaskIds.has(todo._id)&&"is-bulk-selected")}
+        className={cn("group task-selectable",selectedTaskIds.has(todo._id)&&"is-bulk-selected",dropTarget?.id===todo._id&&`task-drop-${dropTarget.position}`)}
         ref={(el) => { if (isEditing) editRefs.current[todo._id] = el }}
       >
         <div
@@ -1552,6 +1581,7 @@ function App() {
               onChange={(e) => setSortBy(e.target.value)}
               className="bg-white/10 border border-white/10 rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             >
+              <option value="manual">Custom order · drag to arrange</option>
               <option value="createdAt">Date Created</option>
               <option value="dueDate">Due Date</option>
               <option value="completedAt">Date Completed</option>
@@ -1559,6 +1589,7 @@ function App() {
               <option value="status">Status</option>
             </select>
             <button
+              disabled={sortBy==='manual'}
               onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
               className="p-1.5 bg-white/10 hover:bg-white/20 rounded-lg transition-all text-slate-400 hover:text-white"
               title="Toggle sort order"
@@ -1568,6 +1599,7 @@ function App() {
           </div>
         </div>
 
+        <p className="task-reorder-hint" role="status">{reordering?'Saving task order…':'Drag a task above or below another to arrange it. Drop into another column to change its status.'}</p>
         {!loading&&filteredTodos.length>0&&<div className={cn("task-bulk-actions",filteredTodos.some(task=>selectedTaskIds.has(task._id))&&"has-selection")} role="group" aria-label="Bulk task actions"><label><input type="checkbox" disabled={bulkDeleting} checked={filteredTodos.every(task=>selectedTaskIds.has(task._id))} ref={element=>{if(element)element.indeterminate=filteredTodos.some(task=>selectedTaskIds.has(task._id))&&!filteredTodos.every(task=>selectedTaskIds.has(task._id))}} onChange={event=>setSelectedTaskIds(event.target.checked?new Set(filteredTodos.map(task=>task._id)):new Set())}/>Select all</label><span className="task-selection-count" aria-live="polite">{filteredTodos.filter(task=>selectedTaskIds.has(task._id)).length} selected</span><div className="task-selection-actions"><button className="task-selection-delete" type="button" disabled={bulkDeleting||!filteredTodos.some(task=>selectedTaskIds.has(task._id))} onClick={deleteSelectedTasks}><Trash2 size={15}/>{bulkDeleting?'Deleting…':'Delete selected'}</button><button className="task-selection-clear" type="button" disabled={bulkDeleting||!selectedTaskIds.size} onClick={()=>setSelectedTaskIds(new Set())}><X size={14}/>Clear</button></div></div>}
         {loading ? (
           <div className="flex justify-center py-12">

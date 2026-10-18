@@ -114,6 +114,7 @@ const Folder = mongoose.model('Folder', folderSchema);
 
 // Todo Schema
 const todoSchema = new mongoose.Schema({
+  manualOrder: { type: Number, default: null },
   text: {
     type: String,
     required: true,
@@ -634,6 +635,22 @@ app.post('/api/task-dependencies', authenticateToken, async (req, res) => {
   } catch (error) { res.status(500).json({ message: 'Could not update the task connection.' }); }
 });
 
+app.post('/api/todos/reorder',authenticateToken,async(req,res)=>{
+  const {ids,movedId,status}=req.body||{};
+  if(!Array.isArray(ids)||!ids.length||ids.length>10000||new Set(ids).size!==ids.length||ids.some(id=>typeof id!=='string'||!/^[a-f\d]{24}$/i.test(id))||!ids.includes(movedId)||!['todo','in-progress','completed'].includes(status))return res.status(400).json({message:'Choose valid tasks and a destination column.'});
+  const session=await mongoose.startSession();
+  const completedAt=status==='completed'?new Date():null;
+  try{
+    await session.withTransaction(async()=>{
+      const count=await Todo.countDocuments({user:req.user.userId,_id:{$in:ids}}).session(session);
+      if(count!==ids.length)throw new Error('Some tasks changed or were removed. Refresh and try again.');
+      await Todo.bulkWrite(ids.map((id,index)=>({updateOne:{filter:{_id:id,user:req.user.userId},update:{$set:{manualOrder:index}}}})),{session});
+      const current=await Todo.findOne({_id:movedId,user:req.user.userId}).session(session);
+      if(current.status!==status)await Todo.updateOne({_id:movedId,user:req.user.userId},{$set:{status,completedAt}},{session});
+    });
+    res.json({ids,task:await Todo.findOne({_id:movedId,user:req.user.userId})});
+  }catch(error){res.status(409).json({message:error.message||'Could not save task order.'});}finally{await session.endSession();}
+});
 app.put('/api/todos/:id', authenticateToken, async (req, res) => {
   try {
     const { status, description, links, text, dueDate } = req.body;
