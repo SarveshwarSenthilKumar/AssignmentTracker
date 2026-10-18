@@ -13,6 +13,7 @@ const { dependencyChange } = require('./taskDependencies');
 const { calendarEntry } = require('./calendarEntries');
 const { registerTxstCalendar } = require('./txstCalendar');
 const { createCalendarHistory } = require('./calendarHistory');
+const { registerMathRecognition } = require('./mathRecognition');
 const { calendarLinksOwned: validateCalendarLinks } = require('./calendarLinks');
 const { collectCanvasPages } = require('./canvasPagination');
 const { parseCalendarICS } = require('./calendarICS');
@@ -384,6 +385,7 @@ app.post('/api/auth/login', async (req, res) => {
 // Routes
 const aiRequests = new Map();
 const aiModel = () => process.env.GEMINI_MODEL?.trim() || 'gemini-3.8-flash';
+registerMathRecognition(app,authenticateToken,assistantCredentials,aiModel);
 function aiState(userId) {
   const now = Date.now();
   for (const [id, state] of aiRequests) if (!state.busy && now - state.start >= 600000) aiRequests.delete(id);

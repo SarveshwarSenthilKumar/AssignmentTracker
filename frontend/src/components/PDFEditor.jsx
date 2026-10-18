@@ -3,6 +3,9 @@ import useInlineConfirm from '../hooks/useInlineConfirm'
 import InlineConfirmation from './InlineConfirmation'
 import PDFCalculator from './PDFCalculator'
 import { selectionExpression, textInPdfBox } from '../lib/pdfCalculation'
+import { calculate } from '../lib/calculator'
+import { mathSelectionImage, selectionHasInk } from '../lib/mathSelectionImage'
+import { readApiJson } from '../lib/apiResponse'
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Document, Page, pdfjs } from 'react-pdf'
 import {
@@ -416,8 +419,10 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const [showSettings, setShowSettings] = useState(false)
   const [showCalculator,setShowCalculator]=useState(false)
   const [calculationBox,setCalculationBox]=useState(null),[calculationSelection,setCalculationSelection]=useState(null)
+  const [calculationMode,setCalculationMode]=useState('auto')
+  const recognitionController=useRef(null)
   const calculationDrag=useRef(null),calculationPage=useRef(null),calculationGeneration=useRef(0)
-  useEffect(()=>{calculationGeneration.current++;calculationDrag.current=null;setCalculationBox(null);return()=>{calculationGeneration.current++}},[pageNumber,pdfId,currentTool])
+  useEffect(()=>{calculationGeneration.current++;calculationDrag.current=null;setCalculationBox(null);return()=>{calculationGeneration.current++;recognitionController.current?.abort()}},[pageNumber,pdfId,currentTool,calculationMode])
   const settingsFocusRef = useRef(null)
   useEffect(() => {
     if (!showSettings) return
@@ -988,13 +993,34 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       setCalculationBox(box)
       if(box.width<3||box.height<3)return
       const page=calculationPage.current,generation=++calculationGeneration.current
+      recognitionController.current?.abort()
+      const controller=new AbortController();recognitionController.current=controller
+      const annotations=pathsRef.current.filter(item=>(item.page||1)===start.page)
       ;(async()=>{
         try{
           if(!page||page.pageNumber!==start.page)throw new Error('Wait for this PDF page to load, then select again.')
-          const text=await textInPdfBox(page,box,pdfjs.Util.transform,pathsRef.current.filter(item=>(item.page||1)===start.page))
-          const expression=selectionExpression(text)
+          let expression,source='text',transcription=''
+          const needsVision=calculationMode==='vision'||selectionHasInk(annotations,box)
+          try{
+            if(needsVision)throw new Error('Handwriting or image selected. Choose Auto or Handwriting / AI to recognize it.')
+            const text=await textInPdfBox(page,box,pdfjs.Util.transform,annotations)
+            expression=selectionExpression(text);calculate(expression)
+          }catch(error){
+            if(calculationMode==='text')throw error
+            if(generation!==calculationGeneration.current)return
+            setCalculationSelection({pending:true,id:generation});setShowCalculator(true)
+            const image=await mathSelectionImage(page,box,annotations)
+            if(generation!==calculationGeneration.current||controller.signal.aborted)return
+            const timeout=setTimeout(()=>controller.abort(),55000)
+            try{
+              const response=await fetch('/api/calculator/recognize',{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({image}),signal:controller.signal})
+              const data=await readApiJson(response)
+              if(!response.ok)throw new Error(data.message||'Could not recognize the selected handwriting.')
+              expression=selectionExpression(data.expression);source='ai';transcription=data.transcription
+            }finally{clearTimeout(timeout)}
+          }
           if(generation!==calculationGeneration.current)return
-          setCalculationSelection({expression,id:generation});setShowCalculator(true)
+          setCalculationSelection({expression,source,transcription,id:generation});setShowCalculator(true)
         }catch(error){if(generation===calculationGeneration.current){setCalculationSelection({error:error.message,id:generation});setShowCalculator(true)}}
       })();return
     }
@@ -1314,6 +1340,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         <InsertPanel onPages={exportImage ? undefined : handleAddPages} pageNumber={pageNumber} onFiles={insertFiles} onInsert={insertGenerated} color={currentColor} busy={inserting || !pageBase || pageBase.page !== pageNumber || deletingPage} />
         <div className="pdf-editor-tool-options">
         <button type="button" className={cn('pdf-control',currentTool==='calculate'&&'is-active')} aria-pressed={currentTool==='calculate'} title="Drag a box over one readable math expression" onClick={()=>{commitText();setCurrentTool('calculate')}}><Calculator size={16}/>Calculate selection</button>
+        {currentTool==='calculate'&&<label className="pdf-math-mode">Recognition <select aria-label="Math recognition mode" value={calculationMode} onChange={event=>setCalculationMode(event.target.value)}><option value="auto">Auto · AI fallback</option><option value="vision">Handwriting / AI</option><option value="text">Text only · local</option></select></label>}
         {!exportImage && <button onClick={() => setShowPages(v => !v)} aria-label="Toggle pages" aria-expanded={showPages} className={cn('p-2 rounded-lg', showPages ? 'bg-indigo-500/20 text-indigo-300' : 'text-slate-400')} title="Pages"><PanelLeft size={20} /></button>}
         <div className="pdf-tool-group" role="group" aria-label="Annotation tools">
           {TOOLS.map((tool) => (
@@ -1370,7 +1397,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
             <span className="text-white text-sm w-10">{fontSize}pt</span>
           </div>
         ) : currentTool === 'calculate' ? (
-          <span className="text-slate-300 text-sm">Drag around one line of math to calculate · readable text only</span>
+          <span className="text-slate-300 text-sm">Drag around one complete expression. {calculationMode==='text'?'Local text recognition only.':'AI sends only the selected image to Gemini; review its transcription.'}</span>
         ) : currentTool === 'select' ? (
           <span className="text-slate-300 text-sm">Drag content to move · drag corners to resize</span>
         ) : currentTool !== 'eraser' ? (

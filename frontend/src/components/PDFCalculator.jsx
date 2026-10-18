@@ -9,8 +9,9 @@ export default function PDFCalculator({open,onClose,selection}){
   useEffect(()=>{
     if(!selection)return
     setExpression(selection.expression||'');setNotice('')
+    if(selection.pending){setAnswer(null);setError('');setNotice('Reading selected math with AI…');return}
     if(selection.error){setAnswer(null);setError(selection.error);return}
-    try{const result=calculate(selection.expression);setAnswer(result);setError('');setNotice('Calculated selected text. Check the recognized expression above.');setHistory(previous=>[{expression:selection.expression,result},...previous].slice(0,8))}catch(error){setAnswer(null);setError(`Could not calculate the selection: ${error.message} Review or edit the recognized expression.`)}
+    try{const result=calculate(selection.expression);setAnswer(result);setError('');setNotice(selection.source==='ai'?`AI recognition · ${selection.transcription||selection.expression}. Review the transcription; handwriting recognition can make mistakes.`:'Calculated selected text. Check the recognized expression above.');setHistory(previous=>[{expression:selection.expression,result},...previous].slice(0,8))}catch(error){setAnswer(null);setError(`Could not calculate the selection: ${error.message} Review or edit the recognized expression.`)}
   },[selection])
   useEffect(()=>{if(!open)return;const previous=document.activeElement;input.current?.focus({preventScroll:true});return()=>previous?.isConnected&&previous.focus({preventScroll:true})},[open])
   const insert=value=>{
