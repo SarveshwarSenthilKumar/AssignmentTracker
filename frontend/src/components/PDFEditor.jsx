@@ -2,6 +2,8 @@ import useShortcuts from '../hooks/useShortcuts'
 import useInlineConfirm from '../hooks/useInlineConfirm'
 import InlineConfirmation from './InlineConfirmation'
 import PDFCalculator from './PDFCalculator'
+import { eraseAnnotations } from '../lib/pdfEraser'
+import PDFEraserControls from './PDFEraserControls'
 import { selectionExpression, textInPdfBox } from '../lib/pdfCalculation'
 import { calculate } from '../lib/calculator'
 import { mathSelectionImage, selectionHasInk } from '../lib/mathSelectionImage'
@@ -178,7 +180,7 @@ function TextAnnotation({
   onClick, onChange, onCommit, onDelete, onFontDelta, onColorChange,
   onDragStart, onDragMove, onDragEnd, onResizeStart, selected, onSelect, onSave, onDownload
 }) {
-  const interactive = tool === 'text' || tool === 'eraser' || tool === 'select'
+  const interactive = tool === 'text' || tool === 'select'
   const fontSize = item.fontSize || 16
   const textColor = item.color || '#000000'
   const textStyle = {
@@ -413,6 +415,14 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const [currentTool, setCurrentTool] = useState('text')
   const [currentColor, setCurrentColor] = useState('#000000')
   const [strokeWidth, setStrokeWidth] = useState(2)
+  const [eraserOptions,setEraserOptions]=useState(()=>{
+    let saved={};try{saved=JSON.parse(localStorage.getItem('pdf-eraser-options')||'{}')||{}}catch{}
+    return {mode:['stroke','precision','objects'].includes(saved.mode)?saved.mode:'stroke',size:Number.isFinite(saved.size)?Math.max(2,Math.min(160,saved.size)):20,shape:saved.shape==='square'?'square':'round',target:['pen','highlighter'].includes(saved.target)?saved.target:'all'}
+  })
+  const {mode:eraserMode,size:eraserSize,shape:eraserShape,target:eraserTarget}=eraserOptions
+  const setEraserMode=mode=>setEraserOptions(previous=>({...previous,mode})),setEraserSize=size=>setEraserOptions(previous=>({...previous,size})),setEraserShape=shape=>setEraserOptions(previous=>({...previous,shape})),setEraserTarget=target=>setEraserOptions(previous=>({...previous,target}))
+  useEffect(()=>{try{localStorage.setItem('pdf-eraser-options',JSON.stringify(eraserOptions))}catch{}},[eraserOptions])
+  const eraserCursorRef=useRef(null),eraserLast=useRef(null)
   const [fontSize, setFontSize] = useState(16)
   const [activeTextId, setActiveTextId] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -731,7 +741,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
 
   const handleFontDelta = (id, delta) => {
     updatePaths(prev => prev.map(i =>
-      i.id === id ? { ...i, fontSize: Math.max(8, Math.min(96, (i.fontSize || 16) + delta)) } : i
+      i.id === id ? { ...i, fontSize: Math.max(6, Math.min(144, (i.fontSize || 16) + delta)) } : i
     ))
     const item = pathsRef.current.find(i => i.id === id)
     if (item) setFontSize(item.fontSize)
@@ -906,14 +916,14 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
 
   /* ---------- eraser ---------- */
   const eraseAt = (pt) => {
-    const radius = 10 / scale
-    const hits = (i) => (i.page || 1) === pageNumber && i.points && strokeHit(i, pt, radius)
-    if (!pathsRef.current.some(hits)) return
+    const next=eraseAnnotations(pathsRef.current,eraserLast.current||pt,pt,{size:eraserSize,shape:eraserShape,mode:eraserMode,target:eraserTarget,page:pageNumber,measure:insertSize,id:uid})
+    eraserLast.current=pt
+    if(next===pathsRef.current)return
     if (!erasedRef.current) {
       pushHistory()
       erasedRef.current = true
     }
-    updatePaths(prev => prev.filter(i => !hits(i)))
+    updatePaths(next)
   }
 
   /* ---------- overlay pointer handlers ---------- */
@@ -954,6 +964,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
 
     if (currentTool === 'eraser') {
       isErasingRef.current = true
+      eraserLast.current=null
       erasedRef.current = false
       eraseAt(pt)
       return
@@ -965,6 +976,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   }
 
   const handlePointerMove = (e) => {
+    if(currentTool==='eraser'&&eraserCursorRef.current){const point=toLocal(e);eraserCursorRef.current.setAttribute('x',point.x-eraserSize/2);eraserCursorRef.current.setAttribute('y',point.y-eraserSize/2);eraserCursorRef.current.style.display='block'}
     if(calculationDrag.current){
       const start=calculationDrag.current;if(start.pointerId!==e.pointerId)return
       const point=toLocal(e);setCalculationBox({x:Math.min(start.point.x,point.x),y:Math.min(start.point.y,point.y),width:Math.abs(point.x-start.point.x),height:Math.abs(point.y-start.point.y)});return
@@ -1029,6 +1041,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     overlayRef.current?.releasePointerCapture?.(e.pointerId)
     if (isErasingRef.current) {
       isErasingRef.current = false
+      eraserLast.current=null
       return
     }
     if (!isDrawingRef.current) return
@@ -1391,13 +1404,13 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
             <input
               type="range"
               aria-label="Text font size"
-              min="8"
-              max="72"
+              min="6"
+              max="144"
               value={fontSize}
               onChange={(e) => handleFontSizeChange(parseInt(e.target.value))}
               className="w-24"
             />
-            <span className="text-white text-sm w-10">{fontSize}pt</span>
+            <input type="number" className="pdf-exact-size" aria-label="Exact font size" min="6" max="144" value={fontSize} onChange={event=>{if(event.target.value)handleFontSizeChange(Math.max(6,Math.min(144,Number(event.target.value))))}}/><span className="text-slate-400 text-xs">pt</span>
           </div>
         ) : currentTool === 'calculate' ? (
           <span className="text-slate-300 text-sm">Drag around one complete expression. {calculationMode==='text'?'Local text recognition only.':'AI sends only the selected image to Gemini; review its transcription.'}</span>
@@ -1410,15 +1423,16 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
               type="range"
               aria-label="Stroke width"
               min="1"
-              max="10"
+              max="40"
+              step="0.5"
               value={strokeWidth}
-              onChange={(e) => setStrokeWidth(parseInt(e.target.value))}
+              onChange={(e) => setStrokeWidth(Number(e.target.value))}
               className="w-24"
             />
-            <span className="text-white text-sm">{strokeWidth}px</span>
+            <input type="number" className="pdf-exact-size" aria-label="Exact stroke width" min="1" max="40" step="0.5" value={strokeWidth} onChange={event=>{if(event.target.value)setStrokeWidth(Math.max(1,Math.min(40,Number(event.target.value))))}}/><span className="text-slate-400 text-xs">pt</span>
           </div>
         ) : (
-          <span className="text-slate-400 text-sm">Drag over a stroke or click inserted content to erase it</span>
+          <PDFEraserControls mode={eraserMode} onMode={setEraserMode} size={eraserSize} onSize={setEraserSize} shape={eraserShape} onShape={setEraserShape} target={eraserTarget} onTarget={setEraserTarget}/>
         )}
 
         {['pen','highlighter'].includes(currentTool) && <button className="pdf-control pdf-pressure" onClick={() => setUsePressure(!usePressure)} aria-pressed={usePressure} title="Use pen pressure to vary stroke width"><Pen size={15}/>Pressure {usePressure ? 'on' : 'off'}</button>}
@@ -1526,12 +1540,14 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
                   onPointerMove={handlePointerMove}
                   onPointerUp={handlePointerUp}
                   onPointerCancel={handlePointerUp}
+                  onPointerLeave={()=>{if(eraserCursorRef.current)eraserCursorRef.current.style.display='none'}}
                 >
                   <svg
                     viewBox={`0 0 ${pageBase.w} ${pageBase.h}`}
                     style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
                   >
                     {pageItems.filter(i => i.points).map((s) => renderStroke(s, s.id))}
+                    {currentTool==='eraser'&&<rect ref={eraserCursorRef} width={eraserSize} height={eraserSize} rx={eraserShape==='round'?eraserSize/2:0} fill="#8fa5b918" stroke="#526c83" strokeWidth={1.3/scale} style={{display:'none'}}/>}
                     {currentTool==='calculate'&&calculationBox&&<rect x={calculationBox.x} y={calculationBox.y} width={calculationBox.width} height={calculationBox.height} fill="#8fa5b933" stroke="#8fa5b9" strokeWidth={1.5/scale} strokeDasharray={`${4/scale} ${3/scale}`}/>}
                     {currentPath.length > 0 &&
                       renderStroke(
@@ -1546,7 +1562,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
                   </svg>
 
                   {pageItems.filter(i => i.tool === 'image').map(item => (
-                    <div key={item.id} style={{ position: 'absolute', left: item.x * scale, top: item.y * scale, width: item.width * scale, height: item.height * scale, pointerEvents: ['select', 'eraser'].includes(currentTool) ? 'auto' : 'none', outline: currentTool === 'select' && selectedInsertId === item.id ? '2px solid #8fa5b9' : undefined, touchAction: 'none', cursor: currentTool === 'select' ? 'move' : 'pointer', zIndex: selectedInsertId === item.id ? 25 : 15 }}
+                    <div key={item.id} style={{ position: 'absolute', left: item.x * scale, top: item.y * scale, width: item.width * scale, height: item.height * scale, pointerEvents: currentTool === 'select' ? 'auto' : 'none', outline: currentTool === 'select' && selectedInsertId === item.id ? '2px solid #8fa5b9' : undefined, touchAction: 'none', cursor: currentTool === 'select' ? 'move' : 'pointer', zIndex: selectedInsertId === item.id ? 25 : 15 }}
                       onPointerDown={e => {
                         e.stopPropagation(); e.preventDefault()
                         if (currentTool === 'eraser') { handleDeleteText(item.id); return }
