@@ -1,5 +1,10 @@
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import remarkMath from 'remark-math'
+import rehypeKatex from 'rehype-katex'
+import 'katex/dist/katex.min.css'
+import { assistantMath } from '../lib/assistantMath'
+import './AssistantMath.css'
 import { ArrowUpRight } from 'lucide-react'
 import { Children, isValidElement, useState } from 'react'
 
@@ -19,7 +24,7 @@ function workspaceCitations(sources) {
   const known=new Map(sources.map(source=>[`${source.type}:${source.id}`,source]))
   return () => tree => {
     const walk=parent=>{
-      if(!parent.children||['link','linkReference','code','inlineCode'].includes(parent.type))return
+      if(!parent.children||['link','linkReference','code','inlineCode','math','inlineMath'].includes(parent.type))return
       parent.children=parent.children.flatMap(child=>{
         if(child.type!=='text'){walk(child);return [child]}
         const nodes=[];let offset=0
@@ -40,7 +45,8 @@ function workspaceCitations(sources) {
 
 export default function AssistantMarkdown({content,sources=[],onOpenSource}) {
   return <div className="assistant-markdown"><ReactMarkdown
-    remarkPlugins={[remarkGfm,workspaceCitations(sources)]}
+    remarkPlugins={[remarkGfm,remarkMath,workspaceCitations(sources)]}
+    rehypePlugins={[[rehypeKatex,{trust:false,strict:'ignore',throwOnError:false,maxExpand:1000,maxSize:20,errorColor:'#cfb1b1',output:'htmlAndMathml'}]]}
     skipHtml
     components={{
       pre:CodeBlock,
@@ -54,5 +60,5 @@ export default function AssistantMarkdown({content,sources=[],onOpenSource}) {
       img:({src,alt})=>src&&/^https?:\/\//i.test(src)?<a href={src} target="_blank" rel="noopener noreferrer">{alt||'View image'} ↗</a>:<span>{alt||'Image'}</span>,
       table:({children})=><div className="assistant-table-scroll" role="region" aria-label="Answer table" tabIndex={0}><table>{children}</table></div>,
     }}
-  >{content}</ReactMarkdown></div>
+  >{assistantMath(content)}</ReactMarkdown></div>
 }

@@ -33,7 +33,8 @@ add ability to give each folder description media
 add ability to create a folder as i upload a doc
 add ability to choose the location when downloading from platform
 add migrate notes from onedrive
-add calculator for pdf editor
+add a continuous page scroll option
+add document generation
 add subfolders for docs and tasks
 
 resume job tailor:

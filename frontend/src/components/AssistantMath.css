@@ -1,0 +1,7 @@
+.assistant-markdown{min-width:0}
+.assistant-markdown .katex{font-size:1.12em;color:inherit;line-height:normal;text-indent:0;white-space:nowrap;overflow-wrap:normal;word-break:normal}
+.assistant-markdown .katex-display{display:block;max-width:100%;overflow-x:auto;overflow-y:hidden;padding:12px 8px;margin:16px 0;text-align:left;border:1px solid var(--border);border-radius:8px;background:var(--surface-base);scrollbar-width:thin}
+.assistant-markdown .katex-display>.katex{display:block;text-align:left;min-width:max-content;padding:3px 0}
+.assistant-markdown .katex-error{font-family:ui-monospace,monospace;font-size:.9em;white-space:pre-wrap;overflow-wrap:anywhere}
+.assistant-markdown .katex .base{white-space:nowrap}
+@media(max-width:640px){.assistant-markdown .katex{font-size:1.04em}.assistant-markdown .katex-display{padding:10px 6px}}
