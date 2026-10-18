@@ -1,5 +1,6 @@
 import TimeZoneSettings from './components/TimeZoneSettings'
 import useTaskDragScroll from './hooks/useTaskDragScroll'
+import useTaskPointerDrag from './hooks/useTaskPointerDrag'
 import ConfirmationSettings from './components/ConfirmationSettings'
 import { readApiJson } from './lib/apiResponse'
 import AccountAISettings from './components/AccountAISettings'
@@ -433,34 +434,16 @@ function App() {
     await updateTodoStatus(id, nextStatus)
   }
 
-  const handleDragStart = (e, todo) => {
-    if(reorderLock.current||bulkDeleting){e.preventDefault();return}
-    dragTask.current=todo
-    setDraggedTodo(todo)
-    e.dataTransfer.setData('application/x-assignment-task',todo._id)
-    e.dataTransfer.effectAllowed = 'move'
-    e.target.style.opacity = '0.5'
-  }
-
-  const handleDragEnd = (e) => {
-    e.target.style.opacity = '1'
-    setDraggedTodo(null)
-    dragTask.current=null
-    setDropTarget(null)
-  }
-
-  const handleDragOver = (e) => {
-    e.preventDefault()
-    e.dataTransfer.dropEffect = 'move'
-  }
-
-  const handleDrop = async (e, newStatus) => {
-    e.preventDefault()
-    const moving=dragTask.current||draggedTodo
-    if(!moving)return
-    await reorderTasks(moving,null,newStatus,'after')
-  }
-
+  const beginTaskPointerDrag=useTaskPointerDrag({
+    enabled:page==='tasks'&&!bulkDeleting&&!reordering,
+    onStart:task=>{dragTask.current=task;setDraggedTodo(task)},
+    onHover:destination=>setDropTarget(previous=>{
+      const next=destination?.id&&destination.id!==dragTask.current?._id?{id:destination.id,position:destination.position}:null
+      return previous?.id===next?.id&&previous?.position===next?.position?previous:next
+    }),
+    onDrop:(moving,destination)=>reorderTasks(moving,todos.find(task=>task._id===destination.id)||null,destination.status,destination.position),
+    onEnd:()=>{dragTask.current=null;setDraggedTodo(null);setDropTarget(null)},
+  })
   const reorderTasks=async(moving,target,status,position)=>{
     if(reorderLock.current||moving._id===target?._id)return
     reorderLock.current=true;setReordering(true);setDropTarget(null)
@@ -708,12 +691,10 @@ function App() {
         tabIndex={0}
         role="article"
         aria-label={todo.text}
-        draggable={!isEditing&&!bulkDeleting&&!reordering}
-        onDragOver={event=>{const moving=dragTask.current;if(!moving||moving._id===todo._id)return;event.preventDefault();event.stopPropagation();event.dataTransfer.dropEffect='move';const rect=event.currentTarget.getBoundingClientRect();setDropTarget({id:todo._id,position:event.clientY<rect.top+rect.height/2?'before':'after'})}}
-        onDrop={event=>{const moving=dragTask.current;if(!moving)return;event.preventDefault();event.stopPropagation();const rect=event.currentTarget.getBoundingClientRect();reorderTasks(moving,todo,todo.status,event.clientY<rect.top+rect.height/2?'before':'after')}}
-        onDragStart={(e) => handleDragStart(e, todo)}
-        onDragEnd={handleDragEnd}
-        className={cn("group task-selectable",selectedTaskIds.has(todo._id)&&"is-bulk-selected",dropTarget?.id===todo._id&&`task-drop-${dropTarget.position}`)}
+        draggable={false}
+        onDragStart={event=>event.preventDefault()}
+        onPointerDown={event=>{if(!isEditing)beginTaskPointerDrag(event,todo)}}
+        className={cn("group task-selectable",draggedTodo?._id===todo._id&&"is-task-dragging",selectedTaskIds.has(todo._id)&&"is-bulk-selected",dropTarget?.id===todo._id&&`task-drop-${dropTarget.position}`)}
         ref={(el) => { if (isEditing) editRefs.current[todo._id] = el }}
       >
         <div
@@ -1601,7 +1582,7 @@ function App() {
           </div>
         </div>
 
-        <p className="task-reorder-hint" role="status">{reordering?'Saving task order…':'Drag a task above or below another to arrange it. Hold near the top or bottom to scroll. Drop into another column to change its status.'}</p>
+        <p className="task-reorder-hint" role="status">{reordering?'Saving task order…':'Drag a task above or below another to arrange it. Scroll with your mouse wheel or trackpad, or hold near the top or bottom for automatic scrolling. Drop into another column to change its status.'}</p>
         {!loading&&filteredTodos.length>0&&<div className={cn("task-bulk-actions",filteredTodos.some(task=>selectedTaskIds.has(task._id))&&"has-selection")} role="group" aria-label="Bulk task actions"><label><input type="checkbox" disabled={bulkDeleting} checked={filteredTodos.every(task=>selectedTaskIds.has(task._id))} ref={element=>{if(element)element.indeterminate=filteredTodos.some(task=>selectedTaskIds.has(task._id))&&!filteredTodos.every(task=>selectedTaskIds.has(task._id))}} onChange={event=>setSelectedTaskIds(event.target.checked?new Set(filteredTodos.map(task=>task._id)):new Set())}/>Select all</label><span className="task-selection-count" aria-live="polite">{filteredTodos.filter(task=>selectedTaskIds.has(task._id)).length} selected</span><div className="task-selection-actions"><button className="task-selection-delete" type="button" disabled={bulkDeleting||!filteredTodos.some(task=>selectedTaskIds.has(task._id))} onClick={deleteSelectedTasks}><Trash2 size={15}/>{bulkDeleting?'Deleting…':'Delete selected'}</button><button className="task-selection-clear" type="button" disabled={bulkDeleting||!selectedTaskIds.size} onClick={()=>setSelectedTaskIds(new Set())}><X size={14}/>Clear</button></div></div>}
         {loading ? (
           <div className="flex justify-center py-12">
@@ -1618,8 +1599,7 @@ function App() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Todo Tasks */}
             <div
-              onDragOver={handleDragOver}
-              onDrop={(e) => handleDrop(e, 'todo')}
+              data-task-status="todo"
               className={cn(
                 "transition-all duration-300 rounded-2xl p-3 min-h-[150px]",
                 draggedTodo?.status !== 'todo' && "bg-primary-500/10 border-2 border-dashed border-primary-500/30"
@@ -1650,8 +1630,7 @@ function App() {
 
             {/* In Progress Tasks */}
             <div
-              onDragOver={handleDragOver}
-              onDrop={(e) => handleDrop(e, 'in-progress')}
+              data-task-status="in-progress"
               className={cn(
                 "transition-all duration-300 rounded-2xl p-3 min-h-[150px]",
                 draggedTodo?.status !== 'in-progress' && "bg-yellow-500/10 border-2 border-dashed border-yellow-500/30"
@@ -1682,8 +1661,7 @@ function App() {
 
             {/* Completed Tasks */}
             <div
-              onDragOver={handleDragOver}
-              onDrop={(e) => handleDrop(e, 'completed')}
+              data-task-status="completed"
               className={cn(
                 "transition-all duration-300 rounded-2xl p-3 min-h-[150px]",
                 draggedTodo?.status !== 'completed' && "bg-green-500/10 border-2 border-dashed border-green-500/30"
