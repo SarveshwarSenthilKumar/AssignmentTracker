@@ -22,7 +22,7 @@ export default function useTaskPointerDrag({onDrop,enabled}) {
       frame=null
       const current=gesture.current;if(!current?.active)return
       const elapsed=Math.min(32,current.time?time-current.time:16);current.time=time
-      const height=window.innerHeight,width=window.innerWidth,edge=Math.min(110,height*.18)
+      const height=window.innerHeight,edge=Math.min(110,height*.18)
       const top=Math.max(0,Math.min(height*.25,current.header?.getBoundingClientRect().bottom||0))
       let velocity=0
       if(performance.now()>current.manualUntil){
@@ -33,7 +33,9 @@ export default function useTaskPointerDrag({onDrop,enabled}) {
       let scrolled=false
       if(Math.abs(current.velocity)>2){const before=window.scrollY;window.scrollBy({top:current.velocity*elapsed/1000,behavior:'instant'});scrolled=before!==window.scrollY}
       const destination=targetAt(current);current.destination=destination
-      const x=Math.max(8,Math.min(width-current.previewWidth-8,current.x+18)),y=Math.max(8,Math.min(height-82,current.y+18))
+      // Preserve the grab point, including near viewport edges. Clamping the
+      // preview to the viewport makes it slide away from the cursor.
+      const x=current.x-current.grabX,y=current.y-current.grabY
       if(current.column!==destination?.column){current.column?.classList.remove('task-column-target');current.column=destination?.column||null;current.column?.classList.add('task-column-target')}
       current.preview.style.transform=`translate3d(${x}px,${y}px,0)`
       if(destination){
@@ -63,7 +65,12 @@ export default function useTaskPointerDrag({onDrop,enabled}) {
       const preview=document.createElement('div');preview.className='task-drag-preview';preview.setAttribute('aria-hidden','true')
       const title=document.createElement('strong');title.textContent=current.task.text
       const hint=document.createElement('span');hint.textContent='Move task · Scroll to navigate · Esc to cancel';preview.append(title,hint)
-      current.previewWidth=Math.max(150,Math.min(310,window.innerWidth-24));preview.style.width=`${current.previewWidth}px`
+      current.previewWidth=Math.min(current.sourceWidth,window.innerWidth-16)
+      preview.style.width=`${current.previewWidth}px`
+      preview.style.minHeight=`${Math.max(68,current.sourceHeight)}px`
+      current.grabX=current.offsetX*(current.previewWidth/current.sourceWidth)
+      current.grabY=Math.min(current.offsetY,Math.max(68,current.sourceHeight)-8)
+      preview.style.transform=`translate3d(${current.x-current.grabX}px,${current.y-current.grabY}px,0)`
       const indicator=document.createElement('div');indicator.className='task-drag-indicator';indicator.setAttribute('aria-hidden','true');indicator.hidden=true
       document.body.append(preview,indicator);current.preview=preview;current.indicator=indicator
     }
@@ -89,6 +96,7 @@ export default function useTaskPointerDrag({onDrop,enabled}) {
   return (event,task)=>{
     if(!latest.current.enabled||gesture.current||event.button!==0||event.isPrimary===false||event.pointerType==='touch'||event.target.closest('button,input,textarea,select,a,[contenteditable=true]'))return
     event.preventDefault();event.currentTarget.setPointerCapture(event.pointerId)
-    gesture.current={task,element:event.currentTarget,pointerId:event.pointerId,startX:event.clientX,startY:event.clientY,x:event.clientX,y:event.clientY,active:false}
+    const rect=(event.currentTarget.firstElementChild||event.currentTarget).getBoundingClientRect()
+    gesture.current={task,element:event.currentTarget,pointerId:event.pointerId,startX:event.clientX,startY:event.clientY,x:event.clientX,y:event.clientY,active:false,sourceWidth:Math.max(1,rect.width),sourceHeight:rect.height,offsetX:Math.max(0,event.clientX-rect.left),offsetY:Math.max(0,event.clientY-rect.top)}
   }
 }
