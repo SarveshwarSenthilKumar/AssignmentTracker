@@ -1,3 +1,4 @@
+import usePDFTouchInput from '../hooks/usePDFTouchInput'
 import useShortcuts from '../hooks/useShortcuts'
 import useInlineConfirm from '../hooks/useInlineConfirm'
 import InlineConfirmation from './InlineConfirmation'
@@ -1115,6 +1116,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     const points = currentPathRef.current
     currentPathRef.current = []
     setCurrentPath([])
+    if(e.type==='pointercancel')return
     if (!points.length) return
     pushHistory()
     updatePaths(prev => [
@@ -1389,6 +1391,16 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     )
   }
 
+  const touchInput=usePDFTouchInput({
+    viewer:viewerRef,scrollWithFinger:fingerScroll,resetKey:`${pdfId}:${pageNumber}:${currentTool}:${focusMode}`,
+    resetAnnotation:()=>{
+      isDrawingRef.current=false;isErasingRef.current=false;eraserLast.current=null
+      currentPathRef.current=[];setCurrentPath([])
+      calculationDrag.current=null;setCalculationBox(null)
+      if(dragRef.current)handleTextDragEnd(true)
+    }
+  })
+
   if (loading) {
     return (
       <div className="fixed inset-0 bg-slate-950 flex items-center justify-center z-50">
@@ -1535,7 +1547,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   )
 
   return (
-    <div ref={editorRootRef} className={cn("pdf-editor fixed inset-0 bg-slate-950 flex flex-col z-50",focusMode&&"pdf-focus-mode",focusMode&&fingerScroll&&"pdf-finger-scroll")} role="region" aria-label="Visual document editor" aria-busy={deletingPage} onPointerDownCapture={e => { if (deletingPage) { e.preventDefault(); e.stopPropagation() } }} onKeyDownCapture={e => { if (deletingPage) { e.preventDefault(); e.stopPropagation() } }}>
+    <div ref={editorRootRef} className={cn("pdf-editor fixed inset-0 bg-slate-950 flex flex-col z-50",focusMode&&"pdf-focus-mode","pdf-touch-tracked",fingerScroll&&"pdf-finger-scroll")} role="region" aria-label="Visual document editor" aria-busy={deletingPage} onPointerDownCapture={e => { if (deletingPage) { e.preventDefault(); e.stopPropagation() } }} onKeyDownCapture={e => { if (deletingPage) { e.preventDefault(); e.stopPropagation() } }}>
       {deletingPage && <div className="inline-operation-status" role="status"><Loader2 className="animate-spin" size={17} />Updating pages…</div>}
       <InlineConfirmation {...confirmation} />
       {focusMode&&<div className="pdf-focus-toolbar" role="toolbar" aria-label="Fullscreen annotation tools" data-keep-text-active>
@@ -1578,6 +1590,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       >
         <InsertPanel onPages={exportImage ? undefined : handleAddPages} pageNumber={pageNumber} onFiles={insertFiles} onInsert={insertGenerated} color={currentColor} busy={inserting || !pageBase || pageBase.page !== pageNumber || deletingPage} />
         <div className="pdf-editor-tool-options">
+        <button type="button" className={cn('pdf-control',fingerScroll&&'is-active')} aria-pressed={fingerScroll} onClick={()=>{handleTextDragEnd();commitText();setFingerScroll(value=>!value)}} title="Finger scrolling with palm rejection; pen and mouse still annotate"><Move size={16}/>{fingerScroll?'Finger scroll':'Finger draw'}</button>
         {!exportImage&&<button type="button" className="pdf-control" disabled={loading||!numPages||!pageBase||pageBase.page!==pageNumber||deletingPage||inserting} title={`Insert a blank page after page ${pageNumber}`} onClick={()=>handleAddPages({mode:'blank',placement:'after'})}><Plus size={16}/>Blank page after</button>}
         {!exportImage&&<button type="button" className="pdf-control pdf-control-danger" onClick={()=>handleDeletePage()} disabled={!numPages||numPages<=1||deletingPage||inserting} title={numPages===1?'Keep at least one page in the PDF':`Delete page ${pageNumber} and its annotations`}><Trash2 size={16}/>Delete page {pageNumber}</button>}
         <button type="button" className={cn('pdf-control',currentTool==='calculate'&&'is-active')} aria-pressed={currentTool==='calculate'} title="Drag a box over one readable math expression" onClick={()=>{commitText();setCurrentTool('calculate')}}><Calculator size={16}/>Calculate selection</button>
@@ -1720,10 +1733,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         )}
       {/* PDF Viewer */}
       <div tabIndex={0}
-        onPointerDownCapture={event=>{if(focusMode&&fingerScroll&&event.pointerType==='touch'){event.stopPropagation();handleTextDragEnd();commitText()}}}
-        onPointerMoveCapture={event=>{if(focusMode&&fingerScroll&&event.pointerType==='touch')event.stopPropagation()}}
-        onPointerUpCapture={event=>{if(focusMode&&fingerScroll&&event.pointerType==='touch')event.stopPropagation()}}
-        onPointerCancelCapture={event=>{if(focusMode&&fingerScroll&&event.pointerType==='touch')event.stopPropagation()}}
+        {...touchInput}
         aria-label="PDF canvas; paste or drop images here" onDragOver={e => { e.preventDefault() }} onDrop={e => { e.preventDefault(); insertFiles(Array.from(e.dataTransfer.files)) }} onPaste={e => { if (e.target.closest('textarea, input')) return; const files = Array.from(e.clipboardData.files); if (files.length) { e.preventDefault(); insertFiles(files) } else if(snippet){e.preventDefault();if(pageBase?.page===pageNumber&&!inserting&&!deletingPage){try{addImageInsert(snippet)}catch(error){setActionError(error.message)}}} }} ref={viewerRef} className="pdf-editor-canvas flex-1 min-w-0 overflow-auto bg-slate-950">
         <div className="flex min-h-full w-fit min-w-full items-start justify-center p-8">
           {pdfError ? (

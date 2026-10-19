@@ -213,7 +213,7 @@
 .pdf-focus-page-count { font-size:11px; color:var(--text-secondary,#b6c1d0); white-space:nowrap; }
 @media(max-width:640px) { .pdf-focus-toolbar { bottom:10px; gap:2px; } .pdf-focus-toolbar .pdf-control,.pdf-focus-toolbar .pdf-tool-button { padding:7px; min-width:30px; } }
 
-/* Let the browser handle touch panning, including momentum, over annotations. */
-.pdf-finger-scroll .pdf-editor-canvas,
-.pdf-finger-scroll .pdf-editor-canvas * { touch-action:pan-x pan-y pinch-zoom !important; }
+/* Tracked touch gestures allow palm rejection before any scrolling occurs. */
+.pdf-touch-tracked .pdf-editor-canvas,
+.pdf-touch-tracked .pdf-editor-canvas * { touch-action:none !important; }
 .pdf-finger-scroll .pdf-editor-canvas { overscroll-behavior:contain; -webkit-overflow-scrolling:touch; }
