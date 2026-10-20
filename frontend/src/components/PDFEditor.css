@@ -246,3 +246,9 @@
 .pdf-finger-mode button { display:inline-flex; align-items:center; justify-content:center; gap:5px; border:1px solid transparent; border-radius:7px; padding:6px 8px; color:var(--text-muted); font-size:11px; background:transparent; cursor:pointer; }
 .pdf-finger-mode button[aria-pressed=true] { color:var(--text-primary); background:var(--surface-raised); border-color:var(--accent,#8fa5b9); }
 .pdf-finger-mode button:focus-visible { outline:2px solid var(--accent,#8fa5b9); outline-offset:2px; }
+.pdf-side-page-launcher { position:absolute; top:12px; right:16px; z-index:36; display:inline-flex; align-items:center; justify-content:center; gap:9px; min-height:42px; padding:10px 16px; border:1px solid #c0daf4; border-radius:12px; background:#a9cae9; color:#102337; font-size:12px; font-weight:650; box-shadow:0 4px 18px #0004; cursor:pointer; }
+.pdf-side-page-launcher:hover { background:#c3ddf5; }
+.pdf-side-page-launcher[aria-pressed=true] { background:var(--surface-panel,#182738); border-color:#9dbedc; color:var(--text-primary,#e4edf8); }
+.pdf-side-page-launcher:disabled { opacity:.5; cursor:default; }
+.pdf-side-page-launcher:focus-visible { outline:2px solid #d6eaff; outline-offset:3px; }
+@media(max-width:640px) { .pdf-side-page-launcher { top:8px; right:8px; padding:8px 10px; font-size:11px; } }

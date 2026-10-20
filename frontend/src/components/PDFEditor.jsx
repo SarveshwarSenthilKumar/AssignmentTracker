@@ -1858,6 +1858,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         )}
       {/* PDF Viewer */}
       <div className="pdf-viewer-region">
+      {!exportImage&&<button type="button" className="pdf-side-page-launcher" aria-pressed={showReference} onClick={toggleReference} disabled={!numPages||deletingPage||inserting} title="View another page alongside the page you are editing"><Files size={19}/><span>{showReference?'Close side page':'Open side page'}</span></button>}
       {focusMode&&!exportImage&&numPages>1&&<nav className="pdf-focus-page-arrows" aria-label="Fullscreen page navigation">
         <button type="button" className="pdf-focus-page-arrow is-previous" title="Previous page" aria-label="Previous page" disabled={pageNumber<=1||deletingPage||inserting} onClick={()=>goToPage(pageNumber-1)}><ChevronLeft size={19}/></button>
         <button type="button" className="pdf-focus-page-arrow is-next" title="Next page" aria-label="Next page" disabled={pageNumber>=numPages||deletingPage||inserting} onClick={()=>goToPage(pageNumber+1)}><ChevronRight size={19}/></button>
