@@ -13,7 +13,7 @@ import { readApiJson } from '../lib/apiResponse'
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Document, Page, pdfjs } from 'react-pdf'
 import {
-  MessageSquare, Files, Moon, Sun, Calculator, X, Save, Download, Upload, Trash2, Pen, Highlighter, Eraser, ZoomIn, ZoomOut,
+  ChevronLeft, ChevronRight, MessageSquare, Files, Moon, Sun, Calculator, X, Save, Download, Upload, Trash2, Pen, Highlighter, Eraser, ZoomIn, ZoomOut,
   PanelLeft, FileText, Maximize, RotateCw, Settings, Tag, Folder, Check, Loader2, Undo, Redo, Type, Move, Minus, Plus, AlertCircle
 } from 'lucide-react'
 import { PDFDocument, rgb, degrees, StandardFonts, LineCapStyle } from 'pdf-lib'
@@ -1751,6 +1751,11 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
           </aside>
         )}
       {/* PDF Viewer */}
+      <div className="pdf-viewer-region">
+      {focusMode&&!exportImage&&numPages>1&&<nav className="pdf-focus-page-arrows" aria-label="Fullscreen page navigation">
+        <button type="button" className="pdf-focus-page-arrow is-previous" title="Previous page" aria-label="Previous page" disabled={pageNumber<=1||deletingPage||inserting} onClick={()=>goToPage(pageNumber-1)}><ChevronLeft size={19}/></button>
+        <button type="button" className="pdf-focus-page-arrow is-next" title="Next page" aria-label="Next page" disabled={pageNumber>=numPages||deletingPage||inserting} onClick={()=>goToPage(pageNumber+1)}><ChevronRight size={19}/></button>
+      </nav>}
       <div tabIndex={0}
         {...touchInput}
         aria-label="PDF canvas; paste or drop images here" onDragOver={e => { e.preventDefault() }} onDrop={e => { e.preventDefault(); insertFiles(Array.from(e.dataTransfer.files)) }} onPaste={e => { if (e.target.closest('textarea, input')) return; const files = Array.from(e.clipboardData.files); if (files.length) { e.preventDefault(); insertFiles(files) } else if(snippet){e.preventDefault();if(pageBase?.page===pageNumber&&!inserting&&!deletingPage){try{addImageInsert(snippet)}catch(error){setActionError(error.message)}}} }} ref={viewerRef} className="pdf-editor-canvas flex-1 min-w-0 overflow-auto bg-slate-950">
@@ -1769,6 +1774,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         </div>
       </div>
 
+      </div>
       <div ref={onAssistantHost} className="pdf-assistant-dock" hidden={!assistantOpen} aria-label="Notes AI assistant"/>
       </div>
       {/* Page Navigation */}
