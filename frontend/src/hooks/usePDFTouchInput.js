@@ -1,109 +1,129 @@
 import { useEffect, useRef } from 'react'
 
-// Own touch panning so rejected contacts cannot trigger native browser scrolling.
-export default function usePDFTouchInput({viewer,scrollWithFinger,resetAnnotation,resetKey}){
-  const state=useRef({touches:new Map(),pen:null,lastPen:-Infinity,lastBlocked:-Infinity,frame:0,gesture:null})
-  const latest=useRef(null);latest.current={resetAnnotation,scrollWithFinger}
-  const stop=()=>{
-    const current=state.current
-    cancelAnimationFrame(current.frame);current.frame=0;current.gesture=null
+// One owner per gesture: pen, finger annotation, or a tracked touch pan.
+export default function usePDFTouchInput({viewer,scrollWithFinger,resetAnnotation,beginTouchAnnotation,endTouchAnnotation,resetKey}){
+  const state=useRef({touches:new Map(),pen:null,lastPenUp:-Infinity,lastBlocked:-Infinity,frame:0,pan:null,draw:null})
+  const latest=useRef(null);latest.current={resetAnnotation,beginTouchAnnotation,endTouchAnnotation,scrollWithFinger}
+  const block=event=>{event.preventDefault();event.stopPropagation()}
+  // Large/elongated contacts are evidence of a palm. Missing contact geometry
+  // (often 1x1) is not evidence of either a palm or a pen.
+  const palm=event=>{
+    const w=event.width||1,h=event.height||1,large=Math.max(w,h),small=Math.min(w,h)
+    return large>=55||w*h>=1800||(large>=34&&large/small>=2.8&&w*h>=650)
+  }
+  const valid=()=>[...state.current.touches.values()].filter(contact=>!contact.rejected)
+  const centroid=contacts=>({x:contacts.reduce((sum,c)=>sum+c.x,0)/contacts.length,y:contacts.reduce((sum,c)=>sum+c.y,0)/contacts.length})
+  const flush=()=>{
+    const current=state.current,pan=current.pan,element=viewer.current
+    if(pan?.moved&&element){element.scrollLeft=pan.left+pan.startX-pan.x;element.scrollTop=pan.top+pan.startY-pan.y}
+    cancelAnimationFrame(current.frame);current.frame=0
+  }
+  const stop=()=>{flush();state.current.pan=null}
+  const cancelDraw=()=>{
+    if(state.current.draw!==null){state.current.draw=null;latest.current.resetAnnotation({rollbackTouch:true})}
+  }
+  const rebasePan=()=>{
+    stop()
+    const contacts=valid(),element=viewer.current
+    if(!contacts.length||!element)return
+    const point=centroid(contacts)
+    contacts.forEach(contact=>{contact.mode='pan'})
+    state.current.pan={startX:point.x,startY:point.y,...point,left:element.scrollLeft,top:element.scrollTop,moved:false}
   }
   const reset=()=>{
-    stop();state.current.touches.clear();state.current.pen=null
+    stop();cancelDraw();state.current.touches.clear();state.current.pen=null
     latest.current.resetAnnotation()
   }
   useEffect(()=>{
-    window.addEventListener('blur',reset)
     const hidden=()=>{if(document.hidden)reset()}
-    document.addEventListener('visibilitychange',hidden)
-    return()=>{window.removeEventListener('blur',reset);document.removeEventListener('visibilitychange',hidden);stop()}
+    window.addEventListener('blur',reset);document.addEventListener('visibilitychange',hidden)
+    return()=>{window.removeEventListener('blur',reset);document.removeEventListener('visibilitychange',hidden);cancelAnimationFrame(state.current.frame)}
   },[])
   useEffect(()=>{reset()},[scrollWithFinger,resetKey])
-  const block=event=>{event.preventDefault();event.stopPropagation()}
-  const palm=event=>Math.max(event.width||0,event.height||0)>=38||
-    ((event.width||0)*(event.height||0)>=700)
-  const penNearby=()=>state.current.pen!==null||performance.now()-state.current.lastPen<800
+  const reject=(id)=>{
+    const contact=state.current.touches.get(id)
+    if(!contact)return
+    contact.rejected=true
+    if(state.current.draw===id)cancelDraw()
+    if(contact.mode==='pan')rebasePan()
+  }
   const handlers={
-    onClickCapture:event=>{
-      if(event.detail!==0&&performance.now()-state.current.lastBlocked<400)block(event)
-    },
-    onContextMenuCapture:event=>{
-      if(state.current.touches.size||state.current.pen!==null)block(event)
-    },
-    onPointerOverCapture:event=>{
-      if(event.pointerType==='pen'){state.current.lastPen=performance.now();stop()}
-    },
+    onClickCapture:event=>{if(event.detail!==0&&performance.now()-state.current.lastBlocked<400)block(event)},
+    onContextMenuCapture:event=>{if(state.current.touches.size||state.current.pen!==null)block(event)},
+    // Hover intentionally does not suppress fingers or cancel their gestures.
+    onPointerOverCapture:()=>{},
     onPointerDownCapture:event=>{
       const current=state.current
       if(event.pointerType==='pen'){
-        stop();latest.current.resetAnnotation();current.pen=event.pointerId;current.lastPen=performance.now();return
+        if(current.pen!==null&&current.pen!==event.pointerId){block(event);return}
+        stop();cancelDraw();current.touches.forEach(contact=>{contact.rejected=true})
+        latest.current.resetAnnotation();current.pen=event.pointerId;return
       }
       if(event.pointerType!=='touch')return
-      const rejected=palm(event)||penNearby()
-      current.touches.set(event.pointerId,{rejected})
+      const rejected=palm(event)||current.pen!==null||performance.now()-current.lastPenUp<220
+      const contact={id:event.pointerId,x:event.clientX,y:event.clientY,rejected,mode:'draw'}
+      current.touches.set(event.pointerId,contact)
       if(rejected){block(event);return}
-      if(!latest.current.scrollWithFinger){
-        if(current.touches.size>1){current.touches.get(event.pointerId).rejected=true;block(event)}
-        return
+      const contacts=valid()
+      if(latest.current.scrollWithFinger||contacts.length>1||current.pan){
+        block(event);cancelDraw();rebasePan()
+        viewer.current?.setPointerCapture?.(event.pointerId);return
       }
-      block(event)
-      if(current.touches.size!==1){stop();return}
-      latest.current.resetAnnotation()
-      const element=viewer.current
-      if(!element)return
-      current.gesture={id:event.pointerId,startX:event.clientX,startY:event.clientY,x:event.clientX,y:event.clientY,left:element.scrollLeft,top:element.scrollTop,moved:false}
-      element.setPointerCapture?.(event.pointerId)
+      latest.current.beginTouchAnnotation?.();current.draw=event.pointerId
     },
     onPointerMoveCapture:event=>{
       const current=state.current
-      if(event.pointerType==='pen'){current.lastPen=performance.now();return}
+      if(event.pointerType==='pen'){
+        if(current.pen!==null&&current.pen!==event.pointerId)block(event)
+        return
+      }
       if(event.pointerType!=='touch')return
       const contact=current.touches.get(event.pointerId)
-      if(!contact||palm(event)||penNearby()||contact.rejected){
-        if(contact)contact.rejected=true
-        stop();block(event);return
+      if(!contact){block(event);return}
+      if(!contact.rejected&&(palm(event)||current.pen!==null))reject(event.pointerId)
+      if(contact.rejected){block(event);return}
+      contact.x=event.clientX;contact.y=event.clientY
+      if(contact.mode==='draw'){
+        if(current.draw!==event.pointerId)block(event)
+        return
       }
-      if(!latest.current.scrollWithFinger)return
       block(event)
-      const gesture=current.gesture
-      if(!gesture||gesture.id!==event.pointerId)return
-      gesture.x=event.clientX;gesture.y=event.clientY
-      if(!gesture.moved&&Math.hypot(gesture.x-gesture.startX,gesture.y-gesture.startY)<5)return
-      gesture.moved=true
-      if(current.frame)return
-      current.frame=requestAnimationFrame(()=>{
-        current.frame=0
-        if(current.gesture!==gesture||!viewer.current)return
-        viewer.current.scrollLeft=gesture.left+gesture.startX-gesture.x
-        viewer.current.scrollTop=gesture.top+gesture.startY-gesture.y
-      })
-    },
+      const pan=current.pan
+      if(!pan)return
+      Object.assign(pan,centroid(valid()))
+      if(!pan.moved&&Math.hypot(pan.x-pan.startX,pan.y-pan.startY)<4)return
+      pan.moved=true
+      if(!current.frame)current.frame=requestAnimationFrame(()=>{current.frame=0;flush()})
+    }
   }
-  const finish=event=>{
+  const finish=(event,lost=false)=>{
     const current=state.current
     if(event.pointerType==='pen'){
-      current.pen=null;current.lastPen=performance.now();return
+      if(current.pen===event.pointerId){current.pen=null;current.lastPenUp=performance.now()}
+      return
     }
     if(event.pointerType!=='touch')return
     const contact=current.touches.get(event.pointerId)
+    if(!contact){block(event);return}
+    const wasDraw=current.draw===event.pointerId&&!contact.rejected&&contact.mode==='draw'
+    if(wasDraw){
+      if(lost||event.type==='pointercancel')cancelDraw()
+      else{current.draw=null;latest.current.endTouchAnnotation?.()}
+    }
+    if(contact.mode==='pan')flush()
     current.touches.delete(event.pointerId)
-    if(latest.current.scrollWithFinger||!contact||contact.rejected||penNearby()){
-      current.lastBlocked=performance.now()
-      const gesture=current.gesture
-      if(gesture?.id===event.pointerId){
-        if(gesture.moved&&event.type!=='pointercancel'&&viewer.current){
-          viewer.current.scrollLeft=gesture.left+gesture.startX-event.clientX
-          viewer.current.scrollTop=gesture.top+gesture.startY-event.clientY
-        }
-        stop()
-      }
+    if(contact.mode==='pan')rebasePan()
+    if(!wasDraw||lost||event.type==='pointercancel'){
+      current.lastBlocked=performance.now();block(event)
       if(viewer.current?.hasPointerCapture(event.pointerId))viewer.current.releasePointerCapture(event.pointerId)
-      block(event)
     }
   }
   handlers.onPointerUpCapture=finish;handlers.onPointerCancelCapture=finish
   handlers.onLostPointerCaptureCapture=event=>{
-    if(state.current.gesture?.id===event.pointerId)stop()
+    if(state.current.touches.has(event.pointerId))finish(event,true)
+    else if(state.current.pen===event.pointerId&&event.target===viewer.current){
+      state.current.pen=null;state.current.lastPenUp=performance.now();latest.current.resetAnnotation()
+    }
   }
   return handlers
 }

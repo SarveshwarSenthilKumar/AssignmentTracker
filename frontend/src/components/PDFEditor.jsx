@@ -1,3 +1,4 @@
+import PDFFingerMode from './PDFFingerMode'
 import PDFStylusSettings from './PDFStylusSettings'
 import usePDFTouchInput from '../hooks/usePDFTouchInput'
 import useShortcuts from '../hooks/useShortcuts'
@@ -440,7 +441,9 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const snippetCopyRef=useRef(false)
   const editorRootRef=useRef(null),ownsFullscreenRef=useRef(false)
   const [focusMode,setFocusMode]=useState(false)
-  const [fingerScroll,setFingerScroll]=useState(true)
+  const [fingerScroll,setFingerScroll]=useState(()=>{try{return localStorage.getItem('pdf-finger-mode')!=='draw'}catch{return true}})
+  useEffect(()=>{try{localStorage.setItem('pdf-finger-mode',fingerScroll?'scroll':'draw')}catch{}},[fingerScroll])
+  const touchAnnotationSnapshot=useRef(null)
   const [stylusBarrel,setStylusBarrel]=useState(()=>{try{const saved=localStorage.getItem('pdf-stylus-barrel');return ['eraser','pan','undo','redo','previous','next','none'].includes(saved)?saved:'eraser'}catch{return 'eraser'}})
   const [stylusEraser,setStylusEraser]=useState(()=>{try{return localStorage.getItem('pdf-stylus-eraser')!=='false'}catch{return true}})
   const [showStylusStudio,setShowStylusStudio]=useState(false)
@@ -1468,14 +1471,32 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     }
   }
 
+  const setFingerInputMode=scroll=>{
+    handleTextDragEnd();commitText()
+    if(!scroll&&!['pen','highlighter','eraser'].includes(currentTool))setCurrentTool('pen')
+    setFingerScroll(scroll)
+  }
+
   const touchInput=usePDFTouchInput({
     viewer:viewerRef,scrollWithFinger:fingerScroll,resetKey:`${pdfId}:${pageNumber}:${currentTool}:${focusMode}`,
-    resetAnnotation:()=>{
+    beginTouchAnnotation:()=>{
+      commitText()
+      touchAnnotationSnapshot.current={paths:pathsRef.current,undo:[...undoStack.current],redo:[...redoStack.current]}
+    },
+    endTouchAnnotation:()=>{touchAnnotationSnapshot.current=null},
+    resetAnnotation:({rollbackTouch=false}={})=>{
       stylusGesture.current=null
       isDrawingRef.current=false;isErasingRef.current=false;eraserLast.current=null
       currentPathRef.current=[];setCurrentPath([])
       calculationDrag.current=null;setCalculationBox(null)
       if(dragRef.current)handleTextDragEnd(true)
+      const snapshot=touchAnnotationSnapshot.current
+      if(rollbackTouch&&snapshot){
+        activate(null);editSnapshotRef.current=null
+        if(pathsRef.current!==snapshot.paths)updatePaths(snapshot.paths)
+        undoStack.current=snapshot.undo;redoStack.current=snapshot.redo;bumpHistory()
+      }
+      touchAnnotationSnapshot.current=null
     }
   })
 
@@ -1639,7 +1660,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         {!exportImage&&<><button type="button" className="pdf-control" disabled={pageNumber<=1} aria-label="Previous page" onClick={()=>goToPage(pageNumber-1)}>‹</button><span className="pdf-focus-page-count">{pageNumber}/{numPages||'…'}</span><button type="button" className="pdf-control" disabled={pageNumber>=numPages} aria-label="Next page" onClick={()=>goToPage(pageNumber+1)}>›</button></>}
         <button type="button" className="pdf-control" title="Fit page width" aria-label="Fit page width" onClick={handleFitWidth}><Maximize size={17}/></button>
         <button type="button" className="pdf-control" title="Save" aria-label="Save" onClick={handleSave} disabled={saveStatus==='saving'}><Save size={17}/></button>
-        <button type="button" className={cn('pdf-control',fingerScroll&&'is-active')} aria-pressed={fingerScroll} onClick={()=>{handleTextDragEnd();commitText();setFingerScroll(value=>!value)}} title="Scroll with fingers; pen and mouse still annotate"><Move size={17}/><span>{fingerScroll?'Finger scroll':'Finger draw'}</span></button>
+        <PDFFingerMode scroll={fingerScroll} onChange={setFingerInputMode}/>
         <button type="button" className="pdf-control" onClick={()=>setShowStylusStudio(true)} title="Customize stylus buttons" aria-label="Customize stylus buttons"><Pen size={17}/></button>
         {onToggleAssistant&&<button type="button" className={cn('pdf-control',assistantOpen&&'is-active')} aria-pressed={assistantOpen} onClick={onToggleAssistant} title="Open AI assistant beside your notes"><MessageSquare size={17}/><span>AI assistant</span></button>}
         <button type="button" className="pdf-control" onClick={exitFocusMode} title="Exit fullscreen (Esc)"><X size={17}/><span>Exit</span></button>
@@ -1675,7 +1696,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       >
         <InsertPanel onPages={exportImage ? undefined : handleAddPages} pageNumber={pageNumber} onFiles={insertFiles} onInsert={insertGenerated} color={currentColor} busy={inserting || !pageBase || pageBase.page !== pageNumber || deletingPage} />
         <div className="pdf-editor-tool-options">
-        <button type="button" className={cn('pdf-control',fingerScroll&&'is-active')} aria-pressed={fingerScroll} onClick={()=>{handleTextDragEnd();commitText();setFingerScroll(value=>!value)}} title="Finger scrolling with palm rejection; pen and mouse still annotate"><Move size={16}/>{fingerScroll?'Finger scroll':'Finger draw'}</button>
+        <PDFFingerMode scroll={fingerScroll} onChange={setFingerInputMode}/>
         {!exportImage&&<button type="button" className="pdf-control" disabled={loading||!numPages||!pageBase||pageBase.page!==pageNumber||deletingPage||inserting} title={`Insert a blank page after page ${pageNumber}`} onClick={()=>handleAddPages({mode:'blank',placement:'after'})}><Plus size={16}/>Blank page after</button>}
         {!exportImage&&<button type="button" className="pdf-control pdf-control-danger" onClick={()=>handleDeletePage()} disabled={!numPages||numPages<=1||deletingPage||inserting} title={numPages===1?'Keep at least one page in the PDF':`Delete page ${pageNumber} and its annotations`}><Trash2 size={16}/>Delete page {pageNumber}</button>}
         <button type="button" className={cn('pdf-control',currentTool==='calculate'&&'is-active')} aria-pressed={currentTool==='calculate'} title="Drag a box over one readable math expression" onClick={()=>{commitText();setCurrentTool('calculate')}}><Calculator size={16}/>Calculate selection</button>

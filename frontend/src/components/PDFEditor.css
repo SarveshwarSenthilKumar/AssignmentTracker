@@ -241,3 +241,8 @@
 .pdf-stylus-settings label { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text-secondary); }
 .pdf-stylus-settings select { padding:8px; background:var(--surface-input); color:var(--text-primary); border:1px solid var(--border-strong); border-radius:6px; }
 .pdf-stylus-settings p { font-size:11px; line-height:1.6; color:var(--text-muted); }
+
+.pdf-finger-mode { display:inline-flex; flex-shrink:0; gap:3px; padding:3px; border:1px solid var(--border-strong); border-radius:10px; background:var(--surface-base); }
+.pdf-finger-mode button { display:inline-flex; align-items:center; justify-content:center; gap:5px; border:1px solid transparent; border-radius:7px; padding:6px 8px; color:var(--text-muted); font-size:11px; background:transparent; cursor:pointer; }
+.pdf-finger-mode button[aria-pressed=true] { color:var(--text-primary); background:var(--surface-raised); border-color:var(--accent,#8fa5b9); }
+.pdf-finger-mode button:focus-visible { outline:2px solid var(--accent,#8fa5b9); outline-offset:2px; }
