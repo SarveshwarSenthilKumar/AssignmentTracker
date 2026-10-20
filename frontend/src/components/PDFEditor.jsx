@@ -1,3 +1,4 @@
+import PDFReferencePane from './PDFReferencePane'
 import PDFFingerMode from './PDFFingerMode'
 import PDFStylusSettings from './PDFStylusSettings'
 import usePDFTouchInput from '../hooks/usePDFTouchInput'
@@ -415,6 +416,10 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const [pdfFile, setPdfFile] = useState(null)
   const [numPages, setNumPages] = useState(null)
   const [pageNumber, setPageNumber] = useState(1)
+  const [showReference,setShowReference]=useState(false),[referencePage,setReferencePage]=useState(1)
+  useEffect(()=>{if(numPages)setReferencePage(previous=>Math.max(1,Math.min(previous,numPages)))},[numPages])
+  useEffect(()=>{setShowReference(false);setReferencePage(1)},[pdfId])
+
   const [pageBase, setPageBase] = useState(null) // { page, w, h } in page units
   const [scale, setScale] = useState(1.0)
   const [rotation, setRotation] = useState(0)
@@ -1179,6 +1184,17 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     handleTextDragEnd();commitText();setSelectedInsertId(null);setPageNumber(n)
   }
 
+  const toggleReference=()=>{
+    handleTextDragEnd();commitText()
+    if(!showReference)setReferencePage(Math.min(numPages||1,pageNumber+1))
+    setShowReference(previous=>!previous)
+  }
+  const swapReference=()=>{
+    if(deletingPageRef.current||insertingRef.current)return
+    const target=referencePage
+    setReferencePage(pageNumber);goToPage(target)
+  }
+
   const handleFitWidth = () => {
     if (!pageBase || !viewerRef.current) return
     const width = rotation % 180 ? pageBase.h : pageBase.w
@@ -1661,6 +1677,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         <button type="button" className="pdf-control" title="Fit page width" aria-label="Fit page width" onClick={handleFitWidth}><Maximize size={17}/></button>
         <button type="button" className="pdf-control" title="Save" aria-label="Save" onClick={handleSave} disabled={saveStatus==='saving'}><Save size={17}/></button>
         <PDFFingerMode scroll={fingerScroll} onChange={setFingerInputMode}/>
+        {!exportImage&&<button type="button" className={cn('pdf-control',showReference&&'is-active')} aria-pressed={showReference} onClick={toggleReference} disabled={!numPages||deletingPage||inserting} title="Open another page beside your notes"><Files size={17}/><span>Side page</span></button>}
         <button type="button" className="pdf-control" onClick={()=>setShowStylusStudio(true)} title="Customize stylus buttons" aria-label="Customize stylus buttons"><Pen size={17}/></button>
         {onToggleAssistant&&<button type="button" className={cn('pdf-control',assistantOpen&&'is-active')} aria-pressed={assistantOpen} onClick={onToggleAssistant} title="Open AI assistant beside your notes"><MessageSquare size={17}/><span>AI assistant</span></button>}
         <button type="button" className="pdf-control" onClick={exitFocusMode} title="Exit fullscreen (Esc)"><X size={17}/><span>Exit</span></button>
@@ -1668,6 +1685,8 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       <header className="pdf-editor-header">
         <div className="pdf-editor-identity"><FileText size={22}/><div><h2 title={pdfData?.name}>{pdfData?.name || 'Document editor'}</h2><div className="pdf-editor-metadata"><span>{exportImage ? 'Image annotations' : `PDF · ${numPages || '…'} pages`}</span><span className={`pdf-save-status is-${saveStatus}`} role="status">{saveStatus === 'saving' ? 'Saving…' : saveStatus === 'saved' ? 'All changes saved' : saveStatus === 'error' ? 'Save failed — retry Save' : 'Unsaved changes'}</span></div></div></div>
         <div className="pdf-editor-actions">
+          {!exportImage&&<button type="button" className={cn('pdf-control',showReference&&'is-active')} aria-pressed={showReference} onClick={toggleReference} disabled={!numPages||deletingPage||inserting}><Files size={16}/>Side page</button>}
+
           <button type="button" className="pdf-control" onClick={()=>setShowStylusStudio(true)}><Pen size={16}/>Stylus setup</button>
           {onToggleAssistant&&<button type="button" className="pdf-control" aria-pressed={assistantOpen} onClick={onToggleAssistant}>AI assistant</button>}
           <button type="button" className="pdf-control" onClick={enterFocusMode} title="Fullscreen with compact annotation tools"><Maximize size={16}/><span>Fullscreen</span></button>
@@ -1868,6 +1887,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       </div>
 
       </div>
+      {showReference&&!exportImage&&pdfFile&&numPages&&<PDFReferencePane file={pdfFile} count={numPages} page={Math.min(referencePage,numPages)} onPage={setReferencePage} onClose={()=>setShowReference(false)} onEdit={swapReference} annotations={drawingPaths} renderStroke={renderStroke} options={PDF_OPTIONS}/>}
       <div ref={onAssistantHost} className="pdf-assistant-dock" hidden={!assistantOpen} aria-label="Notes AI assistant"/>
       </div>
       {/* Page Navigation */}
