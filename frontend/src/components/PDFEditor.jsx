@@ -1,5 +1,5 @@
+import PDFEditorChrome from './PDFEditorChrome'
 import PDFReferencePane from './PDFReferencePane'
-import PDFFingerMode from './PDFFingerMode'
 import PDFStylusSettings from './PDFStylusSettings'
 import usePDFTouchInput from '../hooks/usePDFTouchInput'
 import useShortcuts from '../hooks/useShortcuts'
@@ -7,7 +7,6 @@ import useInlineConfirm from '../hooks/useInlineConfirm'
 import InlineConfirmation from './InlineConfirmation'
 import PDFCalculator from './PDFCalculator'
 import { eraseAnnotations } from '../lib/pdfEraser'
-import PDFEraserControls from './PDFEraserControls'
 import PDFContinuousView from './PDFContinuousView'
 import { selectionExpression, textInPdfBox } from '../lib/pdfCalculation'
 import { calculate } from '../lib/calculator'
@@ -44,7 +43,6 @@ const FONT_STACK = 'Helvetica, Arial, sans-serif'
 const PDF_OPTIONS = { isEvalSupported: false }
 const COLORS = ['#000000', '#9e6464', '#526c83', '#62816f', '#9a835e', '#777487', '#967d87']
 const COLOR_NAMES = { '#000000': 'Black', '#9e6464': 'Muted red', '#526c83': 'Slate blue', '#62816f': 'Sage', '#9a835e': 'Ochre', '#777487': 'Violet gray', '#967d87': 'Rose gray' }
-const TOOLS = ['pen', 'highlighter', 'text', 'select', 'eraser']
 
 const uid = () => `a_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`
 
@@ -1695,169 +1693,19 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       <InlineConfirmation {...confirmation} />
       {showStylusStudio&&<PDFStylusSettings barrel={stylusBarrel} onBarrel={setStylusBarrel} tip={stylusEraser?stylusExtra.tip:'none'} onTip={tip=>{setStylusEraser(tip!=='none');setStylusExtra(previous=>({...previous,tip}))}} extra={stylusExtra} onExtra={setStylusExtra} onReset={()=>{setStylusBarrel('eraser');setStylusEraser(true);setStylusExtra({secondary:'none',tip:'eraser',mode:'precision',size:20,shape:'round'})}} onClose={()=>setShowStylusStudio(false)}/>}
 
-      {focusMode&&<div className="pdf-focus-toolbar" role="toolbar" aria-label="Fullscreen annotation tools" data-keep-text-active>
-        {TOOLS.map(tool=><button key={tool} type="button" className={cn('pdf-tool-button',currentTool===tool&&'is-active')} aria-pressed={currentTool===tool} title={tool==='select'?'Move and resize':tool} aria-label={tool==='select'?'Move and resize':tool} onClick={()=>{commitText();setCurrentTool(tool)}}>{tool==='pen'?<Pen size={18}/>:tool==='highlighter'?<Highlighter size={18}/>:tool==='text'?<Type size={18}/>:tool==='eraser'?<Eraser size={18}/>:<Move size={18}/>}</button>)}
-        <input type="color" aria-label="Annotation color" title="Annotation color" value={currentColor} onChange={event=>handleColorChange(event.target.value)}/>
-        <input type="range" aria-label="Annotation size" title="Annotation size" min={currentTool==='text'?6:currentTool==='eraser'?2:1} max={currentTool==='text'?144:currentTool==='eraser'?160:40} step="1" value={currentTool==='text'?fontSize:currentTool==='eraser'?eraserSize:strokeWidth} onChange={event=>{const size=Number(event.target.value);if(currentTool==='text')handleFontSizeChange(size);else if(currentTool==='eraser')setEraserSize(size);else setStrokeWidth(size)}}/>
-        <button type="button" className="pdf-control" onClick={undo} disabled={!historyCount.undo} title="Undo"><Undo size={17}/></button>
-        <button type="button" className="pdf-control" onClick={redo} disabled={!historyCount.redo} title="Redo"><Redo size={17}/></button>
-        {!exportImage&&<><button type="button" className="pdf-control" disabled={pageNumber<=1} aria-label="Previous page" onClick={()=>goToPage(pageNumber-1)}>‹</button><span className="pdf-focus-page-count">{pageNumber}/{numPages||'…'}</span><button type="button" className="pdf-control" disabled={pageNumber>=numPages} aria-label="Next page" onClick={()=>goToPage(pageNumber+1)}>›</button></>}
-        <button type="button" className="pdf-control" title="Fit page width" aria-label="Fit page width" onClick={handleFitWidth}><Maximize size={17}/></button>
-        <button type="button" className="pdf-control" title="Save" aria-label="Save" onClick={handleSave} disabled={saveStatus==='saving'}><Save size={17}/></button>
-        <PDFFingerMode scroll={fingerScroll} onChange={setFingerInputMode} activity={inputActivity}/>
-        {!exportImage&&<button type="button" className={cn('pdf-control',showReference&&'is-active')} aria-pressed={showReference} onClick={toggleReference} disabled={!numPages||deletingPage||inserting} title="Open another page beside your notes"><Files size={17}/><span>Side page</span></button>}
-        <button type="button" className="pdf-control" onClick={()=>setShowStylusStudio(true)} title="Customize stylus buttons" aria-label="Customize stylus buttons"><Pen size={17}/></button>
-        {onToggleAssistant&&<button type="button" className={cn('pdf-control',assistantOpen&&'is-active')} aria-pressed={assistantOpen} onClick={onToggleAssistant} title="Open AI assistant beside your notes"><MessageSquare size={17}/><span>AI assistant</span></button>}
-        <button type="button" className="pdf-control" onClick={exitFocusMode} title="Exit fullscreen (Esc)"><X size={17}/><span>Exit</span></button>
-      </div>}
-      <header className="pdf-editor-header">
-        <div className="pdf-editor-identity"><FileText size={22}/><div><h2 title={pdfData?.name}>{pdfData?.name || 'Document editor'}</h2><div className="pdf-editor-metadata"><span>{exportImage ? 'Image annotations' : `PDF · ${numPages || '…'} pages`}</span><span className={`pdf-save-status is-${saveStatus}`} role="status">{saveStatus === 'saving' ? 'Saving…' : saveStatus === 'saved' ? 'All changes saved' : saveStatus === 'error' ? 'Save failed — retry Save' : 'Unsaved changes'}</span></div></div></div>
-        <div className="pdf-editor-actions">
-          {!exportImage&&<button type="button" className={cn('pdf-control',showReference&&'is-active')} aria-pressed={showReference} onClick={toggleReference} disabled={!numPages||deletingPage||inserting}><Files size={16}/>Side page</button>}
-
-          <button type="button" className="pdf-control" onClick={()=>setShowStylusStudio(true)}><Pen size={16}/>Stylus setup</button>
-          {onToggleAssistant&&<button type="button" className="pdf-control" aria-pressed={assistantOpen} onClick={onToggleAssistant}>AI assistant</button>}
-          <button type="button" className="pdf-control" onClick={enterFocusMode} title="Fullscreen with compact annotation tools"><Maximize size={16}/><span>Fullscreen</span></button>
-          <button type="button" className="pdf-control" aria-expanded={showCalculator} onClick={()=>{commitText();setShowCalculator(value=>!value)}}><Calculator size={16}/><span>Calculator</span></button>
-          <div className="pdf-history-actions"><button className="pdf-control" onClick={undo} disabled={historyCount.undo === 0} title="Undo (Ctrl+Z)" aria-label="Undo"><Undo size={17}/></button><button className="pdf-control" onClick={redo} disabled={historyCount.redo === 0} title="Redo (Ctrl+Shift+Z)" aria-label="Redo"><Redo size={17}/></button></div>
-          <button className="pdf-control" onClick={() => setShowSettings(v => !v)} aria-expanded={showSettings}><Settings size={16}/><span>Settings</span></button>
-          <button type="button" className={cn('pdf-control',currentTool==='snippet'&&'is-active')} aria-pressed={currentTool==='snippet'} disabled={copyingSnippet} onClick={()=>{commitText();setCurrentTool('snippet')}} title="Drag a rectangle to copy PDF content and annotations">{copyingSnippet?'Copying…':'Copy region'}</button>
-        <button type="button" className="pdf-control" disabled={!snippet||!pageBase||pageBase.page!==pageNumber||inserting||deletingPage} onClick={pasteSnippet} title="Paste the copied region onto the current page">Paste snippet</button>
-        {currentTool==='snippet'&&<span className="text-slate-300 text-sm">Drag a region to copy. {snippet?'Snippet ready — open any page and paste.':'Then open a destination page and paste.'}</span>}
-        {!exportImage&&<button type="button" className="pdf-control" aria-pressed={continuousView} disabled={deletingPage||inserting} title="Toggle continuous scrolling through all PDF pages" onClick={()=>{handleTextDragEnd();commitText();setContinuousView(value=>!value)}}><Files size={16}/><span>{continuousView?'Continuous view':'Single page'}</span></button>}
-          <button type="button" className="pdf-control" aria-pressed={darkPages} title="Invert page colors for comfortable reading; exported files keep their original colors" onClick={()=>setDarkPages(value=>!value)}>{darkPages?<Sun size={16}/>:<Moon size={16}/>}<span>{darkPages?'Light pages':'Dark pages'}</span></button>
-          {onCleanCopy&&<button type="button" className="pdf-control" disabled={copyingClean||deletingPage||inserting} onClick={handleCleanCopy} title="Create a separate copy without editor annotations; use the saved original when available">{copyingClean?<Loader2 size={16} className="animate-spin"/>:<Files size={16}/>}<span>{copyingClean?'Copying…':'Clean copy'}</span></button>}
-          <button className="pdf-control pdf-control-primary" onClick={handleSave} disabled={saveStatus === 'saving'}><Save size={16}/><span>Save</span></button>
-          <button className="pdf-control" onClick={handleDownload} disabled={downloading} title={exportImage ? 'Download edited image as PNG' : 'Download PDF with annotations'}>{downloading ? <Loader2 className="animate-spin" size={16}/> : <Download size={16}/>}<span>{downloading ? 'Exporting…' : 'Download'}</span></button>
-          <button className="pdf-control" onClick={handleClose} title="Close editor" aria-label="Close editor"><X size={18}/></button>
-        </div>
-      </header>
-
-      {/* Toolbar. Mousedown is prevented (except on sliders) so clicking here never steals focus from an open text box. */}
-      <div
-        data-keep-text-active
-        className="pdf-editor-toolbar bg-slate-800 border-b border-white/10 px-4 py-3 flex items-center gap-4"
-        onMouseDown={(e) => {
-          if (activeTextId && e.target.closest('button') && !e.target.closest('.pdf-insert-popover')) e.preventDefault()
-        }}
-      >
-        <InsertPanel onPages={exportImage ? undefined : handleAddPages} pageNumber={pageNumber} onFiles={insertFiles} onInsert={insertGenerated} color={currentColor} busy={inserting || !pageBase || pageBase.page !== pageNumber || deletingPage} />
-        <div className="pdf-editor-tool-options">
-        <PDFFingerMode scroll={fingerScroll} onChange={setFingerInputMode} activity={inputActivity}/>
-        {!exportImage&&<button type="button" className="pdf-control" disabled={loading||!numPages||!pageBase||pageBase.page!==pageNumber||deletingPage||inserting} title={`Insert a blank page after page ${pageNumber}`} onClick={()=>handleAddPages({mode:'blank',placement:'after'})}><Plus size={16}/>Blank page after</button>}
-        {!exportImage&&<button type="button" className="pdf-control pdf-control-danger" onClick={()=>handleDeletePage()} disabled={!numPages||numPages<=1||deletingPage||inserting} title={numPages===1?'Keep at least one page in the PDF':`Delete page ${pageNumber} and its annotations`}><Trash2 size={16}/>Delete page {pageNumber}</button>}
-        <button type="button" className={cn('pdf-control',currentTool==='calculate'&&'is-active')} aria-pressed={currentTool==='calculate'} title="Drag a box over one readable math expression" onClick={()=>{commitText();setCurrentTool('calculate')}}><Calculator size={16}/>Calculate selection</button>
-        {currentTool==='calculate'&&<label className="pdf-math-mode">Recognition <select aria-label="Math recognition mode" value={calculationMode} onChange={event=>setCalculationMode(event.target.value)}><option value="auto">Auto · AI fallback</option><option value="vision">Handwriting / AI</option><option value="text">Text only · local</option></select></label>}
-        {!exportImage && <button onClick={() => setShowPages(v => !v)} aria-label="Toggle pages" aria-expanded={showPages} className={cn('p-2 rounded-lg', showPages ? 'bg-indigo-500/20 text-indigo-300' : 'text-slate-400')} title="Pages"><PanelLeft size={20} /></button>}
-        <div className="pdf-tool-group" role="group" aria-label="Annotation tools">
-          {TOOLS.map((tool) => (
-            <button
-              key={tool}
-              aria-label={tool === 'select' ? 'Move and resize' : tool === 'text' ? 'Text' : tool.charAt(0).toUpperCase() + tool.slice(1)}
-              aria-pressed={currentTool === tool}
-              onClick={() => {
-                commitText()
-                setCurrentTool(tool)
-              }}
-              className={cn(
-                'pdf-tool-button',
-                currentTool === tool ? 'is-active' : ''
-              )}
-              title={tool === 'text' ? 'Insert Text' : tool.charAt(0).toUpperCase() + tool.slice(1)}
-            >
-              {tool === 'pen' && <Pen size={18} />}
-              {tool === 'highlighter' && <Highlighter size={18} />}
-              {tool === 'text' && <Type size={18} />}
-              {tool === 'select' && <Move size={18} />}
-              {tool === 'eraser' && <Eraser size={18} />}<span>{tool === 'select' ? 'Move' : tool === 'text' ? 'Text' : tool.charAt(0).toUpperCase() + tool.slice(1)}</span>
-            </button>
-          ))}
-        </div>
-
-        <div className="pdf-color-group" role="group" aria-label="Annotation color">
-          {COLORS.map((color) => (
-            <button
-              key={color}
-              onClick={() => handleColorChange(color)}
-              className={cn(
-                'w-6 h-6 rounded-full transition-all border border-white/25',
-                currentColor === color ? 'ring-2 ring-white ring-offset-2 ring-offset-slate-800 ' : ''
-              )}
-              style={{ backgroundColor: color }}
-              aria-label={`Annotation color ${COLOR_NAMES[color] || color}`} aria-pressed={currentColor === color} title={COLOR_NAMES[color] || color}
-            />
-          ))}
-        </div>
-
-        {currentTool === 'text' ? (
-          <div className="flex items-center gap-2">
-            <span className="text-slate-400 text-sm">Font size:</span>
-            <input
-              type="range"
-              aria-label="Text font size"
-              min="6"
-              max="144"
-              value={fontSize}
-              onChange={(e) => handleFontSizeChange(parseInt(e.target.value))}
-              className="w-24"
-            />
-            <input type="number" className="pdf-exact-size" aria-label="Exact font size" min="6" max="144" value={fontSize} onChange={event=>{if(event.target.value)handleFontSizeChange(Math.max(6,Math.min(144,Number(event.target.value))))}}/><span className="text-slate-400 text-xs">pt</span>
-          </div>
-        ) : currentTool === 'calculate' ? (
-          <span className="text-slate-300 text-sm">Drag around one complete expression. {calculationMode==='text'?'Local text recognition only.':'AI sends only the selected image to Gemini; review its transcription.'}</span>
-        ) : currentTool === 'select' ? (
-          <span className="text-slate-300 text-sm">Drag content to move · drag corners to resize</span>
-        ) : currentTool !== 'eraser' && currentTool !== 'snippet' ? (
-          <div className="flex items-center gap-2">
-            <span className="text-slate-400 text-sm">Size:</span>
-            <input
-              type="range"
-              aria-label="Stroke width"
-              min="1"
-              max="40"
-              step="0.5"
-              value={strokeWidth}
-              onChange={(e) => setStrokeWidth(Number(e.target.value))}
-              className="w-24"
-            />
-            <input type="number" className="pdf-exact-size" aria-label="Exact stroke width" min="1" max="40" step="0.5" value={strokeWidth} onChange={event=>{if(event.target.value)setStrokeWidth(Math.max(1,Math.min(40,Number(event.target.value))))}}/><span className="text-slate-400 text-xs">pt</span>
-          </div>
-        ) : (
-          <PDFEraserControls mode={eraserMode} onMode={setEraserMode} size={eraserSize} onSize={setEraserSize} shape={eraserShape} onShape={setEraserShape} target={eraserTarget} onTarget={setEraserTarget}/>
-        )}
-
-        {['pen','highlighter'].includes(currentTool) && <button className="pdf-control pdf-pressure" onClick={() => setUsePressure(!usePressure)} aria-pressed={usePressure} title="Use pen pressure to vary stroke width"><Pen size={15}/>Pressure {usePressure ? 'on' : 'off'}</button>}
-        <div className="pdf-zoom-group" role="group" aria-label="Page view">
-          <button
-            onClick={handleZoomOut}
-            className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-all"
-            title="Zoom Out"
-          >
-            <ZoomOut size={18} />
-          </button>
-          <span className="text-white text-sm w-16 text-center">{Math.round(scale * 100)}%</span>
-          <button
-            onClick={handleZoomIn}
-            className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-all"
-            title="Zoom In"
-          >
-            <ZoomIn size={18} />
-          </button>
-          <button onClick={handleFitWidth} className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg" title="Fit to width" aria-label="Fit to width"><Maximize size={18} /></button>
-          <button
-            onClick={handleRotate}
-            className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-all"
-            title="Rotate view"
-          >
-            <RotateCw size={18} />
-          </button>
-        </div>
-        </div>
-      </div>
+      <PDFEditorChrome
+        doc={{name:pdfData?.name,exportImage,saveStatus,history:historyCount,onUndo:undo,onRedo:redo,onSave:handleSave,onDownload:handleDownload,downloading,onCleanCopy:onCleanCopy?handleCleanCopy:null,copying:copyingClean,onClose:handleClose}}
+        tools={{current:currentTool,onTool:tool=>{commitText();setCurrentTool(tool)},color:currentColor,onColor:handleColorChange,colors:COLORS,colorNames:COLOR_NAMES,fontSize,onFontSize:handleFontSizeChange,strokeWidth,onWidth:setStrokeWidth,usePressure,onPressure:()=>setUsePressure(previous=>!previous),eraser:{mode:eraserMode,onMode:setEraserMode,size:eraserSize,onSize:setEraserSize,shape:eraserShape,onShape:setEraserShape,target:eraserTarget,onTarget:setEraserTarget}}}
+        pages={{count:numPages,current:pageNumber,showThumbnails:showPages,onToggleThumbnails:()=>{if(focusMode){exitFocusMode();setShowPages(true)}else setShowPages(previous=>!previous)},onNavigate:goToPage,onAddBlank:()=>handleAddPages({mode:'blank',placement:'after'}),onDelete:()=>handleDeletePage(),busy:deletingPage||inserting,canAdd:!!numPages&&!!pageBase&&pageBase.page===pageNumber&&!loading&&!deletingPage&&!inserting}}
+        view={{scale,onZoomIn:handleZoomIn,onZoomOut:handleZoomOut,onFit:handleFitWidth,onRotate:handleRotate,dark:darkPages,onDark:()=>setDarkPages(previous=>!previous),continuous:continuousView,onContinuous:()=>{handleTextDragEnd();commitText();setContinuousView(previous=>!previous)},reference:showReference,onReference:toggleReference,focus:focusMode,onFocus:enterFocusMode,onExitFocus:exitFocusMode}}
+        utilities={{calculator:showCalculator,onCalculator:()=>{commitText();setShowCalculator(previous=>!previous)},onCalculate:()=>{commitText();setCurrentTool('calculate')},recognition:calculationMode,onRecognition:setCalculationMode,snippetReady:!!snippet,copying:copyingSnippet,onCopyRegion:()=>{commitText();setCurrentTool('snippet')},onPaste:pasteSnippet,canPaste:!!snippet&&!!pageBase&&pageBase.page===pageNumber&&!inserting&&!deletingPage,onStylus:()=>setShowStylusStudio(true),onSettings:()=>setShowSettings(previous=>!previous),settingsOpen:showSettings,assistantOpen,onAssistant:onToggleAssistant}}
+        input={{scroll:fingerScroll,onChange:setFingerInputMode,activity:inputActivity}}
+        insert={<InsertPanel onPages={exportImage?undefined:handleAddPages} pageNumber={pageNumber} onFiles={insertFiles} onInsert={insertGenerated} color={currentColor} busy={inserting||!pageBase||pageBase.page!==pageNumber||deletingPage}/>}
+      />
 
       {actionError && <div role="alert" className="flex items-center justify-between gap-3 bg-red-950 px-5 py-2 text-sm text-red-200">{actionError}<button onClick={() => setActionError(null)} aria-label="Dismiss error"><X size={16} /></button></div>}
       <div className={cn('flex flex-1 min-h-0 relative',darkPages&&'pdf-dark-pages')}>
-        <PDFCalculator open={showCalculator&&!focusMode} onClose={()=>setShowCalculator(false)} selection={calculationSelection}/>
+        <PDFCalculator open={showCalculator} onClose={()=>setShowCalculator(false)} selection={calculationSelection}/>
         {!focusMode && showPages && pdfFile && !pdfError && (
           <aside className="pdf-pages w-48 sm:w-56 shrink-0 overflow-y-auto border-r border-white/10 bg-slate-900/90" aria-label="Document pages">
             <div className="sticky top-0 z-10 bg-slate-900 px-4 py-4 border-b border-white/5 flex items-center justify-between"><span className="text-xs font-semibold uppercase tracking-widest text-slate-300">Pages</span><span className="text-xs text-slate-500">{numPages || '…'} total</span></div>
@@ -1878,7 +1726,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
                   <div className="pdf-page-preview"><PagePreview pageNumber={n} />{count > 0 && <span className="pdf-page-badge">{count} {count === 1 ? 'edit' : 'edits'}</span>}</div>
                   <span className="flex items-center justify-between mt-3 text-xs"><span>Page {n}</span>{pageNumber === n && <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" />}</span>
                 </button>
-                <button type="button" className="pdf-control pdf-control-danger" style={{margin:'0 12px 12px',fontSize:12}} draggable={false} disabled={numPages<=1||deletingPage||inserting} aria-label={`Delete page ${n}`} title={numPages<=1?'Keep at least one page in the PDF':`Delete page ${n} and its annotations`} onClick={()=>handleDeletePage(n)}><Trash2 size={14}/>Delete page {n}</button>
+                <button type="button" className="pdf-thumbnail-delete" draggable={false} disabled={numPages<=1||deletingPage||inserting} aria-label={`Delete page ${n}`} title={numPages<=1?'Keep at least one page in the PDF':`Delete page ${n} and its annotations`} onClick={()=>handleDeletePage(n)}><Trash2 size={13}/></button>
                 </div>
               })}
             </Document>
@@ -1886,7 +1734,6 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         )}
       {/* PDF Viewer */}
       <div className="pdf-viewer-region">
-      {!exportImage&&<button type="button" className="pdf-side-page-launcher" aria-pressed={showReference} onClick={toggleReference} disabled={!numPages||deletingPage||inserting} title="View another page alongside the page you are editing"><Files size={19}/><span>{showReference?'Close side page':'Open side page'}</span></button>}
       {focusMode&&!exportImage&&numPages>1&&<nav className="pdf-focus-page-arrows" aria-label="Fullscreen page navigation">
         <button type="button" className="pdf-focus-page-arrow is-previous" title="Previous page" aria-label="Previous page" disabled={pageNumber<=1||deletingPage||inserting} onClick={()=>goToPage(pageNumber-1)}><ChevronLeft size={19}/></button>
         <button type="button" className="pdf-focus-page-arrow is-next" title="Next page" aria-label="Next page" disabled={pageNumber>=numPages||deletingPage||inserting} onClick={()=>goToPage(pageNumber+1)}><ChevronRight size={19}/></button>
@@ -1919,27 +1766,11 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       {showReference&&!exportImage&&pdfFile&&numPages&&<PDFReferencePane file={pdfFile} count={numPages} page={Math.min(referencePage,numPages)} onPage={setReferencePage} onClose={()=>setShowReference(false)} onEdit={swapReference} annotations={drawingPaths} renderStroke={renderStroke} options={PDF_OPTIONS}/>}
       <div ref={onAssistantHost} className="pdf-assistant-dock" hidden={!assistantOpen} aria-label="Notes AI assistant"/>
       </div>
-      {/* Page Navigation */}
-      {!exportImage && <div className="pdf-editor-footer">
-        <button
-          onClick={() => goToPage(pageNumber - 1)}
-          disabled={pageNumber <= 1}
-          className="px-4 py-2 bg-slate-700 hover:bg-slate-600 disabled:bg-slate-800 disabled:text-slate-500 text-white rounded-lg transition-all"
-        >
-          Previous
-        </button>
-        <label className="flex items-center gap-2 text-sm text-slate-400">Page <input aria-label="Page number" key={pageNumber} type="number" min={1} max={numPages || 1} defaultValue={pageNumber} onBlur={e => { goToPage(Number(e.target.value)); e.target.value = String(Math.max(1, Math.min(numPages || 1, Number(e.target.value) || 1))) }} onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }} className="w-14 rounded-lg bg-slate-800 border border-white/10 px-2 py-1.5 text-center text-white" /> of {numPages || '…'}</label>
-        <button
-          onClick={() => goToPage(pageNumber + 1)}
-          disabled={pageNumber >= (numPages || 1)}
-          className="px-4 py-2 bg-slate-700 hover:bg-slate-600 disabled:bg-slate-800 disabled:text-slate-500 text-white rounded-lg transition-all"
-        >
-          Next
-        </button>
-      {!exportImage && <button onClick={() => handleDeletePage()} disabled={!numPages || numPages <= 1 || deletingPage || inserting} className="pdf-control pdf-control-danger pdf-delete-page" title={numPages === 1 ? 'Keep at least one page in the PDF' : 'Delete the current page'}><Trash2 size={16} />Delete page</button>}
-      </div>}
-
-
+      {!exportImage&&<footer className="pdf-workspace-footer">
+        <span className="pdf-footer-hint">{currentTool==='calculate'?'Drag around an expression to calculate':currentTool==='snippet'?copyingSnippet?'Copying region…':snippet?'Snippet ready · More tools → Paste snippet':'Drag a region to copy':currentTool==='select'?'Drag to move · corners to resize':continuousView?'Continuous scrolling':'Single page view'}</span>
+        <nav aria-label="Page navigation"><button type="button" title="Previous page" aria-label="Previous page" disabled={pageNumber<=1||deletingPage||inserting} onClick={()=>goToPage(pageNumber-1)}><ChevronLeft size={16}/></button><label>Page <input aria-label="Page number" key={pageNumber} type="number" min="1" max={numPages||1} defaultValue={pageNumber} disabled={deletingPage||inserting} onBlur={event=>{const target=Math.max(1,Math.min(numPages||1,Number(event.target.value)||1));goToPage(target);event.target.value=String(target)}} onKeyDown={event=>{if(event.key==='Enter')event.currentTarget.blur()}}/> <span>/ {numPages||'…'}</span></label><button type="button" title="Next page" aria-label="Next page" disabled={pageNumber>=(numPages||1)||deletingPage||inserting} onClick={()=>goToPage(pageNumber+1)}><ChevronRight size={16}/></button></nav>
+        <div className="pdf-footer-zoom"><button type="button" onClick={handleZoomOut} aria-label="Zoom out"><ZoomOut size={14}/></button><button type="button" onClick={handleFitWidth} title="Fit page width">{Math.round(scale*100)}%</button><button type="button" onClick={handleZoomIn} aria-label="Zoom in"><ZoomIn size={14}/></button></div>
+      </footer>}
 
       {/* Settings Modal */}
       {showSettings && (

@@ -1,0 +1,93 @@
+import { cloneElement, isValidElement, useEffect, useId, useRef, useState } from 'react'
+import { FileText, ChevronDown, ChevronLeft, ChevronRight, Pen, Highlighter, Type, Move, Eraser, Undo, Redo, Save, Download, Files, Settings, X, Maximize, Sun, Moon, Calculator, Plus, Trash2, RotateCw, ZoomIn, ZoomOut, MessageSquare, SlidersHorizontal, Copy, PanelLeft, Loader2 } from 'lucide-react'
+import PDFEraserControls from './PDFEraserControls'
+import PDFFingerMode from './PDFFingerMode'
+import './PDFEditorChrome.css'
+
+const annotationTools=[['pen','Pen',Pen],['highlighter','Highlight',Highlighter],['text','Text',Type],['select','Move',Move],['eraser','Erase',Eraser]]
+
+export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,insert}){
+  const [open,setOpen]=useState(null),root=useRef(null),trigger=useRef(null),id=useId()
+  const close=()=>setOpen(null)
+  useEffect(()=>{
+    if(!open)return
+    const outside=event=>{if(!root.current?.contains(event.target))close()}
+    document.addEventListener('pointerdown',outside,true)
+    return()=>document.removeEventListener('pointerdown',outside,true)
+  },[open])
+  useEffect(()=>close(),[view.focus])
+  const run=fn=>()=>{close();fn?.()}
+  const iconButton=(Icon,label,fn,disabled=false,active=false)=><button type="button" className={`pc-button pc-icon${active?' is-active':''}`} title={label} aria-label={label} disabled={disabled} onClick={fn}><Icon size={17}/></button>
+  const action=(Icon,label,fn,{disabled=false,active=false,danger=false,detail}={})=><button type="button" className={`pc-menu-action${danger?' is-danger':''}${active?' is-active':''}`} onClick={run(fn)} disabled={disabled}><Icon size={16}/><span>{label}{detail&&<small>{detail}</small>}</span>{active&&<i aria-label="Enabled"/>}</button>
+  const menu=(key,label,Icon,children,{left=false,custom=null}={})=><div className={`pc-menu-anchor${left?' is-left':''}`}>
+    <button type="button" className={`pc-button${open===key||key==='tools'&&['calculate','snippet'].includes(tools.current)?' is-active':''}`} aria-expanded={open===key} aria-controls={open===key?`${id}-${key}`:undefined} onClick={event=>{trigger.current=event.currentTarget;setOpen(previous=>previous===key?null:key)}} title={label}>{custom||<><Icon size={16}/><span>{label}</span></>}<ChevronDown size={12}/></button>
+    {open===key&&<section id={`${id}-${key}`} className={`pc-popover pc-popover-${key}`} aria-label={label}><div className="pc-popover-title">{label}</div>{children}</section>}
+  </div>
+  const documentMenu=menu('document','Document',FileText,<>
+    {action(Download,doc.downloading?'Exporting…':'Download',doc.onDownload,{disabled:doc.downloading,detail:doc.exportImage?'Export edited image':'Export PDF with annotations'})}
+    {doc.onCleanCopy&&action(Copy,doc.copying?'Creating copy…':'Create clean copy',doc.onCleanCopy,{disabled:doc.copying||pages.busy,detail:'Separate document without editor annotations'})}
+    <hr/>{action(Settings,'Document settings',utilities.onSettings,{active:utilities.settingsOpen,detail:'Name, folder, tags and document actions'})}
+    {action(Pen,'Stylus setup',utilities.onStylus,{detail:'Button assignments and eraser preferences'})}
+    <hr/>{action(X,'Close document',doc.onClose)}
+  </>,{left:true})
+  const viewMenu=menu('view','View',Maximize,<>
+    <div className="pc-zoom-controls">{iconButton(ZoomOut,'Zoom out',view.onZoomOut)}<span>{Math.round(view.scale*100)}%</span>{iconButton(ZoomIn,'Zoom in',view.onZoomIn)}</div>
+    {action(Maximize,'Fit page width',view.onFit)}{action(RotateCw,'Rotate view',view.onRotate)}<hr/>
+    {!doc.exportImage&&action(Files,'Continuous scrolling',view.onContinuous,{active:view.continuous,disabled:pages.busy})}
+    {action(view.dark?Sun:Moon,view.dark?'Switch to light pages':'Switch to dark pages',view.onDark,{detail:'Display only; exports keep original colors'})}
+    {action(Maximize,view.focus?'Exit fullscreen':'Enter fullscreen',view.focus?view.onExitFocus:view.onFocus)}
+  </>)
+  const pagesMenu=!doc.exportImage&&menu('pages','Pages',Files,<>
+    <div className="pc-page-controls">{iconButton(ChevronLeft,'Previous page',()=>pages.onNavigate(pages.current-1),pages.current<=1||pages.busy)}<span>{pages.current} of {pages.count||'…'}</span>{iconButton(ChevronRight,'Next page',()=>pages.onNavigate(pages.current+1),pages.current>=pages.count||pages.busy)}</div>
+    {action(PanelLeft,'Page thumbnails',pages.onToggleThumbnails,{active:pages.showThumbnails})}
+    {action(Files,'Side page',view.onReference,{active:view.reference,disabled:!pages.count||pages.busy})}
+    <hr/>{action(Plus,'Add blank page after',pages.onAddBlank,{disabled:!pages.canAdd})}
+    <p className="pc-menu-note">Import or duplicate pages from Insert → Pages. Drag thumbnails to reorder.</p>
+    <hr/>{action(Trash2,`Delete page ${pages.current}`,pages.onDelete,{danger:true,disabled:!pages.count||pages.count<=1||pages.busy})}
+  </>)
+  const utilityMenu=menu('tools','More tools',SlidersHorizontal,<>
+    {action(Calculator,'Calculator',utilities.onCalculator,{active:utilities.calculator})}
+    {action(Calculator,'Calculate selected region',utilities.onCalculate,{active:tools.current==='calculate',detail:'Printed expressions or handwriting with AI'})}
+    {tools.current==='calculate'&&<label className="pc-field">Recognition<select value={utilities.recognition} onChange={event=>utilities.onRecognition(event.target.value)}><option value="auto">Auto · AI fallback</option><option value="vision">Handwriting / AI</option><option value="text">Text only · local</option></select></label>}
+    <hr/>{action(Copy,utilities.copying?'Copying region…':'Copy region',utilities.onCopyRegion,{active:tools.current==='snippet',disabled:utilities.copying,detail:'Drag a box around the content to copy'})}
+    {action(Files,'Paste snippet',utilities.onPaste,{disabled:!utilities.canPaste,detail:utilities.snippetReady?'Copied content ready to paste':'Copy a region first'})}
+    <hr/>{action(Pen,'Stylus setup',utilities.onStylus)}
+  </>)
+  const colorMenu=menu('color','Annotation color',Pen,<>
+    <div className="pc-swatches">{tools.colors.map(color=><button key={color} type="button" style={{backgroundColor:color}} aria-label={tools.colorNames[color]||color} title={tools.colorNames[color]||color} aria-pressed={tools.color===color} onClick={()=>tools.onColor(color)}/>)}</div>
+    <label className="pc-field pc-custom-color">Custom color<input type="color" value={tools.color} onChange={event=>tools.onColor(event.target.value)}/></label>
+  </>,{custom:<span className="pc-color-chip" style={{backgroundColor:tools.color}}/>,left:true})
+  const text=tools.current==='text',erase=tools.current==='eraser'
+  const size=text?tools.fontSize:erase?tools.eraser.size:tools.strokeWidth
+  const sizeMenu=menu('brush',erase?'Eraser settings':text?'Text settings':'Stroke settings',SlidersHorizontal,<>
+    {erase?<PDFEraserControls {...tools.eraser}/>:<>
+      <label className="pc-field">{text?'Font size':'Stroke width'}<div className="pc-size-input"><input type="range" min={text?6:1} max={text?144:40} step={text?1:.5} value={size} onChange={event=>(text?tools.onFontSize:tools.onWidth)(Number(event.target.value))}/><input type="number" aria-label={text?'Exact font size':'Exact stroke width'} min={text?6:1} max={text?144:40} step={text?1:.5} value={size} onChange={event=>{const value=Number(event.target.value);if(event.target.value&&Number.isFinite(value))(text?tools.onFontSize:tools.onWidth)(Math.max(text?6:1,Math.min(text?144:40,value)))}}/><span>pt</span></div></label>
+      {!text&&<label className="pc-checkbox"><input type="checkbox" checked={tools.usePressure} onChange={tools.onPressure}/>Use pen pressure</label>}
+    </>}
+  </>,{custom:<span className="pc-size-label">{size} <small>pt</small></span>,left:true})
+  return <div ref={root} className={`pdf-chrome${view.focus?' is-focus':''}`} data-keep-text-active onKeyDown={event=>{if(open&&event.key==='Escape'){event.preventDefault();event.stopPropagation();close();trigger.current?.focus()}}}>
+    {!view.focus&&<header className="pc-header">
+      {documentMenu}<div className="pc-file-name"><strong title={doc.name}>{doc.name||'Document editor'}</strong><span className={`pc-save-state is-${doc.saveStatus}`} role="status"><i/>{doc.saveStatus==='saving'?'Saving…':doc.saveStatus==='saved'?'Saved':doc.saveStatus==='error'?'Save failed':'Unsaved'}</span></div>
+      <div className="pc-history">{iconButton(Undo,'Undo (Ctrl+Z)',doc.onUndo,!doc.history.undo)}{iconButton(Redo,'Redo (Ctrl+Shift+Z)',doc.onRedo,!doc.history.redo)}</div>
+      {!doc.exportImage&&<button type="button" className={`pc-button pc-side-button${view.reference?' is-active':''}`} onClick={view.onReference} aria-pressed={view.reference} disabled={!pages.count||pages.busy}><Files size={16}/><span>Side page</span></button>}
+      {utilities.onAssistant&&<button type="button" className={`pc-button${utilities.assistantOpen?' is-active':''}`} onClick={utilities.onAssistant} aria-pressed={utilities.assistantOpen}><MessageSquare size={16}/><span>AI assistant</span></button>}
+      {iconButton(Maximize,'Fullscreen',view.onFocus)}
+      <button type="button" className="pc-button pc-save" onClick={doc.onSave} disabled={doc.saveStatus==='saving'}>{doc.saveStatus==='saving'?<Loader2 size={16} className="animate-spin"/>:<Save size={16}/>}<span>Save</span></button>
+      {iconButton(X,'Close editor',doc.onClose)}
+    </header>}
+    <div className="pc-toolbar" role="toolbar" aria-label="PDF annotation tools" onMouseDown={event=>{if(event.target.closest('button')&&!event.target.closest('.pc-popover,.pdf-insert-popover'))event.preventDefault()}}>
+      {view.focus&&documentMenu}
+      <div className="pc-annotation-group" role="group" aria-label="Annotation tools">{annotationTools.map(([key,label,Icon])=><button key={key} type="button" className={`pc-button pc-tool${tools.current===key?' is-active':''}`} aria-pressed={tools.current===key} title={label} aria-label={label} onClick={()=>{close();tools.onTool(key)}}><Icon size={18}/><span>{label}</span></button>)}</div>
+      <div className="pc-brush-group">{colorMenu}{sizeMenu}</div>
+      <div className="pc-insert-slot">{isValidElement(insert)?cloneElement(insert,{onOpen:close,closeSignal:open}):insert}</div>
+      <div className="pc-tool-menus">{pagesMenu}{viewMenu}{utilityMenu}</div>
+      <PDFFingerMode {...input}/>
+      {view.focus&&<>
+        {iconButton(Undo,'Undo',doc.onUndo,!doc.history.undo)}{iconButton(Redo,'Redo',doc.onRedo,!doc.history.redo)}
+        {!doc.exportImage&&<button type="button" className={`pc-button pc-side-button${view.reference?' is-active':''}`} onClick={view.onReference} aria-pressed={view.reference} disabled={!pages.count||pages.busy}><Files size={16}/>Side page</button>}
+        {utilities.onAssistant&&<button type="button" className={`pc-button${utilities.assistantOpen?' is-active':''}`} onClick={utilities.onAssistant} aria-pressed={utilities.assistantOpen}><MessageSquare size={16}/>AI assistant</button>}
+        {iconButton(Save,'Save',doc.onSave,doc.saveStatus==='saving')}{iconButton(X,'Exit fullscreen',view.onExitFocus)}
+      </>}
+    </div>
+  </div>
+}

@@ -72,7 +72,7 @@ const FILE_TYPES = [
   { label: 'Text file', Icon: FileText, accept: 'text/plain,text/csv,.txt,.md,.csv', formats: 'TXT, Markdown, CSV', hint: 'Insert the file contents as editable text.' }
 ]
 
-export default function InsertPanel({ onFiles, onInsert, onPages, pageNumber, color, busy }) {
+export default function InsertPanel({ onFiles, onInsert, onPages, pageNumber, color, busy, onOpen, closeSignal }) {
   const [open, setOpen] = useState(false)
   const [section, setSection] = useState('files')
   const [pageMode, setPageMode] = useState('files')
@@ -90,6 +90,7 @@ export default function InsertPanel({ onFiles, onInsert, onPages, pageNumber, co
   const fileRef = useRef(null)
   const id = useId()
   const close = () => { setOpen(false); triggerRef.current?.focus() }
+  useEffect(()=>{if(closeSignal)setOpen(false)},[closeSignal])
 
   useEffect(() => {
     if (!open) return
@@ -129,7 +130,7 @@ export default function InsertPanel({ onFiles, onInsert, onPages, pageNumber, co
   }
 
   return <div className="pdf-insert-panel">
-    <button ref={triggerRef} type="button" className="insert-trigger" aria-expanded={open} aria-controls={open ? id : undefined} onClick={() => setOpen(value => !value)}><Plus size={17} />Insert content<ChevronDown size={15} /></button>
+    <button ref={triggerRef} type="button" className="insert-trigger" aria-expanded={open} aria-controls={open ? id : undefined} onClick={() => { if(!open)onOpen?.();setOpen(value => !value) }}><Plus size={17} />Insert<ChevronDown size={15} /></button>
     <input ref={fileRef} type="file" hidden multiple accept={INSERT_ACCEPT} onChange={e => { const files = Array.from(e.target.files); e.target.value = ''; if (files.length) { onFiles(files); close() } }} />
     {open && <div ref={panelRef} id={id} role="region" aria-labelledby={`${id}-title`} tabIndex={-1} className="pdf-insert-popover">
       <div className="insert-heading"><div><h3 id={`${id}-title`}>Insert content</h3><p>{onPages ? 'Add to the current PDF page' : 'Add to the image canvas'}</p></div><button type="button" onClick={close} className="insert-close" aria-label="Close insert menu"><X size={18} /></button></div>
