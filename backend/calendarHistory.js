@@ -47,6 +47,12 @@ function createCalendarHistory({ mongoose, User, CalendarEntry }) {
             const currentPrefs={hiddenCalendarIds:current.hiddenCalendarIds||[],hideTxstEvents:!!current.hideTxstEvents};
             if(JSON.stringify(currentPrefs)!==JSON.stringify(change.after))throw new Error('Calendar visibility changed elsewhere. Refresh before undoing.');
             await User.updateOne({_id:req.user.userId},{$set:change.before},{session});
+          }else if(change.kind==='color'){
+            const current=await User.findById(req.user.userId).select('calendarColors').session(session).lean();
+            const {id,color}=change.after;
+            if((current.calendarColors?.[id]||null)!==color)throw new Error('This color changed elsewhere. Refresh before undoing.');
+            const key=`calendarColors.${id}`;
+            await User.updateOne({_id:req.user.userId},change.before.color?{$set:{[key]:change.before.color}}:{$unset:{[key]:1}},{session});
           }else{
             const current=await CalendarEntry.findOne({_id:change.entryId,user:req.user.userId}).session(session).lean();
             if(change.after ? !current||!same(current,change.after) : !!current)throw new Error('This event changed elsewhere and cannot safely be undone.');

@@ -22,7 +22,7 @@ export function taskDueLabel(task, includeTime=false) {
 }
 export const localDateTime = value => zonedLocal(value)
 
-export function calendarItems(tasks, entries, campusEvents = []) {
+export function calendarItems(tasks, entries, campusEvents = [], colors = {}) {
   const items = []
   for (const task of tasks) {
     if (!task.dueDate || !Number.isFinite(Date.parse(task.dueDate))) continue
@@ -49,7 +49,7 @@ export function calendarItems(tasks, entries, campusEvents = []) {
     const text = value => value == null ? '' : typeof value === 'string' ? value : Array.isArray(value) ? value.map(text).filter(Boolean).join(', ') : value.name || value.title || value.address || ''
     items.push({id:`txst:${event.id}`,title:event.name || 'TXST event',source:'txst',kind:'event',startDate,endDate,allDay:false,startAt:event.startsOn,endAt,done:false,notes:event.description || '',location:text(event.location) || text(event.address),context:text(event.organizations),campusEvent:event})
   }
-  return items.sort((a,b)=>a.startDate.localeCompare(b.startDate) || Number(b.allDay)-Number(a.allDay) || String(a.startAt||'').localeCompare(String(b.startAt||'')) || a.title.localeCompare(b.title))
+  return items.map(item=>({...item,color:/^#[a-f0-9]{6}$/i.test(colors[item.id]||'')?colors[item.id]:null})).sort((a,b)=>a.startDate.localeCompare(b.startDate) || Number(b.allDay)-Number(a.allDay) || String(a.startAt||'').localeCompare(String(b.startAt||'')) || a.title.localeCompare(b.title))
 }
 export const itemsOnDay = (items, day) => items.filter(item=>item.startDate<=day&&item.endDate>=day)
 export const itemsInMonth = (items, day) => { const first=`${day.slice(0,7)}-01`,last=shiftDay(shiftMonth(first,1),-1);return items.filter(item=>item.startDate<=last&&item.endDate>=first) }

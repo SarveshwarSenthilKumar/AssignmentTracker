@@ -42,6 +42,7 @@ mongoose.connect(process.env.MONGODB_URI)
 
 // User Schema
 const userSchema = new mongoose.Schema({
+  calendarColors: { type: Map, of: String, default: {} },
   hiddenCalendarIds: { type: [String], default: [] },
   calendarHistoryRevision: { type: Number, default: 0 },
   hideTxstEvents: { type: Boolean, default: false },
@@ -552,6 +553,7 @@ async function calendarLinksOwned(entry, userId, previous = {}) {
   return validateCalendarLinks(entry, userId, previous, { Todo, PDF });
 }
 const calendarHistory = createCalendarHistory({mongoose,User,CalendarEntry});
+require('./calendarColors').registerCalendarColors(app,authenticateToken,{User,Todo,CalendarEntry,history:calendarHistory});
 calendarHistory.register(app,authenticateToken);
 registerTxstCalendar(app, authenticateToken, User, calendarHistory);
 app.get('/api/calendar-entries', authenticateToken, async (req, res) => {

@@ -48,6 +48,7 @@ add ability to open the ai assistant on the side while in full mode
 create a full page of how to use app
 create a landing page
 create a brochure of every feature and thing in this app
+add automatic starring system for questions and topics to study
 
 resume job tailor:
 Get job by links
