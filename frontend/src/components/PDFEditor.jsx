@@ -543,6 +543,8 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const isErasingRef = useRef(false)
   const erasedRef = useRef(false)
   const currentPathRef = useRef([])
+  const annotationPointerRef=useRef(null),inkFrameRef=useRef(0),eraserGestureSnapshot=useRef(null)
+  useEffect(()=>()=>cancelAnimationFrame(inkFrameRef.current),[])
   const dragRef = useRef(null)
 
   /* ---------- annotation state helpers ---------- */
@@ -1000,11 +1002,19 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     updatePaths(next)
   }
 
+  const paintInkPreview=()=>{
+    if(inkFrameRef.current)return
+    inkFrameRef.current=requestAnimationFrame(()=>{inkFrameRef.current=0;setCurrentPath(currentPathRef.current.slice())})
+  }
+  const stopInkPreview=()=>{cancelAnimationFrame(inkFrameRef.current);inkFrameRef.current=0}
+
   /* ---------- overlay pointer handlers ---------- */
   const handlePointerDown = (e) => {
     if (e.pointerType === 'mouse' && e.button !== 0) return
     if (!overlayRef.current) return
+    if(annotationPointerRef.current!==null&&annotationPointerRef.current!==e.pointerId)return
     if(currentTool==='calculate'||currentTool==='snippet'){
+      annotationPointerRef.current=e.pointerId
       viewerRef.current?.focus({preventScroll:true})
       e.preventDefault();const point=toLocal(e)
       calculationDrag.current={point,pointerId:e.pointerId,page:pageNumber,tool:currentTool}
@@ -1035,9 +1045,11 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     }
 
     const pt = toLocal(e)
+    annotationPointerRef.current=e.pointerId
     overlayRef.current.setPointerCapture?.(e.pointerId)
 
     if (currentTool === 'eraser') {
+      eraserGestureSnapshot.current={paths:pathsRef.current,undo:[...undoStack.current],redo:[...redoStack.current]}
       isErasingRef.current = true
       eraserLast.current=null
       erasedRef.current = false
@@ -1051,6 +1063,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   }
 
   const handlePointerMove = (e) => {
+    if(annotationPointerRef.current!==null&&annotationPointerRef.current!==e.pointerId)return
     if(currentTool==='eraser'&&eraserCursorRef.current){const point=toLocal(e);eraserCursorRef.current.setAttribute('x',point.x-eraserSize/2);eraserCursorRef.current.setAttribute('y',point.y-eraserSize/2);eraserCursorRef.current.style.display='block'}
     if(calculationDrag.current){
       const start=calculationDrag.current;if(start.pointerId!==e.pointerId)return
@@ -1070,10 +1083,13 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       if (last && Math.hypot(pt.x - last.x, pt.y - last.y) < 0.3 / scale) continue
       path.push({ x: pt.x, y: pt.y, pressure: getPressure(ev) })
     }
-    setCurrentPath(path.slice())
+    paintInkPreview()
   }
 
   const handlePointerUp = (e) => {
+    if(annotationPointerRef.current!==e.pointerId)return
+    annotationPointerRef.current=null
+    stopInkPreview()
     if(calculationDrag.current){
       const start=calculationDrag.current;calculationDrag.current=null
       if(overlayRef.current?.hasPointerCapture(e.pointerId))overlayRef.current.releasePointerCapture(e.pointerId)
@@ -1130,8 +1146,10 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         }catch(error){if(generation===calculationGeneration.current){setCalculationSelection({error:error.message,id:generation});setShowCalculator(true)}}
       })();return
     }
-    overlayRef.current?.releasePointerCapture?.(e.pointerId)
+    if(overlayRef.current?.hasPointerCapture(e.pointerId))overlayRef.current.releasePointerCapture(e.pointerId)
     if (isErasingRef.current) {
+      const snapshot=eraserGestureSnapshot.current;eraserGestureSnapshot.current=null
+      if(e.type==='pointercancel'&&snapshot){updatePaths(snapshot.paths);undoStack.current=snapshot.undo;redoStack.current=snapshot.redo;bumpHistory()}
       isErasingRef.current = false
       eraserLast.current=null
       return
@@ -1139,6 +1157,10 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     if (!isDrawingRef.current) return
     isDrawingRef.current = false
     const points = currentPathRef.current
+    if(e.type!=='pointercancel'){
+      const end=toLocal(e),last=points[points.length-1]
+      if(!last||Math.hypot(end.x-last.x,end.y-last.y)>.1/scale)points.push({...end,pressure:last?.pressure||.5})
+    }
     currentPathRef.current = []
     setCurrentPath([])
     if(e.type==='pointercancel')return
@@ -1493,16 +1515,21 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     setFingerScroll(scroll)
   }
 
-  const touchInput=usePDFTouchInput({
-    viewer:viewerRef,scrollWithFinger:fingerScroll,resetKey:`${pdfId}:${pageNumber}:${currentTool}:${focusMode}`,
-    beginTouchAnnotation:()=>{
+  const {handlers:touchInput,activity:inputActivity}=usePDFTouchInput({
+    viewer:viewerRef,overlay:overlayRef,scrollWithFinger:fingerScroll,resetKey:`${pdfId}:${pageNumber}:${currentTool}:${focusMode}`,
+    canDrawTouch:event=>overlayRef.current?.contains(event.target)&&['pen','highlighter','eraser','calculate','snippet'].includes(currentTool),
+    onDrawStart:handlePointerDown,onDrawMove:handlePointerMove,onDrawEnd:handlePointerUp,
+    beginTouchAnnotation:id=>{
       commitText()
-      touchAnnotationSnapshot.current={paths:pathsRef.current,undo:[...undoStack.current],redo:[...redoStack.current]}
+      touchAnnotationSnapshot.current={id,paths:pathsRef.current,undo:[...undoStack.current],redo:[...redoStack.current]}
     },
-    endTouchAnnotation:()=>{touchAnnotationSnapshot.current=null},
+    endTouchAnnotation:id=>{if(touchAnnotationSnapshot.current?.id===id)touchAnnotationSnapshot.current=null},
     resetAnnotation:({rollbackTouch=false}={})=>{
       stylusGesture.current=null
+      annotationPointerRef.current=null;stopInkPreview()
       isDrawingRef.current=false;isErasingRef.current=false;eraserLast.current=null
+      const erased=eraserGestureSnapshot.current;eraserGestureSnapshot.current=null
+      if(erased&&!rollbackTouch){updatePaths(erased.paths);undoStack.current=erased.undo;redoStack.current=erased.redo;bumpHistory()}
       currentPathRef.current=[];setCurrentPath([])
       calculationDrag.current=null;setCalculationBox(null)
       if(dragRef.current)handleTextDragEnd(true)
@@ -1568,6 +1595,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
               {ready && (
                 <div
                   ref={overlayRef}
+                  data-pdf-annotation-overlay
                   style={{
                     position: 'absolute',
                     left: (renderW - pageBase.w * scale) / 2,
@@ -1676,7 +1704,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         {!exportImage&&<><button type="button" className="pdf-control" disabled={pageNumber<=1} aria-label="Previous page" onClick={()=>goToPage(pageNumber-1)}>‹</button><span className="pdf-focus-page-count">{pageNumber}/{numPages||'…'}</span><button type="button" className="pdf-control" disabled={pageNumber>=numPages} aria-label="Next page" onClick={()=>goToPage(pageNumber+1)}>›</button></>}
         <button type="button" className="pdf-control" title="Fit page width" aria-label="Fit page width" onClick={handleFitWidth}><Maximize size={17}/></button>
         <button type="button" className="pdf-control" title="Save" aria-label="Save" onClick={handleSave} disabled={saveStatus==='saving'}><Save size={17}/></button>
-        <PDFFingerMode scroll={fingerScroll} onChange={setFingerInputMode}/>
+        <PDFFingerMode scroll={fingerScroll} onChange={setFingerInputMode} activity={inputActivity}/>
         {!exportImage&&<button type="button" className={cn('pdf-control',showReference&&'is-active')} aria-pressed={showReference} onClick={toggleReference} disabled={!numPages||deletingPage||inserting} title="Open another page beside your notes"><Files size={17}/><span>Side page</span></button>}
         <button type="button" className="pdf-control" onClick={()=>setShowStylusStudio(true)} title="Customize stylus buttons" aria-label="Customize stylus buttons"><Pen size={17}/></button>
         {onToggleAssistant&&<button type="button" className={cn('pdf-control',assistantOpen&&'is-active')} aria-pressed={assistantOpen} onClick={onToggleAssistant} title="Open AI assistant beside your notes"><MessageSquare size={17}/><span>AI assistant</span></button>}
@@ -1715,7 +1743,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       >
         <InsertPanel onPages={exportImage ? undefined : handleAddPages} pageNumber={pageNumber} onFiles={insertFiles} onInsert={insertGenerated} color={currentColor} busy={inserting || !pageBase || pageBase.page !== pageNumber || deletingPage} />
         <div className="pdf-editor-tool-options">
-        <PDFFingerMode scroll={fingerScroll} onChange={setFingerInputMode}/>
+        <PDFFingerMode scroll={fingerScroll} onChange={setFingerInputMode} activity={inputActivity}/>
         {!exportImage&&<button type="button" className="pdf-control" disabled={loading||!numPages||!pageBase||pageBase.page!==pageNumber||deletingPage||inserting} title={`Insert a blank page after page ${pageNumber}`} onClick={()=>handleAddPages({mode:'blank',placement:'after'})}><Plus size={16}/>Blank page after</button>}
         {!exportImage&&<button type="button" className="pdf-control pdf-control-danger" onClick={()=>handleDeletePage()} disabled={!numPages||numPages<=1||deletingPage||inserting} title={numPages===1?'Keep at least one page in the PDF':`Delete page ${pageNumber} and its annotations`}><Trash2 size={16}/>Delete page {pageNumber}</button>}
         <button type="button" className={cn('pdf-control',currentTool==='calculate'&&'is-active')} aria-pressed={currentTool==='calculate'} title="Drag a box over one readable math expression" onClick={()=>{commitText();setCurrentTool('calculate')}}><Calculator size={16}/>Calculate selection</button>
