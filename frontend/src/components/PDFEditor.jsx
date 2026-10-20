@@ -440,6 +440,12 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const editorRootRef=useRef(null),ownsFullscreenRef=useRef(false)
   const [focusMode,setFocusMode]=useState(false)
   const [fingerScroll,setFingerScroll]=useState(true)
+  const [stylusBarrel,setStylusBarrel]=useState(()=>{try{const saved=localStorage.getItem('pdf-stylus-barrel');return ['eraser','pan','undo','redo','none'].includes(saved)?saved:'eraser'}catch{return 'eraser'}})
+  const [stylusEraser,setStylusEraser]=useState(()=>{try{return localStorage.getItem('pdf-stylus-eraser')!=='false'}catch{return true}})
+  const stylusGesture=useRef(null)
+  useEffect(()=>{try{localStorage.setItem('pdf-stylus-barrel',stylusBarrel);localStorage.setItem('pdf-stylus-eraser',String(stylusEraser))}catch{}},[stylusBarrel,stylusEraser])
+  useEffect(()=>{stylusGesture.current=null},[pdfId,pageNumber,currentTool,focusMode,stylusBarrel,stylusEraser])
+
   const exitFocusMode=()=>{
     setFocusMode(false)
     if(document.fullscreenElement===editorRootRef.current)document.exitFullscreen?.().catch(()=>{})
@@ -1407,9 +1413,46 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     )
   }
 
+  const handleStylusButton=(event,phase)=>{
+    if(event.pointerType!=='pen')return
+    let gesture=stylusGesture.current
+    const block=()=>{event.preventDefault();event.stopPropagation()}
+    const eraser=stylusEraser&&((event.buttons&32)!==0||event.button===5&&phase==='down')
+    const barrel=(event.buttons&2)!==0||event.button===2&&phase==='down'
+    const action=eraser?'eraser':barrel&&stylusBarrel!=='none'?stylusBarrel:null
+    if(phase==='end'){
+      if(!gesture||gesture.id!==event.pointerId)return
+      stylusGesture.current=null;isErasingRef.current=false;eraserLast.current=null
+      if(viewerRef.current?.hasPointerCapture(event.pointerId))viewerRef.current.releasePointerCapture(event.pointerId)
+      block();return
+    }
+    if(!gesture&&action){
+      if(isDrawingRef.current||isErasingRef.current)handlePointerUp(event)
+      handleTextDragEnd();commitText()
+      calculationDrag.current=null;setCalculationBox(null)
+      gesture={id:event.pointerId,action,x:event.clientX,y:event.clientY,left:viewerRef.current?.scrollLeft||0,top:viewerRef.current?.scrollTop||0}
+      stylusGesture.current=gesture
+      viewerRef.current?.setPointerCapture?.(event.pointerId)
+      eraserLast.current=null;erasedRef.current=false
+      if(action==='undo')undo()
+      if(action==='redo')redo()
+    }
+    if(!gesture||gesture.id!==event.pointerId)return
+    block()
+    // Once the button is released, wait for lift-off before allowing ink again.
+    if(!action){gesture.released=true;return}
+    if(gesture.released)return
+    if(gesture.action==='eraser'&&(event.pressure>0||(event.buttons&33)!==0))eraseAt(toLocal(event))
+    if(gesture.action==='pan'&&viewerRef.current){
+      viewerRef.current.scrollLeft=gesture.left+gesture.x-event.clientX
+      viewerRef.current.scrollTop=gesture.top+gesture.y-event.clientY
+    }
+  }
+
   const touchInput=usePDFTouchInput({
     viewer:viewerRef,scrollWithFinger:fingerScroll,resetKey:`${pdfId}:${pageNumber}:${currentTool}:${focusMode}`,
     resetAnnotation:()=>{
+      stylusGesture.current=null
       isDrawingRef.current=false;isErasingRef.current=false;eraserLast.current=null
       currentPathRef.current=[];setCurrentPath([])
       calculationDrag.current=null;setCalculationBox(null)
@@ -1758,6 +1801,12 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       </nav>}
       <div tabIndex={0}
         {...touchInput}
+        onPointerDownCapture={event=>{touchInput.onPointerDownCapture(event);if(!event.isPropagationStopped())handleStylusButton(event,'down')}}
+        onPointerMoveCapture={event=>{touchInput.onPointerMoveCapture(event);if(!event.isPropagationStopped())handleStylusButton(event,'move')}}
+        onPointerUpCapture={event=>{touchInput.onPointerUpCapture(event);if(!event.isPropagationStopped())handleStylusButton(event,'end')}}
+        onPointerCancelCapture={event=>{touchInput.onPointerCancelCapture(event);if(!event.isPropagationStopped())handleStylusButton(event,'end')}}
+        onLostPointerCaptureCapture={event=>{touchInput.onLostPointerCaptureCapture(event);if(event.target===viewerRef.current&&stylusGesture.current?.id===event.pointerId){stylusGesture.current=null;isErasingRef.current=false;eraserLast.current=null}}}
+        onContextMenuCapture={event=>{if(stylusGesture.current||event.nativeEvent.pointerType==='pen'){event.preventDefault();event.stopPropagation()}else touchInput.onContextMenuCapture(event)}}
         aria-label="PDF canvas; paste or drop images here" onDragOver={e => { e.preventDefault() }} onDrop={e => { e.preventDefault(); insertFiles(Array.from(e.dataTransfer.files)) }} onPaste={e => { if (e.target.closest('textarea, input')) return; const files = Array.from(e.clipboardData.files); if (files.length) { e.preventDefault(); insertFiles(files) } else if(snippet){e.preventDefault();if(pageBase?.page===pageNumber&&!inserting&&!deletingPage){try{addImageInsert(snippet)}catch(error){setActionError(error.message)}}} }} ref={viewerRef} className="pdf-editor-canvas flex-1 min-w-0 overflow-auto bg-slate-950">
         <div className="flex min-h-full w-fit min-w-full items-start justify-center p-8">
           {pdfError ? (
@@ -1866,6 +1915,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
                 )}
               </div>
 
+              <fieldset className="pdf-stylus-settings"><legend>Stylus buttons</legend><label htmlFor="pdf-stylus-barrel">Barrel / side button</label><select id="pdf-stylus-barrel" value={stylusBarrel} onChange={event=>setStylusBarrel(event.target.value)}><option value="eraser">Hold to erase</option><option value="pan">Hold to pan</option><option value="undo">Undo on press</option><option value="redo">Redo on press</option><option value="none">Disabled</option></select><label><input type="checkbox" checked={stylusEraser} onChange={event=>setStylusEraser(event.target.checked)}/>Use stylus eraser tip</label><p>Works with pen buttons reported by your browser. Lift the pen after a button action to resume your selected tool. Settings are saved on this device.</p></fieldset>
               <div className="pdf-settings-actions"><button className="pdf-control" onClick={handleClearCanvas}><Eraser size={15}/>Clear annotations</button><button className="pdf-control pdf-control-danger" onClick={handleDelete}><Trash2 size={15}/>Move document to Trash</button></div>
               <div className="flex gap-3 pt-2 pdf-settings-save">
                 <button

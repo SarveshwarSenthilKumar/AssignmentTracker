@@ -235,3 +235,9 @@
 .pdf-assistant-dock .assistant-panel .assistant-thread { min-width:0; }
 .pdf-assistant-dock .assistant-panel .assistant-resize-handle { display:none; }
 @media(max-width:700px) { .pdf-assistant-dock { position:absolute; right:0; top:0; bottom:0; width:min(88vw,400px); height:auto; box-shadow:-8px 0 24px #0004; } }
+
+.pdf-stylus-settings { border:1px solid var(--border); border-radius:9px; padding:12px; margin:14px 0; display:grid; gap:10px; }
+.pdf-stylus-settings legend { padding:0 5px; font-size:13px; color:var(--text-primary); }
+.pdf-stylus-settings label { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text-secondary); }
+.pdf-stylus-settings select { padding:8px; background:var(--surface-input); color:var(--text-primary); border:1px solid var(--border-strong); border-radius:6px; }
+.pdf-stylus-settings p { font-size:11px; line-height:1.6; color:var(--text-muted); }
