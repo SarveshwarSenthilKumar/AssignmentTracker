@@ -45,6 +45,9 @@ add support to track for finger scrolling
 add ability to shrink toolbar for tools
 add ability to open page on teh side
 add ability to open the ai assistant on the side while in full mode
+create a full page of how to use app
+create a landing page
+create a brochure of every feature and thing in this app
 
 resume job tailor:
 Get job by links
