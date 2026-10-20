@@ -1,3 +1,4 @@
+import PDFStylusSettings from './PDFStylusSettings'
 import usePDFTouchInput from '../hooks/usePDFTouchInput'
 import useShortcuts from '../hooks/useShortcuts'
 import useInlineConfirm from '../hooks/useInlineConfirm'
@@ -440,11 +441,19 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const editorRootRef=useRef(null),ownsFullscreenRef=useRef(false)
   const [focusMode,setFocusMode]=useState(false)
   const [fingerScroll,setFingerScroll]=useState(true)
-  const [stylusBarrel,setStylusBarrel]=useState(()=>{try{const saved=localStorage.getItem('pdf-stylus-barrel');return ['eraser','pan','undo','redo','none'].includes(saved)?saved:'eraser'}catch{return 'eraser'}})
+  const [stylusBarrel,setStylusBarrel]=useState(()=>{try{const saved=localStorage.getItem('pdf-stylus-barrel');return ['eraser','pan','undo','redo','previous','next','none'].includes(saved)?saved:'eraser'}catch{return 'eraser'}})
   const [stylusEraser,setStylusEraser]=useState(()=>{try{return localStorage.getItem('pdf-stylus-eraser')!=='false'}catch{return true}})
+  const [showStylusStudio,setShowStylusStudio]=useState(false)
+  const [stylusExtra,setStylusExtra]=useState(()=>{
+    let saved={};try{saved=JSON.parse(localStorage.getItem('pdf-stylus-extra')||'{}')||{}}catch{}
+    const actions=['eraser','pan','undo','redo','previous','next','none']
+    return {secondary:actions.includes(saved.secondary)?saved.secondary:'none',tip:actions.includes(saved.tip)?saved.tip:'eraser',mode:['precision','stroke','objects'].includes(saved.mode)?saved.mode:'precision',size:Number.isFinite(saved.size)?Math.max(2,Math.min(160,saved.size)):20,shape:saved.shape==='square'?'square':'round'}
+  })
+  useEffect(()=>{try{localStorage.setItem('pdf-stylus-extra',JSON.stringify(stylusExtra))}catch{}},[stylusExtra])
   const stylusGesture=useRef(null)
+  const stylusButtonLatch=useRef(false)
   useEffect(()=>{try{localStorage.setItem('pdf-stylus-barrel',stylusBarrel);localStorage.setItem('pdf-stylus-eraser',String(stylusEraser))}catch{}},[stylusBarrel,stylusEraser])
-  useEffect(()=>{stylusGesture.current=null},[pdfId,pageNumber,currentTool,focusMode,stylusBarrel,stylusEraser])
+  useEffect(()=>{stylusGesture.current=null},[pdfId,pageNumber,currentTool,focusMode,stylusBarrel,stylusEraser,stylusExtra])
 
   const exitFocusMode=()=>{
     setFocusMode(false)
@@ -972,8 +981,8 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   }
 
   /* ---------- eraser ---------- */
-  const eraseAt = (pt) => {
-    const next=eraseAnnotations(pathsRef.current,eraserLast.current||pt,pt,{size:eraserSize,shape:eraserShape,mode:eraserMode,target:eraserTarget,page:pageNumber,measure:insertSize,id:uid})
+  const eraseAt = (pt, overrides = {}) => {
+    const next=eraseAnnotations(pathsRef.current,eraserLast.current||pt,pt,{size:eraserSize,shape:eraserShape,mode:eraserMode,target:eraserTarget,...overrides,page:pageNumber,measure:insertSize,id:uid})
     eraserLast.current=pt
     if(next===pathsRef.current)return
     if (!erasedRef.current) {
@@ -1417,16 +1426,24 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     if(event.pointerType!=='pen')return
     let gesture=stylusGesture.current
     const block=()=>{event.preventDefault();event.stopPropagation()}
+    if(phase==='down'&&!gesture)stylusButtonLatch.current=false
     const eraser=stylusEraser&&((event.buttons&32)!==0||event.button===5&&phase==='down')
     const barrel=(event.buttons&2)!==0||event.button===2&&phase==='down'
-    const action=eraser?'eraser':barrel&&stylusBarrel!=='none'?stylusBarrel:null
+    const secondary=(event.buttons&4)!==0||event.button===1&&phase==='down'
+    const mapped=eraser?stylusExtra.tip:barrel?stylusBarrel:secondary?stylusExtra.secondary:'none'
+    const action=mapped==='none'?null:mapped
     if(phase==='end'){
+      const latched=stylusButtonLatch.current;stylusButtonLatch.current=false
+      if(!gesture&&latched){block();return}
       if(!gesture||gesture.id!==event.pointerId)return
       stylusGesture.current=null;isErasingRef.current=false;eraserLast.current=null
       if(viewerRef.current?.hasPointerCapture(event.pointerId))viewerRef.current.releasePointerCapture(event.pointerId)
       block();return
     }
+    if(!action&&!gesture)stylusButtonLatch.current=false
+    if(!gesture&&action&&stylusButtonLatch.current){block();return}
     if(!gesture&&action){
+      stylusButtonLatch.current=true
       if(isDrawingRef.current||isErasingRef.current)handlePointerUp(event)
       handleTextDragEnd();commitText()
       calculationDrag.current=null;setCalculationBox(null)
@@ -1436,13 +1453,15 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       eraserLast.current=null;erasedRef.current=false
       if(action==='undo')undo()
       if(action==='redo')redo()
+      if(action==='previous')goToPage(pageNumber-1)
+      if(action==='next')goToPage(pageNumber+1)
     }
     if(!gesture||gesture.id!==event.pointerId)return
     block()
     // Once the button is released, wait for lift-off before allowing ink again.
     if(!action){gesture.released=true;return}
     if(gesture.released)return
-    if(gesture.action==='eraser'&&(event.pressure>0||(event.buttons&33)!==0))eraseAt(toLocal(event))
+    if(gesture.action==='eraser'&&(event.pressure>0||(event.buttons&33)!==0))eraseAt(toLocal(event),{mode:stylusExtra.mode,size:stylusExtra.size,shape:stylusExtra.shape})
     if(gesture.action==='pan'&&viewerRef.current){
       viewerRef.current.scrollLeft=gesture.left+gesture.x-event.clientX
       viewerRef.current.scrollTop=gesture.top+gesture.y-event.clientY
@@ -1609,6 +1628,8 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     <div ref={editorRootRef} className={cn("pdf-editor fixed inset-0 bg-slate-950 flex flex-col z-50",focusMode&&"pdf-focus-mode","pdf-touch-tracked",fingerScroll&&"pdf-finger-scroll")} role="region" aria-label="Visual document editor" aria-busy={deletingPage} onPointerDownCapture={e => { if (deletingPage) { e.preventDefault(); e.stopPropagation() } }} onKeyDownCapture={e => { if (deletingPage) { e.preventDefault(); e.stopPropagation() } }}>
       {deletingPage && <div className="inline-operation-status" role="status"><Loader2 className="animate-spin" size={17} />Updating pages…</div>}
       <InlineConfirmation {...confirmation} />
+      {showStylusStudio&&<PDFStylusSettings barrel={stylusBarrel} onBarrel={setStylusBarrel} tip={stylusEraser?stylusExtra.tip:'none'} onTip={tip=>{setStylusEraser(tip!=='none');setStylusExtra(previous=>({...previous,tip}))}} extra={stylusExtra} onExtra={setStylusExtra} onReset={()=>{setStylusBarrel('eraser');setStylusEraser(true);setStylusExtra({secondary:'none',tip:'eraser',mode:'precision',size:20,shape:'round'})}} onClose={()=>setShowStylusStudio(false)}/>}
+
       {focusMode&&<div className="pdf-focus-toolbar" role="toolbar" aria-label="Fullscreen annotation tools" data-keep-text-active>
         {TOOLS.map(tool=><button key={tool} type="button" className={cn('pdf-tool-button',currentTool===tool&&'is-active')} aria-pressed={currentTool===tool} title={tool==='select'?'Move and resize':tool} aria-label={tool==='select'?'Move and resize':tool} onClick={()=>{commitText();setCurrentTool(tool)}}>{tool==='pen'?<Pen size={18}/>:tool==='highlighter'?<Highlighter size={18}/>:tool==='text'?<Type size={18}/>:tool==='eraser'?<Eraser size={18}/>:<Move size={18}/>}</button>)}
         <input type="color" aria-label="Annotation color" title="Annotation color" value={currentColor} onChange={event=>handleColorChange(event.target.value)}/>
@@ -1619,12 +1640,14 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         <button type="button" className="pdf-control" title="Fit page width" aria-label="Fit page width" onClick={handleFitWidth}><Maximize size={17}/></button>
         <button type="button" className="pdf-control" title="Save" aria-label="Save" onClick={handleSave} disabled={saveStatus==='saving'}><Save size={17}/></button>
         <button type="button" className={cn('pdf-control',fingerScroll&&'is-active')} aria-pressed={fingerScroll} onClick={()=>{handleTextDragEnd();commitText();setFingerScroll(value=>!value)}} title="Scroll with fingers; pen and mouse still annotate"><Move size={17}/><span>{fingerScroll?'Finger scroll':'Finger draw'}</span></button>
+        <button type="button" className="pdf-control" onClick={()=>setShowStylusStudio(true)} title="Customize stylus buttons" aria-label="Customize stylus buttons"><Pen size={17}/></button>
         {onToggleAssistant&&<button type="button" className={cn('pdf-control',assistantOpen&&'is-active')} aria-pressed={assistantOpen} onClick={onToggleAssistant} title="Open AI assistant beside your notes"><MessageSquare size={17}/><span>AI assistant</span></button>}
         <button type="button" className="pdf-control" onClick={exitFocusMode} title="Exit fullscreen (Esc)"><X size={17}/><span>Exit</span></button>
       </div>}
       <header className="pdf-editor-header">
         <div className="pdf-editor-identity"><FileText size={22}/><div><h2 title={pdfData?.name}>{pdfData?.name || 'Document editor'}</h2><div className="pdf-editor-metadata"><span>{exportImage ? 'Image annotations' : `PDF · ${numPages || '…'} pages`}</span><span className={`pdf-save-status is-${saveStatus}`} role="status">{saveStatus === 'saving' ? 'Saving…' : saveStatus === 'saved' ? 'All changes saved' : saveStatus === 'error' ? 'Save failed — retry Save' : 'Unsaved changes'}</span></div></div></div>
         <div className="pdf-editor-actions">
+          <button type="button" className="pdf-control" onClick={()=>setShowStylusStudio(true)}><Pen size={16}/>Stylus setup</button>
           {onToggleAssistant&&<button type="button" className="pdf-control" aria-pressed={assistantOpen} onClick={onToggleAssistant}>AI assistant</button>}
           <button type="button" className="pdf-control" onClick={enterFocusMode} title="Fullscreen with compact annotation tools"><Maximize size={16}/><span>Fullscreen</span></button>
           <button type="button" className="pdf-control" aria-expanded={showCalculator} onClick={()=>{commitText();setShowCalculator(value=>!value)}}><Calculator size={16}/><span>Calculator</span></button>
@@ -1915,7 +1938,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
                 )}
               </div>
 
-              <fieldset className="pdf-stylus-settings"><legend>Stylus buttons</legend><label htmlFor="pdf-stylus-barrel">Barrel / side button</label><select id="pdf-stylus-barrel" value={stylusBarrel} onChange={event=>setStylusBarrel(event.target.value)}><option value="eraser">Hold to erase</option><option value="pan">Hold to pan</option><option value="undo">Undo on press</option><option value="redo">Redo on press</option><option value="none">Disabled</option></select><label><input type="checkbox" checked={stylusEraser} onChange={event=>setStylusEraser(event.target.checked)}/>Use stylus eraser tip</label><p>Works with pen buttons reported by your browser. Lift the pen after a button action to resume your selected tool. Settings are saved on this device.</p></fieldset>
+              <button type="button" className="pdf-control" onClick={()=>setShowStylusStudio(true)}><Pen size={17}/>Customize stylus buttons</button>
               <div className="pdf-settings-actions"><button className="pdf-control" onClick={handleClearCanvas}><Eraser size={15}/>Clear annotations</button><button className="pdf-control pdf-control-danger" onClick={handleDelete}><Trash2 size={15}/>Move document to Trash</button></div>
               <div className="flex gap-3 pt-2 pdf-settings-save">
                 <button
