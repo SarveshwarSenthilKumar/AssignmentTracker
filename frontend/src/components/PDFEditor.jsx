@@ -1516,9 +1516,9 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   }
 
   const {handlers:touchInput,activity:inputActivity}=usePDFTouchInput({
-    viewer:viewerRef,overlay:overlayRef,scrollWithFinger:fingerScroll,resetKey:`${pdfId}:${pageNumber}:${currentTool}:${focusMode}`,
+    viewer:viewerRef,overlay:overlayRef,tool:currentTool,scrollWithFinger:fingerScroll,resetKey:`${pdfId}:${pageNumber}:${currentTool}:${focusMode}`,
     canDrawTouch:event=>overlayRef.current?.contains(event.target)&&['pen','highlighter','eraser','calculate','snippet'].includes(currentTool),
-    onDrawStart:handlePointerDown,onDrawMove:handlePointerMove,onDrawEnd:handlePointerUp,
+    onDrawEnd:handlePointerUp,
     beginTouchAnnotation:id=>{
       commitText()
       touchAnnotationSnapshot.current={id,paths:pathsRef.current,undo:[...undoStack.current],redo:[...redoStack.current]}

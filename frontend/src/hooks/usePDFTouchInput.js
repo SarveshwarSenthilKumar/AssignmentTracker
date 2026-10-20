@@ -1,247 +1,164 @@
 import { useEffect, useRef, useState } from 'react'
+import { allowOnPointerDown, getCenter, isPenInput } from '../lib/vendor/excalidraw/pointerInput'
 
-const FINGER_DECISION_MS=75
-const PAN_SLOP=5
 const CONTROL='button,input,textarea,select,a,[contenteditable="true"]'
-const clamp=(value,min,max)=>Math.max(min,Math.min(max,value))
 const consume=event=>{event.preventDefault();event.stopPropagation()}
-const sample=event=>({pointerId:event.pointerId,pointerType:event.pointerType,button:event.button,buttons:event.buttons,clientX:event.clientX,clientY:event.clientY,pressure:event.pressure,timeStamp:event.timeStamp,target:event.target,nativeEvent:event.nativeEvent||event,type:event.type,preventDefault:()=>{},stopPropagation:()=>{}})
 
-// Explicit gesture states: pending finger -> ink OR pan; pen never waits.
-// Capture changes are not cancellations unless no element owns capture afterward.
-export default function usePDFTouchInput({viewer,overlay,scrollWithFinger,canDrawTouch,onDrawStart,onDrawMove,onDrawEnd,resetAnnotation,beginTouchAnnotation,endTouchAnnotation,resetKey}){
+// Excalidraw v0.18.0 input policy adapted to a PDF viewport. Upstream
+// attribution/license: ../lib/vendor/excalidraw/SOURCE.md and LICENSE.
+// Real pointer events flow to the annotation tools; no delayed event replay,
+// contact-size classifier, or capture-loss-triggered undo is used.
+export default function usePDFTouchInput({viewer,overlay,scrollWithFinger,canDrawTouch,onDrawEnd,resetAnnotation,beginTouchAnnotation,endTouchAnnotation,resetKey,tool}){
   const [activity,setActivity]=useState('idle')
-  const state=useRef({contacts:new Map(),controls:new Set(),pen:null,draw:null,pan:null,frame:0,timer:0,inertia:0,lastPenUp:-Infinity,blockedUntil:0,mounted:true})
+  const state=useRef({touches:new Map(),controls:new Set(),pen:null,draw:null,pan:null,frame:0,blockedUntil:0,mounted:true})
   const latest=useRef(null)
-  latest.current={scrollWithFinger,canDrawTouch,onDrawStart,onDrawMove,onDrawEnd,resetAnnotation,beginTouchAnnotation,endTouchAnnotation}
+  latest.current={scrollWithFinger,canDrawTouch,onDrawEnd,resetAnnotation,beginTouchAnnotation,endTouchAnnotation,tool}
   const report=value=>{if(state.current.mounted)setActivity(previous=>previous===value?previous:value)}
-  const suppressClick=()=>{state.current.blockedUntil=performance.now()+450}
-  const contacts=()=>[...state.current.contacts.values()].filter(contact=>contact.role!=='rejected')
-  const center=items=>({x:items.reduce((sum,c)=>sum+c.x,0)/items.length,y:items.reduce((sum,c)=>sum+c.y,0)/items.length})
-  const cancelTimer=()=>{clearTimeout(state.current.timer);state.current.timer=0}
-  const stopInertia=()=>{cancelAnimationFrame(state.current.inertia);state.current.inertia=0}
-  const capture=id=>{try{viewer.current?.setPointerCapture(id)}catch{ /* Already lifted or canceled. */ }}
+  const suppressClick=()=>{state.current.blockedUntil=performance.now()+350}
+  const accepted=()=>new Map([...state.current.touches].filter(([,contact])=>contact.kind!=='ignored'))
+  const capture=id=>{try{viewer.current?.setPointerCapture(id)}catch{}}
   const release=id=>{try{if(viewer.current?.hasPointerCapture(id))viewer.current.releasePointerCapture(id);if(overlay.current?.hasPointerCapture(id))overlay.current.releasePointerCapture(id)}catch{}}
-  const applyPan=()=>{
-    const current=state.current,pan=current.pan,element=viewer.current
+  const flushPan=()=>{
+    const current=state.current,element=viewer.current,pan=current.pan
     cancelAnimationFrame(current.frame);current.frame=0
     if(!pan||!element)return
-    const dx=pan.dx,dy=pan.dy;pan.dx=0;pan.dy=0
-    if(dx===0&&dy===0)return
-    const x=element.scrollLeft,y=element.scrollTop
-    element.scrollLeft=x+dx;element.scrollTop=y+dy
-    const now=performance.now(),dt=Math.max(8,now-pan.appliedAt)
-    pan.vx=.45*pan.vx+.55*clamp((element.scrollLeft-x)/dt,-2.5,2.5)
-    pan.vy=.45*pan.vy+.55*clamp((element.scrollTop-y)/dt,-2.5,2.5)
-    pan.appliedAt=now
+    element.scrollLeft+=pan.dx;element.scrollTop+=pan.dy
+    pan.dx=0;pan.dy=0
   }
-  const cancelInk=()=>{
+  const cancelTouchInk=()=>{
     const current=state.current
-    cancelTimer()
-    if(current.draw!==null){current.draw=null;latest.current.resetAnnotation({rollbackTouch:true});if(current.pen===null)report('idle')}
+    if(current.draw!==null){current.draw=null;latest.current.resetAnnotation({rollbackTouch:true})}
   }
   const rebasePan=()=>{
-    applyPan()
-    const current=state.current,previous=current.pan,items=contacts()
-    if(!items.length){current.pan=null;return}
-    const point=center(items)
-    items.forEach(contact=>{contact.role='pan';capture(contact.id)})
-    current.pan={last:point,start:point,dx:0,dy:0,vx:previous?.vx||0,vy:previous?.vy||0,appliedAt:performance.now(),updatedAt:previous?.updatedAt||performance.now(),moved:previous?.moved||false}
+    flushPan()
+    const current=state.current,pointers=accepted(),center=getCenter(pointers)
+    // A third touch is ambiguous (often a palm): freeze until at most two remain.
+    current.pan=center?{last:center,dx:0,dy:0,frozen:pointers.size>2}:null
+    pointers.forEach(contact=>{contact.kind='pan';capture(contact.id)})
+    report(center&&pointers.size<=2?'scrolling':'idle')
   }
-  const updatePan=()=>{
-    const current=state.current,pan=current.pan,items=contacts()
-    if(!pan||!items.length)return
-    const point=center(items)
-    if(!pan.moved){
-      if(Math.hypot(point.x-pan.start.x,point.y-pan.start.y)<PAN_SLOP)return
-      pan.moved=true;report('scrolling')
-    }
-    const dx=pan.last.x-point.x,dy=pan.last.y-point.y
-    if(dx===0&&dy===0)return
-    pan.dx+=dx;pan.dy+=dy;pan.last=point;pan.updatedAt=performance.now()
-    if(!current.frame)current.frame=requestAnimationFrame(applyPan)
+  const movePan=()=>{
+    const current=state.current,pan=current.pan
+    if(!pan||pan.frozen)return
+    const center=getCenter(accepted())
+    if(!center)return
+    pan.dx+=pan.last.x-center.x;pan.dy+=pan.last.y-center.y;pan.last=center
+    if(!current.frame)current.frame=requestAnimationFrame(flushPan)
   }
-  const momentum=pan=>{
-    if(!pan?.moved||performance.now()-pan.updatedAt>90)return
-    let vx=pan.vx,vy=pan.vy,last=performance.now()
-    if(Math.hypot(vx,vy)<.12)return
-    const tick=now=>{
-      const element=viewer.current
-      if(!element||state.current.contacts.size||state.current.pen!==null)return
-      const dt=Math.min(32,now-last);last=now
-      const x=element.scrollLeft,y=element.scrollTop
-      element.scrollLeft=x+vx*dt;element.scrollTop=y+vy*dt
-      if(Math.abs(element.scrollLeft-x)<.1)vx=0
-      if(Math.abs(element.scrollTop-y)<.1)vy=0
-      const friction=Math.exp(-dt/135);vx*=friction;vy*=friction
-      if(Math.hypot(vx,vy)>.025)state.current.inertia=requestAnimationFrame(tick)
-      else{state.current.inertia=0;report('idle')}
-    }
-    report('scrolling');state.current.inertia=requestAnimationFrame(tick)
-  }
-  const startInk=contact=>{
-    if(!contact||contact.role!=='pending'||state.current.pen!==null)return
-    cancelTimer();contact.role='ink';state.current.draw=contact.id
-    latest.current.beginTouchAnnotation?.(contact.id)
-    latest.current.onDrawStart({...contact.start,type:'pointerdown'})
-    for(const event of contact.buffer)latest.current.onDrawMove(event)
-    contact.buffer=[];report('drawing')
-  }
-  const isPalm=event=>{
-    const w=event.width||1,h=event.height||1,major=Math.max(w,h),minor=Math.min(w,h)
-    return {strong:w*h>=2400||(major>=80&&minor>=25),suspect:w*h>=1500||(major>=45&&major/minor>=3&&w*h>=700)}
-  }
-  const reset=(notify=true)=>{
+  const reset=()=>{
     const current=state.current
-    cancelTimer();cancelInk();stopInertia();cancelAnimationFrame(current.frame);current.frame=0;current.pan=null
-    const ids=[...current.contacts.keys()];if(current.pen!==null)ids.push(current.pen)
-    current.contacts.clear();current.controls.clear();current.pen=null
-    ids.forEach(release)
-    if(notify)latest.current.resetAnnotation()
-    report('idle')
+    cancelTouchInk();cancelAnimationFrame(current.frame);current.frame=0;current.pan=null
+    const ids=[...current.touches.keys()];if(current.pen!==null)ids.push(current.pen)
+    current.touches.clear();current.controls.clear();current.pen=null
+    ids.forEach(release);latest.current.resetAnnotation();report('idle')
   }
   const ownPen=id=>{
     const current=state.current
-    stopInertia();cancelInk();cancelAnimationFrame(current.frame);current.frame=0;current.pan=null
-    current.contacts.forEach(contact=>{contact.role='rejected'})
+    cancelTouchInk();cancelAnimationFrame(current.frame);current.frame=0;current.pan=null
+    current.touches.forEach(contact=>{contact.kind='ignored'})
     latest.current.resetAnnotation();current.pen=id;report('pen')
   }
   const finish=(event,canceled=false)=>{
     const current=state.current,id=event.pointerId
     if(current.controls.delete(id))return
-    if(event.pointerType==='pen'){
+    if(isPenInput(event)){
       if(current.pen!==id)return
-      current.pen=null;current.lastPenUp=performance.now();report('idle')
+      // Commit at pointer-up BEFORE releasing capture or resetting any refs.
       if(canceled)latest.current.resetAnnotation()
-      return
+      else latest.current.onDrawEnd(event)
+      current.pen=null;report('idle');return
     }
     if(event.pointerType!=='touch')return
-    const contact=current.contacts.get(id)
+    const contact=current.touches.get(id)
     if(!contact)return
-    if(!canceled){contact.x=event.clientX;contact.y=event.clientY}
-    const forwarded=contact.role==='interaction'
-    if(!forwarded)consume(event)
-    if(canceled){
-      if(current.draw===id)cancelInk()
-      suppressClick()
-    }else if(contact.role==='pending'||contact.role==='ink'){
-      if(contact.role==='pending')startInk(contact)
-      latest.current.onDrawMove({...sample(event),type:'pointermove'})
-      latest.current.onDrawEnd({...sample(event),type:'pointerup'})
-      current.draw=null;latest.current.endTouchAnnotation?.(id);suppressClick()
-    }else if(forwarded){
-      current.draw=null
-      // Descendant text/move handlers must finish before releasing their snapshot.
-      queueMicrotask(()=>latest.current.endTouchAnnotation?.(id))
+    if(contact.kind==='draw'){
+      if(canceled)cancelTouchInk()
+      else{
+        latest.current.onDrawEnd(event)
+        current.draw=null;latest.current.endTouchAnnotation?.(id)
+      }
+      consume(event);suppressClick()
+    }else if(contact.kind==='interaction'){
+      if(canceled)cancelTouchInk()
+      else{current.draw=null;latest.current.endTouchAnnotation?.(id)}
+    }else{
+      if(contact.kind==='pan'&&!canceled){contact.x=event.clientX;contact.y=event.clientY;movePan()}
+      consume(event);suppressClick()
     }
-    if(contact.role==='pan'&&!canceled)updatePan()
-    applyPan()
-    const previousPan=current.pan
-    current.contacts.delete(id);release(id)
-    if(contact.role==='pan'){
-      suppressClick()
-      if(contacts().length)rebasePan()
-      else{current.pan=null;if(!canceled)momentum(previousPan)}
-    }
-    if(!current.contacts.size&&!current.inertia&&current.pen===null)report('idle')
+    flushPan();current.touches.delete(id);release(id)
+    if(contact.kind==='pan')rebasePan()
+    if(!accepted().size&&current.pen===null)report('idle')
   }
   const handlers={
     onClickCapture:event=>{if(event.detail!==0&&performance.now()<state.current.blockedUntil)consume(event)},
-    onContextMenuCapture:event=>{if(state.current.contacts.size||state.current.pen!==null)consume(event)},
+    onContextMenuCapture:event=>{if(state.current.touches.size||state.current.pen!==null)consume(event)},
     onPointerDownCapture:event=>{
       const current=state.current,id=event.pointerId
-      stopInertia()
       if(event.target.closest?.(CONTROL)){
-        if(event.pointerType==='touch'&&(current.pen!==null||isPalm(event).strong)){
-          current.contacts.set(id,{id,x:event.clientX,y:event.clientY,role:'rejected'});consume(event);return
-        }
-        current.controls.add(id);return
-      }
-      if(event.pointerType==='mouse'){
-        if(current.pen!==null||contacts().length)consume(event)
+        if(event.pointerType==='touch'&&current.pen!==null){current.touches.set(id,{id,kind:'ignored'});consume(event)}
+        else current.controls.add(id)
         return
       }
-      if(event.pointerType==='pen'){
+      if(isPenInput(event)){
         if(current.pen!==null&&current.pen!==id){consume(event);return}
         ownPen(id);return
       }
-      if(event.pointerType!=='touch')return
-      const geometry=isPalm(event)
-      const rejected=geometry.strong||current.pen!==null||performance.now()-current.lastPenUp<160
-      const contact={id,x:event.clientX,y:event.clientY,role:rejected?'rejected':'pending',start:sample(event),startedAt:performance.now(),buffer:[],palmCount:geometry.suspect?1:0}
-      current.contacts.set(id,contact)
-      if(rejected){consume(event);return}
-      const eligible=contacts()
-      if(latest.current.scrollWithFinger||eligible.length>1||current.pan||!latest.current.canDrawTouch(event)){
-        // Text and object manipulation still use their existing interaction tools.
-        if(!latest.current.scrollWithFinger&&eligible.length===1&&!current.pan&&overlay.current?.contains(event.target)&&!latest.current.canDrawTouch(event)){
-          contact.role='interaction';current.draw=id;latest.current.beginTouchAnnotation?.(id);return
-        }
-        consume(event);cancelInk();rebasePan();return
+      if(event.pointerType==='mouse'){
+        if(current.pen!==null||accepted().size)consume(event)
+        return
       }
-      consume(event);capture(id)
-      current.timer=setTimeout(()=>{if(current.contacts.get(id)===contact&&contacts().length===1)startInk(contact)},FINGER_DECISION_MS)
+      if(event.pointerType!=='touch')return
+      const contact={id,x:event.clientX,y:event.clientY,kind:current.pen!==null?'ignored':'draw'}
+      current.touches.set(id,contact)
+      if(contact.kind==='ignored'){consume(event);return}
+      const pointers=accepted()
+      const allow=allowOnPointerDown(latest.current.scrollWithFinger,event,latest.current.tool)
+      if(latest.current.scrollWithFinger||!allow||pointers.size>1||current.pan||!overlay.current?.contains(event.target)){
+        consume(event);cancelTouchInk();rebasePan();return
+      }
+      contact.kind=latest.current.canDrawTouch(event)?'draw':'interaction'
+      current.draw=id;latest.current.beginTouchAnnotation?.(id);report('drawing')
+      // Forward the actual pointerdown to the existing drawing/move/text handler.
     },
     onPointerMoveCapture:event=>{
       const current=state.current,id=event.pointerId
       if(current.controls.has(id))return
-      if(event.pointerType==='pen'){
+      if(isPenInput(event)){
         if(current.pen!==null&&current.pen!==id)consume(event)
-        else if(current.pen===null&&event.buttons!==0)ownPen(id)
+        else if(current.pen===null&&event.buttons)ownPen(id)
         return
       }
       if(event.pointerType!=='touch')return
-      const contact=current.contacts.get(id)
+      const contact=current.touches.get(id)
       if(!contact){if(current.pen!==null||current.draw!==null)consume(event);return}
-      const geometry=isPalm(event)
-      contact.palmCount=geometry.suspect?contact.palmCount+1:0
-      if(contact.role!=='rejected'&&(geometry.strong||contact.palmCount>=3||current.pen!==null)){
-        if(current.draw===id)cancelInk()
-        const wasPan=contact.role==='pan';contact.role='rejected'
-        if(wasPan)rebasePan()
-      }
+      if(contact.kind==='ignored'){consume(event);return}
       contact.x=event.clientX;contact.y=event.clientY
-      if(contact.role==='rejected'){consume(event);return}
-      if(contact.role==='interaction')return
-      consume(event)
-      if(contact.role==='pan'){updatePan();return}
-      if(contact.role==='pending'){
-        contact.buffer.push({...sample(event),type:'pointermove'})
-        if(performance.now()-contact.startedAt>=FINGER_DECISION_MS)startInk(contact)
-      }else if(contact.role==='ink')latest.current.onDrawMove(sample(event))
+      if(contact.kind==='pan'){consume(event);movePan()}
+      // Never reinterpret or erase an accepted stroke based on contact geometry.
     },
     onPointerUpCapture:event=>finish(event),
     onPointerCancelCapture:event=>finish(event,true),
-    onLostPointerCaptureCapture:event=>{
-      const id=event.pointerId,target=event.target
-      // A move from implicit child capture to the overlay/viewer is expected.
-      queueMicrotask(()=>{
-        const contact=state.current.contacts.get(id)
-        if(!contact&&state.current.pen!==id)return
-        const captured=viewer.current?.hasPointerCapture(id)||overlay.current?.hasPointerCapture(id)||target?.hasPointerCapture?.(id)
-        if(!captured)finish(event,true)
-      })
-    },
-    onWheelCapture:()=>{stopInertia();if(!state.current.contacts.size&&state.current.pen===null)report('idle')}
+    // Capture is allowed to transfer between child annotations and the viewport.
+    // Only actual pointercancel, blur, or an explicit mode change cancels ink.
+    onLostPointerCaptureCapture:()=>{}
   }
   useEffect(()=>{
-    state.current.mounted=true
-    const cancel=()=>reset()
-    const hidden=()=>{if(document.hidden)cancel()}
+    const current=state.current;current.mounted=true
+    const hidden=()=>{if(document.hidden)reset()}
     const outsideEnd=event=>{
-      // Handles lift-off outside the viewer when capture was unavailable.
-      queueMicrotask(()=>{state.current.controls.delete(event.pointerId);if(state.current.contacts.has(event.pointerId)||state.current.pen===event.pointerId)finish(event,true)})
+      // Bubble phase, and only outside the viewer: never preempt React's handlers.
+      if(viewer.current?.contains(event.target))return
+      if(current.touches.has(event.pointerId)||current.pen===event.pointerId)finish(event,event.type==='pointercancel')
+      current.controls.delete(event.pointerId)
     }
-    window.addEventListener('blur',cancel);document.addEventListener('visibilitychange',hidden)
-    document.addEventListener('pointerup',outsideEnd,true);document.addEventListener('pointercancel',outsideEnd,true)
+    window.addEventListener('blur',reset);document.addEventListener('visibilitychange',hidden)
+    window.addEventListener('pointerup',outsideEnd);window.addEventListener('pointercancel',outsideEnd)
     return()=>{
-      const current=state.current
-      current.mounted=false;cancelTimer();stopInertia();cancelAnimationFrame(current.frame)
-      const ids=[...current.contacts.keys()];if(current.pen!==null)ids.push(current.pen)
-      current.contacts.clear();current.controls.clear();current.draw=null;current.pen=null;current.pan=null
-      ids.forEach(release)
-      window.removeEventListener('blur',cancel);document.removeEventListener('visibilitychange',hidden)
-      document.removeEventListener('pointerup',outsideEnd,true);document.removeEventListener('pointercancel',outsideEnd,true)
+      current.mounted=false;cancelAnimationFrame(current.frame)
+      const ids=[...current.touches.keys()];if(current.pen!==null)ids.push(current.pen)
+      current.touches.clear();current.controls.clear();current.draw=null;current.pen=null;current.pan=null;ids.forEach(release)
+      window.removeEventListener('blur',reset);document.removeEventListener('visibilitychange',hidden)
+      window.removeEventListener('pointerup',outsideEnd);window.removeEventListener('pointercancel',outsideEnd)
     }
   },[])
   useEffect(()=>{reset()},[scrollWithFinger,resetKey])
