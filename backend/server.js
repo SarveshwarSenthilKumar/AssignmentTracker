@@ -1114,6 +1114,28 @@ app.get('/api/pdfs/:id', authenticateToken, async (req, res) => {
   }
 });
 
+// A clean copy has independent storage and no editor annotation history.
+app.post('/api/pdfs/:id/clean-copy', authenticateToken, async (req, res) => {
+  try {
+    const source = await PDF.findOne({ _id: req.params.id, user: req.user.userId, deletedAt: null });
+    if (!source) return res.status(404).json({ message: 'Document not found' });
+    const copy = await PDF.create({
+      user: req.user.userId,
+      name: `${source.name.slice(0, 107)} (clean copy)`,
+      originalName: source.originalName,
+      mimeType: source.mimeType,
+      pdfData: Buffer.from(source.originalBackup || source.pdfData),
+      annotations: [],
+      tags: source.tags,
+      pdfFolder: source.pdfFolder || null
+    });
+    const metadata = copy.toObject(); delete metadata.pdfData; delete metadata.originalBackup;
+    res.status(201).json(metadata);
+  } catch (error) {
+    res.status(500).json({ message: 'Could not create a clean copy. Please try again.' });
+  }
+});
+
 // Upload a new PDF
 app.post('/api/pdfs', authenticateToken, upload.single('pdfFile'), async (req, res) => {
   try {

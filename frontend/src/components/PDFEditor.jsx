@@ -405,8 +405,10 @@ function PagePreview({ pageNumber }) {
 /* ------------------------------------------------------------------ */
 /* Main editor                                                         */
 /* ------------------------------------------------------------------ */
-export default function PDFEditor({ pdfId, onClose, token, initialDocument = null, exportImage = false }) {
+export default function PDFEditor({ pdfId, onClose, token, initialDocument = null, exportImage = false, onCleanCopy }) {
   const confirmation = useInlineConfirm()
+  const [copyingClean,setCopyingClean]=useState(false)
+  const cleanCopyLock=useRef(false)
   const [pdfData, setPdfData] = useState(null)
   const [pdfFile, setPdfFile] = useState(null)
   const [numPages, setNumPages] = useState(null)
@@ -1255,6 +1257,20 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     await saveAnnotations()
   }
 
+  const handleCleanCopy=async()=>{
+    if(cleanCopyLock.current||deletingPageRef.current||insertingRef.current)return
+    cleanCopyLock.current=true;setCopyingClean(true);setActionError(null)
+    try{
+      commitText();await saveQueueRef.current;await saveAnnotations()
+      const response=await fetch(`/api/pdfs/${pdfId}/clean-copy`,{method:'POST',headers:{Authorization:`Bearer ${token}`}})
+      const copy=await response.json().catch(()=>({}))
+      if(!response.ok||!copy._id)throw new Error(copy.message||'Could not create a clean copy.')
+      if(document.fullscreenElement===editorRootRef.current)await document.exitFullscreen().catch(()=>{})
+      onCleanCopy?.(copy)
+    }catch(error){setActionError(error.message||'Could not create a clean copy.')}
+    finally{cleanCopyLock.current=false;setCopyingClean(false)}
+  }
+
   const handleDownload = async () => {
     if (downloading) return
     setDownloading(true)
@@ -1574,6 +1590,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         {currentTool==='snippet'&&<span className="text-slate-300 text-sm">Drag a region to copy. {snippet?'Snippet ready — open any page and paste.':'Then open a destination page and paste.'}</span>}
         {!exportImage&&<button type="button" className="pdf-control" aria-pressed={continuousView} disabled={deletingPage||inserting} title="Toggle continuous scrolling through all PDF pages" onClick={()=>{handleTextDragEnd();commitText();setContinuousView(value=>!value)}}><Files size={16}/><span>{continuousView?'Continuous view':'Single page'}</span></button>}
           <button type="button" className="pdf-control" aria-pressed={darkPages} title="Invert page colors for comfortable reading; exported files keep their original colors" onClick={()=>setDarkPages(value=>!value)}>{darkPages?<Sun size={16}/>:<Moon size={16}/>}<span>{darkPages?'Light pages':'Dark pages'}</span></button>
+          {onCleanCopy&&<button type="button" className="pdf-control" disabled={copyingClean||deletingPage||inserting} onClick={handleCleanCopy} title="Create a separate copy without editor annotations; use the saved original when available">{copyingClean?<Loader2 size={16} className="animate-spin"/>:<Files size={16}/>}<span>{copyingClean?'Copying…':'Clean copy'}</span></button>}
           <button className="pdf-control pdf-control-primary" onClick={handleSave} disabled={saveStatus === 'saving'}><Save size={16}/><span>Save</span></button>
           <button className="pdf-control" onClick={handleDownload} disabled={downloading} title={exportImage ? 'Download edited image as PNG' : 'Download PDF with annotations'}>{downloading ? <Loader2 className="animate-spin" size={16}/> : <Download size={16}/>}<span>{downloading ? 'Exporting…' : 'Download'}</span></button>
           <button className="pdf-control" onClick={handleClose} title="Close editor" aria-label="Close editor"><X size={18}/></button>

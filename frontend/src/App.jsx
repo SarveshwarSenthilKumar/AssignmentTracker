@@ -2199,6 +2199,8 @@ function App() {
         {/* PDF Editor */}
         {selectedPDF && (
           <DocumentEditor
+            key={selectedPDF}
+            onCleanCopy={copy=>{setPdfs(previous=>[copy,...previous]);setSelectedPDF(copy._id)}}
             pdfId={selectedPDF}
             onClose={() => { setSelectedPDF(null); fetchPDFs() }}
             token={token}
