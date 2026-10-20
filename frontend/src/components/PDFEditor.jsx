@@ -13,7 +13,7 @@ import { readApiJson } from '../lib/apiResponse'
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Document, Page, pdfjs } from 'react-pdf'
 import {
-  Files, Moon, Sun, Calculator, X, Save, Download, Upload, Trash2, Pen, Highlighter, Eraser, ZoomIn, ZoomOut,
+  MessageSquare, Files, Moon, Sun, Calculator, X, Save, Download, Upload, Trash2, Pen, Highlighter, Eraser, ZoomIn, ZoomOut,
   PanelLeft, FileText, Maximize, RotateCw, Settings, Tag, Folder, Check, Loader2, Undo, Redo, Type, Move, Minus, Plus, AlertCircle
 } from 'lucide-react'
 import { PDFDocument, rgb, degrees, StandardFonts, LineCapStyle } from 'pdf-lib'
@@ -405,7 +405,7 @@ function PagePreview({ pageNumber }) {
 /* ------------------------------------------------------------------ */
 /* Main editor                                                         */
 /* ------------------------------------------------------------------ */
-export default function PDFEditor({ pdfId, onClose, token, initialDocument = null, exportImage = false, onCleanCopy }) {
+export default function PDFEditor({ pdfId, onClose, token, initialDocument = null, exportImage = false, onCleanCopy, assistantOpen=false, onToggleAssistant, onAssistantHost }) {
   const confirmation = useInlineConfirm()
   const [copyingClean,setCopyingClean]=useState(false)
   const cleanCopyLock=useRef(false)
@@ -1576,11 +1576,13 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         <button type="button" className="pdf-control" title="Fit page width" aria-label="Fit page width" onClick={handleFitWidth}><Maximize size={17}/></button>
         <button type="button" className="pdf-control" title="Save" aria-label="Save" onClick={handleSave} disabled={saveStatus==='saving'}><Save size={17}/></button>
         <button type="button" className={cn('pdf-control',fingerScroll&&'is-active')} aria-pressed={fingerScroll} onClick={()=>{handleTextDragEnd();commitText();setFingerScroll(value=>!value)}} title="Scroll with fingers; pen and mouse still annotate"><Move size={17}/><span>{fingerScroll?'Finger scroll':'Finger draw'}</span></button>
+        {onToggleAssistant&&<button type="button" className={cn('pdf-control',assistantOpen&&'is-active')} aria-pressed={assistantOpen} onClick={onToggleAssistant} title="Open AI assistant beside your notes"><MessageSquare size={17}/><span>AI assistant</span></button>}
         <button type="button" className="pdf-control" onClick={exitFocusMode} title="Exit fullscreen (Esc)"><X size={17}/><span>Exit</span></button>
       </div>}
       <header className="pdf-editor-header">
         <div className="pdf-editor-identity"><FileText size={22}/><div><h2 title={pdfData?.name}>{pdfData?.name || 'Document editor'}</h2><div className="pdf-editor-metadata"><span>{exportImage ? 'Image annotations' : `PDF · ${numPages || '…'} pages`}</span><span className={`pdf-save-status is-${saveStatus}`} role="status">{saveStatus === 'saving' ? 'Saving…' : saveStatus === 'saved' ? 'All changes saved' : saveStatus === 'error' ? 'Save failed — retry Save' : 'Unsaved changes'}</span></div></div></div>
         <div className="pdf-editor-actions">
+          {onToggleAssistant&&<button type="button" className="pdf-control" aria-pressed={assistantOpen} onClick={onToggleAssistant}>AI assistant</button>}
           <button type="button" className="pdf-control" onClick={enterFocusMode} title="Fullscreen with compact annotation tools"><Maximize size={16}/><span>Fullscreen</span></button>
           <button type="button" className="pdf-control" aria-expanded={showCalculator} onClick={()=>{commitText();setShowCalculator(value=>!value)}}><Calculator size={16}/><span>Calculator</span></button>
           <div className="pdf-history-actions"><button className="pdf-control" onClick={undo} disabled={historyCount.undo === 0} title="Undo (Ctrl+Z)" aria-label="Undo"><Undo size={17}/></button><button className="pdf-control" onClick={redo} disabled={historyCount.redo === 0} title="Redo (Ctrl+Shift+Z)" aria-label="Redo"><Redo size={17}/></button></div>
@@ -1767,6 +1769,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         </div>
       </div>
 
+      <div ref={onAssistantHost} className="pdf-assistant-dock" hidden={!assistantOpen} aria-label="Notes AI assistant"/>
       </div>
       {/* Page Navigation */}
       {!exportImage && <div className="pdf-editor-footer">

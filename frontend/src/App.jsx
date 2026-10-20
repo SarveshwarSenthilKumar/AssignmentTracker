@@ -40,6 +40,7 @@ function App() {
   }
   const pendingLibraryTask = useRef(null)
   const [page, setPage] = useState(readPage)
+  const [editorAssistantHost,setEditorAssistantHost]=useState(null)
   const [assistantRouteId,setAssistantRouteId]=useState(()=>window.location.hash.match(/^#\/assistant\/([a-f\d]{24})$/i)?.[1]||null)
   const navigate = next => { if(next==='assistant')setAssistantRouteId(null); window.location.hash = `/${next}`; setPage(next); setShowCommandMenu(false); window.scrollTo({top:0}) }
   useEffect(() => { const change = () => { setPage(readPage()); setAssistantRouteId(window.location.hash.match(/^#\/assistant\/([a-f\d]{24})$/i)?.[1]||null); setShowCommandMenu(false); setContextMenu(null); setSelectedTask(pendingLibraryTask.current); pendingLibraryTask.current = null; setShowFolderModal(false); window.scrollTo({top:0}) }; window.addEventListener('hashchange',change); return () => window.removeEventListener('hashchange',change) }, [])
@@ -2194,11 +2195,14 @@ function App() {
         )}
 
         <button data-assistant-ui type="button" className="assistant-launcher" onClick={()=>setAssistantOpen(previous=>!previous)} aria-expanded={assistantOpen} aria-label="Open workspace assistant" hidden={assistantOpen||(page==='assistant'&&!selectedPDF)}><span>Ask assistant</span><kbd>Alt + J</kbd></button>
-        <AssistantChat key={`${user?.id}:${assistantGeneration}`} open={assistantOpen||(page==='assistant'&&!selectedPDF)} mode={page==='assistant'&&!selectedPDF?'page':'panel'} routeConversationId={assistantRouteId} onConversationChange={id=>{if(page!=='assistant')return;const hash=id?'#/assistant/'+id:'#/assistant';window.history.replaceState(null,'',hash);setAssistantRouteId(id)}} onOpenPage={()=>{setAssistantOpen(false);navigate('assistant')}} documents={pdfs} onDocumentsChange={setPdfs} onClose={()=>setAssistantOpen(false)} token={token} section={page} documentId={selectedPDF} documentName={pdfs.find(file=>file._id===selectedPDF)?.name} onOpenSource={openAssistantSource}/>
+        <AssistantChat portalTarget={editorAssistantHost} key={`${user?.id}:${assistantGeneration}`} open={assistantOpen||(page==='assistant'&&!selectedPDF)} mode={page==='assistant'&&!selectedPDF?'page':'panel'} routeConversationId={assistantRouteId} onConversationChange={id=>{if(page!=='assistant')return;const hash=id?'#/assistant/'+id:'#/assistant';window.history.replaceState(null,'',hash);setAssistantRouteId(id)}} onOpenPage={()=>{setAssistantOpen(false);navigate('assistant')}} documents={pdfs} onDocumentsChange={setPdfs} onClose={()=>setAssistantOpen(false)} token={token} section={page} documentId={selectedPDF} documentName={pdfs.find(file=>file._id===selectedPDF)?.name} onOpenSource={openAssistantSource}/>
 
         {/* PDF Editor */}
         {selectedPDF && (
           <DocumentEditor
+            assistantOpen={assistantOpen}
+            onToggleAssistant={()=>setAssistantOpen(previous=>!previous)}
+            onAssistantHost={setEditorAssistantHost}
             key={selectedPDF}
             onCleanCopy={copy=>{setPdfs(previous=>[copy,...previous]);setSelectedPDF(copy._id)}}
             pdfId={selectedPDF}

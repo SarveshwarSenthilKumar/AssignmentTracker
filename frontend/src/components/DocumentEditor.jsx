@@ -12,7 +12,7 @@ import './DocumentEditor.css'
 const cellText = value => value == null ? '' : typeof value === 'object' ? value.formula ? `=${value.formula}` : value.richText ? value.richText.map(run => run.text).join('') : String(value.text ?? value.result ?? value.error ?? '') : String(value)
 const typedValue = value => value.startsWith('=') ? { formula: value.slice(1) } : /^(?:0|-?[1-9]\d*)(?:\.\d+)?$/.test(value) ? Number(value) : value
 
-export default function DocumentEditor({ pdfId, token, onClose, onCleanCopy }) {
+export default function DocumentEditor({ pdfId, token, onClose, onCleanCopy, assistantOpen, onToggleAssistant, onAssistantHost }) {
   const confirmation = useInlineConfirm()
   const [data, setData] = useState(null), [kind, setKind] = useState(null), [loading, setLoading] = useState(true)
   const [loadFailed, setLoadFailed] = useState(false)
@@ -138,8 +138,8 @@ export default function DocumentEditor({ pdfId, token, onClose, onCleanCopy }) {
     save: () => { if (!loadFailed && ['text','word','table','workbook'].includes(kind)) save() },
     download: () => download(), close,
   }, !loading && !saving && !confirmation.pending && kind !== 'pdf' && kind !== 'image')
-  if (kind === 'pdf' && !loading && !error) return <PDFEditor onCleanCopy={onCleanCopy} pdfId={pdfId} token={token} onClose={onClose} />
-  if (kind === 'image' && imageDocument && !error) return <PDFEditor onCleanCopy={onCleanCopy} pdfId={pdfId} token={token} onClose={onClose} initialDocument={imageDocument} exportImage />
+  if (kind === 'pdf' && !loading && !error) return <PDFEditor assistantOpen={assistantOpen} onToggleAssistant={onToggleAssistant} onAssistantHost={onAssistantHost} onCleanCopy={onCleanCopy} pdfId={pdfId} token={token} onClose={onClose} />
+  if (kind === 'image' && imageDocument && !error) return <PDFEditor assistantOpen={assistantOpen} onToggleAssistant={onToggleAssistant} onAssistantHost={onAssistantHost} onCleanCopy={onCleanCopy} pdfId={pdfId} token={token} onClose={onClose} initialDocument={imageDocument} exportImage />
   const editable = ['text','word','table','workbook'].includes(kind) && !loading && !loadFailed
   const rows = kind === 'workbook' ? gridSize.rows : table.length
   const cols = kind === 'workbook' ? gridSize.cols : Math.max(1, ...table.map(row => row.length))

@@ -217,3 +217,13 @@
 .pdf-touch-tracked .pdf-editor-canvas,
 .pdf-touch-tracked .pdf-editor-canvas * { touch-action:none !important; }
 .pdf-finger-scroll .pdf-editor-canvas { overscroll-behavior:contain; -webkit-overflow-scrolling:touch; }
+
+.pdf-assistant-dock { flex:0 0 clamp(300px,34vw,480px); min-width:0; height:100%; overflow:hidden; border-left:1px solid var(--border); background:var(--surface-base); z-index:20; }
+.pdf-assistant-dock[hidden] { display:none; }
+.pdf-assistant-dock .assistant-panel.has-history.is-resizable { position:relative!important; inset:auto!important; width:100%!important; height:100%!important; min-height:0!important; max-height:none!important; border:0; border-radius:0; box-shadow:none; transition:none; }
+.pdf-assistant-dock .assistant-panel>.assistant-header { cursor:default!important; }
+.pdf-assistant-dock .assistant-header button[hidden] { display:none; }
+.pdf-assistant-dock .assistant-panel .assistant-history { position:absolute; inset:0 auto 0 0; z-index:5; width:min(270px,90%); }
+.pdf-assistant-dock .assistant-panel .assistant-thread { min-width:0; }
+.pdf-assistant-dock .assistant-panel .assistant-resize-handle { display:none; }
+@media(max-width:700px) { .pdf-assistant-dock { position:absolute; right:0; top:0; bottom:0; width:min(88vw,400px); height:auto; box-shadow:-8px 0 24px #0004; } }
