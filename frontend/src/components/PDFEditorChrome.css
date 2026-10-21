@@ -14,3 +14,11 @@
 @media(min-width:541px) { .pdf-chrome:not(.is-focus) .pc-insert-slot .pdf-insert-popover { position:fixed; top:112px; left:max(12px,min(280px,calc(100vw - 640px))); max-height:calc(100dvh - 140px); } }
 
 @media(max-width:540px) { .pdf-chrome.is-focus .pc-popover,.pdf-chrome.is-focus .pc-insert-slot .pdf-insert-popover { position:fixed; left:0!important; right:0!important; width:auto!important; bottom:calc(100% + 12px); } }
+.pdf-chrome .pc-compact-toggle{border-color:var(--border-strong);color:var(--text-primary)}
+.pdf-chrome.is-compact .pc-toolbar{min-height:38px;padding:3px 10px;gap:4px}
+.pdf-chrome.is-compact .pc-toolbar .pc-tool>span{display:none}
+.pdf-chrome.is-compact .pc-toolbar .pc-annotation-group{gap:0;padding-right:4px}
+.pdf-chrome.is-compact .pc-toolbar>.pc-insert-slot,.pdf-chrome.is-compact .pc-toolbar>.pc-tool-menus,.pdf-chrome.is-compact .pc-toolbar>.pdf-finger-input{display:none}
+.pdf-chrome.is-compact .pc-toolbar>.pc-side-button,.pdf-chrome.is-compact .pc-toolbar>button[aria-pressed]:not(.pc-compact-toggle){display:none}
+.pdf-chrome.is-compact .pc-toolbar .pc-tool{padding:5px;min-width:30px}
+.pdf-chrome.is-compact.is-focus .pc-toolbar{padding:4px;gap:2px}

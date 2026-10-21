@@ -1,5 +1,5 @@
 import { cloneElement, isValidElement, useEffect, useId, useRef, useState } from 'react'
-import { FileText, ChevronDown, ChevronLeft, ChevronRight, Pen, Highlighter, Type, Move, Eraser, Undo, Redo, Save, Download, Files, Settings, X, Maximize, Sun, Moon, Calculator, Plus, Trash2, RotateCw, ZoomIn, ZoomOut, MessageSquare, SlidersHorizontal, Copy, PanelLeft, Loader2 } from 'lucide-react'
+import { FileText, ChevronDown, ChevronLeft, ChevronRight, Pen, Highlighter, Type, Move, Eraser, Undo, Redo, Save, Download, Files, Settings, X, Maximize, Sun, Moon, Calculator, Plus, Trash2, RotateCw, ZoomIn, ZoomOut, MessageSquare, SlidersHorizontal, Copy, PanelLeft, Loader2, Minimize2, Maximize2 } from 'lucide-react'
 import PDFEraserControls from './PDFEraserControls'
 import PDFFingerMode from './PDFFingerMode'
 import './PDFEditorChrome.css'
@@ -8,6 +8,8 @@ const annotationTools=[['pen','Pen',Pen],['highlighter','Highlight',Highlighter]
 
 export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,insert}){
   const [open,setOpen]=useState(null),root=useRef(null),trigger=useRef(null),id=useId()
+  const [compact,setCompact]=useState(()=>{try{return localStorage.getItem('pdf-toolbar-compact')==='true'}catch{return false}})
+  useEffect(()=>{try{localStorage.setItem('pdf-toolbar-compact',String(compact))}catch{}},[compact])
   const close=()=>setOpen(null)
   useEffect(()=>{
     if(!open)return
@@ -65,7 +67,7 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
       {!text&&<label className="pc-checkbox"><input type="checkbox" checked={tools.usePressure} onChange={tools.onPressure}/>Use pen pressure</label>}
     </>}
   </>,{custom:<span className="pc-size-label">{size} <small>pt</small></span>,left:true})
-  return <div ref={root} className={`pdf-chrome${view.focus?' is-focus':''}`} data-keep-text-active onKeyDown={event=>{if(open&&event.key==='Escape'){event.preventDefault();event.stopPropagation();close();trigger.current?.focus()}}}>
+  return <div ref={root} className={`pdf-chrome${view.focus?' is-focus':''}${compact?' is-compact':''}`} data-keep-text-active onKeyDown={event=>{if(open&&event.key==='Escape'){event.preventDefault();event.stopPropagation();close();trigger.current?.focus()}}}>
     {!view.focus&&<header className="pc-header">
       {documentMenu}<div className="pc-file-name"><strong title={doc.name}>{doc.name||'Document editor'}</strong><span className={`pc-save-state is-${doc.saveStatus}`} role="status"><i/>{doc.saveStatus==='saving'?'Saving…':doc.saveStatus==='saved'?'Saved':doc.saveStatus==='error'?'Save failed':'Unsaved'}</span></div>
       <div className="pc-history">{iconButton(Undo,'Undo (Ctrl+Z)',doc.onUndo,!doc.history.undo)}{iconButton(Redo,'Redo (Ctrl+Shift+Z)',doc.onRedo,!doc.history.redo)}</div>
@@ -76,10 +78,11 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
       {iconButton(X,'Close editor',doc.onClose)}
     </header>}
     <div className="pc-toolbar" role="toolbar" aria-label="PDF annotation tools" onMouseDown={event=>{if(event.target.closest('button')&&!event.target.closest('.pc-popover,.pdf-insert-popover'))event.preventDefault()}}>
+      <button type="button" className="pc-button pc-compact-toggle" aria-label={compact?'Expand tools toolbar':'Shrink tools toolbar'} title={compact?'Expand toolbar to show all tools':'Shrink toolbar'} aria-pressed={compact} onClick={()=>{close();setCompact(previous=>!previous)}}>{compact?<Maximize2 size={16}/>:<Minimize2 size={16}/>}<span>{compact?'Expand':'Shrink'}</span></button>
       {view.focus&&documentMenu}
       <div className="pc-annotation-group" role="group" aria-label="Annotation tools">{annotationTools.map(([key,label,Icon])=><button key={key} type="button" className={`pc-button pc-tool${tools.current===key?' is-active':''}`} aria-pressed={tools.current===key} title={label} aria-label={label} onClick={()=>{close();tools.onTool(key)}}><Icon size={18}/><span>{label}</span></button>)}</div>
       <div className="pc-brush-group">{colorMenu}{sizeMenu}</div>
-      <div className="pc-insert-slot">{isValidElement(insert)?cloneElement(insert,{onOpen:close,closeSignal:open}):insert}</div>
+      <div className="pc-insert-slot">{isValidElement(insert)?cloneElement(insert,{onOpen:close,closeSignal:`${open||''}:${compact}`}):insert}</div>
       <div className="pc-tool-menus">{pagesMenu}{viewMenu}{utilityMenu}</div>
       <PDFFingerMode {...input}/>
       {view.focus&&<>
