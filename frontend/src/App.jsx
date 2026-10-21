@@ -1,3 +1,4 @@
+import AccountConnections from './components/AccountConnections'
 import AccountAIAccess from './components/AccountAIAccess'
 import ResumesPage from './components/ResumesPage'
 import TaskDeletionUndo, { notifyTaskDeletion } from './components/TaskDeletionUndo'
@@ -1834,6 +1835,7 @@ function App() {
                 </div>
               </div>
 
+              <AccountConnections token={token}/>
               <TimeZoneSettings />
               <ConfirmationSettings />
               <AccountAISettings token={token}/>

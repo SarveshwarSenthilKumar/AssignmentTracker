@@ -44,6 +44,8 @@ mongoose.connect(process.env.MONGODB_URI)
 
 // User Schema
 const userSchema = new mongoose.Schema({
+  socialConnections: { type: mongoose.Schema.Types.Mixed, select: false, default: ()=>({}) },
+  socialConnectionVersions: { type: mongoose.Schema.Types.Mixed, select: false, default: ()=>({}) },
   aiAccess: { type: mongoose.Schema.Types.Mixed, default: ()=>({}) },
   calendarColors: { type: Map, of: String, default: {} },
   hiddenCalendarIds: { type: [String], default: [] },
@@ -392,6 +394,7 @@ app.post('/api/auth/login', async (req, res) => {
 // Routes
 const aiRequests = new Map();
 const aiModel = () => process.env.GEMINI_MODEL?.trim() || 'gemini-3.8-flash';
+require('./accountConnections')(app,authenticateToken,{User,mongoose});
 const requireAIAccess=registerAIAccess(app,authenticateToken,User);
 app.use('/api/assistant/chat',authenticateToken,requireAIAccess());
 app.use('/api/assistant/test',authenticateToken,requireAIAccess());
