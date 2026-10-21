@@ -4,6 +4,7 @@ function createCalendarHistory({ mongoose, User, CalendarEntry }) {
     label: String,
     kind: String,
     entryId: mongoose.Schema.Types.ObjectId,
+    seriesId: String,
     before: mongoose.Schema.Types.Mixed,
     after: mongoose.Schema.Types.Mixed,
   }, { timestamps: true }));
@@ -47,6 +48,13 @@ function createCalendarHistory({ mongoose, User, CalendarEntry }) {
             const currentPrefs={hiddenCalendarIds:current.hiddenCalendarIds||[],hideTxstEvents:!!current.hideTxstEvents};
             if(JSON.stringify(currentPrefs)!==JSON.stringify(change.after))throw new Error('Calendar visibility changed elsewhere. Refresh before undoing.');
             await User.updateOne({_id:req.user.userId},{$set:change.before},{session});
+          }else if(change.kind==='series'){
+            const filter={seriesId:change.seriesId,user:req.user.userId};
+            const current=await CalendarEntry.find(filter).session(session).lean();
+            const expected=new Map(change.after.map(entry=>[String(entry._id),entry]));
+            if(current.length!==expected.size||current.some(entry=>!expected.has(String(entry._id))||!same(entry,expected.get(String(entry._id)))))throw new Error('This series changed elsewhere. Undo the newer changes first.');
+            await CalendarEntry.deleteMany(filter,{session});
+            if(change.before.length)await CalendarEntry.insertMany(change.before,{session,timestamps:false});
           }else if(change.kind==='color'){
             const current=await User.findById(req.user.userId).select('calendarColors').session(session).lean();
             const {id,color}=change.after;

@@ -178,6 +178,8 @@ const todoSchema = new mongoose.Schema({
 const Todo = mongoose.model('Todo', todoSchema);
 
 const CalendarEntry = mongoose.model('CalendarEntry', new mongoose.Schema({
+  seriesId: { type: String, index: true },
+  seriesRule: { type: mongoose.Schema.Types.Mixed },
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
   title: { type: String, required: true, maxlength: 200 },
   kind: { type: String, enum: ['appointment','marker'], required: true },
@@ -554,6 +556,7 @@ async function calendarLinksOwned(entry, userId, previous = {}) {
 }
 const calendarHistory = createCalendarHistory({mongoose,User,CalendarEntry});
 require('./calendarColors').registerCalendarColors(app,authenticateToken,{User,Todo,CalendarEntry,history:calendarHistory});
+require('./calendarSeries').registerCalendarSeries(app,authenticateToken,{CalendarEntry,history:calendarHistory,linksOwned:calendarLinksOwned});
 calendarHistory.register(app,authenticateToken);
 registerTxstCalendar(app, authenticateToken, User, calendarHistory);
 app.get('/api/calendar-entries', authenticateToken, async (req, res) => {
