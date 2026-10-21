@@ -286,3 +286,4 @@
 @media(hover:none) { .pdf-thumbnail-delete { opacity:1; } }
 @media(max-width:640px) { .pdf-editor .pdf-editor-canvas>div { padding:14px 12px; }.pdf-workspace-footer { gap:5px; padding-inline:7px; }.pdf-footer-hint { display:none; }.pdf-footer-zoom { flex:0; }.pdf-editor>.pdf-settings-panel { top:12px; max-height:calc(100dvh - 24px); } }
 .pdf-existing-text-hint{padding:6px 16px;font-size:11px;line-height:1.5;color:var(--text-muted,#9aabbd);background:var(--surface-panel,#141d29);border-bottom:1px solid var(--border,#2b3542);flex-shrink:0}
+.pdf-continuous-surface{position:relative;background:white;box-shadow:0 8px 28px #0002;overflow:visible;overflow-anchor:none}.pdf-continuous-active-layer{position:absolute;inset:0;z-index:2}.pdf-continuous-active-layer>.pdf-page-surface{box-shadow:none!important;background:transparent}.pdf-continuous-surface:focus-visible{outline:2px solid var(--accent);outline-offset:4px}

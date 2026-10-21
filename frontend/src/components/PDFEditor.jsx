@@ -1241,10 +1241,10 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     if (window.innerWidth < 768) setShowPages(false)
   }
 
-  const activateContinuousPage=(n,{automatic=false}={})=>{
+  const activateContinuousPage=(n,{automatic=false,page:loadedPage=null}={})=>{
     if(n===pageNumber||deletingPageRef.current||insertingRef.current||isDrawingRef.current||isErasingRef.current||calculationDrag.current||annotationPointerRef.current!==null||dragRef.current)return
     if(automatic&&(inputActivity!=='idle'||activeTextIdRef.current))return
-    handleTextDragEnd();commitText();setSelectedInsertId(null);setPageNumber(n)
+    handleTextDragEnd();commitText();setSelectedInsertId(null);if(loadedPage)onPageLoadSuccess(loadedPage);setPageNumber(n)
   }
 
   const toggleReference=()=>{
@@ -1648,7 +1648,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
               className="relative shrink-0 pdf-page-surface"
               style={ready ? { width: renderW, height: renderH } : undefined}
             >
-              <Document
+              {(!continuousView||exportImage)&&<Document
                 options={PDF_OPTIONS}
                 file={pdfFile}
                 onLoadSuccess={onDocumentLoadSuccess}
@@ -1668,7 +1668,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
                   error={<div className="text-red-400">Failed to load page</div>}
                   className="bg-white"
                 />
-              </Document>
+              </Document>}
 
               {/* Annotation overlay: laid out in unrotated page space, then rotated to match the page */}
               {ready && (
@@ -1839,7 +1839,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
               <button onClick={() => { setPdfError(null); setLoading(true); fetchPDF() }} className="mt-4 px-4 py-2 rounded-lg bg-indigo-600 text-white">Retry loading</button>
             </div>
           ) : pdfFile ? (
-            continuousView&&!exportImage ? <PDFContinuousView key={pdfId+':'+numPages} file={pdfFile} count={numPages} currentPage={pageNumber} activePage={activePageView} scale={scale} rotation={rotation} fallback={pageBase} annotations={drawingPaths} renderStroke={renderStroke} onActivate={activateContinuousPage} viewer={viewerRef} options={PDF_OPTIONS}/> : activePageView
+            continuousView&&!exportImage ? <PDFContinuousView key={pdfId+':'+numPages} file={pdfFile} count={numPages} currentPage={pageNumber} activePage={activePageView} scale={scale} rotation={rotation} fallback={pageBase} annotations={drawingPaths} renderStroke={renderStroke} onActivate={activateContinuousPage} onPageReady={onPageLoadSuccess} onDocumentReady={onDocumentLoadSuccess} viewer={viewerRef} options={PDF_OPTIONS}/> : activePageView
           ) : (
             <div className="text-slate-400">No document data available</div>
           )}
