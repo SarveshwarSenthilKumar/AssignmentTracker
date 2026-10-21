@@ -20,7 +20,7 @@ function assistantRequest(body) {
   if (typeof body.screen !== 'string' || body.screen.length > 12000 || typeof body.section !== 'string' || body.section.length > 100) throw new Error('Screen context is too large or invalid.');
   if (typeof body.timeZone !== 'string' || body.timeZone.length > 100) throw new Error('Choose a valid time zone.');
   try { new Intl.DateTimeFormat('en', { timeZone: body.timeZone }).format(); } catch { throw new Error('Choose a valid time zone.'); }
-  return { editor:body.includeDocument?editorContext(body.editorContext,body.documentId):null, messages, responseStyle, documentIds:[...new Set(documentIds.map(id=>id.toLowerCase()))], includeWorkspace:body.includeWorkspace, includeScreen:body.includeScreen, includeDocument:body.includeDocument, documentId:body.documentId?.toLowerCase() || null, screen:body.includeScreen ? body.screen : '', section:body.section, timeZone:body.timeZone };
+  return { editor:body.includeDocument?editorContext(body.editorContext,body.documentId,body.editorEditsAllowed):null, messages, responseStyle, documentIds:[...new Set(documentIds.map(id=>id.toLowerCase()))], includeWorkspace:body.includeWorkspace, includeScreen:body.includeScreen, includeDocument:body.includeDocument, documentId:body.documentId?.toLowerCase() || null, screen:body.includeScreen ? body.screen : '', section:body.section, timeZone:body.timeZone };
 }
 function workspaceContext({user,tasks=[],entries=[],documents=[],folders=[],documentFolders=[],totals={}}, request) {
   const context = { currentTime:new Date().toISOString(), timeZone:user.timeZone || request.timeZone, section:request.section, screen:request.screen, totals };
@@ -90,7 +90,7 @@ async function responsePayload(request, context, file, model) {
   if(contents[0]?.role==='model')contents.unshift({role:'user',parts:[{text:'Earlier conversation context follows.'}]});
   const latest=contents.at(-1);latest.parts.unshift(...reference);
   const style={concise:'Keep answers brief and direct unless the question requires detail.',balanced:'Use enough detail to answer clearly without unnecessary length.',detailed:'Give thorough explanations, useful examples and clear structure.'}[request.responseStyle||'balanced'];
-  return {model,store:false,systemInstruction:{parts:[{text:`${request.editor?INSTRUCTIONS.replace('You are the read-only assistant','You are the assistant').replace('You cannot create, edit, complete, delete, reset, upload, send messages, or make changes; never claim you did.',editorInstructions):INSTRUCTIONS}\nResponse preference: ${style}`}]},generationConfig:{maxOutputTokens:request.responseStyle==='detailed'?8192:4096},contents};
+  return {model,store:false,systemInstruction:{parts:[{text:`${request.editor&&!request.editor.readOnly?INSTRUCTIONS.replace('You are the read-only assistant','You are the assistant').replace('You cannot create, edit, complete, delete, reset, upload, send messages, or make changes; never claim you did.',editorInstructions):INSTRUCTIONS}\nResponse preference: ${style}`}]},generationConfig:{maxOutputTokens:request.responseStyle==='detailed'?8192:4096},contents};
 }
 function responseText(data) {
   const candidate=data.candidates?.[0];

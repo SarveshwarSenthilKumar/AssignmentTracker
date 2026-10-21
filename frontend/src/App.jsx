@@ -1,3 +1,4 @@
+import AccountAIAccess from './components/AccountAIAccess'
 import ResumesPage from './components/ResumesPage'
 import TaskDeletionUndo, { notifyTaskDeletion } from './components/TaskDeletionUndo'
 import TimeZoneSettings from './components/TimeZoneSettings'
@@ -1836,6 +1837,7 @@ function App() {
               <TimeZoneSettings />
               <ConfirmationSettings />
               <AccountAISettings token={token}/>
+              <AccountAIAccess token={token}/>
               <AccountReset token={token} disabled={syncing || testing || !!selectedPDF} onReset={() => {
                 window.dispatchEvent(new CustomEvent('workspace-reset',{detail:user?.id}));setAssistantOpen(false);setAssistantGeneration(previous=>previous+1);setAssistantCalendarId(null)
                 try { pdfs.forEach(file => sessionStorage.removeItem(`document-draft:${file._id}`)) } catch { /* Storage may be unavailable. */ }

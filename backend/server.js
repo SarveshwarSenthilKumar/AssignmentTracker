@@ -1,3 +1,4 @@
+const {registerAIAccess,category:aiFileCategory,restrictRequest:restrictAIRequest,restrictContext:restrictAIContext}=require('./aiAccess');
 const {extractEditorActions}=require('./assistantEditor');
 require('dotenv').config();
 const express = require('express');
@@ -43,6 +44,7 @@ mongoose.connect(process.env.MONGODB_URI)
 
 // User Schema
 const userSchema = new mongoose.Schema({
+  aiAccess: { type: mongoose.Schema.Types.Mixed, default: ()=>({}) },
   calendarColors: { type: Map, of: String, default: {} },
   hiddenCalendarIds: { type: [String], default: [] },
   calendarHistoryRevision: { type: Number, default: 0 },
@@ -390,6 +392,11 @@ app.post('/api/auth/login', async (req, res) => {
 // Routes
 const aiRequests = new Map();
 const aiModel = () => process.env.GEMINI_MODEL?.trim() || 'gemini-3.8-flash';
+const requireAIAccess=registerAIAccess(app,authenticateToken,User);
+app.use('/api/assistant/chat',authenticateToken,requireAIAccess());
+app.use('/api/assistant/test',authenticateToken,requireAIAccess());
+app.use('/api/documents/generate',authenticateToken,requireAIAccess('generation'));
+app.use('/api/calculator/recognize',authenticateToken,requireAIAccess('recognition'));
 registerMathRecognition(app,authenticateToken,assistantCredentials,aiModel);
 registerGeneratedDocuments(app,authenticateToken,{credentials:assistantCredentials,model:aiModel,PDF,PDFFolder,mongoose});
 require('./oneNoteImport').registerOneNoteImport(app, authenticateToken, upload);
@@ -459,7 +466,7 @@ app.post('/api/assistant/chat', authenticateToken, async (req, res) => {
   res.on('close', disconnected);
   try {
     stage='load_conversation';
-    turn=await prepareConversation(userId,req.body);request.messages=turn.history;
+    turn=await prepareConversation(userId,req.body);request.messages=turn.history;restrictAIRequest(request,req.aiAccess);
     stage='load_workspace';
     const user = await User.findById(userId).select('username email timeZone createdAt canvasUrl lastCanvasSync').lean();
     if (!user) { await finishConversation(turn,null,'Account not found.');turnFinished=true;return aiFailure(res,state,404,'account_unavailable','Account not found.','Sign in again and retry.',{traceId,stage}); }
@@ -469,7 +476,7 @@ app.post('/api/assistant/chat', authenticateToken, async (req, res) => {
       const results = await Promise.all([
         Todo.find(owner).select('text description status dueDate folder dependsOn links calendarDate calendarAllDay calendarEndDate calendarLastDate calendarLocation calendarContext').sort({updatedAt:-1,createdAt:-1}).limit(250).lean(),
         CalendarEntry.find(owner).sort({updatedAt:-1}).limit(250).lean(),
-        PDF.find(active).select('name originalName mimeType pdfFolder taskIds todo updatedAt').sort({updatedAt:-1}).limit(200).lean(),
+        PDF.find(active).select('name originalName mimeType pdfFolder taskIds todo updatedAt tags').sort({updatedAt:-1}).limit(200).lean(),
         Folder.find(owner).select('name').limit(100).lean(), PDFFolder.find(owner).select('name').limit(100).lean(),
         Todo.countDocuments(owner), CalendarEntry.countDocuments(owner), PDF.countDocuments(active)
       ]);
@@ -480,20 +487,24 @@ app.post('/api/assistant/chat', authenticateToken, async (req, res) => {
     const fileIds=[...new Set([...request.documentIds,...(request.includeDocument&&request.documentId?[request.documentId]:[])])];
     if(fileIds.length){
       stage='read_document';
-      file=await PDF.find({_id:{$in:fileIds},user:userId,deletedAt:null}).select('name originalName mimeType pdfData');
+      file=await PDF.find({_id:{$in:fileIds},user:userId,deletedAt:null}).select('name originalName mimeType pdfData tags');
       if(file.length!==fileIds.length){await finishConversation(turn,null,'One or more attached documents are unavailable. Remove them and retry.');turnFinished=true;return aiFailure(res,state,404,'document_unavailable','An attached document is unavailable or does not belong to your account.','Remove unavailable attachments or turn off open-file context, then resend.',{traceId,stage});}
+      if(file.some(item=>!req.aiAccess[aiFileCategory(item)])){
+        await finishConversation(turn,null,'A selected file category is disabled in Account → AI access.');turnFinished=true;
+        return res.status(403).json({message:'A selected file category is disabled in Account → AI access. Remove that file or update your access settings.'});
+      }
       file.sort((a,b)=>fileIds.indexOf(String(a._id))-fileIds.indexOf(String(b._id)));
       if(file.reduce((total,item)=>total+(item.pdfData?.length||0),0)>20*1024*1024){await finishConversation(turn,null,'Attached files exceed the combined 20 MB limit. Remove a file and retry.');turnFinished=true;return aiFailure(res,state,400,'file_limit','Attached files exceed the combined 20 MB limit.','Remove a file and retry.',{traceId,stage});}
       turn.messages.at(-1).attachments=file.map(item=>({id:String(item._id),name:String(item.name||'Attached file').slice(0,200),mimeType:item.mimeType}));
     }
     if (controller.signal.aborted) { if (res.destroyed) return; throw new Error('Request timed out.'); }
-    const context = workspaceContext({user,tasks,entries,documents,folders,documentFolders,totals},request);
+    const context = restrictAIContext(workspaceContext({user,tasks,entries,documents:documents.filter(file=>req.aiAccess[aiFileCategory(file)]),folders,documentFolders,totals},request),req.aiAccess);
     const payload=await responsePayload(request,context,file,aiModel());stage='gemini';
     const result=await callAssistantAPI(payload,{apiKey:credential.apiKey,signal:controller.signal,traceId,metadata:{kind:'chat',requestBytes:Buffer.byteLength(JSON.stringify(payload)),workspaceCharacters:JSON.stringify(context).length,screenCharacters:request.screen.length,historyMessages:request.messages.length,fileBytes:file.reduce((total,item)=>total+(item.pdfData?.length||0),0)}});
     providerReport=result.diagnostics;
     stage='parse_answer';const data=result.data,parsedEditor=extractEditorActions(responseText(data),request.editor),text=parsedEditor.text;state.lastResult={...result.diagnostics,httpStatus:200,totalElapsedMs:Date.now()-started};
     res.set('X-Assistant-Trace-Id',traceId);
-    const answer={content:text,sources:responseSources(text,context).slice(0,40),context:{...totals,section:request.section,screenIncluded:request.includeScreen,workspaceIncluded:request.includeWorkspace,document:context.openDocument||null,documents:context.openDocuments||[],historyMessages:request.messages.length},partial:data.candidates?.[0]?.finishReason==='MAX_TOKENS'||text.length===12000};
+    const answer={content:text,sources:responseSources(text,context).slice(0,40),context:{...(context.totals||{}),section:request.section,screenIncluded:request.includeScreen,workspaceIncluded:request.includeWorkspace,document:context.openDocument||null,documents:context.openDocuments||[],historyMessages:request.messages.length},partial:data.candidates?.[0]?.finishReason==='MAX_TOKENS'||text.length===12000};
     stage='save_conversation';const conversation=await finishConversation(turn,answer);turnFinished=true;
     res.json({text,editorActions:parsedEditor.actions,sources:answer.sources,diagnostics:state.lastResult,context:answer.context,partial:answer.partial,conversation});
   } catch (error) {
