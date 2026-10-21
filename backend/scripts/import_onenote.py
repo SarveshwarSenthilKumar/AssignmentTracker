@@ -40,6 +40,21 @@ def validate_package(filename):
         offset = end + 1
 
 
+def desktop_failure(directory, fallback):
+    """Keep the actual automation error instead of blaming every failure on setup."""
+    try:
+        details = json.loads((directory / 'error.json').read_text(encoding='utf-8-sig'))
+        context = details.get('stage', 'desktop-export')
+        if details.get('page'):
+            context += ' / ' + details['page'][:100]
+        elif details.get('section'):
+            context += ' / ' + details['section'][:100]
+        return ('OneNote ' + context + ' failed (0x' + str(details.get('code', 'unknown')) + '): '
+                + str(details.get('message', 'Unknown error'))[:700] + ' ' + str(details.get('hint', '')))
+    except (OSError, ValueError):
+        return fallback
+
+
 def main():
     source = pathlib.Path(sys.argv[1])
     is_section = source.suffix.lower() == '.one'
@@ -69,11 +84,21 @@ def main():
         script = pathlib.Path(__file__).with_name('export_onenote.ps1')
         powershell = str(pathlib.Path(os.environ.get('SystemRoot', r'C:\Windows')) / 'System32/WindowsPowerShell/v1.0/powershell.exe')
         try:
-            native = original_run([powershell, '-NoProfile', '-NonInteractive', '-STA', '-ExecutionPolicy', 'Bypass', '-File', str(script), '-SectionsManifest', str(sections_manifest), '-OutputDirectory', str(output_directory)], capture_output=True, timeout=100)
-        except (OSError, subprocess.TimeoutExpired):
-            raise ValueError('OneNote desktop export could not finish. Open desktop OneNote and retry, or export your notes as PDF and upload that PDF. Compatibility import may lose annotations.')
+            native = original_run([powershell, '-NoProfile', '-NonInteractive', '-STA', '-ExecutionPolicy', 'Bypass', '-File', str(script), '-SectionsManifest', str(sections_manifest), '-OutputDirectory', str(output_directory)], capture_output=True, timeout=180)
+        except OSError as error:
+            raise ValueError('Could not start the Windows OneNote export helper: ' + str(error))
+        except subprocess.TimeoutExpired:
+            try:
+                progress = json.loads((output_directory / 'progress.json').read_text(encoding='utf-8-sig'))
+                step = str(progress.get('stage', 'desktop-export'))
+                page = str(progress.get('page') or progress.get('section') or '')
+            except (OSError, ValueError):
+                step, page = 'starting helper', ''
+            raise ValueError('OneNote timed out during ' + step + (' (' + page[:100] + ')' if page else '') + '. Check for a OneNote dialog waiting for input. No partial document was saved.')
         if native.returncode:
-            raise ValueError('Desktop OneNote could not export all pages. Make sure OneNote for Windows is installed and opens normally, and unlock protected sections. To retain annotations, export as PDF in OneNote and upload the PDF. Compatibility import may lose annotations.')
+            stderr = native.stderr.decode('utf-8', errors='replace').strip()
+            fallback = 'OneNote export helper failed: ' + (stderr[-1000:] or 'The helper exited without reporting an error.')
+            raise ValueError(desktop_failure(output_directory, fallback).replace(str(source.parent), '[import temporary folder]'))
         manifest = json.loads((output_directory / 'manifest.json').read_text(encoding='utf-8-sig'))
         for page in manifest['pages']:
             pdf_path = output_directory / page.pop('pdfFile')
@@ -133,5 +158,5 @@ if __name__ == '__main__':
         print(json.dumps({'error': 'OneNote importer is not installed. Follow the OneNote setup in README.md.'}))
         sys.exit(1)
     except Exception as error:
-        print(json.dumps({'error': str(error)[:500]}))
+        print(json.dumps({'error': str(error)[:1600]}))
         sys.exit(1)

@@ -8,7 +8,8 @@ exports.registerOneNoteImport = (app, authenticateToken, upload) => {
   const active = new Set();
   app.post('/api/documents/import-onenote', authenticateToken, (req, res) => {
     const user = String(req.user.userId);
-    if (active.has(user) || active.size >= 2) return res.status(429).json({ message: 'An import is already running. Please try again shortly.' });
+    // Desktop OneNote is one shared COM application; parallel exports can interrupt one another.
+    if (active.size >= 1) return res.status(429).json({ message: 'A OneNote import is already running. Please try again after it finishes.' });
     active.add(user);
     upload.single('pdfFile')(req, res, async uploadError => {
       let temp;
@@ -21,7 +22,7 @@ exports.registerOneNoteImport = (app, authenticateToken, upload) => {
         const local = path.join(__dirname, '.venv-onenote', process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python');
         const python = process.env.ONENOTE_PYTHON || (existsSync(local) ? local : process.platform === 'win32' ? 'python' : 'python3');
         const result = await new Promise((resolve, reject) => {
-          execFile(python, [path.join(__dirname, 'scripts/import_onenote.py'), source, path.join(temp, 'extracted'), req.body.mode === 'compatibility' ? 'compatibility' : 'native'], { timeout: 160000, maxBuffer: 26 * 1024 * 1024, windowsHide: true, env: { ...process.env, PYTHONIOENCODING: 'utf-8' } }, (error, stdout) => {
+          execFile(python, [path.join(__dirname, 'scripts/import_onenote.py'), source, path.join(temp, 'extracted'), req.body.mode === 'compatibility' ? 'compatibility' : 'native'], { timeout: 250000, maxBuffer: 26 * 1024 * 1024, windowsHide: true, env: { ...process.env, PYTHONIOENCODING: 'utf-8' } }, (error, stdout) => {
             let payload;
             try { payload = JSON.parse(stdout); } catch { /* Handle missing runtime and conversion timeouts below. */ }
             if (error || payload?.error) reject(new Error(payload?.error || (error?.code === 'ENOENT' ? 'Install Python and the OneNote importer using README.md.' : 'OneNote conversion failed or timed out. Try a smaller notebook.')));
