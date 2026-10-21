@@ -1,4 +1,5 @@
 import PDFEditorChrome from './PDFEditorChrome'
+import { existingTextRuns } from '../lib/pdfExistingText'
 import PDFReferencePane from './PDFReferencePane'
 import PDFStylusSettings from './PDFStylusSettings'
 import usePDFTouchInput from '../hooks/usePDFTouchInput'
@@ -80,7 +81,7 @@ const strokeHit = (stroke, pt, radius) => {
   return false
 }
 
-const cleanForSave = (items) => items.filter(i => !(i.tool === 'text' && !i.text?.trim()))
+const cleanForSave = (items) => items.filter(i => !(i.tool === 'text' && !i.text?.trim() && !i.sourceText))
 
 /* ------------------------------------------------------------------ */
 /* Burn annotations into the PDF (download)                            */
@@ -122,6 +123,11 @@ async function burnAnnotations(pdfBytes, annotations, usePressure) {
     }
 
     if (item.tool === 'text') {
+      if(item.sourceText){
+        const source=item.sourceText,p=toPdf(source.x,source.y+source.height)
+        const background=hexToRgb(source.background||'#ffffff')
+        page.drawRectangle({x:p.x,y:p.y,width:source.width,height:source.height,color:rgb(background.r,background.g,background.b),rotate:degrees(angle)})
+      }
       if (!item.text?.trim()) continue
       const size = item.fontSize || 16
       item.text.replace(/\t/g, '    ').split('\n').forEach((line, i) => {
@@ -422,6 +428,8 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const [scale, setScale] = useState(1.0)
   const [rotation, setRotation] = useState(0)
   const [currentTool, setCurrentTool] = useState('text')
+  const [existingRuns,setExistingRuns]=useState({page:null,items:[]})
+  const textLoadGeneration=useRef(0)
   const [currentColor, setCurrentColor] = useState('#000000')
   const [strokeWidth, setStrokeWidth] = useState(2)
   const [eraserOptions,setEraserOptions]=useState(()=>{
@@ -582,7 +590,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     const before = editSnapshotRef.current
     const current = pathsRef.current
     const item = current.find(i => i.id === id)
-    const empty = !item || !item.text?.trim()
+    const empty = !item || (!item.text?.trim() && !item.sourceText)
     const next = empty ? current.filter(i => i.id !== id) : current
     if (empty && item) updatePaths(next)
     if (before && JSON.stringify(before) !== JSON.stringify(next)) pushHistoryRaw(before)
@@ -758,6 +766,9 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
 
   const onPageLoadSuccess = (page) => {
     calculationPage.current=page
+    const generation=++textLoadGeneration.current
+    setExistingRuns({page:page.pageNumber,items:[],loading:true})
+    existingTextRuns(page,pdfjs).then(items=>{if(generation===textLoadGeneration.current)setExistingRuns({page:page.pageNumber,items})}).catch(()=>{if(generation===textLoadGeneration.current)setExistingRuns({page:page.pageNumber,items:[],failed:true})})
     // Viewport at scale 1 honours the page's own /Rotate, matching what is displayed
     const vp = page.getViewport({ scale: 1 })
     setPageBase({ page: page.pageNumber, w: vp.width, h: vp.height, rotation: page.rotate || 0 })
@@ -1026,6 +1037,14 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       e.preventDefault()
       commitText()
       const pt = toLocal(e)
+      if(existingRuns.page!==pageNumber||existingRuns.loading){setActionError('The text layer is loading. Try again in a moment.');return}
+      const replaced=new Set(pathsRef.current.filter(item=>item.page===pageNumber&&item.sourceText).map(item=>item.sourceText.key))
+      const source=existingRuns.items.find(item=>!replaced.has(item.key)&&pt.x>=item.x-2&&pt.x<=item.x+item.width+2&&pt.y>=item.y-2&&pt.y<=item.y+item.height+2)
+      if(source){
+        const snapshot=pathsRef.current
+        const item={id:uid(),tool:'text',page:pageNumber,text:source.text,fontSize:source.fontSize,color:'#000000',x:source.x-TEXT_PAD_X,y:source.baseline-source.fontSize*BASELINE_RATIO-TEXT_PAD_Y,sourceText:{key:source.key,x:source.x-.5,y:source.y-.5,width:source.width+1,height:source.height+1,background:'#ffffff'}}
+        editSnapshotRef.current=snapshot;updatePaths(previous=>[...previous,item]);setFontSize(source.fontSize);activate(item.id);return
+      }
       const item = {
         id: uid(),
         tool: 'text',
@@ -1614,6 +1633,8 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
                   onPointerCancel={handlePointerUp}
                   onPointerLeave={()=>{if(eraserCursorRef.current)eraserCursorRef.current.style.display='none'}}
                 >
+                  {pageItems.filter(item=>item.sourceText).map(item=><div key={`cover-${item.id}`} aria-hidden style={{position:'absolute',left:item.sourceText.x*scale,top:item.sourceText.y*scale,width:item.sourceText.width*scale,height:item.sourceText.height*scale,background:item.sourceText.background||'#fff',pointerEvents:'none'}}/>)}
+                  {currentTool==='text'&&existingRuns.page===pageNumber&&existingRuns.items.filter(run=>!pageItems.some(item=>item.sourceText?.key===run.key)).map(run=><div key={`source-${run.key}`} aria-hidden style={{position:'absolute',left:run.x*scale,top:run.y*scale,width:run.width*scale,height:run.height*scale,borderBottom:'1px dotted #718ea855',pointerEvents:'none'}}/>)}
                   <svg
                     viewBox={`0 0 ${pageBase.w} ${pageBase.h}`}
                     style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
@@ -1703,6 +1724,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         insert={<InsertPanel onPages={exportImage?undefined:handleAddPages} pageNumber={pageNumber} onFiles={insertFiles} onInsert={insertGenerated} color={currentColor} busy={inserting||!pageBase||pageBase.page!==pageNumber||deletingPage}/>}
       />
 
+      {currentTool==='text'&&!exportImage&&<div className="pdf-existing-text-hint" role="status">Click existing text to replace it, or click blank space to add text. Scanned images need OCR first. Replacements cover the original on a white background; they do not redact the underlying text.</div>}
       {actionError && <div role="alert" className="flex items-center justify-between gap-3 bg-red-950 px-5 py-2 text-sm text-red-200">{actionError}<button onClick={() => setActionError(null)} aria-label="Dismiss error"><X size={16} /></button></div>}
       <div className={cn('flex flex-1 min-h-0 relative',darkPages&&'pdf-dark-pages')}>
         <PDFCalculator open={showCalculator} onClose={()=>setShowCalculator(false)} selection={calculationSelection}/>
