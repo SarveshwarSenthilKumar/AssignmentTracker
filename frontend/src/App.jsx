@@ -1,3 +1,4 @@
+import TaskDeletionUndo, { notifyTaskDeletion } from './components/TaskDeletionUndo'
 import TimeZoneSettings from './components/TimeZoneSettings'
 
 import useTaskPointerDrag from './hooks/useTaskPointerDrag'
@@ -902,7 +903,7 @@ function App() {
     if(deletingTaskIds.current.has(id))return
     const task=todos.find(task=>task._id===id)
     if(!task)return
-    if (!await taskConfirmation.ask(`Delete “${task?.text || 'this task'}”? This cannot be undone.`, 'Delete task')) return
+    if (!await taskConfirmation.ask(`Delete “${task?.text || 'this task'}”? You can restore deleted tasks with Undo.`, 'Delete task')) return
     if(deletingTaskIds.current.has(id))return
     deletingTaskIds.current.add(id)
     try {
@@ -921,6 +922,7 @@ function App() {
         }
         throw new Error(errorMessage)
       }
+      notifyTaskDeletion()
       setTodos(previous=>previous.filter(item=>item._id!==id).map(item=>({...item,dependsOn:(item.dependsOn||[]).filter(dependency=>String(dependency?._id||dependency)!==String(id))})))
       setSelectedTask(previous=>previous?._id===id?null:previous)
       setExpandedTodos(previous=>{const next=new Set(previous);next.delete(id);return next})
@@ -944,12 +946,13 @@ function App() {
     if(!ids.length)return
     bulkDeleteLock.current=true
     try{
-      if(!await taskConfirmation.ask(`Permanently delete ${ids.length} selected ${ids.length===1?'task':'tasks'}? Unselected tasks will stay. This cannot be undone.`,'Delete selected tasks'))return
+      if(!await taskConfirmation.ask(`Delete ${ids.length} selected ${ids.length===1?'task':'tasks'}? Unselected tasks will stay. You can restore deleted tasks with Undo.`,'Delete selected tasks'))return
       setBulkDeleting(true)
       const response=await fetch('/api/todos/bulk-delete',{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({ids})})
       const data=await readApiJson(response)
       if(!response.ok)throw new Error(data.message||'Could not delete selected tasks. Restart the updated backend if this action is unavailable.')
       if(!Array.isArray(data.deletedIds))throw new Error('Unexpected deletion response. Refresh the task list.')
+      notifyTaskDeletion()
       const removed=new Set(data.deletedIds)
       setTodos(previous=>previous.filter(task=>!removed.has(task._id)).map(task=>({...task,dependsOn:(task.dependsOn||[]).filter(id=>!removed.has(String(id?._id||id)))})))
       setSelectedTaskIds(new Set())
@@ -1053,7 +1056,8 @@ function App() {
       }
       const data = await readApiJson(response)
       await fetchTodos()
-      setError(`Deleted ${data.deletedCount} tasks from folder`)
+      notifyTaskDeletion()
+      setError(null)
       setContextMenu(null)
     } catch (err) {
       if (err.message === 'Invalid or expired token') {
@@ -1139,7 +1143,8 @@ function App() {
       }
       const data = await readApiJson(response)
       await fetchTodos()
-      setError(`Cleared ${data.deletedCount} tasks from inbox`)
+      notifyTaskDeletion()
+      setError(null)
       setContextMenu(null)
     } catch (err) {
       if (err.message === 'Invalid or expired token') {
@@ -1365,6 +1370,7 @@ function App() {
         <header className="platform-header"><a className="platform-brand" href="#/tasks">Assignment Tracker</a><nav aria-label="Main navigation">{[['workspace','Workspace'],['tasks','Tasks'],['calendar','Calendar'],['documents','Documents'],['assistant','AI assistant'],['visualization','Visualization'],['canvas','Canvas'],['account','Account'],['shortcuts','Shortcuts']].map(([key,label]) => <a key={key} href={`#/${key}`} aria-current={page===key?'page':undefined}>{key==='shortcuts'&&<Keyboard size={15}/>} {label}</a>)}</nav><button className="platform-signout" onClick={logout}><LogOut size={16}/>Sign out</button></header>
         <div className="platform-page-title"><h1>{page==='workspace'?'Workspace':page==='tasks'?'Tasks':page==='calendar'?'Calendar':page==='documents'?'Document library':page==='visualization'?'Task visualization':page==='canvas'?'Canvas integration':page==='account'?'Account':page==='assistant'?'AI assistant':'Keyboard shortcuts'}</h1><p>{page==='workspace'?'Build a personal workflow with tabs, tools, and movable windows.':page==='tasks'?'Plan your work and track progress.':page==='calendar'?'Plan deadlines, assignments, and personal events in one place.':page==='documents'?'Organize and edit your files.':page==='visualization'?'Explore relationships, deadlines, and progress across your workspace.':page==='canvas'?'Manage your course connection and imports.':page==='account'?'Review your profile and workspace activity.':page==='assistant'?'Think, write, learn, and work with your files in a dedicated conversation workspace.':'A searchable reference for navigation and actions.'}</p></div>
         <InlineConfirmation {...taskConfirmation} reveal />
+        <TaskDeletionUndo token={token} onRestored={()=>fetchTodos(false)}/>
         <WorkflowWorkspace key={'workspace:'+user?.id+':'+assistantGeneration} open={page==='workspace'} token={token} userId={user?.id} tasks={todos} folders={folders} documents={pdfs} documentFolders={pdfFolders} onTasksChange={setTodos} onOpenTask={task=>setSelectedTask(task)} onStatusChange={updateTodoStatus} onOpenDocument={setSelectedPDF} onUpload={()=>{setSelectedPDFFolder('all');setShowPDFUploadModal(true)}} onNavigate={navigate} onOpenCalendarEntry={entry=>{setAssistantCalendarId(entry._id);navigate('calendar')}} onOpenAssistant={()=>setAssistantOpen(true)} keyboardEnabled={!selectedPDF&&!assistantOpen&&!selectedTask&&!showPDFUploadModal&&!showCommandMenu}/>
         {page==='calendar' && <CalendarPage focusEntryId={assistantCalendarId} onEntryFocused={()=>setAssistantCalendarId(null)} documents={pdfs} documentFolders={pdfFolders} onDocumentsChange={setPdfs} onOpenDocument={setSelectedPDF} tasks={todos} token={token} keyboardEnabled={!selectedPDF&&!assistantOpen} onOpenTask={task=>{pendingLibraryTask.current=task;setSelectedFolder('all');navigate('tasks')}} onRefreshTasks={fetchTodos} onSyncCanvas={syncCanvas} onCanvasSettings={()=>navigate('canvas')} canvasStatus={canvasStatus} syncing={syncing} />}
         {canvasNotice && <div role="status" className="calendar-feedback">{canvasNotice}<button onClick={()=>setCanvasNotice('')} aria-label="Dismiss Canvas sync notice"><X size={15}/></button></div>}

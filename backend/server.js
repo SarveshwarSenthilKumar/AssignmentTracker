@@ -543,7 +543,7 @@ app.post('/api/user/reset', authenticateToken, async (req, res) => {
     if (!await bcrypt.compare(req.body.password, user.password)) return res.status(401).json({ message: 'The password is incorrect. No data was reset.' });
     if ((accountWrites.get(userId) || 0) !== 1 || resettingAccounts.has(userId)) return res.status(409).json({ message: 'Wait for uploads, saves, and imports to finish, then try the reset again.' });
     resettingAccounts.add(userId); locked = true;
-    const deleted = await resetAccountWorkspace({ userId, models: { Todo, PDF, Folder, PDFFolder, User, CalendarEntry, AssistantConversation, CalendarChange: calendarHistory.Change }, startSession: () => mongoose.startSession() });
+    const deleted = await resetAccountWorkspace({ userId, models: { Todo, PDF, Folder, PDFFolder, User, CalendarEntry, AssistantConversation, CalendarChange: calendarHistory.Change, TaskDeletionRecovery: taskRecovery.Recovery }, startSession: () => mongoose.startSession() });
     res.json({ message: 'Account workspace reset.', deleted });
   } catch (error) {
     const unsupported = /Transaction numbers|replica set|mongos/i.test(error.message);
@@ -697,23 +697,22 @@ app.put('/api/todos/:id', authenticateToken, async (req, res) => {
   }
 });
 
+const taskRecovery = require('./taskDeletionRecovery')({ mongoose, Todo, Folder, app, authenticateToken });
+
 // Delete a todo
 app.post('/api/todos/bulk-delete', authenticateToken, async (req,res)=>{
   const ids=req.body?.ids;
   if(!Array.isArray(ids)||!ids.length||ids.length>10000||ids.some(id=>typeof id!=='string'||!/^[a-f\d]{24}$/i.test(id)))return res.status(400).json({message:'Select between 1 and 10,000 valid tasks.'});
   try{
     const result=await deleteTasksAndConnections({user:req.user.userId,_id:{$in:[...new Set(ids)]}});
-    res.json({message:`Deleted ${result.deletedCount} tasks.`,deletedCount:result.deletedCount,deletedIds:result.deletedIds});
+    res.json({message:`Deleted ${result.deletedCount} tasks.`,deletedCount:result.deletedCount,deletedIds:result.deletedIds,undoId:result.undoId});
   }catch{res.status(500).json({message:'Could not complete bulk deletion. Refresh the task list before retrying.'});}
 });
 app.delete('/api/todos/:id([a-fA-F0-9]{24})', authenticateToken, async (req, res) => {
   try {
-    const todo = await Todo.findOneAndDelete({ _id: req.params.id, user: req.user.userId });
-    if (!todo) {
-      return res.status(404).json({ message: 'Todo not found' });
-    }
-    await Todo.updateMany({ user: req.user.userId, dependsOn: todo._id }, { $pull: { dependsOn: todo._id } });
-    res.json({ message: 'Todo deleted successfully' });
+    const result = await deleteTasksAndConnections({ _id: req.params.id, user: req.user.userId });
+    if (!result.deletedCount) return res.status(404).json({ message: 'Todo not found' });
+    res.json({ message: 'Todo deleted successfully', ...result });
   } catch (error) {
     res.status(500).json({ message: 'Error deleting todo', error: error.message });
   }
@@ -721,11 +720,7 @@ app.delete('/api/todos/:id([a-fA-F0-9]{24})', authenticateToken, async (req, res
 
 // Delete all todos in a folder
 async function deleteTasksAndConnections(filter) {
-  const tasks = await Todo.find(filter).select('_id');
-  const ids = tasks.map(task => task._id);
-  const result = await Todo.deleteMany({ user: filter.user, _id: { $in: ids } });
-  if (ids.length) await Todo.updateMany({ user: filter.user, dependsOn: { $in: ids } }, { $pull: { dependsOn: { $in: ids } } });
-  return {...result,deletedIds:ids.map(String)};
+  return taskRecovery.remove(filter);
 }
 app.delete('/api/todos/folder/:folderId', authenticateToken, async (req, res) => {
   try {
@@ -734,7 +729,7 @@ app.delete('/api/todos/folder/:folderId', authenticateToken, async (req, res) =>
     if (status) filter.status = status;
 
     const result = await deleteTasksAndConnections(filter);
-    res.json({ message: `Deleted ${result.deletedCount} tasks from folder`, deletedCount: result.deletedCount });
+    res.json({ message: `Deleted ${result.deletedCount} tasks from folder`, deletedCount: result.deletedCount, undoId: result.undoId });
   } catch (error) {
     res.status(500).json({ message: 'Error deleting folder tasks', error: error.message });
   }
@@ -748,7 +743,7 @@ app.delete('/api/todos/clear-inbox', authenticateToken, async (req, res) => {
     if (status) filter.status = status;
 
     const result = await deleteTasksAndConnections(filter);
-    res.json({ message: `Cleared ${result.deletedCount} tasks from inbox`, deletedCount: result.deletedCount });
+    res.json({ message: `Cleared ${result.deletedCount} tasks from inbox`, deletedCount: result.deletedCount, undoId: result.undoId });
   } catch (error) {
     res.status(500).json({ message: 'Error clearing inbox', error: error.message });
   }
