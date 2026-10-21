@@ -4,6 +4,7 @@ import contextlib
 import importlib
 import io
 import json
+import os
 import pathlib
 import struct
 import subprocess
@@ -50,6 +51,44 @@ def main():
         kwargs['timeout'] = 40
         return original_run(*args, **kwargs)
     subprocess.run = bounded_run
+    compatibility = len(sys.argv) > 3 and sys.argv[3] == 'compatibility'
+    if not compatibility:
+        if sys.platform != 'win32':
+            raise ValueError('Preserving OneNote annotations requires the backend to run on Windows with desktop OneNote installed. Export to PDF in OneNote and upload that PDF, or explicitly choose compatibility import.')
+        work = pathlib.Path(sys.argv[2])
+        work.mkdir(parents=True, exist_ok=True)
+        with contextlib.redirect_stdout(io.StringIO()):
+            if is_section:
+                section_paths = [str(source)]
+            else:
+                section_paths = converter.unpack_onepkg(str(source), str(work))
+        sections_manifest = source.parent / 'sections.json'
+        sections_manifest.write_text(json.dumps(section_paths), encoding='utf-8')
+        output_directory = source.parent / 'native-pdf'
+        output_directory.mkdir()
+        script = pathlib.Path(__file__).with_name('export_onenote.ps1')
+        powershell = str(pathlib.Path(os.environ.get('SystemRoot', r'C:\Windows')) / 'System32/WindowsPowerShell/v1.0/powershell.exe')
+        try:
+            native = original_run([powershell, '-NoProfile', '-NonInteractive', '-STA', '-ExecutionPolicy', 'Bypass', '-File', str(script), '-SectionsManifest', str(sections_manifest), '-OutputDirectory', str(output_directory)], capture_output=True, timeout=100)
+        except (OSError, subprocess.TimeoutExpired):
+            raise ValueError('OneNote desktop export could not finish. Open desktop OneNote and retry, or export your notes as PDF and upload that PDF. Compatibility import may lose annotations.')
+        if native.returncode:
+            raise ValueError('Desktop OneNote could not export all pages. Make sure OneNote for Windows is installed and opens normally, and unlock protected sections. To retain annotations, export as PDF in OneNote and upload the PDF. Compatibility import may lose annotations.')
+        manifest = json.loads((output_directory / 'manifest.json').read_text(encoding='utf-8-sig'))
+        for page in manifest['pages']:
+            pdf_path = output_directory / page.pop('pdfFile')
+            pdf = pdf_path.read_bytes()
+            if not pdf.startswith(b'%PDF-'):
+                raise ValueError('OneNote returned an invalid page export. Import stopped to avoid saving incomplete notes.')
+            page['pdfData'] = base64.b64encode(pdf).decode('ascii')
+            page['html'] = ''
+        manifest['mode'] = 'native'
+        manifest['warnings'] = ['Exported with desktop OneNote. Ink, highlights, and printouts are rendered into the PDF; imported strokes are not separately editable. Review the pages before saving.']
+        output = json.dumps(manifest)
+        if len(output.encode('utf-8')) > 24 * 1024 * 1024:
+            raise ValueError('The exported notes are too large. Export smaller sections.')
+        print(output)
+        return
     # Redirect library output so stdout contains only our JSON response.
     with contextlib.redirect_stdout(io.StringIO()):
         if is_section:
@@ -81,7 +120,7 @@ def main():
         warnings.append('Some elements could not be converted: ' + ', '.join(str(k) for k in result.report.failed)[:1000])
     if not pages:
         raise ValueError('No readable pages were found. Export an unprotected .one section or .onepkg notebook from OneNote desktop.')
-    output = json.dumps({'pages': pages, 'warnings': warnings})
+    output = json.dumps({'pages': pages, 'warnings': warnings, 'mode': 'compatibility'})
     if len(output.encode('utf-8')) > 24 * 1024 * 1024:
         raise ValueError('The converted notebook is too large. Export smaller notebook packages.')
     print(output)

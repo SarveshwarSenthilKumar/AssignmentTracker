@@ -21,7 +21,7 @@ exports.registerOneNoteImport = (app, authenticateToken, upload) => {
         const local = path.join(__dirname, '.venv-onenote', process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python');
         const python = process.env.ONENOTE_PYTHON || (existsSync(local) ? local : process.platform === 'win32' ? 'python' : 'python3');
         const result = await new Promise((resolve, reject) => {
-          execFile(python, [path.join(__dirname, 'scripts/import_onenote.py'), source, path.join(temp, 'extracted')], { timeout: 120000, maxBuffer: 26 * 1024 * 1024, windowsHide: true, env: { ...process.env, PYTHONIOENCODING: 'utf-8' } }, (error, stdout) => {
+          execFile(python, [path.join(__dirname, 'scripts/import_onenote.py'), source, path.join(temp, 'extracted'), req.body.mode === 'compatibility' ? 'compatibility' : 'native'], { timeout: 160000, maxBuffer: 26 * 1024 * 1024, windowsHide: true, env: { ...process.env, PYTHONIOENCODING: 'utf-8' } }, (error, stdout) => {
             let payload;
             try { payload = JSON.parse(stdout); } catch { /* Handle missing runtime and conversion timeouts below. */ }
             if (error || payload?.error) reject(new Error(payload?.error || (error?.code === 'ENOENT' ? 'Install Python and the OneNote importer using README.md.' : 'OneNote conversion failed or timed out. Try a smaller notebook.')));
