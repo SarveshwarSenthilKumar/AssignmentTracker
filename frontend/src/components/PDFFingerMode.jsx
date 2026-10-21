@@ -1,7 +1,7 @@
 import { Move, Pen } from 'lucide-react'
 
 export default function PDFFingerMode({scroll,onChange,activity='idle'}){
-  const hint=activity==='pen'?'Pen active':activity==='drawing'?'Drawing':activity==='scrolling'?'Scrolling':scroll?'1 finger scrolls':'1 finger draws · 2 scroll'
+  const hint=activity==='pen'?'Pen active':activity==='drawing'?'Drawing':activity==='scrolling'?'Pan / zoom':scroll?'1 finger pans · 2 zoom':'1 finger draws · 2 pan / zoom'
   return <div className="pdf-finger-input">
     <div className="pdf-finger-mode" role="group" aria-label="Finger input mode">
     <button type="button" aria-pressed={scroll} onClick={()=>onChange(true)} title="One finger scrolls; pen still annotates"><Move size={15}/><span>Scroll</span></button>

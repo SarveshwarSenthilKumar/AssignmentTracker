@@ -18,7 +18,7 @@ import { selectionExpression, textInPdfBox } from '../lib/pdfCalculation'
 import { calculate } from '../lib/calculator'
 import { mathSelectionImage, selectionHasInk } from '../lib/mathSelectionImage'
 import { readApiJson } from '../lib/apiResponse'
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
+import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from 'react'
 import { Document, Page, pdfjs } from 'react-pdf'
 import {
   ChevronLeft, ChevronRight, MessageSquare, Files, Moon, Sun, Calculator, X, Save, Download, Upload, Trash2, Pen, Highlighter, Eraser, ZoomIn, ZoomOut,
@@ -560,6 +560,20 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const [selectedInsertId, setSelectedInsertId] = useState(null)
   const insertingRef = useRef(false)
   const viewerRef = useRef(null)
+  const pinchContentRef=useRef(null),pinchZoomRef=useRef(null),pendingPinchAnchor=useRef(null)
+  const clearPinchPreview=()=>{const content=pinchContentRef.current;if(content){content.style.transform='';content.style.transformOrigin='';content.style.willChange=''}}
+  const anchorPinch=anchor=>{
+    const viewer=viewerRef.current,surface=anchor?.surface
+    if(!viewer||!surface?.isConnected)return
+    const bounds=surface.getBoundingClientRect()
+    viewer.scrollLeft+=bounds.left+bounds.width*anchor.u-anchor.center.x
+    viewer.scrollTop+=bounds.top+bounds.height*anchor.v-anchor.center.y
+  }
+  useLayoutEffect(()=>{
+    if(!pendingPinchAnchor.current)return
+    const anchor=pendingPinchAnchor.current;pendingPinchAnchor.current=null
+    clearPinchPreview();anchorPinch(anchor)
+  },[scale])
   const initialFitRef = useRef(false)
   const saveQueueRef = useRef(Promise.resolve(true))
   const revisionRef = useRef(0)
@@ -1537,6 +1551,31 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   }
 
   const {handlers:touchInput,activity:inputActivity}=usePDFTouchInput({
+    onPinchStart:center=>{
+      const viewer=viewerRef.current,content=pinchContentRef.current
+      if(!viewer||!content)return
+      handleTextDragEnd();commitText()
+      const surfaces=[...viewer.querySelectorAll(continuousView&&!exportImage?'.pdf-continuous-surface':'.pdf-page-surface')]
+      let surface=null,best=Infinity
+      for(const candidate of surfaces){const bounds=candidate.getBoundingClientRect();const distance=Math.hypot(Math.max(bounds.left-center.x,0,center.x-bounds.right),Math.max(bounds.top-center.y,0,center.y-bounds.bottom));if(distance<best){best=distance;surface=candidate}}
+      if(!surface)return
+      const bounds=surface.getBoundingClientRect(),contentBounds=content.getBoundingClientRect()
+      pinchZoomRef.current={scale,center,startCenter:center,surface,u:(center.x-bounds.left)/Math.max(1,bounds.width),v:(center.y-bounds.top)/Math.max(1,bounds.height),nextScale:scale}
+      content.style.transformOrigin=`${center.x-contentBounds.left}px ${center.y-contentBounds.top}px`;content.style.willChange='transform'
+    },
+    onPinchMove:(ratio,center)=>{
+      const gesture=pinchZoomRef.current,content=pinchContentRef.current
+      if(!gesture||!content||!Number.isFinite(ratio))return
+      gesture.nextScale=Math.max(.25,Math.min(4,gesture.scale*ratio));gesture.center=center
+      content.style.transform=`translate(${center.x-gesture.startCenter.x}px,${center.y-gesture.startCenter.y}px) scale(${gesture.nextScale/gesture.scale})`
+    },
+    onPinchEnd:canceled=>{
+      const gesture=pinchZoomRef.current;pinchZoomRef.current=null
+      if(!gesture||canceled){clearPinchPreview();return}
+      const anchor={surface:gesture.surface,u:gesture.u,v:gesture.v,center:gesture.center}
+      if(Math.abs(gesture.nextScale-scale)<.001){clearPinchPreview();anchorPinch(anchor);return}
+      pendingPinchAnchor.current=anchor;setScale(gesture.nextScale)
+    },
     viewer:viewerRef,overlay:overlayRef,tool:currentTool,scrollWithFinger:fingerScroll,resetKey:`${pdfId}:${pageNumber}:${currentTool}:${focusMode}`,
     canDrawTouch:event=>overlayRef.current?.contains(event.target)&&['pen','highlighter','eraser','calculate','snippet'].includes(currentTool),
     onDrawEnd:handlePointerUp,
@@ -1805,8 +1844,8 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         onPointerCancelCapture={event=>{touchInput.onPointerCancelCapture(event);if(!event.isPropagationStopped())handleStylusButton(event,'end')}}
         onLostPointerCaptureCapture={event=>{touchInput.onLostPointerCaptureCapture(event);if(event.target===viewerRef.current&&stylusGesture.current?.id===event.pointerId){stylusGesture.current=null;isErasingRef.current=false;eraserLast.current=null}}}
         onContextMenuCapture={event=>{if(stylusGesture.current||event.nativeEvent.pointerType==='pen'){event.preventDefault();event.stopPropagation()}else touchInput.onContextMenuCapture(event)}}
-        aria-label="PDF canvas; paste or drop images here" onDragOver={e => { e.preventDefault() }} onDrop={e => { e.preventDefault(); insertFiles(Array.from(e.dataTransfer.files)) }} onPaste={e => { if (e.target.closest('textarea, input')) return; const files = Array.from(e.clipboardData.files); if (files.length) { e.preventDefault(); insertFiles(files) } else if(snippet){e.preventDefault();if(pageBase?.page===pageNumber&&!inserting&&!deletingPage){try{addImageInsert(snippet)}catch(error){setActionError(error.message)}}} }} ref={viewerRef} className="pdf-editor-canvas flex-1 min-w-0 overflow-auto bg-slate-950">
-        <div className="flex min-h-full w-fit min-w-full items-start justify-center p-8">
+        aria-label="PDF canvas; paste or drop images here" onDragOver={e => { e.preventDefault() }} onDrop={e => { e.preventDefault(); insertFiles(Array.from(e.dataTransfer.files)) }} onPaste={e => { if (e.target.closest('textarea, input')) return; const files = Array.from(e.clipboardData.files); if (files.length) { e.preventDefault(); insertFiles(files) } else if(snippet){e.preventDefault();if(pageBase?.page===pageNumber&&!inserting&&!deletingPage){try{addImageInsert(snippet)}catch(error){setActionError(error.message)}}} }} ref={viewerRef} style={{touchAction:'none',overscrollBehavior:'contain'}} className="pdf-editor-canvas flex-1 min-w-0 overflow-auto bg-slate-950">
+        <div ref={pinchContentRef} className="flex min-h-full w-fit min-w-full items-start justify-center p-8">
           {pdfError ? (
             <div className="text-center py-12">
               <AlertCircle size={32} className="mx-auto mb-4 text-slate-400"/>

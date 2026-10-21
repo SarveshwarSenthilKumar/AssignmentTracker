@@ -8,11 +8,11 @@ const consume=event=>{event.preventDefault();event.stopPropagation()}
 // attribution/license: ../lib/vendor/excalidraw/SOURCE.md and LICENSE.
 // Real pointer events flow to the annotation tools; no delayed event replay,
 // contact-size classifier, or capture-loss-triggered undo is used.
-export default function usePDFTouchInput({viewer,overlay,scrollWithFinger,canDrawTouch,onDrawEnd,resetAnnotation,beginTouchAnnotation,endTouchAnnotation,resetKey,tool}){
+export default function usePDFTouchInput({viewer,overlay,scrollWithFinger,canDrawTouch,onDrawEnd,resetAnnotation,beginTouchAnnotation,endTouchAnnotation,resetKey,tool,onPinchStart,onPinchMove,onPinchEnd}){
   const [activity,setActivity]=useState('idle')
-  const state=useRef({touches:new Map(),controls:new Set(),pen:null,draw:null,pan:null,frame:0,blockedUntil:0,mounted:true})
+  const state=useRef({touches:new Map(),controls:new Set(),pen:null,draw:null,pan:null,pinch:null,frame:0,blockedUntil:0,mounted:true})
   const latest=useRef(null)
-  latest.current={scrollWithFinger,canDrawTouch,onDrawEnd,resetAnnotation,beginTouchAnnotation,endTouchAnnotation,tool}
+  latest.current={scrollWithFinger,canDrawTouch,onDrawEnd,resetAnnotation,beginTouchAnnotation,endTouchAnnotation,tool,onPinchStart,onPinchMove,onPinchEnd}
   const report=value=>{if(state.current.mounted)setActivity(previous=>previous===value?previous:value)}
   const suppressClick=()=>{state.current.blockedUntil=performance.now()+350}
   const accepted=()=>new Map([...state.current.touches].filter(([,contact])=>contact.kind!=='ignored'))
@@ -22,9 +22,15 @@ export default function usePDFTouchInput({viewer,overlay,scrollWithFinger,canDra
     const current=state.current,element=viewer.current,pan=current.pan
     cancelAnimationFrame(current.frame);current.frame=0
     if(!pan||!element)return
+    if(current.pinch){
+      const contacts=[...accepted().values()]
+      if(contacts.length===2){const distance=Math.hypot(contacts[1].x-contacts[0].x,contacts[1].y-contacts[0].y);latest.current.onPinchMove?.(distance/current.pinch.distance,getCenter(accepted()))}
+      return
+    }
     element.scrollLeft+=pan.dx;element.scrollTop+=pan.dy
     pan.dx=0;pan.dy=0
   }
+  const endPinch=canceled=>{if(!state.current.pinch)return;state.current.pinch=null;latest.current.onPinchEnd?.(canceled)}
   const cancelTouchInk=()=>{
     const current=state.current
     if(current.draw!==null){current.draw=null;latest.current.resetAnnotation({rollbackTouch:true})}
@@ -32,21 +38,27 @@ export default function usePDFTouchInput({viewer,overlay,scrollWithFinger,canDra
   const rebasePan=()=>{
     flushPan()
     const current=state.current,pointers=accepted(),center=getCenter(pointers)
+    if(pointers.size!==2)endPinch(pointers.size>2)
+    if(pointers.size===2&&!current.pinch&&latest.current.onPinchStart){
+      const contacts=[...pointers.values()],distance=Math.hypot(contacts[1].x-contacts[0].x,contacts[1].y-contacts[0].y)
+      if(distance>=12){current.pinch={distance};latest.current.onPinchStart(center)}
+    }
     // A third touch is ambiguous (often a palm): freeze until at most two remain.
     current.pan=center?{last:center,dx:0,dy:0,frozen:pointers.size>2}:null
     pointers.forEach(contact=>{contact.kind='pan';capture(contact.id)})
-    report(center&&pointers.size<=2?'scrolling':'idle')
+    report(center?'scrolling':'idle')
   }
   const movePan=()=>{
     const current=state.current,pan=current.pan
     if(!pan||pan.frozen)return
     const center=getCenter(accepted())
     if(!center)return
-    pan.dx+=pan.last.x-center.x;pan.dy+=pan.last.y-center.y;pan.last=center
+    if(!current.pinch){pan.dx+=pan.last.x-center.x;pan.dy+=pan.last.y-center.y}pan.last=center
     if(!current.frame)current.frame=requestAnimationFrame(flushPan)
   }
   const reset=()=>{
     const current=state.current
+    endPinch(true)
     cancelTouchInk();cancelAnimationFrame(current.frame);current.frame=0;current.pan=null
     const ids=[...current.touches.keys()];if(current.pen!==null)ids.push(current.pen)
     current.touches.clear();current.controls.clear();current.pen=null
@@ -54,6 +66,7 @@ export default function usePDFTouchInput({viewer,overlay,scrollWithFinger,canDra
   }
   const ownPen=id=>{
     const current=state.current
+    endPinch(true)
     cancelTouchInk();cancelAnimationFrame(current.frame);current.frame=0;current.pan=null
     current.touches.forEach(contact=>{contact.kind='ignored'})
     latest.current.resetAnnotation();current.pen=id;report('pen')
@@ -82,6 +95,7 @@ export default function usePDFTouchInput({viewer,overlay,scrollWithFinger,canDra
       if(canceled)cancelTouchInk()
       else{current.draw=null;latest.current.endTouchAnnotation?.(id)}
     }else{
+      if(canceled)endPinch(true)
       if(contact.kind==='pan'&&!canceled){contact.x=event.clientX;contact.y=event.clientY;movePan()}
       consume(event);suppressClick()
     }
@@ -154,6 +168,7 @@ export default function usePDFTouchInput({viewer,overlay,scrollWithFinger,canDra
     window.addEventListener('blur',reset);document.addEventListener('visibilitychange',hidden)
     window.addEventListener('pointerup',outsideEnd);window.addEventListener('pointercancel',outsideEnd)
     return()=>{
+      endPinch(true)
       current.mounted=false;cancelAnimationFrame(current.frame)
       const ids=[...current.touches.keys()];if(current.pen!==null)ids.push(current.pen)
       current.touches.clear();current.controls.clear();current.draw=null;current.pen=null;current.pan=null;ids.forEach(release)
