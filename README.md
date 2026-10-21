@@ -262,3 +262,16 @@ Settings include grid visibility, snapping, density, canvas height, and new-work
 Layouts and notes autosave to the signed-in account with revision checks. A browser draft scoped to the account preserves local edits while offline or when saving fails. Conflicting layouts offer explicit Reload saved / Save this version choices instead of silently overwriting another session. Account reset deletes the saved layout and notes, clears the current browser draft, and advances the server revision to reject stale writes. The workspace and AI assistant remain separate tools: the AI can reference visible workspace text but cannot mutate its layout.
 
 Workspace shortcuts are listed on the Shortcuts page: Alt + N opens the tool picker, Alt + T tiles windows, Alt + F toggles full-screen workspace, and Ctrl/Cmd + Z or Ctrl/Cmd + Shift + Z undo/redo layout changes outside text fields. With a window header or resize handle focused, Alt + arrow keys move or resize it; Shift increases the step. Escape cancels an active drag before dismissing workspace controls.
+# OneNote notebook import
+
+In **Documents → Import OneNote**, choose a `.onepkg` file, click **Read notebook**, review and select pages, then choose **Save & open notes**. The resulting PDF is saved in the current folder and opens in the PDF editor for annotation. Imported content is rendered into PDF pages; original OneNote text and ink objects are not directly editable. Keep the original notebook. Review conversion warnings, especially for handwriting, unsupported objects, and password-protected sections. Embedded files, recordings, and videos are omitted.
+
+The backend uses the MIT-licensed [onenote-tool](https://github.com/vanarebane/onenote-tool) Python converter. Install Python 3.10 or newer and run from the repository directory:
+
+```powershell
+python -m venv backend/.venv-onenote
+backend/.venv-onenote/Scripts/python.exe -m pip install -r backend/requirements-onenote.txt
+```
+
+Restart the backend after setup. Windows uses its built-in `expand.exe` to extract notebook packages. Linux/macOS servers also need `cabextract`; create the environment with `python3 -m venv backend/.venv-onenote` and install requirements using `backend/.venv-onenote/bin/python -m pip install -r backend/requirements-onenote.txt`. Optionally set `ONENOTE_PYTHON` to an absolute Python executable path. The scoped environment is ignored by Git and must be installed on each server. Packages are limited to 10 MB, 100 MB expanded, and 200 source pages; select fewer pages if the saved PDF exceeds 10 MB. Large notebooks should be exported from OneNote in smaller packages.
+

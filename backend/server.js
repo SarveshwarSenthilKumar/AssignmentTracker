@@ -391,6 +391,7 @@ const aiRequests = new Map();
 const aiModel = () => process.env.GEMINI_MODEL?.trim() || 'gemini-3.8-flash';
 registerMathRecognition(app,authenticateToken,assistantCredentials,aiModel);
 registerGeneratedDocuments(app,authenticateToken,{credentials:assistantCredentials,model:aiModel,PDF,PDFFolder,mongoose});
+require('./oneNoteImport').registerOneNoteImport(app, authenticateToken, upload);
 function aiState(userId) {
   const now = Date.now();
   for (const [id, state] of aiRequests) if (!state.busy && now - state.start >= 600000) aiRequests.delete(id);
