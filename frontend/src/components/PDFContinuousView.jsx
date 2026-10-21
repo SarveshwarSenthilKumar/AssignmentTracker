@@ -1,14 +1,16 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { Document, Page } from 'react-pdf'
+import { replacementCss, loadPageFontStyles } from '../lib/pdfTextStyle'
 
 const EMPTY=[]
-const ContinuousPage=memo(function ContinuousPage({number,active,activePage,scale,rotation,fallback,items,renderStroke,onActivate,viewer}){
+const ContinuousPage=memo(function ContinuousPage({number,active,activePage,scale,rotation,fallback,items,renderStroke,onActivate,viewer,file}){
   const ref=useRef(null),[near,setNear]=useState(active),[base,setBase]=useState(null)
   useEffect(()=>{
     const observer=new IntersectionObserver(entries=>setNear(entries[0].isIntersecting),{root:viewer.current,rootMargin:'1000px 0px'})
     if(ref.current)observer.observe(ref.current)
     return()=>observer.disconnect()
   },[viewer])
+  useEffect(()=>{if(near&&items.some(item=>item.textStyle?.embedded))loadPageFontStyles(file,number-1).catch(()=>{})},[near,file,number,items])
   const dimensions=base||fallback||{w:612,h:792,rotation:0},quarter=rotation%180!==0
   const width=(quarter?dimensions.h:dimensions.w)*scale,height=(quarter?dimensions.w:dimensions.h)*scale
   const handleActivateKeyDown=event=>{
@@ -24,7 +26,7 @@ const ContinuousPage=memo(function ContinuousPage({number,active,activePage,scal
         {items.filter(item=>item.sourceText).map(item=><div key={`cover-${item.id}`} style={{position:'absolute',left:item.sourceText.x*scale,top:item.sourceText.y*scale,width:item.sourceText.width*scale,height:item.sourceText.height*scale,background:item.sourceText.background||'#fff'}}/>)}
         <svg viewBox={`0 0 ${base.w} ${base.h}`} style={{position:'absolute',inset:0,width:'100%',height:'100%'}}>{items.filter(item=>item.points).map(item=>renderStroke(item,item.id))}</svg>
         {items.filter(item=>item.tool==='image').map(item=><img key={item.id} src={item.dataUrl} alt={item.label||'Annotation'} draggable={false} style={{position:'absolute',left:item.x*scale,top:item.y*scale,width:item.width*scale,height:item.height*scale}}/>)}
-        {items.filter(item=>item.tool==='text').map(item=><div key={item.id} style={{position:'absolute',left:item.x*scale,top:item.y*scale,color:item.color||'#000',fontSize:(item.fontSize||16)*scale,fontFamily:'Helvetica, Arial, sans-serif',lineHeight:1.2,whiteSpace:'pre',padding:`${2*scale}px ${4*scale}px`}}>{item.text}</div>)}
+        {items.filter(item=>item.tool==='text').map(item=><div key={item.id} style={{position:'absolute',left:item.x*scale,top:item.y*scale,color:item.color||'#000',fontSize:(item.fontSize||16)*scale,...replacementCss(item,scale),lineHeight:1.2,whiteSpace:'pre',padding:`${2*scale}px ${4*scale}px`}}>{item.text}</div>)}
       </div>}
     </div>}
   </section>
@@ -40,5 +42,5 @@ export default function PDFContinuousView({file,count,currentPage,activePage,sca
     cache.current=map;return map
   },[annotations])
   useEffect(()=>{viewer.current?.querySelector(`[data-continuous-page="${currentPage}"]`)?.scrollIntoView({block:'start'})},[]) // Preserve the selected page when switching views.
-  return <Document className="pdf-continuous-document" options={options} file={file} loading={<p>Loading continuous view…</p>} error={<p role="alert">Could not load continuous view. Switch to single-page view to retry.</p>}><div className="pdf-continuous-stack">{Array.from({length:count||1},(_,index)=><ContinuousPage key={index+1} number={index+1} active={currentPage===index+1} activePage={currentPage===index+1?activePage:null} scale={scale} rotation={rotation} fallback={fallback} items={byPage.get(index+1)||EMPTY} renderStroke={callbacks.renderStroke} onActivate={callbacks.onActivate} viewer={viewer}/>)}</div></Document>
+  return <Document className="pdf-continuous-document" options={options} file={file} loading={<p>Loading continuous view…</p>} error={<p role="alert">Could not load continuous view. Switch to single-page view to retry.</p>}><div className="pdf-continuous-stack">{Array.from({length:count||1},(_,index)=><ContinuousPage file={file} key={index+1} number={index+1} active={currentPage===index+1} activePage={currentPage===index+1?activePage:null} scale={scale} rotation={rotation} fallback={fallback} items={byPage.get(index+1)||EMPTY} renderStroke={callbacks.renderStroke} onActivate={callbacks.onActivate} viewer={viewer}/>)}</div></Document>
 }

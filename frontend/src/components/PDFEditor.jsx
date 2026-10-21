@@ -1,5 +1,6 @@
 import PDFEditorChrome from './PDFEditorChrome'
 import { existingTextRuns } from '../lib/pdfExistingText'
+import { pageFontPrograms, fontKey, standardTextFont, replacementCss } from '../lib/pdfTextStyle'
 import PDFReferencePane from './PDFReferencePane'
 import PDFStylusSettings from './PDFStylusSettings'
 import usePDFTouchInput from '../hooks/usePDFTouchInput'
@@ -19,7 +20,7 @@ import {
   ChevronLeft, ChevronRight, MessageSquare, Files, Moon, Sun, Calculator, X, Save, Download, Upload, Trash2, Pen, Highlighter, Eraser, ZoomIn, ZoomOut,
   PanelLeft, FileText, Maximize, RotateCw, Settings, Tag, Folder, Check, Loader2, Undo, Redo, Type, Move, Minus, Plus, AlertCircle
 } from 'lucide-react'
-import { PDFDocument, rgb, degrees, StandardFonts, LineCapStyle } from 'pdf-lib'
+import { PDFDocument, rgb, degrees, StandardFonts, LineCapStyle, pushGraphicsState, popGraphicsState, translate, rotateDegrees, scale as scaleGraphics, setCharacterSpacing } from 'pdf-lib'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.js?url'
 import './PDFEditor.css'
 import InsertHandles from './InsertHandles'
@@ -89,8 +90,23 @@ const cleanForSave = (items) => items.filter(i => !(i.tool === 'text' && !i.text
 async function burnAnnotations(pdfBytes, annotations, usePressure) {
   const pdfDoc = await PDFDocument.load(pdfBytes, { ignoreEncryption: true })
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica)
-  const supported = new Set(font.getCharacterSet())
   const pages = pdfDoc.getPages()
+  const fontCache=new Map(),programCache=new Map()
+  if(annotations.some(item=>item.textStyle?.embedded)){const {default:fontkit}=await import('@pdf-lib/fontkit');pdfDoc.registerFontkit(fontkit)}
+  const textFont=async item=>{
+    if(!item.textStyle)return font
+    const style=item.textStyle,key=`${item.page||1}:${style.fontName}:${style.bold}:${style.italic}:${style.embedded}`
+    if(!fontCache.has(key)){
+      if(style.embedded){
+        const index=(item.page||1)-1
+        if(!programCache.has(index))programCache.set(index,pageFontPrograms(pdfDoc,index))
+        const bytes=programCache.get(index).get(fontKey(style.fontName))
+        if(!bytes)throw new Error(`The original font ${style.fontName} is unavailable. Your text edits have been kept; export was stopped to avoid changing the font.`)
+        fontCache.set(key,await pdfDoc.embedFont(bytes,{subset:true}))
+      }else fontCache.set(key,await pdfDoc.embedFont(standardTextFont(style.fontName,style.bold,style.italic)))
+    }
+    return fontCache.get(key)
+  }
 
   for (const item of annotations) {
     const page = pages[(item.page || 1) - 1]
@@ -130,16 +146,22 @@ async function burnAnnotations(pdfBytes, annotations, usePressure) {
       }
       if (!item.text?.trim()) continue
       const size = item.fontSize || 16
+      const selectedFont=await textFont(item),characters=new Set(selectedFont.getCharacterSet())
+      if(item.textStyle&&Array.from(item.text.replace(/[\n\r\t]/g,'')).some(character=>!characters.has(character.codePointAt(0))))throw new Error(`The original font ${item.textStyle.fontName} does not contain all the characters in your replacement. Your edits are saved, but this PDF cannot be exported in the original font with those characters.`)
       item.text.replace(/\t/g, '    ').split('\n').forEach((line, i) => {
         const safe = Array.from(line)
-          .map(ch => (supported.has(ch.codePointAt(0)) ? ch : '?'))
+          .map(ch => (characters.has(ch.codePointAt(0)) ? ch : '?'))
           .join('')
         if (!safe.trim()) return
         const p = toPdf(
           item.x + TEXT_PAD_X,
-          item.y + TEXT_PAD_Y + i * size * LINE_HEIGHT + size * BASELINE_RATIO
+          item.y + TEXT_PAD_Y + i * size * LINE_HEIGHT + size * (item.textStyle?.baselineRatio||BASELINE_RATIO)
         )
-        page.drawText(safe, { x: p.x, y: p.y, size, font, color, rotate: degrees(angle) })
+        if(item.textStyle){
+          page.pushOperators(pushGraphicsState(),translate(p.x,p.y),rotateDegrees(angle),scaleGraphics(item.textStyle.horizontalScale||1,1),setCharacterSpacing(item.textStyle.letterSpacing||0))
+          page.drawText(safe,{x:0,y:0,size,font:selectedFont,color,opacity:item.textStyle.opacity??1})
+          page.pushOperators(popGraphicsState())
+        }else page.drawText(safe, { x: p.x, y: p.y, size, font:selectedFont, color, rotate: degrees(angle) })
       })
       continue
     }
@@ -196,7 +218,7 @@ function TextAnnotation({
     color: textColor,
     fontSize: fontSize * scale,
     lineHeight: LINE_HEIGHT,
-    fontFamily: FONT_STACK,
+    ...replacementCss(item,scale),
     padding: `${TEXT_PAD_Y * scale}px ${TEXT_PAD_X * scale}px`,
     whiteSpace: 'pre',
     margin: 0,
@@ -590,7 +612,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     const before = editSnapshotRef.current
     const current = pathsRef.current
     const item = current.find(i => i.id === id)
-    const empty = !item || (!item.text?.trim() && !item.sourceText)
+    const empty = !item || (!item.text?.trim() && !item.sourceText) || (item.sourceText?.originalText!==undefined&&item.text===item.sourceText.originalText)
     const next = empty ? current.filter(i => i.id !== id) : current
     if (empty && item) updatePaths(next)
     if (before && JSON.stringify(before) !== JSON.stringify(next)) pushHistoryRaw(before)
@@ -768,7 +790,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     calculationPage.current=page
     const generation=++textLoadGeneration.current
     setExistingRuns({page:page.pageNumber,items:[],loading:true})
-    existingTextRuns(page,pdfjs).then(items=>{if(generation===textLoadGeneration.current)setExistingRuns({page:page.pageNumber,items})}).catch(()=>{if(generation===textLoadGeneration.current)setExistingRuns({page:page.pageNumber,items:[],failed:true})})
+    existingTextRuns(page,pdfjs,pdfFile).then(items=>{if(generation===textLoadGeneration.current)setExistingRuns({page:page.pageNumber,items})}).catch(()=>{if(generation===textLoadGeneration.current)setExistingRuns({page:page.pageNumber,items:[],failed:true})})
     // Viewport at scale 1 honours the page's own /Rotate, matching what is displayed
     const vp = page.getViewport({ scale: 1 })
     setPageBase({ page: page.pageNumber, w: vp.width, h: vp.height, rotation: page.rotate || 0 })
@@ -1042,8 +1064,8 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       const source=existingRuns.items.find(item=>!replaced.has(item.key)&&pt.x>=item.x-2&&pt.x<=item.x+item.width+2&&pt.y>=item.y-2&&pt.y<=item.y+item.height+2)
       if(source){
         const snapshot=pathsRef.current
-        const item={id:uid(),tool:'text',page:pageNumber,text:source.text,fontSize:source.fontSize,color:'#000000',x:source.x-TEXT_PAD_X,y:source.baseline-source.fontSize*BASELINE_RATIO-TEXT_PAD_Y,sourceText:{key:source.key,x:source.x-.5,y:source.y-.5,width:source.width+1,height:source.height+1,background:'#ffffff'}}
-        editSnapshotRef.current=snapshot;updatePaths(previous=>[...previous,item]);setFontSize(source.fontSize);activate(item.id);return
+        const item={id:uid(),tool:'text',page:pageNumber,text:source.text,fontSize:source.fontSize,textStyle:source.textStyle,color:source.color,x:source.x-TEXT_PAD_X,y:source.baseline-source.fontSize*(source.textStyle?.baselineRatio||BASELINE_RATIO)-TEXT_PAD_Y,sourceText:{key:source.key,originalText:source.text,x:source.x-.5,y:source.y-.5,width:source.width+1,height:source.height+1,background:'#ffffff'}}
+        editSnapshotRef.current=snapshot;updatePaths(previous=>[...previous,item]);setFontSize(source.fontSize);setCurrentColor(source.color);if(source.textStyle?.approximate)setActionError(`The original font (${source.textStyle.fontName}) is not available as an embedded font. Preview uses the installed font where available; PDF export uses an equivalent standard font. Exact font matching is unavailable for this text.`);activate(item.id);return
       }
       const item = {
         id: uid(),
@@ -1365,7 +1387,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
           outBytes = await burnAnnotations(pdfBytes, annotations, usePressure)
         } catch (err) {
 
-          throw new Error('Could not export your annotations. Your edits remain in the editor; please try again.')
+          throw new Error(err.message||'Could not export your annotations. Your edits remain in the editor; please try again.')
         }
       }
 
