@@ -1,9 +1,10 @@
+import PDFInkLayer from './PDFInkLayer'
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { Document, Page } from 'react-pdf'
 import { replacementCss, loadPageFontStyles } from '../lib/pdfTextStyle'
 
 const EMPTY=[]
-const ContinuousPage=memo(function ContinuousPage({number,active,activeReady,activePage,scale,rotation,fallback,items,renderStroke,onActivate,onReady,viewer,file}){
+const ContinuousPage=memo(function ContinuousPage({number,active,activeReady,activePage,scale,rotation,fallback,items,onActivate,onReady,viewer,file,usePressure}){
   const ref=useRef(null),pageProxy=useRef(null),initialSize=useRef(fallback||{w:612,h:792,rotation:0}),[near,setNear]=useState(active),[base,setBase]=useState(null)
   useEffect(()=>{
     const observer=new IntersectionObserver(entries=>setNear(entries[0].isIntersecting),{root:viewer.current,rootMargin:'1000px 0px'})
@@ -27,7 +28,7 @@ const ContinuousPage=memo(function ContinuousPage({number,active,activeReady,act
       {showEditor&&<div className="pdf-continuous-active-layer">{activePage}</div>}
       {!showEditor&&(near||active)&&base&&<div className="pdf-passive-annotations" style={{left:(width-base.w*scale)/2,top:(height-base.h*scale)/2,width:base.w*scale,height:base.h*scale,transform:`rotate(${rotation}deg)`}}>
         {items.filter(item=>item.sourceText).map(item=><div key={`cover-${item.id}`} style={{position:'absolute',left:item.sourceText.x*scale,top:item.sourceText.y*scale,width:item.sourceText.width*scale,height:item.sourceText.height*scale,background:item.sourceText.background||'#fff'}}/>)}
-        <svg viewBox={`0 0 ${base.w} ${base.h}`} style={{position:'absolute',inset:0,width:'100%',height:'100%'}}>{items.filter(item=>item.points).map(item=>renderStroke(item,item.id))}</svg>
+        <PDFInkLayer items={items} width={base.w} height={base.h} scale={scale} usePressure={usePressure}/>
         {items.filter(item=>item.tool==='image').map(item=><img key={item.id} src={item.dataUrl} alt={item.label||'Annotation'} draggable={false} style={{position:'absolute',left:item.x*scale,top:item.y*scale,width:item.width*scale,height:item.height*scale}}/>)}
         {items.filter(item=>item.tool==='text').map(item=><div key={item.id} style={{position:'absolute',left:item.x*scale,top:item.y*scale,color:item.color||'#000',fontSize:(item.fontSize||16)*scale,...replacementCss(item,scale),lineHeight:1.2,whiteSpace:'pre',padding:`${2*scale}px ${4*scale}px`}}>{item.text}</div>)}
       </div>}
@@ -35,10 +36,10 @@ const ContinuousPage=memo(function ContinuousPage({number,active,activeReady,act
   </section>
 })
 
-export default function PDFContinuousView({file,count,currentPage,activePage,activePageReady,scale,rotation,fallback,annotations,renderStroke,onActivate,onPageReady,onDocumentReady,viewer,options}){
+export default function PDFContinuousView({file,count,currentPage,activePage,activePageReady,scale,rotation,fallback,annotations,onActivate,onPageReady,onDocumentReady,usePressure,viewer,options}){
   const cache=useRef(new Map()),live=useRef(null),[stackElement,setStackElement]=useState(null)
-  live.current={renderStroke,onActivate,onPageReady,onDocumentReady,currentPage}
-  const callbacks=useMemo(()=>({renderStroke:(...args)=>live.current.renderStroke(...args),onActivate:(...args)=>live.current.onActivate(...args),onReady:page=>{if(page.pageNumber===live.current.currentPage)live.current.onPageReady(page)},onDocumentReady:document=>live.current.onDocumentReady(document)}),[])
+  live.current={onActivate,onPageReady,onDocumentReady,currentPage}
+  const callbacks=useMemo(()=>({onActivate:(...args)=>live.current.onActivate(...args),onReady:page=>{if(page.pageNumber===live.current.currentPage)live.current.onPageReady(page)},onDocumentReady:document=>live.current.onDocumentReady(document)}),[])
   useEffect(()=>{
     const viewport=viewer.current,element=stackElement
     if(!viewport||!element)return
@@ -74,5 +75,5 @@ export default function PDFContinuousView({file,count,currentPage,activePage,act
     cache.current=map;return map
   },[annotations])
   useEffect(()=>{viewer.current?.querySelector(`[data-continuous-page="${currentPage}"]`)?.scrollIntoView({block:'start'})},[]) // Preserve the selected page when switching views.
-  return <Document onLoadSuccess={callbacks.onDocumentReady} className="pdf-continuous-document" options={options} file={file} loading={<p>Loading continuous view…</p>} error={<p role="alert">Could not load continuous view. Switch to single-page view to retry.</p>}><div ref={setStackElement} className="pdf-continuous-stack">{Array.from({length:count||1},(_,index)=><ContinuousPage file={file} key={index+1} number={index+1} active={currentPage===index+1} activeReady={currentPage===index+1&&activePageReady} activePage={currentPage===index+1?activePage:null} scale={scale} rotation={rotation} fallback={fallback} items={byPage.get(index+1)||EMPTY} renderStroke={callbacks.renderStroke} onActivate={callbacks.onActivate} onReady={callbacks.onReady} viewer={viewer}/>)}</div></Document>
+  return <Document onLoadSuccess={callbacks.onDocumentReady} className="pdf-continuous-document" options={options} file={file} loading={<p>Loading continuous view…</p>} error={<p role="alert">Could not load continuous view. Switch to single-page view to retry.</p>}><div ref={setStackElement} className="pdf-continuous-stack">{Array.from({length:count||1},(_,index)=><ContinuousPage usePressure={usePressure} file={file} key={index+1} number={index+1} active={currentPage===index+1} activeReady={currentPage===index+1&&activePageReady} activePage={currentPage===index+1?activePage:null} scale={scale} rotation={rotation} fallback={fallback} items={byPage.get(index+1)||EMPTY} onActivate={callbacks.onActivate} onReady={callbacks.onReady} viewer={viewer}/>)}</div></Document>
 }

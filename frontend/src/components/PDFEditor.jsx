@@ -1,3 +1,5 @@
+import PDFInkLayer, { PDFLiveInk } from './PDFInkLayer'
+import { serializeAnnotations } from '../lib/annotationSerializer'
 import PDFEditorChrome from './PDFEditorChrome'
 import { straightenStroke } from '../lib/pdfStraightLine'
 import { existingTextRuns, makeSourceReplacement } from '../lib/pdfExistingText'
@@ -16,7 +18,7 @@ import { selectionExpression, textInPdfBox } from '../lib/pdfCalculation'
 import { calculate } from '../lib/calculator'
 import { mathSelectionImage, selectionHasInk } from '../lib/mathSelectionImage'
 import { readApiJson } from '../lib/apiResponse'
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { Document, Page, pdfjs } from 'react-pdf'
 import {
   ChevronLeft, ChevronRight, MessageSquare, Files, Moon, Sun, Calculator, X, Save, Download, Upload, Trash2, Pen, Highlighter, Eraser, ZoomIn, ZoomOut,
@@ -543,7 +545,8 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const [savingMetadata, setSavingMetadata] = useState(false)
   const [pdfError, setPdfError] = useState(null)
   const [drawingPaths, setDrawingPaths] = useState([])
-  const [currentPath, setCurrentPath] = useState([])
+  const [, setCurrentPath] = useState([])
+  const liveInkRef=useRef(null)
   const [usePressure, setUsePressure] = useState(true)
   const [saveStatus, setSaveStatus] = useState('saved') // saved | dirty | saving | error
   const pageDragRef=useRef(null)
@@ -625,7 +628,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     const empty = !item || (!item.text?.trim() && !item.sourceText) || (item.sourceText?.originalText!==undefined&&item.text===item.sourceText.originalText)
     const next = empty ? current.filter(i => i.id !== id) : current
     if (empty && item) updatePaths(next)
-    if (before && JSON.stringify(before) !== JSON.stringify(next)) pushHistoryRaw(before)
+    if (before && (before.length!==next.length||before.some((item,index)=>item!==next[index]))) pushHistoryRaw(before)
     editSnapshotRef.current = null
     activate(null)
   }, [activate, pushHistoryRaw, updatePaths])
@@ -656,10 +659,13 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     setSaveStatus('saving')
     const operation = saveQueueRef.current.then(async () => {
       try {
+        // Obsolete queued snapshots must not serialize/upload the whole document.
+        if(revision!==revisionRef.current)return false
+        const body=await serializeAnnotations(snapshot)
         const response = await fetch(`/api/pdfs/${pdfId}/annotations`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-          body: JSON.stringify({ annotations: snapshot })
+          body
         })
         if (!response.ok) throw new Error('Failed to save annotations')
         dirtyRef.current = revisionRef.current !== revision
@@ -679,7 +685,9 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   // Autosave 1s after the last change (including deletions)
   useEffect(() => {
     if (!dirtyRef.current) return
-    const timer = setTimeout(() => { saveAnnotations() }, 1000)
+    let timer
+    const saveWhenIdle=()=>{if(isDrawingRef.current||isErasingRef.current||dragRef.current){timer=setTimeout(saveWhenIdle,350);return}saveAnnotations()}
+    timer=setTimeout(saveWhenIdle,1200)
     return () => clearTimeout(timer)
   }, [drawingPaths, saveAnnotations])
 
@@ -1045,9 +1053,9 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
 
   const paintInkPreview=()=>{
     if(inkFrameRef.current)return
-    inkFrameRef.current=requestAnimationFrame(()=>{inkFrameRef.current=0;setCurrentPath(currentPathRef.current.slice())})
+    inkFrameRef.current=requestAnimationFrame(()=>{inkFrameRef.current=0;liveInkRef.current?.draw({points:currentPathRef.current,color:currentColor,strokeWidth:currentTool==='highlighter'?strokeWidth*3:strokeWidth,tool:currentTool},usePressure)})
   }
-  const stopInkPreview=()=>{cancelAnimationFrame(inkFrameRef.current);inkFrameRef.current=0}
+  const stopInkPreview=()=>{cancelAnimationFrame(inkFrameRef.current);inkFrameRef.current=0;liveInkRef.current?.clear()}
 
   /* ---------- overlay pointer handlers ---------- */
   const handlePointerDown = (e) => {
@@ -1108,7 +1116,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
 
     isDrawingRef.current = true
     currentPathRef.current = [{ x: pt.x, y: pt.y, pressure: getPressure(e.nativeEvent) }]
-    setCurrentPath(currentPathRef.current.slice())
+    paintInkPreview()
   }
 
   const handlePointerMove = (e) => {
@@ -1476,47 +1484,6 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     'pdf-close': () => { if (showSettings) setShowSettings(false); else handleClose() },
   }, !loading && !deletingPage && !confirmation.pending)
 
-  /* ---------- rendering helpers ---------- */
-  const renderStroke = (s, key) => {
-    const pts = s.points
-    const highlighter = s.tool === 'highlighter'
-    const opacity = highlighter ? 0.3 : 1
-    if (pts.length === 1) {
-      return <circle key={key} cx={pts[0].x} cy={pts[0].y} r={s.strokeWidth / 2} fill={s.color} opacity={opacity} />
-    }
-    if (highlighter || !usePressure) {
-      const d = pts.map((p, i) => `${i ? 'L' : 'M'}${p.x} ${p.y}`).join(' ')
-      return (
-        <path
-          key={key}
-          d={d}
-          fill="none"
-          stroke={s.color}
-          strokeWidth={s.strokeWidth}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          opacity={opacity}
-        />
-      )
-    }
-    return (
-      <g key={key}>
-        {pts.slice(1).map((p, i) => (
-          <line
-            key={i}
-            x1={pts[i].x}
-            y1={pts[i].y}
-            x2={p.x}
-            y2={p.y}
-            stroke={s.color}
-            strokeWidth={s.strokeWidth * pressureFactor(pts[i], p)}
-            strokeLinecap="round"
-          />
-        ))}
-      </g>
-    )
-  }
-
   const handleStylusButton=(event,phase)=>{
     if(event.pointerType!=='pen')return
     let gesture=stylusGesture.current
@@ -1635,6 +1602,8 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   }
   useEffect(()=>registerEditor(pdfId,{snapshot:()=>liveAssistantEditor.current.snapshot(),apply:actions=>liveAssistantEditor.current.apply(actions)}),[pdfId])
 
+  const pageIndex=useMemo(()=>{const index=new Map();for(const item of drawingPaths){const number=item.page||1;if(!index.has(number))index.set(number,[]);index.get(number).push(item)}return index},[drawingPaths])
+
   if (loading) {
     return (
       <div className="fixed inset-0 bg-slate-950 flex items-center justify-center z-50">
@@ -1654,7 +1623,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const renderH = ready ? (quarterTurn ? pageBase.w : pageBase.h) * scale : 0
   const cursor =
     currentTool === 'text' ? 'text' : currentTool === 'eraser' ? 'cell' : 'crosshair'
-  const pageItems = drawingPaths.filter(i => (i.page || 1) === pageNumber)
+  const pageItems=pageIndex.get(pageNumber)||[]
 
   const activePageView = (
             <div
@@ -1710,23 +1679,15 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
                 >
                   {pageItems.filter(item=>item.sourceText).map(item=><div key={`cover-${item.id}`} aria-hidden style={{position:'absolute',left:item.sourceText.x*scale,top:item.sourceText.y*scale,width:item.sourceText.width*scale,height:item.sourceText.height*scale,background:item.sourceText.background||'#fff',pointerEvents:'none'}}/>)}
                   {currentTool==='text'&&existingRuns.page===pageNumber&&existingRuns.items.filter(run=>!pageItems.some(item=>item.sourceText?.key===run.key)).map(run=><div key={`source-${run.key}`} aria-hidden style={{position:'absolute',left:run.x*scale,top:run.y*scale,width:run.width*scale,height:run.height*scale,borderBottom:'1px dotted #718ea855',pointerEvents:'none'}}/>)}
+                  <PDFInkLayer items={pageItems} width={pageBase.w} height={pageBase.h} scale={scale} usePressure={usePressure}/>
+                  <PDFLiveInk ref={liveInkRef} width={pageBase.w} height={pageBase.h} scale={scale}/>
                   <svg
                     viewBox={`0 0 ${pageBase.w} ${pageBase.h}`}
                     style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
                   >
-                    {pageItems.filter(i => i.points).map((s) => renderStroke(s, s.id))}
                     {currentTool==='eraser'&&<rect ref={eraserCursorRef} width={eraserSize} height={eraserSize} rx={eraserShape==='round'?eraserSize/2:0} fill="#8fa5b918" stroke="#526c83" strokeWidth={1.3/scale} style={{display:'none'}}/>}
                     {(currentTool==='calculate'||currentTool==='snippet')&&calculationBox&&<rect x={calculationBox.x} y={calculationBox.y} width={calculationBox.width} height={calculationBox.height} fill="#8fa5b933" stroke="#8fa5b9" strokeWidth={1.5/scale} strokeDasharray={`${4/scale} ${3/scale}`}/>}
-                    {currentPath.length > 0 &&
-                      renderStroke(
-                        {
-                          points: currentPath,
-                          color: currentColor,
-                          tool: currentTool,
-                          strokeWidth: currentTool === 'highlighter' ? strokeWidth * 3 : strokeWidth
-                        },
-                        'current'
-                      )}
+
                   </svg>
 
                   {pageItems.filter(i => i.tool === 'image').map(item => (
@@ -1811,7 +1772,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
             <Document options={PDF_OPTIONS} file={pdfFile} loading={<p className="p-4 text-xs text-slate-400">Loading previews…</p>}>
               {Array.from({ length: numPages || 0 }, (_, index) => {
                 const n = index + 1
-                const count = drawingPaths.filter(item => (item.page || 1) === n).length
+                const count = pageIndex.get(n)?.length||0
                 return <div key={n} className="pdf-page-entry"><button type="button" disabled={deletingPage||inserting} draggable={!deletingPage&&!inserting&&numPages>1}
                   onDragStart={event=>{pageDragRef.current=n;event.dataTransfer.effectAllowed='move';event.dataTransfer.setData('text/plain',String(n))}}
                   onDragOver={event=>{if(!pageDragRef.current||deletingPage||inserting)return;event.preventDefault();event.dataTransfer.dropEffect='move';setPageDropTarget(n)}}
@@ -1853,7 +1814,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
               <button onClick={() => { setPdfError(null); setLoading(true); fetchPDF() }} className="mt-4 px-4 py-2 rounded-lg bg-indigo-600 text-white">Retry loading</button>
             </div>
           ) : pdfFile ? (
-            continuousView&&!exportImage ? <PDFContinuousView key={pdfId+':'+numPages} file={pdfFile} count={numPages} currentPage={pageNumber} activePage={activePageView} activePageReady={ready} scale={scale} rotation={rotation} fallback={pageBase} annotations={drawingPaths} renderStroke={renderStroke} onActivate={activateContinuousPage} onPageReady={onPageLoadSuccess} onDocumentReady={onDocumentLoadSuccess} viewer={viewerRef} options={PDF_OPTIONS}/> : activePageView
+            continuousView&&!exportImage ? <PDFContinuousView key={pdfId+':'+numPages} file={pdfFile} count={numPages} currentPage={pageNumber} activePage={activePageView} activePageReady={ready} scale={scale} rotation={rotation} fallback={pageBase} annotations={drawingPaths} onActivate={activateContinuousPage} onPageReady={onPageLoadSuccess} onDocumentReady={onDocumentLoadSuccess} usePressure={usePressure} viewer={viewerRef} options={PDF_OPTIONS}/> : activePageView
           ) : (
             <div className="text-slate-400">No document data available</div>
           )}
@@ -1861,7 +1822,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       </div>
 
       </div>
-      {showReference&&!exportImage&&pdfFile&&numPages&&<PDFReferencePane file={pdfFile} count={numPages} page={Math.min(referencePage,numPages)} onPage={setReferencePage} onClose={()=>setShowReference(false)} onEdit={swapReference} annotations={drawingPaths} renderStroke={renderStroke} options={PDF_OPTIONS}/>}
+      {showReference&&!exportImage&&pdfFile&&numPages&&<PDFReferencePane file={pdfFile} count={numPages} page={Math.min(referencePage,numPages)} onPage={setReferencePage} onClose={()=>setShowReference(false)} onEdit={swapReference} annotations={drawingPaths} usePressure={usePressure} options={PDF_OPTIONS}/>}
       <div ref={onAssistantHost} className="pdf-assistant-dock" hidden={!assistantOpen} aria-label="Notes AI assistant"/>
       </div>
       {!exportImage&&<footer className="pdf-workspace-footer">

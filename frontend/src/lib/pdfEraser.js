@@ -1,4 +1,10 @@
 const point=(a,b,t)=>({...a,x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t,pressure:(a.pressure??.5)+((b.pressure??.5)-(a.pressure??.5))*t})
+const strokeBounds=new WeakMap()
+function bounds(points){
+  let value=strokeBounds.get(points)
+  if(!value){value={left:Infinity,top:Infinity,right:-Infinity,bottom:-Infinity};for(const point of points){value.left=Math.min(value.left,point.x);value.top=Math.min(value.top,point.y);value.right=Math.max(value.right,point.x);value.bottom=Math.max(value.bottom,point.y)}strokeBounds.set(points,value)}
+  return value
+}
 function clip(a,b,c,r,shape){
   const dx=b.x-a.x,dy=b.y-a.y,ox=a.x-c.x,oy=a.y-c.y
   if(shape==='square'){
@@ -41,6 +47,8 @@ export function eraseAnnotations(items,from,to,{size,shape,mode,target,page,meas
       if((item.page||1)!==page){next.push(item);continue}
       if(item.points?.length){
         if(mode==='objects'||target!=='all'&&item.tool!==target){next.push(item);continue}
+        const box=bounds(item.points),margin=radius+(item.strokeWidth||1)*.8
+        if(c.x<box.left-margin||c.x>box.right+margin||c.y<box.top-margin||c.y>box.bottom+margin){next.push(item);continue}
         if(mode==='precision'){next.push(...cut(item,c,radius,shape,id));continue}
         const points=item.points,r=radius+(item.strokeWidth||1)/2
         if(!(points.length===1?clip(points[0],points[0],c,r,shape):points.some((p,i)=>i>0&&clip(points[i-1],p,c,r,shape))))next.push(item)

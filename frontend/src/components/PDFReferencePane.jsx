@@ -1,9 +1,10 @@
+import PDFInkLayer from './PDFInkLayer'
 import { useEffect, useRef, useState } from 'react'
 import { Document, Page } from 'react-pdf'
 import { ChevronLeft, ChevronRight, X, ZoomIn, ZoomOut, Maximize, ArrowLeftRight } from 'lucide-react'
 import './PDFReferencePane.css'
 
-export default function PDFReferencePane({file,count,page,onPage,onClose,onEdit,annotations,renderStroke,options}){
+export default function PDFReferencePane({file,count,page,onPage,onClose,onEdit,annotations,usePressure,options}){
   const scroll=useRef(null),[width,setWidth]=useState(360),[zoom,setZoom]=useState(1),[loaded,setLoaded]=useState(null)
   useEffect(()=>{
     const observer=new ResizeObserver(entries=>setWidth(Math.max(120,entries[0].contentRect.width-32)))
@@ -30,7 +31,7 @@ export default function PDFReferencePane({file,count,page,onPage,onClose,onEdit,
         <div className="pdf-page-surface pdf-reference-surface" style={{width:renderWidth,position:'relative'}}>
           <Page key={page} pageNumber={page} width={renderWidth} renderTextLayer={false} renderAnnotationLayer={false} loading={<p>Loading page {page}…</p>} onLoadSuccess={pdfPage=>{const viewport=pdfPage.getViewport({scale:1});setLoaded({page,file,w:viewport.width,h:viewport.height})}}/>
           {base&&<div className="pdf-reference-annotations" style={{width:renderWidth,height:base.h*scale}}>
-            <svg viewBox={`0 0 ${base.w} ${base.h}`} style={{position:'absolute',inset:0,width:'100%',height:'100%'}}>{items.filter(item=>item.points).map(item=>renderStroke(item,item.id))}</svg>
+            <PDFInkLayer items={items} width={base.w} height={base.h} scale={scale} usePressure={usePressure}/>
             {items.filter(item=>item.tool==='image').map(item=><img key={item.id} src={item.dataUrl} alt={item.label||'Annotation'} draggable={false} style={{position:'absolute',left:item.x*scale,top:item.y*scale,width:item.width*scale,height:item.height*scale}}/>)}
             {items.filter(item=>item.tool==='text').map(item=><div key={item.id} style={{position:'absolute',left:item.x*scale,top:item.y*scale,color:item.color||'#000',fontSize:(item.fontSize||16)*scale,fontFamily:'Helvetica, Arial, sans-serif',lineHeight:1.2,whiteSpace:'pre',padding:`${2*scale}px ${4*scale}px`}}>{item.text}</div>)}
           </div>}
