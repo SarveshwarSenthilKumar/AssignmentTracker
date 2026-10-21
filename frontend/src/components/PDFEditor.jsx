@@ -1645,7 +1645,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
 
   const activePageView = (
             <div
-              className="relative shrink-0 pdf-page-surface"
+              className={`relative shrink-0 ${continuousView&&!exportImage?'pdf-editor-active-page':'pdf-page-surface'}`}
               style={ready ? { width: renderW, height: renderH } : undefined}
             >
               {(!continuousView||exportImage)&&<Document
@@ -1839,7 +1839,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
               <button onClick={() => { setPdfError(null); setLoading(true); fetchPDF() }} className="mt-4 px-4 py-2 rounded-lg bg-indigo-600 text-white">Retry loading</button>
             </div>
           ) : pdfFile ? (
-            continuousView&&!exportImage ? <PDFContinuousView key={pdfId+':'+numPages} file={pdfFile} count={numPages} currentPage={pageNumber} activePage={activePageView} scale={scale} rotation={rotation} fallback={pageBase} annotations={drawingPaths} renderStroke={renderStroke} onActivate={activateContinuousPage} onPageReady={onPageLoadSuccess} onDocumentReady={onDocumentLoadSuccess} viewer={viewerRef} options={PDF_OPTIONS}/> : activePageView
+            continuousView&&!exportImage ? <PDFContinuousView key={pdfId+':'+numPages} file={pdfFile} count={numPages} currentPage={pageNumber} activePage={activePageView} activePageReady={ready} scale={scale} rotation={rotation} fallback={pageBase} annotations={drawingPaths} renderStroke={renderStroke} onActivate={activateContinuousPage} onPageReady={onPageLoadSuccess} onDocumentReady={onDocumentLoadSuccess} viewer={viewerRef} options={PDF_OPTIONS}/> : activePageView
           ) : (
             <div className="text-slate-400">No document data available</div>
           )}
