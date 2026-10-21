@@ -1,4 +1,5 @@
 import PDFEditorChrome from './PDFEditorChrome'
+import { straightenStroke } from '../lib/pdfStraightLine'
 import { existingTextRuns, makeSourceReplacement } from '../lib/pdfExistingText'
 import { registerEditor } from '../lib/editorBridge'
 import { pageFontPrograms, fontKey, standardTextFont, replacementCss } from '../lib/pdfTextStyle'
@@ -451,6 +452,9 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const [scale, setScale] = useState(1.0)
   const [rotation, setRotation] = useState(0)
   const [currentTool, setCurrentTool] = useState('text')
+  const [autoStraightLines,setAutoStraightLines]=useState(()=>{try{return localStorage.getItem('pdf-auto-straight-lines')!=='false'}catch{return true}})
+  const [lineSuggestion,setLineSuggestion]=useState(null)
+  useEffect(()=>{try{localStorage.setItem('pdf-auto-straight-lines',String(autoStraightLines))}catch{}},[autoStraightLines])
   const [existingRuns,setExistingRuns]=useState({page:null,items:[]})
   const textLoadGeneration=useRef(0)
   const [currentColor, setCurrentColor] = useState('#000000')
@@ -587,6 +591,11 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       setSaveStatus(s => (s === 'saving' ? s : 'dirty'))
     }
   }, [])
+
+  useEffect(()=>{
+    if(lineSuggestion&&!drawingPaths.some(item=>item.id===lineSuggestion.id&&item.points===lineSuggestion.snapped))setLineSuggestion(null)
+  },[drawingPaths,lineSuggestion])
+  useEffect(()=>setLineSuggestion(null),[pdfId,pageNumber])
 
   const bumpHistory = useCallback(() => {
     setHistoryCount({ undo: undoStack.current.length, redo: redoStack.current.length })
@@ -1205,18 +1214,22 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     setCurrentPath([])
     if(e.type==='pointercancel')return
     if (!points.length) return
-    pushHistory()
-    updatePaths(prev => [
-      ...prev,
-      {
-        id: uid(),
-        points,
-        color: currentColor,
-        strokeWidth: currentTool === 'highlighter' ? strokeWidth * 3 : strokeWidth,
-        tool: currentTool,
-        page: pageNumber
-      }
-    ])
+    const item={id:uid(),points,color:currentColor,strokeWidth:currentTool==='highlighter'?strokeWidth*3:strokeWidth,tool:currentTool,page:pageNumber}
+    pushHistory();updatePaths(previous=>[...previous,item])
+    const snapped=autoStraightLines&&currentTool==='pen'?straightenStroke(points,scale):null
+    if(snapped){
+      // Keep the freehand version as a distinct history step: Ctrl+Z first
+      // restores the original stroke, and another Ctrl+Z removes the stroke.
+      pushHistory();updatePaths(previous=>previous.map(stroke=>stroke.id===item.id?{...stroke,points:snapped,straightLine:true}:stroke))
+      setLineSuggestion({id:item.id,original:points,snapped})
+    }
+  }
+
+  const revertStraightLine=()=>{
+    const suggestion=lineSuggestion
+    setLineSuggestion(null)
+    if(!suggestion||!pathsRef.current.some(item=>item.id===suggestion.id&&item.points===suggestion.snapped))return
+    pushHistory();updatePaths(previous=>previous.map(item=>item.id===suggestion.id?{...item,points:suggestion.original,straightLine:false}:item))
   }
 
   /* ---------- toolbar actions ---------- */
@@ -1778,7 +1791,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
 
       <PDFEditorChrome
         doc={{name:pdfData?.name,exportImage,saveStatus,history:historyCount,onUndo:undo,onRedo:redo,onSave:handleSave,onDownload:handleDownload,downloading,onCleanCopy:onCleanCopy?handleCleanCopy:null,copying:copyingClean,onClose:handleClose}}
-        tools={{current:currentTool,onTool:tool=>{commitText();setCurrentTool(tool)},color:currentColor,onColor:handleColorChange,colors:COLORS,colorNames:COLOR_NAMES,fontSize,onFontSize:handleFontSizeChange,strokeWidth,onWidth:setStrokeWidth,usePressure,onPressure:()=>setUsePressure(previous=>!previous),eraser:{mode:eraserMode,onMode:setEraserMode,size:eraserSize,onSize:setEraserSize,shape:eraserShape,onShape:setEraserShape,target:eraserTarget,onTarget:setEraserTarget}}}
+        tools={{autoStraightLines,onAutoStraightLines:()=>setAutoStraightLines(previous=>!previous),current:currentTool,onTool:tool=>{commitText();setCurrentTool(tool)},color:currentColor,onColor:handleColorChange,colors:COLORS,colorNames:COLOR_NAMES,fontSize,onFontSize:handleFontSizeChange,strokeWidth,onWidth:setStrokeWidth,usePressure,onPressure:()=>setUsePressure(previous=>!previous),eraser:{mode:eraserMode,onMode:setEraserMode,size:eraserSize,onSize:setEraserSize,shape:eraserShape,onShape:setEraserShape,target:eraserTarget,onTarget:setEraserTarget}}}
         pages={{count:numPages,current:pageNumber,showThumbnails:showPages,onToggleThumbnails:()=>{if(focusMode){exitFocusMode();setShowPages(true)}else setShowPages(previous=>!previous)},onNavigate:goToPage,onAddBlank:()=>handleAddPages({mode:'blank',placement:'after'}),onDelete:()=>handleDeletePage(),busy:deletingPage||inserting,canAdd:!!numPages&&!!pageBase&&pageBase.page===pageNumber&&!loading&&!deletingPage&&!inserting}}
         view={{scale,onZoomIn:handleZoomIn,onZoomOut:handleZoomOut,onFit:handleFitWidth,onRotate:handleRotate,dark:darkPages,onDark:()=>setDarkPages(previous=>!previous),continuous:continuousView,onContinuous:()=>{handleTextDragEnd();commitText();setContinuousView(previous=>!previous)},reference:showReference,onReference:toggleReference,focus:focusMode,onFocus:enterFocusMode,onExitFocus:exitFocusMode}}
         utilities={{calculator:showCalculator,onCalculator:()=>{commitText();setShowCalculator(previous=>!previous)},onCalculate:()=>{commitText();setCurrentTool('calculate')},recognition:calculationMode,onRecognition:setCalculationMode,snippetReady:!!snippet,copying:copyingSnippet,onCopyRegion:()=>{commitText();setCurrentTool('snippet')},onPaste:pasteSnippet,canPaste:!!snippet&&!!pageBase&&pageBase.page===pageNumber&&!inserting&&!deletingPage,onStylus:()=>setShowStylusStudio(true),onSettings:()=>setShowSettings(previous=>!previous),settingsOpen:showSettings,assistantOpen,onAssistant:onToggleAssistant}}
@@ -1786,6 +1799,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         insert={<InsertPanel onPages={exportImage?undefined:handleAddPages} pageNumber={pageNumber} onFiles={insertFiles} onInsert={insertGenerated} color={currentColor} busy={inserting||!pageBase||pageBase.page!==pageNumber||deletingPage}/>}
       />
 
+      {lineSuggestion&&<div className="pdf-line-suggestion" role="status" aria-live="polite"><span>Straight line detected</span><button type="button" onClick={()=>setLineSuggestion(null)} aria-label="Keep straight line"><Check size={15}/>Keep</button><button type="button" onClick={revertStraightLine} aria-label="Restore original freehand stroke"><Undo size={15}/>Undo</button></div>}
       {currentTool==='text'&&!exportImage&&<div className="pdf-existing-text-hint" role="status">Click existing text to replace it, or click blank space to add text. Scanned images need OCR first. Replacements cover the original on a white background; they do not redact the underlying text.</div>}
       {actionError && <div role="alert" className="flex items-center justify-between gap-3 bg-red-950 px-5 py-2 text-sm text-red-200">{actionError}<button onClick={() => setActionError(null)} aria-label="Dismiss error"><X size={16} /></button></div>}
       <div className={cn('flex flex-1 min-h-0 relative',darkPages&&'pdf-dark-pages')}>

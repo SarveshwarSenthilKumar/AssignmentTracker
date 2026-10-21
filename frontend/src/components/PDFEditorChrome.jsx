@@ -48,6 +48,7 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
     <hr/>{action(Trash2,`Delete page ${pages.current}`,pages.onDelete,{danger:true,disabled:!pages.count||pages.count<=1||pages.busy})}
   </>)
   const utilityMenu=menu('tools','More tools',SlidersHorizontal,<>
+    <label className="pc-checkbox"><input type="checkbox" checked={tools.autoStraightLines} onChange={tools.onAutoStraightLines}/>Detect long straight pen lines</label><hr/>
     {action(Calculator,'Calculator',utilities.onCalculator,{active:utilities.calculator})}
     {action(Calculator,'Calculate selected region',utilities.onCalculate,{active:tools.current==='calculate',detail:'Printed expressions or handwriting with AI'})}
     {tools.current==='calculate'&&<label className="pc-field">Recognition<select value={utilities.recognition} onChange={event=>utilities.onRecognition(event.target.value)}><option value="auto">Auto · AI fallback</option><option value="vision">Handwriting / AI</option><option value="text">Text only · local</option></select></label>}
