@@ -1241,8 +1241,9 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     if (window.innerWidth < 768) setShowPages(false)
   }
 
-  const activateContinuousPage=n=>{
-    if(n===pageNumber||deletingPageRef.current||insertingRef.current||isDrawingRef.current||isErasingRef.current||calculationDrag.current)return
+  const activateContinuousPage=(n,{automatic=false}={})=>{
+    if(n===pageNumber||deletingPageRef.current||insertingRef.current||isDrawingRef.current||isErasingRef.current||calculationDrag.current||annotationPointerRef.current!==null||dragRef.current)return
+    if(automatic&&(inputActivity!=='idle'||activeTextIdRef.current))return
     handleTextDragEnd();commitText();setSelectedInsertId(null);setPageNumber(n)
   }
 
