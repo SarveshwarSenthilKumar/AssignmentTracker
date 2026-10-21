@@ -1,5 +1,6 @@
 import PDFEditorChrome from './PDFEditorChrome'
-import { existingTextRuns } from '../lib/pdfExistingText'
+import { existingTextRuns, makeSourceReplacement } from '../lib/pdfExistingText'
+import { registerEditor } from '../lib/editorBridge'
 import { pageFontPrograms, fontKey, standardTextFont, replacementCss } from '../lib/pdfTextStyle'
 import PDFReferencePane from './PDFReferencePane'
 import PDFStylusSettings from './PDFStylusSettings'
@@ -1064,7 +1065,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       const source=existingRuns.items.find(item=>!replaced.has(item.key)&&pt.x>=item.x-2&&pt.x<=item.x+item.width+2&&pt.y>=item.y-2&&pt.y<=item.y+item.height+2)
       if(source){
         const snapshot=pathsRef.current
-        const item={id:uid(),tool:'text',page:pageNumber,text:source.text,fontSize:source.fontSize,textStyle:source.textStyle,color:source.color,x:source.x-TEXT_PAD_X,y:source.baseline-source.fontSize*(source.textStyle?.baselineRatio||BASELINE_RATIO)-TEXT_PAD_Y,sourceText:{key:source.key,originalText:source.text,x:source.x-.5,y:source.y-.5,width:source.width+1,height:source.height+1,background:'#ffffff'}}
+        const item=makeSourceReplacement(source,pageNumber,uid())
         editSnapshotRef.current=snapshot;updatePaths(previous=>[...previous,item]);setFontSize(source.fontSize);setCurrentColor(source.color);if(source.textStyle?.approximate)setActionError(`The original font (${source.textStyle.fontName}) is not available as an embedded font. Preview uses the installed font where available; PDF export uses an equivalent standard font. Exact font matching is unavailable for this text.`);activate(item.id);return
       }
       const item = {
@@ -1581,6 +1582,44 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       touchAnnotationSnapshot.current=null
     }
   })
+
+  const liveAssistantEditor=useRef(null)
+  liveAssistantEditor.current={
+    snapshot:()=>{
+      if(loading||exportImage||deletingPageRef.current||insertingRef.current||existingRuns.loading||existingRuns.page!==pageNumber)return null
+      const edited=new Set(pathsRef.current.filter(item=>item.page===pageNumber&&item.sourceText).map(item=>item.sourceText.key))
+      const candidates=[...pathsRef.current.filter(item=>item.page===pageNumber&&item.tool==='text').map(item=>({id:`annotation:${item.id}`,text:item.text||''})),...existingRuns.items.filter(run=>!edited.has(run.key)).map(run=>({id:`source:${run.key}`,text:run.text}))]
+      let size=0;const texts=[]
+      for(const item of candidates){if(texts.length>=180||size+item.text.length>40000)break;size+=item.text.length;texts.push(item)}
+      return {kind:'pdf',page:pageNumber,pageCount:numPages,texts,version:`${revisionRef.current}:${textLoadGeneration.current}`}
+    },
+    apply:actions=>{
+      if(deletingPageRef.current||insertingRef.current||!pageBase||pageBase.page!==pageNumber)throw new Error('The editor is busy. Try again after the current operation.')
+      let next=[...pathsRef.current],target=null,changed=false
+      for(const action of actions){
+        if(action.type==='replace_text'){
+          if(action.id.startsWith('annotation:')){
+            const id=action.id.slice(11),item=next.find(item=>item.id===id&&item.page===pageNumber&&item.tool==='text')
+            if(!item)throw new Error('The requested text is no longer available.')
+            next=next.map(item=>item.id===id?{...item,text:action.text}:item)
+          }else{
+            const source=existingRuns.items.find(run=>`source:${run.key}`===action.id)
+            if(!source||next.some(item=>item.page===pageNumber&&item.sourceText?.key===source.key))throw new Error('The original text has already changed.')
+            next.push({...makeSourceReplacement(source,pageNumber,uid()),text:action.text})
+          }
+          changed=true
+        }else if(action.type==='add_text'){
+          if(action.page!==pageNumber||action.x>=pageBase.w||action.y>=pageBase.h)throw new Error('The proposed text position is outside the active page.')
+          next.push({id:uid(),tool:'text',page:pageNumber,x:action.x,y:action.y,text:action.text,fontSize:action.fontSize,color:action.color});changed=true
+        }else if(action.type==='go_to_page')target=action.page
+        else throw new Error('Unsupported editor operation.')
+      }
+      activate(null);editSnapshotRef.current=null
+      if(changed){pushHistory();updatePaths(next)}
+      if(target)goToPage(target)
+    }
+  }
+  useEffect(()=>registerEditor(pdfId,{snapshot:()=>liveAssistantEditor.current.snapshot(),apply:actions=>liveAssistantEditor.current.apply(actions)}),[pdfId])
 
   if (loading) {
     return (

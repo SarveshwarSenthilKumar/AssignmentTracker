@@ -1,8 +1,9 @@
+import {registerEditor} from '../lib/editorBridge'
 import useShortcuts from '../hooks/useShortcuts'
 import useInlineConfirm from '../hooks/useInlineConfirm'
 import InlineConfirmation from './InlineConfirmation'
 import { useEffect, useState, useRef } from 'react'
-import { X, Save, Download, Plus, FileText, Loader2, Upload } from 'lucide-react'
+import { X, Save, Download, Plus, FileText, Loader2, Upload, MessageSquare } from 'lucide-react'
 import { PDFDocument } from 'pdf-lib'
 import PDFEditor from './PDFEditor'
 import { imageFromFile } from './PDFInsertPanel'
@@ -21,6 +22,8 @@ export default function DocumentEditor({ pdfId, token, onClose, onCleanCopy, ass
   const [changes, setChanges] = useState({}), [gridSize, setGridSize] = useState({ rows: 20, cols: 5 })
   const [mediaUrl, setMediaUrl] = useState(''), [imageDocument, setImageDocument] = useState(null)
   const workbook = useRef(null), bytesRef = useRef(null), revision = useRef(0)
+  const liveAssistantEditor=useRef(null)
+  const [aiUndo,setAiUndo]=useState([])
   const mime = data?.mimeType || 'application/octet-stream'
   const filename = data?.originalName || 'document.txt'
   const isNotes=data?.tags?.includes('notes')&&mime==='text/plain'
@@ -138,6 +141,14 @@ export default function DocumentEditor({ pdfId, token, onClose, onCleanCopy, ass
     save: () => { if (!loadFailed && ['text','word','table','workbook'].includes(kind)) save() },
     download: () => download(), close,
   }, !loading && !saving && !confirmation.pending && kind !== 'pdf' && kind !== 'image')
+  liveAssistantEditor.current={snapshot:()=>!loading&&!saving&&!loadFailed&&kind==='text'&&text.length<=30000?{kind:'text',texts:[{id:'document',text}],version:revision.current}:null,apply:actions=>{
+    if(loading||saving||loadFailed||kind!=='text'||actions.length!==1||actions[0].type!=='replace_text'||actions[0].id!=='document')throw new Error('This document does not support that edit.')
+    setAiUndo(previous=>[...previous.slice(-9),text]);revision.current++;setText(actions[0].text);setDirty(true)
+  }}
+  useEffect(()=>{
+    if(kind!=='text')return
+    return registerEditor(pdfId,{snapshot:()=>liveAssistantEditor.current.snapshot(),apply:actions=>liveAssistantEditor.current.apply(actions)})
+  },[pdfId,kind])
   if (kind === 'pdf' && !loading && !error) return <PDFEditor assistantOpen={assistantOpen} onToggleAssistant={onToggleAssistant} onAssistantHost={onAssistantHost} onCleanCopy={onCleanCopy} pdfId={pdfId} token={token} onClose={onClose} />
   if (kind === 'image' && imageDocument && !error) return <PDFEditor assistantOpen={assistantOpen} onToggleAssistant={onToggleAssistant} onAssistantHost={onAssistantHost} onCleanCopy={onCleanCopy} pdfId={pdfId} token={token} onClose={onClose} initialDocument={imageDocument} exportImage />
   const editable = ['text','word','table','workbook'].includes(kind) && !loading && !loadFailed
@@ -145,6 +156,8 @@ export default function DocumentEditor({ pdfId, token, onClose, onCleanCopy, ass
   const cols = kind === 'workbook' ? gridSize.cols : Math.max(1, ...table.map(row => row.length))
   return <div className="document-editor" role="region" aria-label="Document editor">
     <header><div className="document-title"><FileText size={22} /><div><h2>{data?.name || 'Document editor'}</h2><p>{filename} · {loading ? 'Loading…' : dirty ? 'Unsaved changes' : 'Saved'}</p></div></div><div className="document-actions">
+      {onToggleAssistant&&<button type="button" onClick={onToggleAssistant} aria-pressed={assistantOpen}><MessageSquare size={17}/>AI assistant</button>}
+      {kind==='text'&&aiUndo.length>0&&<button disabled={saving} onClick={()=>{const previous=aiUndo[aiUndo.length-1];setAiUndo(history=>history.slice(0,-1));revision.current++;setText(previous);setDirty(true)}}>Undo AI edit</button>}
       {editable && <button className="document-save" disabled={saving || !dirty} onClick={() => save()}><Save size={17} />{saving ? 'Saving…' : 'Save'}</button>}
       <button disabled={loading || saving || !data} onClick={() => download()}><Download size={17} />Download</button>
       {data?.hasOriginalBackup && <button disabled={saving} onClick={() => download(true)}>Original file</button>}

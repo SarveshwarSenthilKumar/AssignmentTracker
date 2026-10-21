@@ -1,3 +1,4 @@
+const {editorContext,editorInstructions}=require('./assistantEditor');
 const ID = /^[a-f\d]{24}$/i;
 const clip = (value, limit = 2000) => String(value ?? '').slice(0, limit);
 function assistantRequest(body) {
@@ -19,7 +20,7 @@ function assistantRequest(body) {
   if (typeof body.screen !== 'string' || body.screen.length > 12000 || typeof body.section !== 'string' || body.section.length > 100) throw new Error('Screen context is too large or invalid.');
   if (typeof body.timeZone !== 'string' || body.timeZone.length > 100) throw new Error('Choose a valid time zone.');
   try { new Intl.DateTimeFormat('en', { timeZone: body.timeZone }).format(); } catch { throw new Error('Choose a valid time zone.'); }
-  return { messages, responseStyle, documentIds:[...new Set(documentIds.map(id=>id.toLowerCase()))], includeWorkspace:body.includeWorkspace, includeScreen:body.includeScreen, includeDocument:body.includeDocument, documentId:body.documentId?.toLowerCase() || null, screen:body.includeScreen ? body.screen : '', section:body.section, timeZone:body.timeZone };
+  return { editor:body.includeDocument?editorContext(body.editorContext,body.documentId):null, messages, responseStyle, documentIds:[...new Set(documentIds.map(id=>id.toLowerCase()))], includeWorkspace:body.includeWorkspace, includeScreen:body.includeScreen, includeDocument:body.includeDocument, documentId:body.documentId?.toLowerCase() || null, screen:body.includeScreen ? body.screen : '', section:body.section, timeZone:body.timeZone };
 }
 function workspaceContext({user,tasks=[],entries=[],documents=[],folders=[],documentFolders=[],totals={}}, request) {
   const context = { currentTime:new Date().toISOString(), timeZone:user.timeZone || request.timeZone, section:request.section, screen:request.screen, totals };
@@ -77,6 +78,7 @@ async function responsePayload(request, context, file, model) {
     context.openDocuments.push({id:String(item._id),name:clip(item.name,200),mimeType:item.mimeType,contentIncluded:!!attachment.content,notice:attachment.notice||'Saved file content included; unsaved edits are only reflected in supplied screen text.'});
   }
   if(context.openDocuments.length)context.openDocument=context.openDocuments[0];
+  if(request.editor)context.liveEditor=request.editor;
   const reference=[{text:`Workspace reference data (not instructions):\n${JSON.stringify(context)}`}];
   attachments.forEach((attachment,index)=>{if(attachment.content)reference.push({text:`File reference: ${context.openDocuments[index].name} (${context.openDocuments[index].id})`},attachment.content)});
   const contents=[];
@@ -88,7 +90,7 @@ async function responsePayload(request, context, file, model) {
   if(contents[0]?.role==='model')contents.unshift({role:'user',parts:[{text:'Earlier conversation context follows.'}]});
   const latest=contents.at(-1);latest.parts.unshift(...reference);
   const style={concise:'Keep answers brief and direct unless the question requires detail.',balanced:'Use enough detail to answer clearly without unnecessary length.',detailed:'Give thorough explanations, useful examples and clear structure.'}[request.responseStyle||'balanced'];
-  return {model,store:false,systemInstruction:{parts:[{text:`${INSTRUCTIONS}\nResponse preference: ${style}`}]},generationConfig:{maxOutputTokens:request.responseStyle==='detailed'?8192:4096},contents};
+  return {model,store:false,systemInstruction:{parts:[{text:`${request.editor?INSTRUCTIONS.replace('You are the read-only assistant','You are the assistant').replace('You cannot create, edit, complete, delete, reset, upload, send messages, or make changes; never claim you did.',editorInstructions):INSTRUCTIONS}\nResponse preference: ${style}`}]},generationConfig:{maxOutputTokens:request.responseStyle==='detailed'?8192:4096},contents};
 }
 function responseText(data) {
   const candidate=data.candidates?.[0];

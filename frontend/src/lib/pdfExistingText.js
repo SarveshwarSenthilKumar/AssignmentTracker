@@ -1,6 +1,10 @@
 // PDF.js text transforms -> the same scale-1 viewport used by annotations.
 import {fontKey,loadPageFontStyles} from './pdfTextStyle'
 
+export function makeSourceReplacement(source,page,id){
+  return {id,tool:'text',page,text:source.text,fontSize:source.fontSize,textStyle:source.textStyle,color:source.color,x:source.x-4,y:source.baseline-source.fontSize*(source.textStyle?.baselineRatio||.9465)-2,sourceText:{key:source.key,originalText:source.text,x:source.x-.5,y:source.y-.5,width:source.width+1,height:source.height+1,background:'#ffffff'}}
+}
+
 export async function existingTextRuns(page, pdfjs, file) {
   const [content,operators,embedded]=await Promise.all([page.getTextContent(),page.getOperatorList(),loadPageFontStyles(file,page.pageNumber-1).catch(()=>new Map())])
   const viewport = page.getViewport({ scale: 1 }),paints=[],stack=[]

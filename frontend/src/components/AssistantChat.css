@@ -116,3 +116,4 @@
 .assistant-panel.is-resizable>.assistant-header>div:last-child{max-width:100%}
 .assistant-size-readout{display:none;position:absolute;z-index:9;bottom:12px;left:50%;transform:translateX(-50%);pointer-events:none;padding:4px 9px;border:1px solid var(--border);border-radius:5px;color:var(--text-secondary);background:var(--surface-elevated);font:11px/1.5 ui-monospace,Consolas,monospace;box-shadow:0 3px 12px #0003}
 .assistant-panel.is-interacting .assistant-size-readout{display:block}
+.assistant-editor-permission{display:flex;align-items:center;gap:7px;padding:7px 0;font-size:11px;color:var(--text-secondary,#b9c4cf)}.assistant-editor-permission input{accent-color:var(--accent,#96b7d3)}

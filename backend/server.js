@@ -1,3 +1,4 @@
+const {extractEditorActions}=require('./assistantEditor');
 require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
@@ -490,11 +491,11 @@ app.post('/api/assistant/chat', authenticateToken, async (req, res) => {
     const payload=await responsePayload(request,context,file,aiModel());stage='gemini';
     const result=await callAssistantAPI(payload,{apiKey:credential.apiKey,signal:controller.signal,traceId,metadata:{kind:'chat',requestBytes:Buffer.byteLength(JSON.stringify(payload)),workspaceCharacters:JSON.stringify(context).length,screenCharacters:request.screen.length,historyMessages:request.messages.length,fileBytes:file.reduce((total,item)=>total+(item.pdfData?.length||0),0)}});
     providerReport=result.diagnostics;
-    stage='parse_answer';const data=result.data,text=responseText(data);state.lastResult={...result.diagnostics,httpStatus:200,totalElapsedMs:Date.now()-started};
+    stage='parse_answer';const data=result.data,parsedEditor=extractEditorActions(responseText(data),request.editor),text=parsedEditor.text;state.lastResult={...result.diagnostics,httpStatus:200,totalElapsedMs:Date.now()-started};
     res.set('X-Assistant-Trace-Id',traceId);
     const answer={content:text,sources:responseSources(text,context).slice(0,40),context:{...totals,section:request.section,screenIncluded:request.includeScreen,workspaceIncluded:request.includeWorkspace,document:context.openDocument||null,documents:context.openDocuments||[],historyMessages:request.messages.length},partial:data.candidates?.[0]?.finishReason==='MAX_TOKENS'||text.length===12000};
     stage='save_conversation';const conversation=await finishConversation(turn,answer);turnFinished=true;
-    res.json({text,sources:answer.sources,diagnostics:state.lastResult,context:answer.context,partial:answer.partial,conversation});
+    res.json({text,editorActions:parsedEditor.actions,sources:answer.sources,diagnostics:state.lastResult,context:answer.context,partial:answer.partial,conversation});
   } catch (error) {
     if(turn&&!turnFinished){try{await finishConversation(turn,null,controller.signal.aborted?'Request stopped or timed out. Retry your question.':'The reply could not be completed. Retry your question.');turnFinished=true;}catch{}}
     if (!res.destroyed) {
