@@ -13,10 +13,10 @@ exports.registerOneNoteImport = (app, authenticateToken, upload) => {
     upload.single('pdfFile')(req, res, async uploadError => {
       let temp;
       try {
-        if (uploadError) return res.status(400).json({ message: 'Choose a .onepkg file no larger than 10 MB.' });
-        if (!req.file || !/\.onepkg$/i.test(req.file.originalname)) return res.status(400).json({ message: 'Choose a OneNote .onepkg file.' });
+        if (uploadError) return res.status(400).json({ message: 'Choose a .one or .onepkg file no larger than 10 MB.' });
+        if (!req.file || !/\.(one|onepkg)$/i.test(req.file.originalname)) return res.status(400).json({ message: 'Choose a OneNote .one or .onepkg file.' });
         temp = await fs.mkdtemp(path.join(os.tmpdir(), 'assignmenttracker-onenote-'));
-        const source = path.join(temp, 'notebook.onepkg');
+        const source = path.join(temp, /\.one$/i.test(req.file.originalname) ? 'section.one' : 'notebook.onepkg');
         await fs.writeFile(source, req.file.buffer);
         const local = path.join(__dirname, '.venv-onenote', process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python');
         const python = process.env.ONENOTE_PYTHON || (existsSync(local) ? local : process.platform === 'win32' ? 'python' : 'python3');
@@ -28,6 +28,10 @@ exports.registerOneNoteImport = (app, authenticateToken, upload) => {
             else resolve(payload);
           });
         });
+        if (/\.one$/i.test(req.file.originalname) && Array.isArray(result?.pages)) {
+          const sectionName = path.basename(req.file.originalname).replace(/\.one$/i, '');
+          result.pages.forEach(page => { page.section = sectionName; });
+        }
         res.json(result);
       } catch (error) { res.status(422).json({ message: error.message }); }
       finally { active.delete(user); if (temp) await fs.rm(temp, { recursive: true, force: true }).catch(() => {}); }

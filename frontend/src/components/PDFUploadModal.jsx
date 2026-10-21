@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { X, Upload, FileText, Loader2, Tag, Folder } from 'lucide-react'
 import { cn } from '../lib/utils'
+import OneNoteImport from './OneNoteImport'
 
 export default function PDFUploadModal({ onClose, token, onUploadSuccess, pdfFolders, initialFolder = '' }) {
   const [pdfFile, setPdfFile] = useState(null)
@@ -9,6 +10,7 @@ export default function PDFUploadModal({ onClose, token, onUploadSuccess, pdfFol
   const [tags, setTags] = useState('')
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
+  const [oneNoteFile, setOneNoteFile] = useState(null)
 
   const handleFileChange = (e) => {
     const file = e.target.files[0]
@@ -16,7 +18,9 @@ export default function PDFUploadModal({ onClose, token, onUploadSuccess, pdfFol
       setPdfFile(file)
       setPdfName(file.name.replace(/\.[^.]+$/, ''))
       setError('')
+      if (/\.(one|onepkg)$/i.test(file.name)) setOneNoteFile(file)
     } else {
+      setPdfFile(null)
       setError('Choose a file smaller than 10 MB')
     }
   }
@@ -69,6 +73,15 @@ export default function PDFUploadModal({ onClose, token, onUploadSuccess, pdfFol
     }
   }
 
+  if(oneNoteFile) return <div className="app-inline-panel document-upload-panel">
+    <label className="block text-slate-400 text-sm mb-2">Save notes in
+      <select value={selectedFolder} onChange={event=>setSelectedFolder(event.target.value)} className="ml-3 rounded-lg bg-slate-800 p-2 text-white">
+        <option value="">Unfiled</option>{pdfFolders.map(folder=><option key={folder._id} value={folder._id}>{folder.name}</option>)}
+      </select>
+    </label>
+    <OneNoteImport initialFile={oneNoteFile} initialTags={tags.split(',').map(tag=>tag.trim()).filter(Boolean)} token={token} folderId={selectedFolder||null} onClose={()=>{setOneNoteFile(null);setPdfFile(null);setPdfName('')}} onCreated={document=>{onUploadSuccess(document);onClose()}}/>
+  </div>
+
   return (
     <div className="app-inline-panel document-upload-panel">
       <div className="bg-slate-900 border border-white/10 rounded-2xl p-6 w-full max-w-md">
@@ -115,7 +128,7 @@ export default function PDFUploadModal({ onClose, token, onUploadSuccess, pdfFol
                     <Upload size={32} className="text-slate-400" />
                     <div className="text-center">
                       <p className="text-white font-medium">Click to upload a document</p>
-                      <p className="text-slate-400 text-sm">PDF, images, DOCX, XLSX, text, code, CSV, and other files · up to 10 MB</p>
+                      <p className="text-slate-400 text-sm">PDF, OneNote (.one / .onepkg), images, DOCX, XLSX, text, code, CSV, and other files · up to 10 MB. OneNote files automatically open the notes importer.</p>
                     </div>
                   </>
                 )}

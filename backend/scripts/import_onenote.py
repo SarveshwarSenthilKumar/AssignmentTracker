@@ -40,7 +40,10 @@ def validate_package(filename):
 
 
 def main():
-    validate_package(sys.argv[1])
+    source = pathlib.Path(sys.argv[1])
+    is_section = source.suffix.lower() == '.one'
+    if not is_section:
+        validate_package(sys.argv[1])
     converter = importlib.import_module('onenote_tool.convert')
     original_run = subprocess.run
     def bounded_run(*args, **kwargs):
@@ -49,7 +52,18 @@ def main():
     subprocess.run = bounded_run
     # Redirect library output so stdout contains only our JSON response.
     with contextlib.redirect_stdout(io.StringIO()):
-        result = converter.convert_onepkg(sys.argv[1], work_dir=sys.argv[2])
+        if is_section:
+            from onenote_tool.models import ConversionResult
+            converter.require_pyonenote()
+            result = ConversionResult(notebook_name=source.stem)
+            sizes = {str(source): source.stat().st_size}
+            converter.process_sections([str(source)], result, str(source.parent), None, sizes, 0)
+            if any(str(kind).startswith('section_parse_error:') for kind in result.report.failed):
+                raise ValueError('This .one section could not be read. Export a fresh copy from OneNote desktop, or export it as PDF.')
+            if not result.sections or all(not section.pages for section in result.sections):
+                raise ValueError('No readable pages were found. Choose an unprotected OneNote .one section.')
+        else:
+            result = converter.convert_onepkg(sys.argv[1], work_dir=sys.argv[2])
     pages, warnings = [], ['Review the preview before saving. OneNote layouts and handwriting may change during conversion. Embedded files, audio, and video are not imported.']
     for section in result.sections:
         if section.password_status:
@@ -66,7 +80,7 @@ def main():
     if result.report.failed:
         warnings.append('Some elements could not be converted: ' + ', '.join(str(k) for k in result.report.failed)[:1000])
     if not pages:
-        raise ValueError('No readable pages were found. Export an unprotected .onepkg notebook from OneNote desktop.')
+        raise ValueError('No readable pages were found. Export an unprotected .one section or .onepkg notebook from OneNote desktop.')
     output = json.dumps({'pages': pages, 'warnings': warnings})
     if len(output.encode('utf-8')) > 24 * 1024 * 1024:
         raise ValueError('The converted notebook is too large. Export smaller notebook packages.')
