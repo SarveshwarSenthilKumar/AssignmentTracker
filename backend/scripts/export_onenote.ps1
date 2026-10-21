@@ -85,6 +85,23 @@ try {
                 $stage = if ($wholeSection) { 'export-section' } else { 'export-page' }; Save-Progress
                 [string]$pageId = $node.GetAttribute('ID')
                 if (!$pageId) { throw 'OneNote returned a page without an ID.' }
+                $inkCount = $null
+                if (!$wholeSection) {
+                    $stage = 'load-page-content'; Save-Progress
+                    # Request actual binary page content (including ink and images),
+                    # not just hierarchy metadata, before asking OneNote to publish.
+                    [string]$content = Invoke-OneNote {
+                        [string]$contentXml = ''
+                        $application.GetPageContent([string]$pageId, [ref]$contentXml, 1, 2)
+                        return $contentXml
+                    }
+                    if (!$content.Trim()) { throw 'OneNote returned no page content. The import stopped before publishing an incomplete page.' }
+                    [xml]$contentDocument = $content
+                    $inkCount = $contentDocument.SelectNodes("//*[local-name()='Ink' or local-name()='InkDrawing']").Count
+                    $content = $null
+                    $contentDocument = $null
+                    $stage = 'export-page'; Save-Progress
+                }
                 $target = Join-Path $OutputDirectory (('page-{0:D4}.pdf' -f $pages.Count))
                 Invoke-OneNote {
                     # A retry can follow an interrupted publish. Remove only this attempt's output.
@@ -93,7 +110,7 @@ try {
                     $application.Publish([string]$pageId, [string]$target, 3)
                 }
                 if (!(Test-Path -LiteralPath $target) -or (Get-Item -LiteralPath $target).Length -eq 0) { throw 'OneNote did not produce a PDF for this page. No partial document was saved.' }
-                $pages += @{title=$pageName; section=$sectionName; pdfFile=[System.IO.Path]::GetFileName($target); sourceKind=$(if ($wholeSection) { 'section' } else { 'page' })}
+                $pages += @{title=$pageName; section=$sectionName; pdfFile=[System.IO.Path]::GetFileName($target); sourceKind=$(if ($wholeSection) { 'section' } else { 'page' }); sourceInkObjects=$inkCount}
                 $total = (Get-ChildItem -LiteralPath $OutputDirectory -File -Filter '*.pdf' | Measure-Object -Property Length -Sum).Sum
                 if ($total -gt 18MB) { throw 'The exported notes exceed the import size limit. Import smaller sections.' }
             }

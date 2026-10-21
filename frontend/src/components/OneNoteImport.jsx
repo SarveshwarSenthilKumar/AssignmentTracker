@@ -3,6 +3,7 @@ import DOMPurify from 'dompurify'
 import { FileText, X, Upload } from 'lucide-react'
 import { readApiJson } from '../lib/apiResponse'
 import { splitMarkdownExport } from '../lib/markdownPdfExport'
+import { downloadBlob } from '../lib/documentFormats'
 import './MarkdownPDFCreator.css'
 import './OneNoteImport.css'
 
@@ -29,7 +30,7 @@ function NativePagePreview({page}){
     const next=URL.createObjectURL(new Blob([bytes],{type:'application/pdf'}));setUrl(next)
     return()=>URL.revokeObjectURL(next)
   },[page.pdfData])
-  return url?<iframe className="onenote-native-preview" title={`OneNote page: ${page.title}`} src={url}/>:<p>Preparing preview…</p>
+  return url?<><iframe className="onenote-native-preview" title={`OneNote page: ${page.title}`} src={url}/><button type="button" onClick={()=>{const bytes=Uint8Array.from(atob(page.pdfData),character=>character.charCodeAt(0));downloadBlob(new Blob([bytes],{type:'application/pdf'}),'OneNote-original-export.pdf')}}>Download original OneNote PDF</button><p>{page.sourceInkObjects==null?'OneNote did not provide an ink count for this section.':page.sourceInkObjects>0?`OneNote reported ${page.sourceInkObjects} ink objects on this source page.`:'OneNote reported no ink objects on this source page. If you expect handwriting, check that this exported .one/.onepkg contains your latest edits.'}</p></>:<p>Preparing preview…</p>
 }
 
 export default function OneNoteImport({token,folderId,onClose,onCreated,initialFile=null,initialTags=[]}){
@@ -54,7 +55,14 @@ export default function OneNoteImport({token,folderId,onClose,onCreated,initialF
     if(!selected.size||!title.trim())return
     setBusy('Preparing notes…')
     const {PDFDocument}=await import('pdf-lib'),pdf=await PDFDocument.create()
+    let originalBytes=null
     if(data.mode==='native'){
+      // Preserve the complete exported PDF, including document-level structures,
+      // when no merge is necessary. The preview and saved file are then identical.
+      if(selected.size===1){
+        const page=pages[[...selected][0]]
+        originalBytes=Uint8Array.from(atob(page.pdfData),character=>character.charCodeAt(0))
+      }else{
       for(const [index,page] of pages.entries()){
         if(!selected.has(index))continue
         setBusy(`Preserving page ${index+1} of ${pages.length}…`)
@@ -62,6 +70,7 @@ export default function OneNoteImport({token,folderId,onClose,onCreated,initialF
         const original=await PDFDocument.load(bytes)
         if(!original.getPageCount())throw new Error(`OneNote returned no PDF pages for ${page.title}. Import stopped.`)
         for(const copy of await pdf.copyPages(original,original.getPageIndices()))pdf.addPage(copy)
+      }
       }
     }else{
     await document.fonts.ready
@@ -90,10 +99,10 @@ export default function OneNoteImport({token,folderId,onClose,onCreated,initialF
     }finally{sections.dispose()}
     }
     pdf.setTitle(title.trim());pdf.setCreator('Assignment Tracker — OneNote import')
-    const blob=new Blob([await pdf.save()],{type:'application/pdf'})
+    const blob=new Blob([originalBytes||await pdf.save()],{type:'application/pdf'})
     if(blob.size>10*1024*1024)throw new Error('The resulting notes exceed 10 MB. Select fewer pages and import the rest separately.')
     const body=new FormData(),filename=(title.replace(/[<>:"/\\|?*\u0000-\u001f]/g,'-').trim()||'Imported notebook')+'.pdf'
-    body.append('pdfFile',new File([blob],filename,{type:'application/pdf'}));body.append('name',title.trim());body.append('tags',JSON.stringify([...new Set(['notes','onenote-import',...initialTags])]));if(folderId)body.append('pdfFolderId',folderId)
+    body.append('pdfFile',new File([blob],filename,{type:'application/pdf'}));body.append('name',title.trim());body.append('tags',JSON.stringify([...new Set(['notes','onenote-import',data.mode==='native'?'onenote-native':'onenote-compatibility',...initialTags])]));if(folderId)body.append('pdfFolderId',folderId)
     setBusy('Saving notes…')
     const response=await fetch('/api/pdfs',{method:'POST',headers:{Authorization:`Bearer ${token}`},body}),result=await readApiJson(response)
     if(!response.ok||!result._id)throw new Error(result.message||'Could not save the notes document.')
