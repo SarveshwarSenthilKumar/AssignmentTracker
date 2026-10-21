@@ -108,7 +108,7 @@ def main():
             page['pdfData'] = base64.b64encode(pdf).decode('ascii')
             page['html'] = ''
         manifest['mode'] = 'native'
-        manifest['warnings'] = ['Exported with desktop OneNote. Ink, highlights, and printouts are rendered into the PDF; imported strokes are not separately editable. Review the pages before saving.']
+        manifest['warnings'] = [*manifest.get('warnings', []), 'Exported with desktop OneNote. Ink, highlights, and printouts are rendered into the PDF; imported strokes are not separately editable. Review the pages before saving.']
         output = json.dumps(manifest)
         if len(output.encode('utf-8')) > 24 * 1024 * 1024:
             raise ValueError('The exported notes are too large. Export smaller sections.')

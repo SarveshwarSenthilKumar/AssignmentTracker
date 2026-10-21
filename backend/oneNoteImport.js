@@ -3,6 +3,7 @@ const { existsSync } = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 const { execFile } = require('node:child_process');
+const { PDFDocument } = require('pdf-lib');
 
 exports.registerOneNoteImport = (app, authenticateToken, upload) => {
   const active = new Set();
@@ -29,6 +30,13 @@ exports.registerOneNoteImport = (app, authenticateToken, upload) => {
             else resolve(payload);
           });
         });
+        if (result?.mode === 'native' && Array.isArray(result.pages)) {
+          for (const page of result.pages) {
+            const exported = await PDFDocument.load(Buffer.from(page.pdfData, 'base64'));
+            page.pdfPageCount = exported.getPageCount();
+            if (!page.pdfPageCount) throw new Error('OneNote produced an empty PDF. No document was saved.');
+          }
+        }
         if (/\.one$/i.test(req.file.originalname) && Array.isArray(result?.pages)) {
           const sectionName = path.basename(req.file.originalname).replace(/\.one$/i, '');
           result.pages.forEach(page => { page.section = sectionName; });
