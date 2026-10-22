@@ -1,6 +1,7 @@
 export function selectionHasInk(items,box){
-  const inside=(x,y)=>x>=box.x&&x<=box.x+box.width&&y>=box.y&&y<=box.y+box.height
   return items.some(item=>{
+    // A translucent highlight does not change the printed equation beneath it.
+    if(item.tool==='highlighter')return false
     if(item.points?.length){const xs=item.points.map(point=>point.x),ys=item.points.map(point=>point.y);return Math.min(...xs)<=box.x+box.width&&Math.max(...xs)>=box.x&&Math.min(...ys)<=box.y+box.height&&Math.max(...ys)>=box.y}
     return item.tool==='image'&&item.x<box.x+box.width&&item.x+item.width>box.x&&item.y<box.y+box.height&&item.y+item.height>box.y
   })
