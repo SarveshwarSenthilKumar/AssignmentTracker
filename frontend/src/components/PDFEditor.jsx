@@ -12,6 +12,8 @@ import useShortcuts from '../hooks/useShortcuts'
 import useInlineConfirm from '../hooks/useInlineConfirm'
 import InlineConfirmation from './InlineConfirmation'
 import PDFCalculator from './PDFCalculator'
+import PDFGraph from './PDFGraph'
+import {graphExpression,compileGraph} from '../lib/pdfGraph'
 import { eraseAnnotations } from '../lib/pdfEraser'
 import PDFContinuousView from './PDFContinuousView'
 import { selectionExpression, textInPdfBox } from '../lib/pdfCalculation'
@@ -526,11 +528,12 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     }
   },[])
   const [showCalculator,setShowCalculator]=useState(false)
+  const [showGraph,setShowGraph]=useState(false),[graphSelection,setGraphSelection]=useState(null)
   const [calculationBox,setCalculationBox]=useState(null),[calculationSelection,setCalculationSelection]=useState(null)
   const [calculationMode,setCalculationMode]=useState('auto')
   const recognitionController=useRef(null)
   const calculationDrag=useRef(null),calculationPage=useRef(null),calculationGeneration=useRef(0)
-  useEffect(()=>{calculationGeneration.current++;calculationDrag.current=null;setCalculationBox(null);return()=>{calculationGeneration.current++;recognitionController.current?.abort()}},[pageNumber,pdfId,currentTool,calculationMode])
+  useEffect(()=>{calculationGeneration.current++;calculationDrag.current=null;setCalculationBox(null);setGraphSelection(previous=>previous?.pending?{error:'Selection canceled. Select again or type a function.'}:previous);return()=>{calculationGeneration.current++;recognitionController.current?.abort()}},[pageNumber,pdfId,currentTool,calculationMode])
   const settingsFocusRef = useRef(null)
   useEffect(() => {
     if (!showSettings) return
@@ -1076,7 +1079,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     if (e.pointerType === 'mouse' && e.button !== 0) return
     if (!overlayRef.current) return
     if(annotationPointerRef.current!==null&&annotationPointerRef.current!==e.pointerId)return
-    if(currentTool==='calculate'||currentTool==='snippet'){
+    if(currentTool==='calculate'||currentTool==='graph'||currentTool==='snippet'){
       annotationPointerRef.current=e.pointerId
       viewerRef.current?.focus({preventScroll:true})
       e.preventDefault();const point=toLocal(e)
@@ -1186,6 +1189,8 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         })()
         return
       }
+      const graph=start.tool==='graph'
+      const publish=selection=>{if(graph){setGraphSelection(selection);setShowGraph(true);setShowCalculator(false)}else{setCalculationSelection(selection);setShowCalculator(true);setShowGraph(false)}}
       recognitionController.current?.abort()
       const controller=new AbortController();recognitionController.current=controller
       const annotations=pathsRef.current.filter(item=>(item.page||1)===start.page)
@@ -1197,24 +1202,24 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
           try{
             if(needsVision)throw new Error('Handwriting or image selected. Choose Auto or Handwriting / AI to recognize it.')
             const text=await textInPdfBox(page,box,pdfjs.Util.transform,annotations)
-            expression=selectionExpression(text);calculate(expression)
+            expression=graph?graphExpression(text):selectionExpression(text);if(graph)compileGraph(expression);else calculate(expression)
           }catch(error){
             if(calculationMode==='text')throw error
             if(generation!==calculationGeneration.current)return
-            setCalculationSelection({pending:true,id:generation});setShowCalculator(true)
+            publish({pending:true,id:generation})
             const image=await mathSelectionImage(page,box,annotations)
             if(generation!==calculationGeneration.current||controller.signal.aborted)return
             const timeout=setTimeout(()=>controller.abort(),55000)
             try{
-              const response=await fetch('/api/calculator/recognize',{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({image}),signal:controller.signal})
+              const response=await fetch('/api/calculator/recognize',{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({image,purpose:graph?'graph':'calculate'}),signal:controller.signal})
               const data=await readApiJson(response)
               if(!response.ok)throw new Error(data.message||'Could not recognize the selected handwriting.')
-              expression=selectionExpression(data.expression);source='ai';transcription=data.transcription
+              expression=graph?graphExpression(data.expression):selectionExpression(data.expression);source='ai';transcription=data.transcription
             }finally{clearTimeout(timeout)}
           }
           if(generation!==calculationGeneration.current)return
-          setCalculationSelection({expression,source,transcription,id:generation});setShowCalculator(true)
-        }catch(error){if(generation===calculationGeneration.current){setCalculationSelection({error:error.message,id:generation});setShowCalculator(true)}}
+          publish({expression,source,transcription,id:generation})
+        }catch(error){if(generation===calculationGeneration.current){publish({error:error.message,id:generation})}}
       })();return
     }
     if(overlayRef.current?.hasPointerCapture(e.pointerId))overlayRef.current.releasePointerCapture(e.pointerId)
@@ -1577,7 +1582,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       pendingPinchAnchor.current=anchor;setScale(gesture.nextScale)
     },
     viewer:viewerRef,overlay:overlayRef,tool:currentTool,scrollWithFinger:fingerScroll,resetKey:`${pdfId}:${pageNumber}:${currentTool}:${focusMode}`,
-    canDrawTouch:event=>overlayRef.current?.contains(event.target)&&['pen','highlighter','eraser','calculate','snippet'].includes(currentTool),
+    canDrawTouch:event=>overlayRef.current?.contains(event.target)&&['pen','highlighter','eraser','calculate','graph','snippet'].includes(currentTool),
     onDrawEnd:handlePointerUp,
     beginTouchAnnotation:id=>{
       commitText()
@@ -1725,7 +1730,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
                     style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
                   >
                     {currentTool==='eraser'&&<rect ref={eraserCursorRef} width={eraserSize} height={eraserSize} rx={eraserShape==='round'?eraserSize/2:0} fill="#8fa5b918" stroke="#526c83" strokeWidth={1.3/scale} style={{display:'none'}}/>}
-                    {(currentTool==='calculate'||currentTool==='snippet')&&calculationBox&&<rect x={calculationBox.x} y={calculationBox.y} width={calculationBox.width} height={calculationBox.height} fill="#8fa5b933" stroke="#8fa5b9" strokeWidth={1.5/scale} strokeDasharray={`${4/scale} ${3/scale}`}/>}
+                    {(currentTool==='calculate'||currentTool==='graph'||currentTool==='snippet')&&calculationBox&&<rect x={calculationBox.x} y={calculationBox.y} width={calculationBox.width} height={calculationBox.height} fill="#8fa5b933" stroke="#8fa5b9" strokeWidth={1.5/scale} strokeDasharray={`${4/scale} ${3/scale}`}/>}
 
                   </svg>
 
@@ -1794,7 +1799,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         tools={{autoStraightLines,onAutoStraightLines:()=>setAutoStraightLines(previous=>!previous),current:currentTool,onTool:tool=>{commitText();setCurrentTool(tool)},color:currentColor,onColor:handleColorChange,colors:COLORS,colorNames:COLOR_NAMES,fontSize,onFontSize:handleFontSizeChange,strokeWidth,onWidth:setStrokeWidth,usePressure,onPressure:()=>setUsePressure(previous=>!previous),eraser:{mode:eraserMode,onMode:setEraserMode,size:eraserSize,onSize:setEraserSize,shape:eraserShape,onShape:setEraserShape,target:eraserTarget,onTarget:setEraserTarget}}}
         pages={{count:numPages,current:pageNumber,showThumbnails:showPages,onToggleThumbnails:()=>{if(focusMode){exitFocusMode();setShowPages(true)}else setShowPages(previous=>!previous)},onNavigate:goToPage,onAddBlank:()=>handleAddPages({mode:'blank',placement:'after'}),onDelete:()=>handleDeletePage(),busy:deletingPage||inserting,canAdd:!!numPages&&!!pageBase&&pageBase.page===pageNumber&&!loading&&!deletingPage&&!inserting}}
         view={{scale,onZoomIn:handleZoomIn,onZoomOut:handleZoomOut,onFit:handleFitWidth,onRotate:handleRotate,dark:darkPages,onDark:()=>setDarkPages(previous=>!previous),continuous:continuousView,onContinuous:()=>{handleTextDragEnd();commitText();setContinuousView(previous=>!previous)},reference:showReference,onReference:toggleReference,focus:focusMode,onFocus:enterFocusMode,onExitFocus:exitFocusMode}}
-        utilities={{calculator:showCalculator,onCalculator:()=>{commitText();setShowCalculator(previous=>!previous)},onCalculate:()=>{commitText();setCurrentTool('calculate')},recognition:calculationMode,onRecognition:setCalculationMode,snippetReady:!!snippet,copying:copyingSnippet,onCopyRegion:()=>{commitText();setCurrentTool('snippet')},onPaste:pasteSnippet,canPaste:!!snippet&&!!pageBase&&pageBase.page===pageNumber&&!inserting&&!deletingPage,onStylus:()=>setShowStylusStudio(true),onSettings:()=>setShowSettings(previous=>!previous),settingsOpen:showSettings,assistantOpen,onAssistant:onToggleAssistant}}
+        utilities={{onGraph:()=>{commitText();setCurrentTool('graph');setShowGraph(true);setShowCalculator(false)},calculator:showCalculator,onCalculator:()=>{commitText();setShowGraph(false);setShowCalculator(previous=>!previous)},onCalculate:()=>{commitText();setCurrentTool('calculate')},recognition:calculationMode,onRecognition:setCalculationMode,snippetReady:!!snippet,copying:copyingSnippet,onCopyRegion:()=>{commitText();setCurrentTool('snippet')},onPaste:pasteSnippet,canPaste:!!snippet&&!!pageBase&&pageBase.page===pageNumber&&!inserting&&!deletingPage,onStylus:()=>setShowStylusStudio(true),onSettings:()=>setShowSettings(previous=>!previous),settingsOpen:showSettings,assistantOpen,onAssistant:onToggleAssistant}}
         input={{scroll:fingerScroll,onChange:setFingerInputMode,activity:inputActivity}}
         insert={<InsertPanel onPages={exportImage?undefined:handleAddPages} pageNumber={pageNumber} onFiles={insertFiles} onInsert={insertGenerated} color={currentColor} busy={inserting||!pageBase||pageBase.page!==pageNumber||deletingPage}/>}
       />
@@ -1803,6 +1808,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       {currentTool==='text'&&!exportImage&&<div className="pdf-existing-text-hint" role="status">Click existing text to replace it, or click blank space to add text. Scanned images need OCR first. Replacements cover the original on a white background; they do not redact the underlying text.</div>}
       {actionError && <div role="alert" className="flex items-center justify-between gap-3 bg-red-950 px-5 py-2 text-sm text-red-200">{actionError}<button onClick={() => setActionError(null)} aria-label="Dismiss error"><X size={16} /></button></div>}
       <div className={cn('flex flex-1 min-h-0 relative',darkPages&&'pdf-dark-pages')}>
+        <PDFGraph open={showGraph} onClose={()=>setShowGraph(false)} selection={graphSelection} onInsert={asset=>addImageInsert(asset)} canInsert={!!pageBase&&pageBase.page===pageNumber&&!inserting&&!deletingPage}/>
         <PDFCalculator open={showCalculator} onClose={()=>setShowCalculator(false)} selection={calculationSelection}/>
         {!focusMode && showPages && pdfFile && !pdfError && (
           <aside className="pdf-pages w-48 sm:w-56 shrink-0 overflow-y-auto border-r border-white/10 bg-slate-900/90" aria-label="Document pages">
@@ -1865,7 +1871,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       <div ref={onAssistantHost} className="pdf-assistant-dock" hidden={!assistantOpen} aria-label="Notes AI assistant"/>
       </div>
       {!exportImage&&<footer className="pdf-workspace-footer">
-        <span className="pdf-footer-hint">{currentTool==='calculate'?'Drag around an expression to calculate':currentTool==='snippet'?copyingSnippet?'Copying region…':snippet?'Snippet ready · More tools → Paste snippet':'Drag a region to copy':currentTool==='select'?'Drag to move · corners to resize':continuousView?'Continuous scrolling':'Single page view'}</span>
+        <span className="pdf-footer-hint">{currentTool==='graph'?'Drag around an equation to graph':currentTool==='calculate'?'Drag around an expression to calculate':currentTool==='snippet'?copyingSnippet?'Copying region…':snippet?'Snippet ready · More tools → Paste snippet':'Drag a region to copy':currentTool==='select'?'Drag to move · corners to resize':continuousView?'Continuous scrolling':'Single page view'}</span>
         <nav aria-label="Page navigation"><button type="button" title="Previous page" aria-label="Previous page" disabled={pageNumber<=1||deletingPage||inserting} onClick={()=>goToPage(pageNumber-1)}><ChevronLeft size={16}/></button><label>Page <input aria-label="Page number" key={pageNumber} type="number" min="1" max={numPages||1} defaultValue={pageNumber} disabled={deletingPage||inserting} onBlur={event=>{const target=Math.max(1,Math.min(numPages||1,Number(event.target.value)||1));goToPage(target);event.target.value=String(target)}} onKeyDown={event=>{if(event.key==='Enter')event.currentTarget.blur()}}/> <span>/ {numPages||'…'}</span></label><button type="button" title="Next page" aria-label="Next page" disabled={pageNumber>=(numPages||1)||deletingPage||inserting} onClick={()=>goToPage(pageNumber+1)}><ChevronRight size={16}/></button></nav>
         <div className="pdf-footer-zoom"><button type="button" onClick={handleZoomOut} aria-label="Zoom out"><ZoomOut size={14}/></button><button type="button" onClick={handleFitWidth} title="Fit page width">{Math.round(scale*100)}%</button><button type="button" onClick={handleZoomIn} aria-label="Zoom in"><ZoomIn size={14}/></button></div>
       </footer>}

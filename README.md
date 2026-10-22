@@ -346,3 +346,10 @@ Setup on the backend (see `backend/.env.example`):
 4. In production use HTTPS and proxy `/api` through the frontend's public hostname. Set both public URLs to that public origin, and register the corresponding `https://your-site.example/api/account/connections/PROVIDER/callback` URLs exactly with each provider. Credentials remain server-only; never place client secrets in Vite environment variables. Node.js 18+ is required for the backend's fetch API.
 
 Authorization attempts use expiring, single-use server state tied to an HTTP-only SameSite browser cookie; GitHub also uses PKCE. Connection versions prevent an old callback from reconnecting an account after disconnect. All provider network requests have timeouts, use fixed HTTPS endpoints, and do not forward bearer tokens through redirects. These connections do not grant the AI assistant additional context automatically. No automated tests, builds, linters, provider API probes, OAuth sign-ins, or browser QA were run, following repository instructions.
+
+
+### Graph equations in the PDF editor
+
+Open **More tools → Graph selected region**, then drag a box around one complete equation. The graph panel also accepts typed functions such as `y = x^2 - 3x + 2`, `f(x) = sin(x)`, or `sqrt(x)`. Adjust the X/Y limits, insert the plot as a movable image annotation, or download it as PNG. Inserted plots use the editor’s normal undo and save/export flows.
+
+Printed expressions are read locally. Auto recognition can fall back to Gemini for handwritten or complex typeset expressions; this requires the existing Gemini key and AI recognition permission in Account. Text only mode keeps recognition local. Review the recognized equation before using it. Only explicit functions of x are supported; implicit relations, multiple equations, and other variables must be rewritten first. Trigonometry uses radians; log is base 10 and ln is natural logarithm. Plots use finite sampling, so very narrow features may require smaller axis limits. Restart the backend for the new graph recognition purpose.
