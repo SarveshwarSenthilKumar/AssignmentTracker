@@ -17,7 +17,7 @@ export default function PDFGraph({open,onClose,selection,onInsert,canInsert}) {
   return <aside hidden={!open} className="pdf-calculator pdf-graph" aria-label="Equation graph" data-keep-text-active>
     <header><span><LineChart size={17}/>Equation graph</span><button type="button" aria-label="Close graph" onClick={onClose}><X size={16}/></button></header>
     <label>Function of x<input value={expression} placeholder="y = x^2" disabled={selection?.pending} onChange={e=>setExpression(e.target.value)} maxLength={500}/></label>
-    <p>Drag a box around one equation with More tools → Graph selected region. Trigonometry uses radians.</p>
+    <p>Choose More tools → Graph selected region, then hold the left mouse button and drag a box around one equation. Pen selection also works. Trigonometry uses radians.</p>
     <div className="pdf-graph-limits">{['X min','X max','Y min','Y max'].map((label,i)=><label key={label}>{label}<input type="number" step="any" value={limits[i]} onChange={e=>setLimits(values=>values.map((v,j)=>i===j?e.target.value:v))}/></label>)}</div>
     {error&&<p className="pdf-calculator-error" role="alert">{error}</p>}{notice&&<p role="status">{notice}</p>}
     <canvas ref={canvas} width={720} height={520} hidden={!valid} aria-label={`Plot of ${expression}`} role="img"/>

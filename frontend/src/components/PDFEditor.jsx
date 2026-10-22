@@ -1715,10 +1715,25 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
                     userSelect: 'none'
                   }}
                   onMouseDown={(e) => e.preventDefault()}
+                  onDragStart={e => e.preventDefault()}
+                  onPointerDownCapture={e => {
+                    // Own mouse region selection before any annotation child can
+                    // intercept the press or start the browser's native drag.
+                    if(e.pointerType==='mouse'&&e.button===0&&['graph','calculate','snippet'].includes(currentTool)){
+                      handlePointerDown(e)
+                      e.stopPropagation()
+                    }
+                  }}
                   onPointerDown={handlePointerDown}
                   onPointerMove={handlePointerMove}
                   onPointerUp={handlePointerUp}
                   onPointerCancel={handlePointerUp}
+                  onLostPointerCapture={e => {
+                    if(calculationDrag.current?.pointerId!==e.pointerId)return
+                    calculationDrag.current=null
+                    annotationPointerRef.current=null
+                    setCalculationBox(null)
+                  }}
                   onPointerLeave={()=>{if(eraserCursorRef.current)eraserCursorRef.current.style.display='none'}}
                 >
                   {pageItems.filter(item=>item.sourceText).map(item=><div key={`cover-${item.id}`} aria-hidden style={{position:'absolute',left:item.sourceText.x*scale,top:item.sourceText.y*scale,width:item.sourceText.width*scale,height:item.sourceText.height*scale,background:item.sourceText.background||'#fff',pointerEvents:'none'}}/>)}
