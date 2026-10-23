@@ -21,6 +21,20 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
     return()=>document.removeEventListener('pointerdown',outside,true)
   },[open])
   useEffect(()=>close(),[view.focus])
+  useEffect(()=>close(),[view.toolbarPosition])
+  const toolbarEdge=view.toolbarPosition==='auto'?(view.focus?'bottom':'top'):view.toolbarPosition
+  useEffect(()=>{
+    const toolbar=root.current?.querySelector('.pc-toolbar')
+    if(!toolbar)return
+    const measure=()=>{
+      const height=`${toolbar.offsetHeight}px`
+      root.current?.style.setProperty('--pdf-toolbar-height',height)
+      root.current?.parentElement?.style.setProperty('--pdf-top-toolbar-height',height)
+    }
+    measure()
+    const observer=new ResizeObserver(measure);observer.observe(toolbar)
+    return()=>observer.disconnect()
+  },[])
   const run=fn=>()=>{close();fn?.()}
   const iconButton=(Icon,label,fn,disabled=false,active=false)=><button type="button" className={`pc-button pc-icon${active?' is-active':''}`} title={label} aria-label={label} disabled={disabled} onClick={fn}><Icon size={17}/></button>
   const action=(Icon,label,fn,{disabled=false,active=false,danger=false,detail}={})=><button type="button" className={`pc-menu-action${danger?' is-danger':''}${active?' is-active':''}`} onClick={run(fn)} disabled={disabled}><Icon size={16}/><span>{label}{detail&&<small>{detail}</small>}</span>{active&&<i aria-label="Enabled"/>}</button>
@@ -36,6 +50,7 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
     <hr/>{action(X,'Close document',doc.onClose)}
   </>,{left:true})
   const viewMenu=menu('view','View',Maximize,<>
+    <label className="pc-field">Toolbar position<select value={view.toolbarPosition} onChange={event=>view.onToolbarPosition(event.target.value)}><option value="auto">Automatic</option><option value="top">Top</option><option value="bottom">Bottom</option></select></label>
     <div className="pc-zoom-controls">{iconButton(ZoomOut,'Zoom out',view.onZoomOut)}<span>{Math.round(view.scale*100)}%</span>{iconButton(ZoomIn,'Zoom in',view.onZoomIn)}</div>
     {action(Maximize,'Fit page width',view.onFit)}{action(RotateCw,'Rotate view',view.onRotate)}<hr/>
     {!doc.exportImage&&action(Files,'Continuous scrolling',view.onContinuous,{active:view.continuous,disabled:pages.busy})}
@@ -74,7 +89,7 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
       {!text&&<label className="pc-checkbox"><input type="checkbox" checked={tools.usePressure} onChange={tools.onPressure}/>Use pen pressure</label>}
     </>}
   </>,{custom:<span className="pc-size-label">{size} <small>pt</small></span>,left:true})
-  return <div ref={root} className={`pdf-chrome${view.focus?' is-focus':''}${compact?' is-compact':''}`} data-keep-text-active onKeyDown={event=>{if(open&&event.key==='Escape'){event.preventDefault();event.stopPropagation();close();trigger.current?.focus()}}}>
+  return <div ref={root} className={`pdf-chrome is-${toolbarEdge}${view.focus?' is-focus':''}${compact?' is-compact':''}`} data-keep-text-active onKeyDown={event=>{if(open&&event.key==='Escape'){event.preventDefault();event.stopPropagation();close();trigger.current?.focus()}}}>
     {!view.focus&&<header className="pc-header">
       {documentMenu}<div className="pc-file-name"><strong title={doc.name}>{doc.name||'Document editor'}</strong><span className={`pc-save-state is-${doc.saveStatus}`} role="status"><i/>{doc.saveStatus==='saving'?'Saving…':doc.saveStatus==='saved'?'Saved':doc.saveStatus==='error'?'Save failed':'Unsaved'}</span></div>
       <div className="pc-history">{iconButton(Undo,'Undo (Ctrl+Z)',doc.onUndo,!doc.history.undo)}{iconButton(Redo,'Redo (Ctrl+Shift+Z)',doc.onRedo,!doc.history.redo)}</div>
