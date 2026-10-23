@@ -22,3 +22,7 @@
 .pdf-chrome.is-compact .pc-toolbar>.pc-side-button,.pdf-chrome.is-compact .pc-toolbar>button[aria-pressed]:not(.pc-compact-toggle){display:none}
 .pdf-chrome.is-compact .pc-toolbar .pc-tool{padding:5px;min-width:30px}
 .pdf-chrome.is-compact.is-focus .pc-toolbar{padding:4px;gap:2px}
+
+.pdf-editor-clock{display:inline-flex;align-items:center;gap:6px;flex-shrink:0;white-space:nowrap;padding:6px 9px;border:1px solid var(--border);border-radius:7px;background:var(--surface-raised);color:var(--text-secondary);font-size:12px;font-variant-numeric:tabular-nums;}
+
+.pdf-stopwatch{display:inline-flex;align-items:center;gap:5px;flex-shrink:0;padding:2px 5px 2px 9px;border:1px solid var(--border);border-radius:8px;background:var(--surface-raised);color:var(--text-secondary);}.pdf-stopwatch output{font-size:12px;font-variant-numeric:tabular-nums;white-space:nowrap;}.pdf-stopwatch.is-running{border-color:var(--accent-solid);color:var(--text-primary);}.pdf-chrome .pdf-stopwatch .pc-button{min-width:26px;min-height:28px;padding:4px;}.pdf-stopwatch button:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}

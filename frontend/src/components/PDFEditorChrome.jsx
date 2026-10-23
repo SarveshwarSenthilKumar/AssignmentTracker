@@ -1,6 +1,8 @@
 import { cloneElement, isValidElement, useEffect, useId, useRef, useState } from 'react'
 import { FileText, ChevronDown, ChevronLeft, ChevronRight, Pen, Highlighter, Type, Move, Eraser, Undo, Redo, Save, Download, Files, Settings, X, Maximize, Sun, Moon, LineChart, Calculator, Plus, Trash2, RotateCw, ZoomIn, ZoomOut, MessageSquare, SlidersHorizontal, Copy, PanelLeft, Loader2, Minimize2, Maximize2 } from 'lucide-react'
 import PDFEraserControls from './PDFEraserControls'
+import PDFEditorClock from './PDFEditorClock'
+import PDFStopwatch from './PDFStopwatch'
 import PDFFingerMode from './PDFFingerMode'
 import './PDFEditorChrome.css'
 
@@ -48,6 +50,7 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
     <hr/>{action(Trash2,`Delete page ${pages.current}`,pages.onDelete,{danger:true,disabled:!pages.count||pages.count<=1||pages.busy})}
   </>)
   const utilityMenu=menu('tools','More tools',SlidersHorizontal,<>
+    <label className="pc-checkbox"><input type="checkbox" checked={utilities.stopwatch} onChange={event=>utilities.onStopwatch(event.target.checked)}/>Show stopwatch</label>
     <label className="pc-checkbox"><input type="checkbox" checked={tools.autoStraightLines} onChange={tools.onAutoStraightLines}/>Detect long straight pen lines</label><hr/>
     {action(Calculator,'Calculator',utilities.onCalculator,{active:utilities.calculator})}
     {action(Calculator,'Calculate selected region',utilities.onCalculate,{active:tools.current==='calculate',detail:'Printed expressions or handwriting with AI'})}
@@ -87,6 +90,8 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
       <div className="pc-insert-slot">{isValidElement(insert)?cloneElement(insert,{onOpen:close,closeSignal:`${open||''}:${compact}`}):insert}</div>
       <div className="pc-tool-menus">{pagesMenu}{viewMenu}{utilityMenu}</div>
       <PDFFingerMode {...input}/>
+      {utilities.clock&&<PDFEditorClock/>}
+      <PDFStopwatch visible={utilities.stopwatch} onHide={()=>utilities.onStopwatch(false)}/>
       {view.focus&&<>
         {iconButton(Undo,'Undo',doc.onUndo,!doc.history.undo)}{iconButton(Redo,'Redo',doc.onRedo,!doc.history.redo)}
         {!doc.exportImage&&<button type="button" className={`pc-button pc-side-button${view.reference?' is-active':''}`} onClick={view.onReference} aria-pressed={view.reference} disabled={!pages.count||pages.busy}><Files size={16}/>Side page</button>}
