@@ -3,6 +3,7 @@ import { FileText, ChevronDown, ChevronLeft, ChevronRight, Pen, Highlighter, Typ
 import PDFEraserControls from './PDFEraserControls'
 import PDFEditorClock from './PDFEditorClock'
 import PDFStopwatch from './PDFStopwatch'
+import PDFCountdown from './PDFCountdown'
 import PDFFingerMode from './PDFFingerMode'
 import './PDFEditorChrome.css'
 
@@ -50,6 +51,7 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
     <hr/>{action(Trash2,`Delete page ${pages.current}`,pages.onDelete,{danger:true,disabled:!pages.count||pages.count<=1||pages.busy})}
   </>)
   const utilityMenu=menu('tools','More tools',SlidersHorizontal,<>
+    <label className="pc-checkbox"><input type="checkbox" checked={utilities.timer} onChange={event=>utilities.onTimer(event.target.checked)}/>Show countdown timer</label>
     <label className="pc-checkbox"><input type="checkbox" checked={utilities.stopwatch} onChange={event=>utilities.onStopwatch(event.target.checked)}/>Show stopwatch</label>
     <label className="pc-checkbox"><input type="checkbox" checked={tools.autoStraightLines} onChange={tools.onAutoStraightLines}/>Detect long straight pen lines</label><hr/>
     {action(Calculator,'Calculator',utilities.onCalculator,{active:utilities.calculator})}
@@ -92,6 +94,7 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
       <PDFFingerMode {...input}/>
       {utilities.clock&&<PDFEditorClock/>}
       <PDFStopwatch visible={utilities.stopwatch} onHide={()=>utilities.onStopwatch(false)}/>
+      <PDFCountdown visible={utilities.timer} onHide={()=>utilities.onTimer(false)}/>
       {view.focus&&<>
         {iconButton(Undo,'Undo',doc.onUndo,!doc.history.undo)}{iconButton(Redo,'Redo',doc.onRedo,!doc.history.redo)}
         {!doc.exportImage&&<button type="button" className={`pc-button pc-side-button${view.reference?' is-active':''}`} onClick={view.onReference} aria-pressed={view.reference} disabled={!pages.count||pages.busy}><Files size={16}/>Side page</button>}
