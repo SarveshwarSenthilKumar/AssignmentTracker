@@ -42,7 +42,7 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
   const iconButton=(Icon,label,fn,disabled=false,active=false)=><button type="button" className={`pc-button pc-icon${active?' is-active':''}`} title={label} aria-label={label} disabled={disabled} onClick={fn}><Icon size={17}/></button>
   const action=(Icon,label,fn,{disabled=false,active=false,danger=false,detail}={})=><button type="button" className={`pc-menu-action${danger?' is-danger':''}${active?' is-active':''}`} onClick={run(fn)} disabled={disabled}><Icon size={16}/><span>{label}{detail&&<small>{detail}</small>}</span>{active&&<i aria-label="Enabled"/>}</button>
   const menu=(key,label,Icon,children,{left=false,custom=null}={})=><div className={`pc-menu-anchor${left?' is-left':''}`}>
-    <button type="button" className={`pc-button${open===key||key==='tools'&&['calculate','graph','snippet'].includes(tools.current)?' is-active':''}`} aria-expanded={open===key} aria-controls={open===key?`${id}-${key}`:undefined} onClick={event=>{trigger.current=event.currentTarget;setOpen(previous=>previous===key?null:key)}} title={label}>{custom||<><Icon size={16}/><span>{label}</span></>}<ChevronDown size={12}/></button>
+    <button type="button" className={`pc-button${open===key||key==='tools'&&['calculate','function','graph','snippet'].includes(tools.current)?' is-active':''}`} aria-expanded={open===key} aria-controls={open===key?`${id}-${key}`:undefined} onClick={event=>{trigger.current=event.currentTarget;setOpen(previous=>previous===key?null:key)}} title={label}>{custom||<><Icon size={16}/><span>{label}</span></>}<ChevronDown size={12}/></button>
     {open===key&&<section id={`${id}-${key}`} className={`pc-popover pc-popover-${key}`} aria-label={label}><div className="pc-popover-title">{label}</div>{children}</section>}
   </div>
   const documentMenu=menu('document','Document',FileText,<>
@@ -74,8 +74,9 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
     <label className="pc-checkbox"><input type="checkbox" checked={tools.autoStraightLines} onChange={tools.onAutoStraightLines}/>Detect long straight pen lines</label><hr/>
     {action(Calculator,'Calculator',utilities.onCalculator,{active:utilities.calculator})}
     {action(Calculator,'Calculate selected region',utilities.onCalculate,{active:tools.current==='calculate',detail:'Printed expressions or handwriting with AI'})}
+    {action(Calculator,'Scan function → calculate',utilities.onScanFunction,{active:tools.current==='function',detail:'Select f(x), enter x, and calculate its value'})}
     {action(LineChart,'Graph selected region',utilities.onGraph,{active:tools.current==='graph',detail:'Plot a printed or handwritten function of x'})}
-    {(tools.current==='calculate'||tools.current==='graph')&&<label className="pc-field">Recognition<select value={utilities.recognition} onChange={event=>utilities.onRecognition(event.target.value)}><option value="auto">Auto · AI fallback</option><option value="vision">Handwriting / AI</option><option value="text">Text only · local</option></select></label>}
+    {(tools.current==='calculate'||tools.current==='function'||tools.current==='graph')&&<label className="pc-field">Recognition<select value={utilities.recognition} onChange={event=>utilities.onRecognition(event.target.value)}><option value="auto">Auto · AI fallback</option><option value="vision">Handwriting / AI</option><option value="text">Text only · local</option></select></label>}
     <hr/>{action(Copy,utilities.copying?'Copying region…':'Copy region',utilities.onCopyRegion,{active:tools.current==='snippet',disabled:utilities.copying,detail:'Drag a box around the content to copy'})}
     {action(Files,'Paste snippet',utilities.onPaste,{disabled:!utilities.canPaste,detail:utilities.snippetReady?'Copied content ready to paste':'Copy a region first'})}
     <hr/>{action(Pen,'Stylus setup',utilities.onStylus)}

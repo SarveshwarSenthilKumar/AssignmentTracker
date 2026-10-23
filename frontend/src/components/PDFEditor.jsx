@@ -1087,7 +1087,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     if (e.pointerType === 'mouse' && e.button !== 0) return
     if (!overlayRef.current) return
     if(annotationPointerRef.current!==null&&annotationPointerRef.current!==e.pointerId)return
-    if(currentTool==='calculate'||currentTool==='graph'||currentTool==='snippet'){
+    if(currentTool==='calculate'||currentTool==='function'||currentTool==='graph'||currentTool==='snippet'){
       annotationPointerRef.current=e.pointerId
       viewerRef.current?.focus({preventScroll:true})
       e.preventDefault();const point=toLocal(e)
@@ -1197,8 +1197,8 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         })()
         return
       }
-      const graph=start.tool==='graph'
-      const publish=selection=>{if(graph){setGraphSelection(selection);setShowGraph(true);setShowCalculator(false)}else{setCalculationSelection(selection);setShowCalculator(true);setShowGraph(false)}}
+      const graph=start.tool==='graph',functionMode=start.tool==='function',recognizeFunction=graph||functionMode
+      const publish=selection=>{if(graph){setGraphSelection(selection);setShowGraph(true);setShowCalculator(false)}else{setCalculationSelection({...selection,functionMode});setShowCalculator(true);setShowGraph(false)}}
       recognitionController.current?.abort()
       const controller=new AbortController();recognitionController.current=controller
       const annotations=pathsRef.current.filter(item=>(item.page||1)===start.page)
@@ -1210,7 +1210,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
           try{
             if(needsVision)throw new Error('Handwriting or image selected. Choose Auto or Handwriting / AI to recognize it.')
             const text=await textInPdfBox(page,box,pdfjs.Util.transform,annotations)
-            expression=graph?graphExpression(text):selectionExpression(text);if(graph)compileGraph(expression);else calculate(expression)
+            expression=recognizeFunction?graphExpression(text):selectionExpression(text);if(recognizeFunction)compileGraph(expression);else calculate(expression)
           }catch(error){
             if(calculationMode==='text')throw error
             if(generation!==calculationGeneration.current)return
@@ -1219,10 +1219,10 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
             if(generation!==calculationGeneration.current||controller.signal.aborted)return
             const timeout=setTimeout(()=>controller.abort(),55000)
             try{
-              const response=await fetch('/api/calculator/recognize',{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({image,purpose:graph?'graph':'calculate'}),signal:controller.signal})
+              const response=await fetch('/api/calculator/recognize',{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({image,purpose:recognizeFunction?'graph':'calculate'}),signal:controller.signal})
               const data=await readApiJson(response)
               if(!response.ok)throw new Error(data.message||'Could not recognize the selected handwriting.')
-              expression=graph?graphExpression(data.expression):selectionExpression(data.expression);source='ai';transcription=data.transcription
+              expression=recognizeFunction?graphExpression(data.expression):selectionExpression(data.expression);source='ai';transcription=data.transcription
             }finally{clearTimeout(timeout)}
           }
           if(generation!==calculationGeneration.current)return
@@ -1590,7 +1590,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       pendingPinchAnchor.current=anchor;setScale(gesture.nextScale)
     },
     viewer:viewerRef,overlay:overlayRef,tool:currentTool,scrollWithFinger:fingerScroll,resetKey:`${pdfId}:${pageNumber}:${currentTool}:${focusMode}`,
-    canDrawTouch:event=>overlayRef.current?.contains(event.target)&&['pen','highlighter','eraser','calculate','graph','snippet'].includes(currentTool),
+    canDrawTouch:event=>overlayRef.current?.contains(event.target)&&['pen','highlighter','eraser','calculate','function','graph','snippet'].includes(currentTool),
     onDrawEnd:handlePointerUp,
     beginTouchAnnotation:id=>{
       commitText()
@@ -1727,7 +1727,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
                   onPointerDownCapture={e => {
                     // Own mouse region selection before any annotation child can
                     // intercept the press or start the browser's native drag.
-                    if(e.pointerType==='mouse'&&e.button===0&&['graph','calculate','snippet'].includes(currentTool)){
+                    if(e.pointerType==='mouse'&&e.button===0&&['graph','calculate','function','snippet'].includes(currentTool)){
                       handlePointerDown(e)
                       e.stopPropagation()
                     }
@@ -1753,7 +1753,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
                     style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
                   >
                     {currentTool==='eraser'&&<rect ref={eraserCursorRef} width={eraserSize} height={eraserSize} rx={eraserShape==='round'?eraserSize/2:0} fill="#8fa5b918" stroke="#526c83" strokeWidth={1.3/scale} style={{display:'none'}}/>}
-                    {(currentTool==='calculate'||currentTool==='graph'||currentTool==='snippet')&&calculationBox&&<rect x={calculationBox.x} y={calculationBox.y} width={calculationBox.width} height={calculationBox.height} fill="#8fa5b933" stroke="#8fa5b9" strokeWidth={1.5/scale} strokeDasharray={`${4/scale} ${3/scale}`}/>}
+                    {(currentTool==='calculate'||currentTool==='function'||currentTool==='graph'||currentTool==='snippet')&&calculationBox&&<rect x={calculationBox.x} y={calculationBox.y} width={calculationBox.width} height={calculationBox.height} fill="#8fa5b933" stroke="#8fa5b9" strokeWidth={1.5/scale} strokeDasharray={`${4/scale} ${3/scale}`}/>}
 
                   </svg>
 
@@ -1822,7 +1822,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         tools={{autoStraightLines,onAutoStraightLines:()=>setAutoStraightLines(previous=>!previous),current:currentTool,onTool:tool=>{commitText();setCurrentTool(tool)},color:currentColor,onColor:handleColorChange,colors:COLORS,colorNames:COLOR_NAMES,fontSize,onFontSize:handleFontSizeChange,strokeWidth,onWidth:setStrokeWidth,usePressure,onPressure:()=>setUsePressure(previous=>!previous),eraser:{mode:eraserMode,onMode:setEraserMode,size:eraserSize,onSize:setEraserSize,shape:eraserShape,onShape:setEraserShape,target:eraserTarget,onTarget:setEraserTarget}}}
         pages={{count:numPages,current:pageNumber,showThumbnails:showPages,onToggleThumbnails:()=>{if(focusMode){exitFocusMode();setShowPages(true)}else setShowPages(previous=>!previous)},onNavigate:goToPage,onAddBlank:()=>handleAddPages({mode:'blank',placement:'after'}),onDelete:()=>handleDeletePage(),busy:deletingPage||inserting,canAdd:!!numPages&&!!pageBase&&pageBase.page===pageNumber&&!loading&&!deletingPage&&!inserting}}
         view={{toolbarPosition,onToolbarPosition:setToolbarPosition,scale,onZoomIn:handleZoomIn,onZoomOut:handleZoomOut,onFit:handleFitWidth,onRotate:handleRotate,dark:darkPages,onDark:()=>setDarkPages(previous=>!previous),continuous:continuousView,onContinuous:()=>{handleTextDragEnd();commitText();setContinuousView(previous=>!previous)},reference:showReference,onReference:toggleReference,focus:focusMode,onFocus:enterFocusMode,onExitFocus:exitFocusMode}}
-        utilities={{timer:showTimer,onTimer:setShowTimer,stopwatch:showStopwatch,onStopwatch:setShowStopwatch,clock:showClock,onGraph:()=>{commitText();setCurrentTool('graph');setShowGraph(true);setShowCalculator(false)},calculator:showCalculator,onCalculator:()=>{commitText();setShowGraph(false);setShowCalculator(previous=>!previous)},onCalculate:()=>{commitText();setCurrentTool('calculate')},recognition:calculationMode,onRecognition:setCalculationMode,snippetReady:!!snippet,copying:copyingSnippet,onCopyRegion:()=>{commitText();setCurrentTool('snippet')},onPaste:pasteSnippet,canPaste:!!snippet&&!!pageBase&&pageBase.page===pageNumber&&!inserting&&!deletingPage,onStylus:()=>setShowStylusStudio(true),onSettings:()=>setShowSettings(previous=>!previous),settingsOpen:showSettings,assistantOpen,onAssistant:onToggleAssistant}}
+        utilities={{timer:showTimer,onTimer:setShowTimer,stopwatch:showStopwatch,onStopwatch:setShowStopwatch,clock:showClock,onGraph:()=>{commitText();setCurrentTool('graph');setShowGraph(true);setShowCalculator(false)},calculator:showCalculator,onCalculator:()=>{commitText();setShowGraph(false);setShowCalculator(previous=>!previous)},onScanFunction:()=>{commitText();setCurrentTool('function');setShowCalculator(true);setShowGraph(false)},onCalculate:()=>{commitText();setCurrentTool('calculate')},recognition:calculationMode,onRecognition:setCalculationMode,snippetReady:!!snippet,copying:copyingSnippet,onCopyRegion:()=>{commitText();setCurrentTool('snippet')},onPaste:pasteSnippet,canPaste:!!snippet&&!!pageBase&&pageBase.page===pageNumber&&!inserting&&!deletingPage,onStylus:()=>setShowStylusStudio(true),onSettings:()=>setShowSettings(previous=>!previous),settingsOpen:showSettings,assistantOpen,onAssistant:onToggleAssistant}}
         input={{scroll:fingerScroll,onChange:setFingerInputMode,activity:inputActivity}}
         insert={<InsertPanel onPages={exportImage?undefined:handleAddPages} pageNumber={pageNumber} onFiles={insertFiles} onInsert={insertGenerated} color={currentColor} busy={inserting||!pageBase||pageBase.page!==pageNumber||deletingPage}/>}
       />
@@ -1894,7 +1894,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       <div ref={onAssistantHost} className="pdf-assistant-dock" hidden={!assistantOpen} aria-label="Notes AI assistant"/>
       </div>
       {!exportImage&&<footer className="pdf-workspace-footer">
-        <span className="pdf-footer-hint">{currentTool==='graph'?'Drag around an equation to graph':currentTool==='calculate'?'Drag around an expression to calculate':currentTool==='snippet'?copyingSnippet?'Copying region…':snippet?'Snippet ready · More tools → Paste snippet':'Drag a region to copy':currentTool==='select'?'Drag to move · corners to resize':continuousView?'Continuous scrolling':'Single page view'}</span>
+        <span className="pdf-footer-hint">{currentTool==='function'?'Drag around a function, then enter x in the calculator':currentTool==='graph'?'Drag around an equation to graph':currentTool==='calculate'?'Drag around an expression to calculate':currentTool==='snippet'?copyingSnippet?'Copying region…':snippet?'Snippet ready · More tools → Paste snippet':'Drag a region to copy':currentTool==='select'?'Drag to move · corners to resize':continuousView?'Continuous scrolling':'Single page view'}</span>
         <nav aria-label="Page navigation"><button type="button" title="Previous page" aria-label="Previous page" disabled={pageNumber<=1||deletingPage||inserting} onClick={()=>goToPage(pageNumber-1)}><ChevronLeft size={16}/></button><label>Page <input aria-label="Page number" key={pageNumber} type="number" min="1" max={numPages||1} defaultValue={pageNumber} disabled={deletingPage||inserting} onBlur={event=>{const target=Math.max(1,Math.min(numPages||1,Number(event.target.value)||1));goToPage(target);event.target.value=String(target)}} onKeyDown={event=>{if(event.key==='Enter')event.currentTarget.blur()}}/> <span>/ {numPages||'…'}</span></label><button type="button" title="Next page" aria-label="Next page" disabled={pageNumber>=(numPages||1)||deletingPage||inserting} onClick={()=>goToPage(pageNumber+1)}><ChevronRight size={16}/></button></nav>
         <div className="pdf-footer-zoom"><button type="button" onClick={handleZoomOut} aria-label="Zoom out"><ZoomOut size={14}/></button><button type="button" onClick={handleFitWidth} title="Fit page width">{Math.round(scale*100)}%</button><button type="button" onClick={handleZoomIn} aria-label="Zoom in"><ZoomIn size={14}/></button></div>
       </footer>}
