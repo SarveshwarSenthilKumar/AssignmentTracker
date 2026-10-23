@@ -475,7 +475,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const [activeTextId, setActiveTextId] = useState(null)
   const [loading, setLoading] = useState(true)
   const [showSettings, setShowSettings] = useState(false)
-  const [toolbarPosition,setToolbarPosition]=useState(()=>{try{const saved=localStorage.getItem('pdf-editor-toolbar-position');return ['auto','top','bottom'].includes(saved)?saved:'auto'}catch{return 'auto'}})
+  const [toolbarPosition,setToolbarPosition]=useState(()=>{try{const saved=localStorage.getItem('pdf-editor-toolbar-position');return ['auto','top','bottom','left','right'].includes(saved)?saved:'auto'}catch{return 'auto'}})
   useEffect(()=>{try{localStorage.setItem('pdf-editor-toolbar-position',toolbarPosition)}catch{}},[toolbarPosition])
   const [showTimer,setShowTimer]=useState(()=>{try{return localStorage.getItem('pdf-editor-show-timer')==='true'}catch{return false}})
   useEffect(()=>{try{localStorage.setItem('pdf-editor-show-timer',String(showTimer))}catch{}},[showTimer])
@@ -1830,7 +1830,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       {lineSuggestion&&<div className="pdf-line-suggestion" role="status" aria-live="polite"><span>Straight line detected</span><button type="button" onClick={()=>setLineSuggestion(null)} aria-label="Keep straight line"><Check size={15}/>Keep</button><button type="button" onClick={revertStraightLine} aria-label="Restore original freehand stroke"><Undo size={15}/>Undo</button></div>}
       {currentTool==='text'&&!exportImage&&<div className="pdf-existing-text-hint" role="status">Click existing text to replace it, or click blank space to add text. Scanned images need OCR first. Replacements cover the original on a white background; they do not redact the underlying text.</div>}
       {actionError && <div role="alert" className="flex items-center justify-between gap-3 bg-red-950 px-5 py-2 text-sm text-red-200">{actionError}<button onClick={() => setActionError(null)} aria-label="Dismiss error"><X size={16} /></button></div>}
-      <div className={cn('flex flex-1 min-h-0 relative',darkPages&&'pdf-dark-pages')}>
+      <div className={cn('pdf-editor-workspace flex flex-1 min-h-0 relative',darkPages&&'pdf-dark-pages')}>
         <PDFGraph open={showGraph} onClose={()=>setShowGraph(false)} selection={graphSelection} onInsert={asset=>addImageInsert(asset)} canInsert={!!pageBase&&pageBase.page===pageNumber&&!inserting&&!deletingPage}/>
         <PDFCalculator open={showCalculator} onClose={()=>setShowCalculator(false)} selection={calculationSelection}/>
         {!focusMode && showPages && pdfFile && !pdfError && (
@@ -1967,7 +1967,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
               </div>
 
               <button type="button" className="pdf-control" onClick={()=>setShowStylusStudio(true)}><Pen size={17}/>Customize stylus buttons</button>
-              <label className="pdf-toolbar-position-setting">Toolbar position<select value={toolbarPosition} onChange={event=>setToolbarPosition(event.target.value)}><option value="auto">Automatic (top normally, bottom in fullscreen)</option><option value="top">Top</option><option value="bottom">Bottom</option></select><small>Saved automatically on this device.</small></label>
+              <label className="pdf-toolbar-position-setting">Toolbar position<select value={toolbarPosition} onChange={event=>setToolbarPosition(event.target.value)}><option value="auto">Automatic (top normally, bottom in fullscreen)</option><option value="top">Top</option><option value="bottom">Bottom</option><option value="left">Left · vertical</option><option value="right">Right · vertical</option></select><small>Saved automatically on this device.</small></label>
               <label className="pdf-clock-setting"><input type="checkbox" checked={showTimer} onChange={event=>setShowTimer(event.target.checked)}/><span>Show countdown timer<small>Click the timer display to set a duration. Hiding keeps it running; closing the editor resets it. Completion alerts appear even when hidden.</small></span></label>
               <label className="pdf-clock-setting"><input type="checkbox" checked={showStopwatch} onChange={event=>setShowStopwatch(event.target.checked)}/><span>Show stopwatch<small>Start, pause and reset from the toolbar, including fullscreen. Hiding keeps it running; closing the editor resets it.</small></span></label>
               <label className="pdf-clock-setting"><input type="checkbox" checked={showClock} onChange={event=>setShowClock(event.target.checked)}/><span>Show clock in editor<small>Current time in your account time zone, including fullscreen. Saved automatically on this device.</small></span></label>

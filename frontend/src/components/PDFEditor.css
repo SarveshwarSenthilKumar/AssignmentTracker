@@ -294,3 +294,10 @@
 
 .pdf-toolbar-position-setting{grid-column:1 / -1;display:grid;gap:7px;font-size:12px;color:var(--text-primary);}.pdf-toolbar-position-setting select{width:100%;background:var(--surface-input);color:var(--text-primary);}.pdf-toolbar-position-setting small{font-size:11px;color:var(--text-muted);}
 .pdf-focus-mode:has(>.pdf-chrome.is-top) .pdf-editor-canvas{padding-bottom:0;padding-top:calc(var(--pdf-top-toolbar-height,80px) + 16px);}
+
+.pdf-editor:has(>.pdf-chrome:is(.is-left,.is-right)){--pdf-rail-width:140px;}
+.pdf-editor:has(>.pdf-chrome.is-compact:is(.is-left,.is-right)){--pdf-rail-width:110px;}
+.pdf-editor:has(>.pdf-chrome.is-left)>.pdf-editor-workspace{margin-left:calc(var(--pdf-rail-width) + 16px);}
+.pdf-editor:has(>.pdf-chrome.is-right)>.pdf-editor-workspace{margin-right:calc(var(--pdf-rail-width) + 16px);}
+.pdf-focus-mode:has(>.pdf-chrome:is(.is-left,.is-right)) .pdf-editor-canvas{padding-bottom:0;}
+@media(max-width:540px){.pdf-editor:has(>.pdf-chrome:is(.is-left,.is-right)){--pdf-rail-width:112px;}.pdf-editor:has(>.pdf-chrome.is-compact:is(.is-left,.is-right)){--pdf-rail-width:100px;}}

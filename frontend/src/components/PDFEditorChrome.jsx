@@ -23,6 +23,7 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
   useEffect(()=>close(),[view.focus])
   useEffect(()=>close(),[view.toolbarPosition])
   const toolbarEdge=view.toolbarPosition==='auto'?(view.focus?'bottom':'top'):view.toolbarPosition
+  const vertical=toolbarEdge==='left'||toolbarEdge==='right'
   useEffect(()=>{
     const toolbar=root.current?.querySelector('.pc-toolbar')
     if(!toolbar)return
@@ -30,11 +31,13 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
       const height=`${toolbar.offsetHeight}px`
       root.current?.style.setProperty('--pdf-toolbar-height',height)
       root.current?.parentElement?.style.setProperty('--pdf-top-toolbar-height',height)
+      root.current?.parentElement?.style.setProperty('--pdf-header-height',`${root.current?.querySelector('.pc-header')?.offsetHeight||0}px`)
     }
     measure()
     const observer=new ResizeObserver(measure);observer.observe(toolbar)
+    const header=root.current?.querySelector('.pc-header');if(header)observer.observe(header)
     return()=>observer.disconnect()
-  },[])
+  },[view.focus])
   const run=fn=>()=>{close();fn?.()}
   const iconButton=(Icon,label,fn,disabled=false,active=false)=><button type="button" className={`pc-button pc-icon${active?' is-active':''}`} title={label} aria-label={label} disabled={disabled} onClick={fn}><Icon size={17}/></button>
   const action=(Icon,label,fn,{disabled=false,active=false,danger=false,detail}={})=><button type="button" className={`pc-menu-action${danger?' is-danger':''}${active?' is-active':''}`} onClick={run(fn)} disabled={disabled}><Icon size={16}/><span>{label}{detail&&<small>{detail}</small>}</span>{active&&<i aria-label="Enabled"/>}</button>
@@ -50,7 +53,7 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
     <hr/>{action(X,'Close document',doc.onClose)}
   </>,{left:true})
   const viewMenu=menu('view','View',Maximize,<>
-    <label className="pc-field">Toolbar position<select value={view.toolbarPosition} onChange={event=>view.onToolbarPosition(event.target.value)}><option value="auto">Automatic</option><option value="top">Top</option><option value="bottom">Bottom</option></select></label>
+    <label className="pc-field">Toolbar position<select value={view.toolbarPosition} onChange={event=>view.onToolbarPosition(event.target.value)}><option value="auto">Automatic</option><option value="top">Top</option><option value="bottom">Bottom</option><option value="left">Left · vertical</option><option value="right">Right · vertical</option></select></label>
     <div className="pc-zoom-controls">{iconButton(ZoomOut,'Zoom out',view.onZoomOut)}<span>{Math.round(view.scale*100)}%</span>{iconButton(ZoomIn,'Zoom in',view.onZoomIn)}</div>
     {action(Maximize,'Fit page width',view.onFit)}{action(RotateCw,'Rotate view',view.onRotate)}<hr/>
     {!doc.exportImage&&action(Files,'Continuous scrolling',view.onContinuous,{active:view.continuous,disabled:pages.busy})}
@@ -99,7 +102,7 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
       <button type="button" className="pc-button pc-save" onClick={doc.onSave} disabled={doc.saveStatus==='saving'}>{doc.saveStatus==='saving'?<Loader2 size={16} className="animate-spin"/>:<Save size={16}/>}<span>Save</span></button>
       {iconButton(X,'Close editor',doc.onClose)}
     </header>}
-    <div className="pc-toolbar" role="toolbar" aria-label="PDF annotation tools" onMouseDown={event=>{if(event.target.closest('button')&&!event.target.closest('.pc-popover,.pdf-insert-popover'))event.preventDefault()}}>
+    <div className="pc-toolbar" role="toolbar" aria-label="PDF annotation tools" aria-orientation={vertical?'vertical':'horizontal'} onMouseDown={event=>{if(event.target.closest('button')&&!event.target.closest('.pc-popover,.pdf-insert-popover'))event.preventDefault()}}>
       <button type="button" className="pc-button pc-compact-toggle" aria-label={compact?'Expand tools toolbar':'Shrink tools toolbar'} title={compact?'Expand toolbar to show all tools':'Shrink toolbar'} aria-pressed={compact} onClick={()=>{close();setCompact(previous=>!previous)}}>{compact?<Maximize2 size={16}/>:<Minimize2 size={16}/>}<span>{compact?'Expand':'Shrink'}</span></button>
       {view.focus&&documentMenu}
       <div className="pc-annotation-group" role="group" aria-label="Annotation tools">{annotationTools.map(([key,label,Icon])=><button key={key} type="button" className={`pc-button pc-tool${tools.current===key?' is-active':''}`} aria-pressed={tools.current===key} title={label} aria-label={label} onClick={()=>{close();tools.onTool(key)}}><Icon size={18}/><span>{label}</span></button>)}</div>

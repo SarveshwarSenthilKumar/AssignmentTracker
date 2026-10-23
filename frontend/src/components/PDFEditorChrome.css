@@ -37,3 +37,30 @@
 .pdf-chrome.is-focus.is-top{top:14px;bottom:auto;}
 .pdf-chrome.is-focus.is-top .pc-popover,.pdf-chrome.is-focus.is-top .pc-insert-slot .pdf-insert-popover,.pdf-chrome.is-focus.is-top .pdf-countdown-popover{top:calc(100% + 12px);bottom:auto;max-height:calc(100dvh - var(--pdf-toolbar-height,60px) - 42px);}
 @media(max-width:540px){.pdf-chrome.is-focus.is-top .pc-popover,.pdf-chrome.is-focus.is-top .pc-insert-slot .pdf-insert-popover,.pdf-chrome.is-focus.is-top .pdf-countdown-popover{position:absolute;left:0!important;right:0!important;width:auto;}.pdf-chrome.is-bottom:not(.is-focus) .pc-popover,.pdf-chrome.is-bottom:not(.is-focus) .pc-insert-slot .pdf-insert-popover,.pdf-chrome.is-bottom:not(.is-focus) .pdf-countdown-popover{right:12px!important;width:auto;}}
+
+/* Vertical rails keep document actions above the workspace and menus outside the scroll area. */
+.pdf-chrome:is(.is-left,.is-right),.pdf-chrome.is-focus:is(.is-left,.is-right){display:contents;position:static;transform:none;}
+.pdf-chrome:is(.is-left,.is-right)>.pc-header{position:relative;z-index:45;flex-shrink:0;background:var(--surface-panel);}
+.pdf-chrome:is(.is-left,.is-right)>.pc-toolbar{position:fixed;top:calc(var(--pdf-header-height,0px) + 8px);bottom:44px;width:var(--pdf-rail-width,140px);max-height:none;display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;flex-wrap:nowrap;gap:9px;padding:8px;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scrollbar-width:thin;z-index:45;border:1px solid var(--border-strong);border-radius:12px;background:var(--surface-panel);box-shadow:0 8px 25px #0004;}
+.pdf-chrome.is-left>.pc-toolbar{left:8px;right:auto;}.pdf-chrome.is-right>.pc-toolbar{right:8px;left:auto;}
+.pdf-chrome.is-focus:is(.is-left,.is-right)>.pc-toolbar{top:12px;bottom:12px;}
+.pdf-chrome:is(.is-left,.is-right) .pc-toolbar>.pc-button{width:100%;}
+.pdf-chrome:is(.is-left,.is-right) .pc-annotation-group{flex-direction:column;align-items:stretch;gap:3px;padding:0 0 8px;border-right:0;border-bottom:1px solid var(--border);}
+.pdf-chrome:is(.is-left,.is-right) .pc-annotation-group .pc-tool{width:100%;justify-content:flex-start;}
+.pdf-chrome:is(.is-left,.is-right):not(.is-compact) .pc-tool>span{display:inline;}
+.pdf-chrome:is(.is-left,.is-right) .pc-brush-group{justify-content:center;flex-wrap:wrap;}
+.pdf-chrome:is(.is-left,.is-right) .pc-tool-menus{flex-direction:column;align-items:stretch;gap:3px;margin:0;order:initial;}
+.pdf-chrome:is(.is-left,.is-right) .pc-tool-menus>.pc-menu-anchor>.pc-button,.pdf-chrome:is(.is-left,.is-right) .pc-insert-slot .insert-trigger{width:100%;justify-content:flex-start;}
+.pdf-chrome:is(.is-left,.is-right) .pc-toolbar>.pdf-finger-input{margin:0;order:initial;align-items:stretch;}
+.pdf-chrome:is(.is-left,.is-right) .pdf-finger-mode{display:flex;flex-direction:column;}
+.pdf-chrome:is(.is-left,.is-right) .pdf-stopwatch{flex-wrap:wrap;justify-content:center;gap:3px;padding:5px 3px;}
+.pdf-chrome:is(.is-left,.is-right) .pdf-editor-clock{justify-content:center;padding:6px 3px;font-size:11px;}
+.pdf-chrome:is(.is-left,.is-right) .pdf-countdown-complete{flex-direction:column;white-space:normal;}
+.pdf-chrome:is(.is-left,.is-right) .pc-toolbar .pc-popover,.pdf-chrome:is(.is-left,.is-right) .pc-toolbar .pdf-insert-popover,.pdf-chrome:is(.is-left,.is-right) .pc-toolbar .pdf-countdown-popover{position:fixed;top:calc(var(--pdf-header-height,0px) + 12px);bottom:auto;max-height:calc(100dvh - var(--pdf-header-height,0px) - 30px);max-width:calc(100vw - var(--pdf-rail-width,140px) - 34px);width:270px;}
+.pdf-chrome.is-left .pc-toolbar .pc-popover,.pdf-chrome.is-left .pc-toolbar .pdf-insert-popover,.pdf-chrome.is-left .pc-toolbar .pdf-countdown-popover{left:calc(var(--pdf-rail-width,140px) + 18px)!important;right:auto!important;}
+.pdf-chrome.is-right .pc-toolbar .pc-popover,.pdf-chrome.is-right .pc-toolbar .pdf-insert-popover,.pdf-chrome.is-right .pc-toolbar .pdf-countdown-popover{right:calc(var(--pdf-rail-width,140px) + 18px)!important;left:auto!important;}
+.pdf-chrome:is(.is-left,.is-right) .pc-toolbar .pdf-insert-popover{width:620px;}
+.pdf-chrome:is(.is-left,.is-right) .pc-toolbar .pc-popover-brush{width:310px;}
+.pdf-chrome.is-compact:is(.is-left,.is-right) .pc-annotation-group .pc-tool{justify-content:center;}
+.pdf-chrome.is-compact:is(.is-left,.is-right) .pc-toolbar{padding:5px;gap:5px;}
+.pdf-chrome.is-compact:is(.is-left,.is-right) .pc-compact-toggle>span{display:none;}
