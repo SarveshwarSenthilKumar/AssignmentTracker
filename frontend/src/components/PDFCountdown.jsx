@@ -52,13 +52,21 @@ export default function PDFCountdown({visible,onHide}){
     deadline.current=null;setRunning(false);setDuration(value);setRemaining(value);setFinished(false);setError('')
     event.currentTarget.closest('details')?.removeAttribute('open')
   }
+  const handleSettingsKeyDown=event=>{
+    if(event.key!=='Escape')return
+    event.preventDefault()
+    event.stopPropagation()
+    const details=event.currentTarget.closest('details')
+    details?.removeAttribute('open')
+    details?.querySelector('summary')?.focus()
+  }
   if(!visible&&!finished)return null
   return <div className={`pdf-stopwatch pdf-countdown${running?' is-running':''}${finished?' is-finished':''}`} role="group" aria-label="Countdown timer">
     {visible&&<>
       <Hourglass size={14} aria-hidden="true"/>
       <details className="pdf-countdown-settings">
         <summary title="Set timer duration" aria-label={`Set timer duration. Remaining ${format(remaining)}`}>{format(remaining)}</summary>
-        <form onSubmit={apply} className="pdf-countdown-popover" onKeyDown={event=>{if(event.key==='Escape'){event.stopPropagation();event.currentTarget.closest('details').removeAttribute('open');event.currentTarget.closest('details').querySelector('summary').focus()}}>
+        <form onSubmit={apply} className="pdf-countdown-popover" onKeyDown={handleSettingsKeyDown}>
           <strong>Countdown timer</strong>
           <div className="pdf-countdown-duration"><label>Minutes<input type="number" min="0" max="1440" step="1" value={minutes} onChange={event=>setMinutes(event.target.value)} required/></label><label>Seconds<input type="number" min="0" max="59" step="1" value={seconds} onChange={event=>setSeconds(event.target.value)} required/></label></div>
           <label className="pc-checkbox"><input type="checkbox" checked={sound} onChange={event=>setSound(event.target.checked)}/>Play completion sound</label>
