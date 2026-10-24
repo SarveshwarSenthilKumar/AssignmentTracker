@@ -95,10 +95,13 @@ export async function readLocalJobFile(file,{signal,onProgress=()=>{}}={}){
         const quality=data=>data.confidence+Math.min(15,(data.text.match(/\b[a-zA-Z]{3,}\b/g)||[]).length/3)
         if(quality(retry.data)>quality(result.data)+2)result=retry
       }
-      layout.push(...ocrJobLayout(result.data,canvas.width,canvas.height,currentPage))
+      const recognizedLines=ocrJobLayout(result.data,canvas.width,canvas.height,currentPage)
+      layout.push(...recognizedLines)
       ocrPages++
       if(result.data.confidence<65)warnings.push(`Page ${currentPage} has low OCR confidence. Check names, salary figures and dates.`)
-      return result.data.text
+      // Use the line hierarchy explicitly. Some OCR layouts produce paragraph
+      // text with collapsed breaks even though individual lines are available.
+      return recognizedLines.length?recognizedLines.map(line=>line.text).join('\n'):result.data.text
     }finally{canvas.width=1;canvas.height=1}
   }
   try{

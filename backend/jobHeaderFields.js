@@ -17,9 +17,14 @@ function inferHeaderFields(lines,isLabel,isSection,layout,knownTitle=''){
   const body=lines.findIndex(line=>/^(?:description|job description|about (?:the|this) (?:role|job|position)|responsibilities|qualifications|requirements)\s*:?$/i.test(line))
   const header=lines.slice(0,Math.min(body>0?body:65,65))
   const usable=line=>line&&line.length<180&&!chrome.test(line)&&!isLabel(line)&&!isSection(line)&&!/[!?]$/.test(line)&&!/(?:\b(?:required|qualification|salary|deadline|applicants|looking for|must have|years of|we are|you will|you have)\b)|[$€£]/i.test(line)
-  const candidates=header.map((text,index)=>({text,index})).filter(item=>usable(item.text)&&roles.test(item.text)&&item.text.split(' ').length<=18&&!/\b(?:full[- ]time|part[- ]time|employment type|job type)\b/i.test(item.text))
+  const normalizedRole=value=>value.replace(/([a-z])([A-Z])/g,'$1 $2')
+  const candidates=header.map((text,index)=>({text,index})).filter(item=>usable(item.text)&&roles.test(normalizedRole(item.text))&&item.text.split(' ').length<=18&&!/\b(?:full[- ]time|part[- ]time|employment type|job type)\b/i.test(item.text))
   const sourceSize=text=>{const matched=layout.filter(line=>line.page===1&&line.text===text);return matched.length?Math.max(...matched.map(line=>line.height)):0}
   for(const candidate of candidates)candidate.score=(sourceSize(candidate.text)?Math.min(4,sourceSize(candidate.text)*120):0)+1-candidate.index*.025
+  if(!candidates.length&&layout.length){
+    const positioned=layout.filter(line=>line.page===1&&line.y<.65&&line.confidence>=50&&usable(line.text)&&line.text.length>=5&&line.text.length<150&&!locationValue(line.text)&&!/\b(?:inc|llc|ltd|university|college|company|corporation)\b/i.test(line.text)&&!/^(?:\d|remote|hybrid|full[- ]time|part[- ]time|internship$)/i.test(line.text)).sort((a,b)=>b.height-a.height||a.y-b.y)
+    if(positioned.length){const best=positioned[0],index=header.findIndex(line=>line===best.text);if(index>=0)candidates.push({text:best.text,index,score:Math.min(4,best.height*120)+1-index*.025})}
+  }
   candidates.sort((a,b)=>b.score-a.score)
   const result={};let titleIndex=-1
   if(candidates.length){
