@@ -14,6 +14,8 @@ import InlineConfirmation from './InlineConfirmation'
 import PDFCalculator from './PDFCalculator'
 import PDFCleanup from './PDFCleanup'
 import {preparePdfCleanup,cleanupAnnotations} from '../lib/pdfCleanup'
+import {selectablePdfText} from '../lib/pdfSelectableText'
+import 'react-pdf/dist/esm/Page/TextLayer.css'
 import PDFGraph from './PDFGraph'
 import {graphExpression,compileGraph} from '../lib/pdfGraph'
 import { eraseAnnotations } from '../lib/pdfEraser'
@@ -219,7 +221,7 @@ function TextAnnotation({
   onClick, onChange, onCommit, onDelete, onFontDelta, onColorChange,
   onDragStart, onDragMove, onDragEnd, onResizeStart, selected, onSelect, onSave, onDownload
 }) {
-  const interactive = tool === 'text' || tool === 'select'
+  const interactive = tool === 'text' || tool === 'select' || tool==='read'
   const fontSize = item.fontSize || 16
   const textColor = item.color || '#000000'
   const textStyle = {
@@ -245,7 +247,9 @@ function TextAnnotation({
         top: item.y * scale,
         zIndex: isActive || selected ? 30 : 20,
         outline: tool === 'select' && selected ? '2px solid #8fa5b9' : undefined,
-        touchAction: 'none',
+        touchAction: tool==='read'?'auto':'none',
+        userSelect:tool==='read'?'text':undefined,
+        cursor:tool==='read'?'text':undefined,
         pointerEvents: interactive ? 'auto' : 'none'
       }}
       // Keep these events away from the drawing overlay underneath
@@ -517,7 +521,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   }
   const enterFocusMode=()=>{
     handleTextDragEnd();commitText();setShowSettings(false)
-    if(!['pen','highlighter','text','eraser','select'].includes(currentTool))setCurrentTool('pen')
+    if(!['pen','highlighter','text','eraser','select','read'].includes(currentTool))setCurrentTool('pen')
     setFocusMode(true)
     const root=editorRootRef.current
     if(root?.requestFullscreen&&!document.fullscreenElement){
@@ -1100,6 +1104,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
 
   /* ---------- overlay pointer handlers ---------- */
   const handlePointerDown = (e) => {
+    if(currentTool==='read')return
     if (e.pointerType === 'mouse' && e.button !== 0) return
     if (!overlayRef.current) return
     if(annotationPointerRef.current!==null&&annotationPointerRef.current!==e.pointerId)return
@@ -1706,7 +1711,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const renderW = ready ? (quarterTurn ? pageBase.h : pageBase.w) * scale : 0
   const renderH = ready ? (quarterTurn ? pageBase.w : pageBase.h) * scale : 0
   const cursor =
-    currentTool === 'text' ? 'text' : currentTool === 'eraser' ? 'cell' : 'crosshair'
+    currentTool === 'text'||currentTool==='read' ? 'text' : currentTool === 'eraser' ? 'cell' : 'crosshair'
   const pageItems=pageIndex.get(pageNumber)||[]
 
   const activePageView = (
@@ -1727,7 +1732,8 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
                   pageNumber={pageNumber}
                   scale={scale}
                   rotate={((pageBase?.page === pageNumber ? pageBase.rotation : 0) + rotation) % 360}
-                  renderTextLayer={false}
+                  renderTextLayer={currentTool==='read'}
+                  customTextRenderer={currentTool==='read'?selectablePdfText(pageItems,pageNumber):undefined}
                   renderAnnotationLayer={false}
                   onLoadSuccess={onPageLoadSuccess}
                   loading={<div className="text-white">Loading page...</div>}
@@ -1751,11 +1757,12 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
                     transformOrigin: 'center center',
                     cursor,
                     zIndex: 10,
-                    touchAction: 'none',
-                    userSelect: 'none'
+                    pointerEvents:currentTool==='read'?'none':undefined,
+                    touchAction:currentTool==='read'?'auto':'none',
+                    userSelect:currentTool==='read'?'text':'none'
                   }}
-                  onMouseDown={(e) => e.preventDefault()}
-                  onDragStart={e => e.preventDefault()}
+                  onMouseDown={(e) => {if(currentTool!=='read')e.preventDefault()}}
+                  onDragStart={e => {if(currentTool!=='read')e.preventDefault()}}
                   onPointerDownCapture={e => {
                     // Own mouse region selection before any annotation child can
                     // intercept the press or start the browser's native drag.
@@ -1844,7 +1851,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   )
 
   return (
-    <div ref={editorRootRef} className={cn("pdf-editor fixed inset-0 bg-slate-950 flex flex-col z-50",focusMode&&"pdf-focus-mode","pdf-touch-tracked",fingerScroll&&"pdf-finger-scroll")} role="region" aria-label="Visual document editor" aria-busy={deletingPage} onPointerDownCapture={e => { if (deletingPage) { e.preventDefault(); e.stopPropagation() } }} onKeyDownCapture={e => { if (deletingPage) { e.preventDefault(); e.stopPropagation() } }}>
+    <div ref={editorRootRef} className={cn("pdf-editor fixed inset-0 bg-slate-950 flex flex-col z-50",focusMode&&"pdf-focus-mode","pdf-touch-tracked",fingerScroll&&"pdf-finger-scroll",currentTool==='read'&&'pdf-reading-mode')} role="region" aria-label="Visual document editor" aria-busy={deletingPage} onPointerDownCapture={e => { if (deletingPage) { e.preventDefault(); e.stopPropagation() } }} onKeyDownCapture={e => { if (deletingPage) { e.preventDefault(); e.stopPropagation() } }}>
       {deletingPage && <div className="inline-operation-status" role="status"><Loader2 className="animate-spin" size={17} />Updating pages…</div>}
       <InlineConfirmation {...confirmation} />
       {showStylusStudio&&<PDFStylusSettings barrel={stylusBarrel} onBarrel={setStylusBarrel} tip={stylusEraser?stylusExtra.tip:'none'} onTip={tip=>{setStylusEraser(tip!=='none');setStylusExtra(previous=>({...previous,tip}))}} extra={stylusExtra} onExtra={setStylusExtra} onReset={()=>{setStylusBarrel('eraser');setStylusEraser(true);setStylusExtra({secondary:'none',tip:'eraser',mode:'precision',size:20,shape:'round'})}} onClose={()=>setShowStylusStudio(false)}/>}
@@ -1899,14 +1906,14 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         <button type="button" className="pdf-focus-page-arrow is-next" title="Next page" aria-label="Next page" disabled={pageNumber>=numPages||deletingPage||inserting} onClick={()=>goToPage(pageNumber+1)}><ChevronRight size={19}/></button>
       </nav>}
       <div tabIndex={0}
-        {...touchInput}
-        onPointerDownCapture={event=>{touchInput.onPointerDownCapture(event);if(!event.isPropagationStopped())handleStylusButton(event,'down')}}
-        onPointerMoveCapture={event=>{touchInput.onPointerMoveCapture(event);if(!event.isPropagationStopped())handleStylusButton(event,'move')}}
-        onPointerUpCapture={event=>{touchInput.onPointerUpCapture(event);if(!event.isPropagationStopped())handleStylusButton(event,'end')}}
-        onPointerCancelCapture={event=>{touchInput.onPointerCancelCapture(event);if(!event.isPropagationStopped())handleStylusButton(event,'end')}}
-        onLostPointerCaptureCapture={event=>{touchInput.onLostPointerCaptureCapture(event);if(event.target===viewerRef.current&&stylusGesture.current?.id===event.pointerId){stylusGesture.current=null;isErasingRef.current=false;eraserLast.current=null}}}
-        onContextMenuCapture={event=>{if(stylusGesture.current||event.nativeEvent.pointerType==='pen'){event.preventDefault();event.stopPropagation()}else touchInput.onContextMenuCapture(event)}}
-        aria-label="PDF canvas; paste or drop images here" onDragOver={e => { e.preventDefault() }} onDrop={e => { e.preventDefault(); insertFiles(Array.from(e.dataTransfer.files)) }} onPaste={e => { if (e.target.closest('textarea, input')) return; const files = Array.from(e.clipboardData.files); if (files.length) { e.preventDefault(); insertFiles(files) } else if(snippet){e.preventDefault();if(pageBase?.page===pageNumber&&!inserting&&!deletingPage){try{addImageInsert(snippet)}catch(error){setActionError(error.message)}}} }} ref={viewerRef} style={{touchAction:'none',overscrollBehavior:'contain'}} className="pdf-editor-canvas flex-1 min-w-0 overflow-auto bg-slate-950">
+        {...(currentTool==='read'?{}:touchInput)}
+        onPointerDownCapture={event=>{if(currentTool==='read')return;touchInput.onPointerDownCapture(event);if(!event.isPropagationStopped())handleStylusButton(event,'down')}}
+        onPointerMoveCapture={event=>{if(currentTool==='read')return;touchInput.onPointerMoveCapture(event);if(!event.isPropagationStopped())handleStylusButton(event,'move')}}
+        onPointerUpCapture={event=>{if(currentTool==='read')return;touchInput.onPointerUpCapture(event);if(!event.isPropagationStopped())handleStylusButton(event,'end')}}
+        onPointerCancelCapture={event=>{if(currentTool==='read')return;touchInput.onPointerCancelCapture(event);if(!event.isPropagationStopped())handleStylusButton(event,'end')}}
+        onLostPointerCaptureCapture={event=>{if(currentTool==='read')return;touchInput.onLostPointerCaptureCapture(event);if(event.target===viewerRef.current&&stylusGesture.current?.id===event.pointerId){stylusGesture.current=null;isErasingRef.current=false;eraserLast.current=null}}}
+        onContextMenuCapture={event=>{if(currentTool==='read')return;if(stylusGesture.current||event.nativeEvent.pointerType==='pen'){event.preventDefault();event.stopPropagation()}else touchInput.onContextMenuCapture(event)}}
+        aria-label={currentTool==='read'?'PDF view; select text and copy':'PDF canvas; paste or drop images here'} onDragOver={e => { e.preventDefault() }} onDrop={e => { e.preventDefault();if(currentTool!=='read')insertFiles(Array.from(e.dataTransfer.files)) }} onPaste={e => { if(currentTool==='read'||e.target.closest('textarea, input'))return; const files = Array.from(e.clipboardData.files); if (files.length) { e.preventDefault(); insertFiles(files) } else if(snippet){e.preventDefault();if(pageBase?.page===pageNumber&&!inserting&&!deletingPage){try{addImageInsert(snippet)}catch(error){setActionError(error.message)}}} }} ref={viewerRef} style={{touchAction:currentTool==='read'?'auto':'none',overscrollBehavior:'contain'}} className="pdf-editor-canvas flex-1 min-w-0 overflow-auto bg-slate-950">
         <div ref={pinchContentRef} className="flex min-h-full w-fit min-w-full items-start justify-center p-8">
           {pdfError ? (
             <div className="text-center py-12">
@@ -1915,7 +1922,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
               <button onClick={() => { setPdfError(null); setLoading(true); fetchPDF() }} className="mt-4 px-4 py-2 rounded-lg bg-indigo-600 text-white">Retry loading</button>
             </div>
           ) : pdfFile ? (
-            continuousView&&!exportImage ? <PDFContinuousView key={pdfId+':'+numPages} file={pdfFile} count={numPages} currentPage={pageNumber} activePage={activePageView} activePageReady={ready} scale={scale} rotation={rotation} fallback={pageBase} annotations={drawingPaths} onActivate={activateContinuousPage} onPageReady={onPageLoadSuccess} onDocumentReady={onDocumentLoadSuccess} usePressure={usePressure} viewer={viewerRef} options={PDF_OPTIONS}/> : activePageView
+            continuousView&&!exportImage ? <PDFContinuousView reading={currentTool==='read'} key={pdfId+':'+numPages} file={pdfFile} count={numPages} currentPage={pageNumber} activePage={activePageView} activePageReady={ready} scale={scale} rotation={rotation} fallback={pageBase} annotations={drawingPaths} onActivate={activateContinuousPage} onPageReady={onPageLoadSuccess} onDocumentReady={onDocumentLoadSuccess} usePressure={usePressure} viewer={viewerRef} options={PDF_OPTIONS}/> : activePageView
           ) : (
             <div className="text-slate-400">No document data available</div>
           )}
@@ -1927,7 +1934,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       <div ref={onAssistantHost} className="pdf-assistant-dock" hidden={!assistantOpen} aria-label="Notes AI assistant"/>
       </div>
       {!exportImage&&<footer className="pdf-workspace-footer">
-        <span className="pdf-footer-hint">{currentTool==='function'?'Drag around a function, then enter x in the calculator':currentTool==='graph'?'Drag around an equation to graph':currentTool==='calculate'?'Drag around an expression to calculate':currentTool==='snippet'?copyingSnippet?'Copying region…':snippet?'Snippet ready · More tools → Paste snippet':'Drag a region to copy':currentTool==='select'?'Drag to move · corners to resize':continuousView?'Continuous scrolling':'Single page view'}</span>
+        <span className="pdf-footer-hint">{currentTool==='read'?'Select text with the cursor · Ctrl+C or right-click to copy · Scanned pages need OCR':currentTool==='function'?'Drag around a function, then enter x in the calculator':currentTool==='graph'?'Drag around an equation to graph':currentTool==='calculate'?'Drag around an expression to calculate':currentTool==='snippet'?copyingSnippet?'Copying region…':snippet?'Snippet ready · More tools → Paste snippet':'Drag a region to copy':currentTool==='select'?'Drag to move · corners to resize':continuousView?'Continuous scrolling':'Single page view'}</span>
         <nav aria-label="Page navigation"><button type="button" title="Previous page" aria-label="Previous page" disabled={pageNumber<=1||deletingPage||inserting} onClick={()=>goToPage(pageNumber-1)}><ChevronLeft size={16}/></button><label>Page <input aria-label="Page number" key={pageNumber} type="number" min="1" max={numPages||1} defaultValue={pageNumber} disabled={deletingPage||inserting} onBlur={event=>{const target=Math.max(1,Math.min(numPages||1,Number(event.target.value)||1));goToPage(target);event.target.value=String(target)}} onKeyDown={event=>{if(event.key==='Enter')event.currentTarget.blur()}}/> <span>/ {numPages||'…'}</span></label><button type="button" title="Next page" aria-label="Next page" disabled={pageNumber>=(numPages||1)||deletingPage||inserting} onClick={()=>goToPage(pageNumber+1)}><ChevronRight size={16}/></button></nav>
         <div className="pdf-footer-zoom"><button type="button" onClick={handleZoomOut} aria-label="Zoom out"><ZoomOut size={14}/></button><button type="button" onClick={handleFitWidth} title="Fit page width">{Math.round(scale*100)}%</button><button type="button" onClick={handleZoomIn} aria-label="Zoom in"><ZoomIn size={14}/></button></div>
       </footer>}

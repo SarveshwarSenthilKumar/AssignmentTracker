@@ -1,5 +1,5 @@
 import { cloneElement, isValidElement, useEffect, useId, useRef, useState } from 'react'
-import { FileText, ChevronDown, ChevronLeft, ChevronRight, Pen, Highlighter, Type, Move, Eraser, Undo, Redo, Save, Download, Files, Settings, X, Maximize, Sun, Moon, LineChart, Calculator, Plus, Trash2, RotateCw, ZoomIn, ZoomOut, MessageSquare, SlidersHorizontal, Copy, PanelLeft, Loader2, Minimize2, Maximize2 } from 'lucide-react'
+import { FileText, ChevronDown, ChevronLeft, ChevronRight, Pen, Highlighter, Type, Move, Eraser, Undo, Redo, Save, Download, Files, Settings, X, Maximize, Sun, Moon, LineChart, Calculator, Plus, Trash2, RotateCw, ZoomIn, ZoomOut, MessageSquare, SlidersHorizontal, Copy, PanelLeft, Loader2, Minimize2, Maximize2, TextSelect } from 'lucide-react'
 import PDFEraserControls from './PDFEraserControls'
 import PDFEditorClock from './PDFEditorClock'
 import PDFStopwatch from './PDFStopwatch'
@@ -7,7 +7,7 @@ import PDFCountdown from './PDFCountdown'
 import PDFFingerMode from './PDFFingerMode'
 import './PDFEditorChrome.css'
 
-const annotationTools=[['pen','Pen',Pen],['highlighter','Highlight',Highlighter],['text','Text',Type],['select','Move',Move],['eraser','Erase',Eraser]]
+const annotationTools=[['read','Select text',TextSelect],['pen','Pen',Pen],['highlighter','Highlight',Highlighter],['text','Text',Type],['select','Move',Move],['eraser','Erase',Eraser]]
 
 export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,insert}){
   const [open,setOpen]=useState(null),root=useRef(null),trigger=useRef(null),id=useId()
