@@ -1,5 +1,6 @@
 // PDF.js text transforms -> the same scale-1 viewport used by annotations.
 import {fontKey,loadPageFontStyles} from './pdfTextStyle'
+import {detectPdfFont} from './pdfFontCatalog'
 
 export function makeSourceReplacement(source,page,id){
   return {id,tool:'text',page,text:source.text,fontSize:source.fontSize,textStyle:source.textStyle,color:source.color,x:source.x-4,y:source.baseline-source.fontSize*(source.textStyle?.baselineRatio||.9465)-2,sourceText:{key:source.key,originalText:source.text,x:source.x-.5,y:source.y-.5,width:source.width+1,height:source.height+1,background:'#ffffff'}}
@@ -40,12 +41,12 @@ export async function existingTextRuns(page, pdfjs, file) {
     let nativeFont
     try{nativeFont=page.commonObjs.get(item.fontName)}catch{}
     const fontName=nativeFont?.name||style.fontFamily||'Helvetica',face=embedded.get(fontKey(fontName))
-    const bold=!!nativeFont?.bold||/bold|black|heavy|semibold|demi/i.test(fontName),italic=!!nativeFont?.italic||/italic|oblique/i.test(fontName)
-    const cleanName=fontName.replace(/^[A-Z]{6}\+/,'').replace(/[-,](BoldItalic|BoldOblique|Bold|Italic|Oblique|Regular|Roman|PSMT|MT)$/i,'')
-    const generic=/courier|mono|consolas/i.test(fontName)?'monospace':/times|serif|georgia|cambria|garamond/i.test(fontName)?'serif':'sans-serif'
-    const textStyle={fontName,fontFamily:face?`"${face}"`:`"${cleanName.replace(/["\\]/g,'')}", ${generic}`,embedded:!!face,approximate:!face&&!/^(Helvetica|Times-Roman|Times-Bold|Times-Italic|Times-BoldItalic|Courier)(-|$)/i.test(fontName),bold,italic,letterSpacing:(paint?.charSpacing||0)*height/(paint?.fontSize||height),opacity:paint?.opacity??1}
+    const detected=detectPdfFont(fontName)
+    const bold=!!nativeFont?.bold||detected.weight>=600,italic=!!nativeFont?.italic||detected.italic
+    const fontWeight=nativeFont?.bold&&detected.weight<600?700:detected.weight
+    const textStyle={fontName,fontFamily:face?`"${face}"`:detected.fontFamily,detectedFamily:detected.family,fontCategory:detected.generic,fontWeight,embedded:!!face,approximate:!face&&!/^(Helvetica|Times-Roman|Times-Bold|Times-Italic|Times-BoldItalic|Courier)(-|$)/i.test(fontName),bold,italic,letterSpacing:(paint?.charSpacing||0)*height/(paint?.fontSize||height),opacity:paint?.opacity??1}
     const canvas=document.createElement('canvas'),context=canvas.getContext('2d')
-    context.font=`${face?'normal':italic?'italic':'normal'} ${face?'400':bold?'700':'400'} ${height}px ${textStyle.fontFamily}`
+    context.font=`${face?'normal':italic?'italic':'normal'} ${face?'400':fontWeight} ${height}px ${textStyle.fontFamily}`
     const measured=context.measureText(item.str),natural=measured.width+textStyle.letterSpacing*Math.max(0,item.str.length-1)
     textStyle.horizontalScale=natural>0?width/natural:1
     const metrics=context.measureText('Mg')

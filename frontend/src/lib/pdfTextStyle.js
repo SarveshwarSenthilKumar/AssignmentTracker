@@ -1,5 +1,7 @@
 import { PDFDocument, PDFDict, PDFName, PDFRawStream, decodePDFRawStream, StandardFonts } from 'pdf-lib'
 
+import {detectPdfFont} from './pdfFontCatalog'
+
 const documents=new WeakMap(),faces=new Map()
 export const fontKey=name=>String(name||'').replace(/^[A-Z]{6}\+/,'').replace(/[^a-z0-9]/gi,'').toLowerCase()
 export function pageFontPrograms(doc,index){
@@ -18,7 +20,7 @@ export function pageFontPrograms(doc,index){
       if(!(descriptor instanceof PDFDict))continue
       const stream=descriptor.lookup(PDFName.of('FontFile2'))||descriptor.lookup(PDFName.of('FontFile3'))
       if(!(stream instanceof PDFRawStream))continue
-      try{result.set(fontKey(base),decodePDFRawStream(stream).decode())}catch{/* Unsupported font compression must not prevent other text from loading. */}
+      try{const bytes=decodePDFRawStream(stream).decode();if(base)result.set(fontKey(base),bytes);const descriptorName=descriptor.lookup(PDFName.of('FontName'))?.decodeText?.();if(descriptorName)result.set(fontKey(descriptorName),bytes)}catch{/* Unsupported font compression must not prevent other text from loading. */}
     }
     const objects=resources.lookup(PDFName.of('XObject'))
     if(objects instanceof PDFDict)for(const [,reference]of objects.entries()){
@@ -30,8 +32,8 @@ export function pageFontPrograms(doc,index){
   return result
 }
 export function standardTextFont(name,bold=false,italic=false){
-  const key=fontKey(name)
-  const mono=/courier|mono|consolas/.test(key),serif=!mono&&/times|serif|georgia|cambria|garamond/.test(key)
+  const {generic}=detectPdfFont(name)
+  const mono=generic==='monospace',serif=generic==='serif'
   if(mono)return bold?(italic?StandardFonts.CourierBoldOblique:StandardFonts.CourierBold):(italic?StandardFonts.CourierOblique:StandardFonts.Courier)
   if(serif)return bold?(italic?StandardFonts.TimesRomanBoldItalic:StandardFonts.TimesRomanBold):(italic?StandardFonts.TimesRomanItalic:StandardFonts.TimesRoman)
   return bold?(italic?StandardFonts.HelveticaBoldOblique:StandardFonts.HelveticaBold):(italic?StandardFonts.HelveticaOblique:StandardFonts.Helvetica)
@@ -52,5 +54,5 @@ export async function loadPageFontStyles(file,pageIndex){
 
 export function replacementCss(item,scale=1){
   const style=item.textStyle||{}
-  return {fontFamily:style.fontFamily||'Helvetica, Arial, sans-serif',fontWeight:style.embedded?400:style.bold?700:400,fontStyle:style.embedded?'normal':style.italic?'italic':'normal',letterSpacing:(style.letterSpacing||0)*scale,opacity:style.opacity??1,transform:style.horizontalScale?`scaleX(${style.horizontalScale})`:undefined,transformOrigin:'left top'}
+  return {fontFamily:style.fontFamily||'Helvetica, Arial, sans-serif',fontWeight:style.embedded?400:style.fontWeight||(style.bold?700:400),fontStyle:style.embedded?'normal':style.italic?'italic':'normal',letterSpacing:(style.letterSpacing||0)*scale,opacity:style.opacity??1,transform:style.horizontalScale?`scaleX(${style.horizontalScale})`:undefined,transformOrigin:'left top'}
 }

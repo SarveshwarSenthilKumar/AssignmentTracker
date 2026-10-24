@@ -353,3 +353,10 @@ Authorization attempts use expiring, single-use server state tied to an HTTP-onl
 Open **More tools → Graph selected region**, then drag a box around one complete equation. The graph panel also accepts typed functions such as `y = x^2 - 3x + 2`, `f(x) = sin(x)`, or `sqrt(x)`. Adjust the X/Y limits, insert the plot as a movable image annotation, or download it as PNG. Inserted plots use the editor’s normal undo and save/export flows.
 
 Printed expressions are read locally. Auto recognition can fall back to Gemini for handwritten or complex typeset expressions; this requires the existing Gemini key and AI recognition permission in Account. Text only mode keeps recognition local. Review the recognized equation before using it. Only explicit functions of x are supported; implicit relations, multiple equations, and other variables must be rewritten first. Trigonometry uses radians; log is base 10 and ln is natural logarithm. Plots use finite sampling, so very narrow features may require smaller axis limits. Restart the backend for the new graph recognition purpose.
+
+
+### PDF font recognition
+
+Existing-text editing recognizes an expanded local catalog of Office, Google Fonts, publishing, LaTeX, serif, sans-serif, monospace, script and display families. It normalizes PDF subset tags and common PostScript aliases, detects weights from thin through black, and preserves italic/oblique styling. Embedded usable font programs remain the first choice; descriptor font names are also used to locate them. Fallback export classifies families consistently as serif, sans-serif or monospace.
+
+Catalog recognition does not install fonts or download them from Google. An unembedded font must be installed on the device for its named browser preview to be available; otherwise the listed fallback is used. PDF export continues to reuse embedded programs where possible and otherwise uses standard PDF substitutes. Recognizing a name does not guarantee an exact font match, and scanned text still requires OCR. Font catalog references: https://github.com/google/fonts and https://opensource.adobe.com/dc-acrobat-sdk-docs/pdfstandards/pdfreference1.6.pdf .
