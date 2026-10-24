@@ -73,6 +73,8 @@ function App() {
   const inputRef = useRef(null)
   const commandInputRef = useRef(null)
   const [sortBy, setSortBy] = useState('manual')
+  const [showFullTaskTitles,setShowFullTaskTitles]=useState(()=>{try{return localStorage.getItem('tasks-show-full-titles')==='true'}catch{return false}})
+  useEffect(()=>{try{localStorage.setItem('tasks-show-full-titles',String(showFullTaskTitles))}catch{}},[showFullTaskTitles])
   const [reordering,setReordering]=useState(false)
   const reorderLock=useRef(false)
   const [sortOrder, setSortOrder] = useState('desc')
@@ -727,7 +729,7 @@ function App() {
           </button>
 
           <div className="flex-1 min-w-0">
-            <div className="task-title-row flex items-center gap-2">
+            <div className={cn("task-title-row flex items-center gap-2",showFullTaskTitles&&"show-full-titles")}>
               {isEditing ? (
                 <input
                   type="text"
@@ -741,7 +743,7 @@ function App() {
                   autoFocus
                 />
               ) : (
-                <span className={cn("task-card-title text-base transition-all", statusColor.text)}>
+                <span title={todo.text} className={cn("task-card-title text-base transition-all", statusColor.text)}>
                   {todo.text}
                 </span>
               )}
@@ -1569,7 +1571,7 @@ function App() {
         </form>
 
         {/* Sort Controls */}
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <div className="flex items-center gap-2">
             <ArrowUpDown size={16} className="text-slate-400" />
             <span className="text-slate-400 text-sm">Sort by:</span>
@@ -1594,6 +1596,7 @@ function App() {
               {sortOrder === 'asc' ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
             </button>
           </div>
+          <label className="task-title-toggle"><input type="checkbox" checked={showFullTaskTitles} onChange={event=>setShowFullTaskTitles(event.target.checked)}/>Show full titles</label>
         </div>
 
         <p className="task-reorder-hint" role="status">{reordering?'Saving task order…':'Drag a task above or below another to arrange it. Scroll with your mouse wheel or trackpad, or hold near the top or bottom for automatic scrolling. Drop into another column to change its status.'}</p>
