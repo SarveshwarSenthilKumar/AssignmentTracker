@@ -2,7 +2,7 @@ const {randomUUID}=require('node:crypto');
 const JSZip=require('jszip');
 const cheerio=require('cheerio');
 const {documentInput}=require('./assistant');
-const {callAssistantAPI,AssistantAPIError}=require('./assistantDiagnostics');
+const {callAssistantAPI,AssistantAPIError,diagnostic,safeMessage}=require('./assistantDiagnostics');
 const {instruction,compactText,generationConfig}=require('./coverLetterPrompt');
 
 async function wordTemplate(bytes){
@@ -29,6 +29,7 @@ module.exports=function registerCoverLetterGeneration(app,auth,{PDF,SavedJob,mon
     for(const [id,draft]of drafts)if(draft.expires<now)drafts.delete(id);
     for(const [id,value]of usage)if(now-value.start>300000)usage.delete(id);
     active.add(user);const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),120000);
+    let stage='Reading template and references',apiDiagnostics;
     const disconnected=()=>{if(!res.writableEnded)controller.abort()};res.on('close',disconnected);
     try{
       const template=await owned(req.body.templateId,user);
@@ -81,7 +82,9 @@ module.exports=function registerCoverLetterGeneration(app,auth,{PDF,SavedJob,mon
         }
       }
       const selectedModel=process.env.COVER_LETTER_MODEL?.trim()||model();
+      stage='Generating with Gemini';
       const result=await callAssistantAPI({model:selectedModel,systemInstruction:{parts:[{text:instruction}]},contents:[{role:'user',parts}],generationConfig:generationConfig(selectedModel,slots.reduce((n,slot)=>n+slot.text.length,0))},{apiKey:credential.apiKey,signal:controller.signal,metadata:{kind:'cover_letter_tailoring',referenceCount:references.length,visualReferenceCount:visualCount}});
+      apiDiagnostics=result.diagnostics;stage='Reading and validating generated draft';
       const response=(result.data.candidates?.[0]?.content?.parts||[]).filter(part=>!part.thought&&typeof part.text==='string').map(part=>part.text).join('');
       if(!response||response.length>100000||result.data.candidates?.[0]?.finishReason==='MAX_TOKENS')throw new Error('The AI draft was incomplete. Try a shorter template or fewer references.');
       const draft=JSON.parse(response),allowed=new Map(slots.map(s=>[s.id,s.text]));
@@ -103,7 +106,15 @@ module.exports=function registerCoverLetterGeneration(app,auth,{PDF,SavedJob,mon
       for(const [id,value]of drafts)if(value.user===user)drafts.delete(id);
       drafts.set(draftId,{user,expires:Date.now()+3600000,templateId:String(template._id),updatedAt:String(template.updatedAt),slots,replacements,isWord});
       res.json({draftId,slots,replacements,isWord,evidence:Array.isArray(draft.evidence)?draft.evidence.filter(s=>typeof s==='string').slice(0,30).map(s=>s.slice(0,1000)):[],warnings,phraseReuse});
-    }catch(error){if(!res.destroyed)res.status(error instanceof AssistantAPIError?error.status:controller.signal.aborted?504:422).json({message:controller.signal.aborted?'Cover-letter generation exceeded the two-minute limit. Try fewer references or text-based PDFs; your original documents are unchanged.':error instanceof AssistantAPIError?[error.message,error.diagnostics.action].filter(Boolean).join(' '):error instanceof SyntaxError?'The AI response was incomplete or unreadable. Try again with fewer references.':error.message});}
+    }catch(error){
+      if(!res.destroyed){
+        const status=controller.signal.aborted?504:error instanceof AssistantAPIError?error.status:422;
+        const message=controller.signal.aborted?'Cover-letter generation exceeded the two-minute limit. Try fewer references or text-based PDFs; your original documents are unchanged.':error instanceof SyntaxError?'The AI response was incomplete or unreadable. Try again with fewer references.':safeMessage(error.message)||'Could not generate this cover letter.';
+        const details=error instanceof AssistantAPIError?{...error.diagnostics}:diagnostic(controller.signal.aborted?'timeout':error instanceof SyntaxError?'invalid_response':'document_processing',message,'Review the template and references, then try again.',{stage,...(apiDiagnostics?{model:apiDiagnostics.model,providerStatus:apiDiagnostics.providerStatus,providerRequestId:apiDiagnostics.providerRequestId,traceId:apiDiagnostics.traceId}:{} )});
+        details.httpStatus=status;
+        res.set('X-Request-Id',details.traceId).status(status).json({message,diagnostics:details});
+      }
+    }
     finally{clearTimeout(timer);res.off('close',disconnected);active.delete(user)}
   });
   app.post('/api/cover-letters/save-draft',...access,async(req,res)=>{

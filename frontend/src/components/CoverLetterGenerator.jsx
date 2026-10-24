@@ -4,6 +4,7 @@ import workerUrl from 'pdfjs-dist/build/pdf.worker.min.js?url'
 import {readApiJson} from '../lib/apiResponse'
 import {existingTextRuns,makeSourceReplacement} from '../lib/pdfExistingText'
 import './CoverLetterGenerator.css'
+import CoverLetterError from './CoverLetterError'
 pdfjs.GlobalWorkerOptions.workerSrc=workerUrl
 
 export default function CoverLetterGenerator({token,documents,onDocumentsChange,onOpen}){
@@ -12,11 +13,21 @@ export default function CoverLetterGenerator({token,documents,onDocumentsChange,
   const [generationStage,setGenerationStage]=useState('')
   const letters=documents.filter(d=>!d.deletedAt&&d.tags?.includes('cover-letter'))
   const sources=documents.filter(d=>!d.deletedAt&&d._id!==templateId&&d.tags?.some(t=>['resume','cover-letter'].includes(t)))
-  const request=async(url,options={})=>{const response=await fetch(url,{...options,headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},cache:'no-store'});const data=await readApiJson(response);if(!response.ok)throw new Error(data.message||'Could not complete this request.');return data}
-  useEffect(()=>{let canceled=false;request('/api/jobs').then(data=>{if(!canceled)setJobs(data)}).catch(e=>{if(!canceled)setError(e.message)});return()=>{canceled=true}},[token])
+  const reportError=(e,stage)=>setError({message:e.message||'Could not complete this operation.',diagnostics:{source:'browser',stage,timestamp:new Date().toISOString(),...e.diagnostics}})
+  const request=async(url,options={})=>{
+    let response
+    try{
+      response=await fetch(url,{...options,headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},cache:'no-store'})
+      const data=await readApiJson(response)
+      if(!response.ok){const failure=new Error(data.message||'Could not complete this request.');failure.diagnostics=data.diagnostics;throw failure}
+      return data
+    }catch(e){e.diagnostics={source:response?'application':'network',action:response?'Review the error message and retry after correcting the issue.':'Check your connection and that the backend is running, then retry.',...e.diagnostics,httpStatus:response?.status,traceId:e.diagnostics?.traceId||response?.headers.get('X-Request-Id')};throw e}
+  }
+  useEffect(()=>{let canceled=false;request('/api/jobs').then(data=>{if(!canceled)setJobs(data)}).catch(e=>{if(!canceled)reportError(e,'Loading saved jobs')});return()=>{canceled=true}},[token])
   const reset=()=>{setDraft(null);setChanges([]);setReviewed(false);setError('')}
   const generate=async event=>{
     event.preventDefault();if(lock.current)return;lock.current=true;setBusy('generate');reset();setGenerationStage('Reading template…')
+    let stage='Reading template'
     try{
       const file=await request(`/api/pdfs/${templateId}`);runs.current=new Map();let slots
       if(/\.pdf$/i.test(file.originalName)){
@@ -25,6 +36,7 @@ export default function CoverLetterGenerator({token,documents,onDocumentsChange,
       }
       const referenceTexts={}
       setGenerationStage('Preparing readable reference text…')
+      stage='Preparing readable reference text'
       await Promise.all(references.filter(id=>id!==templateId).map(async id=>{
         const metadata=documents.find(file=>file._id===id)
         if(!/\.pdf$/i.test(metadata?.originalName||''))return
@@ -43,9 +55,10 @@ export default function CoverLetterGenerator({token,documents,onDocumentsChange,
         if(text.trim().length>=80){referenceTexts[id]=text.slice(0,30000);if(referenceCache.current.size>=20)referenceCache.current.delete(referenceCache.current.keys().next().value);referenceCache.current.set(key,referenceTexts[id])}
       }))
       setGenerationStage('Adapting your phrases to the role…')
+      stage='Generating cover letter'
       const result=await request('/api/cover-letters/generate',{method:'POST',body:JSON.stringify({templateId,referenceIds:references.filter(id=>id!==templateId),referenceTexts,jobId:jobId||undefined,role,slots})})
       setDraft(result);setChanges(result.replacements);setName(`${jobs.find(j=>j._id===jobId)?.title||'Tailored'} cover letter`.slice(0,120))
-    }catch(e){setError(e.message)}finally{lock.current=false;setBusy('');setGenerationStage('')}
+    }catch(e){reportError(e,stage)}finally{lock.current=false;setBusy('');setGenerationStage('')}
   }
   const annotationsFor=()=>{
     const context=document.createElement('canvas').getContext('2d')
@@ -66,7 +79,7 @@ export default function CoverLetterGenerator({token,documents,onDocumentsChange,
       const annotations=draft.isWord?undefined:annotationsFor()
       const result=await request('/api/cover-letters/save-draft',{method:'POST',body:JSON.stringify({draftId:draft.draftId,name,replacements,annotations,reviewed})})
       onDocumentsChange(previous=>[result,...previous.filter(d=>d._id!==result._id)]);reset();onOpen(result._id)
-    }catch(e){setError(e.message)}finally{lock.current=false;setBusy('')}
+    }catch(e){reportError(e,'Preparing and saving the reviewed draft')}finally{lock.current=false;setBusy('')}
   }
   const normalizePhrase=value=>value.normalize('NFKC').toLowerCase().replace(/\s+/g,' ').trim()
   const currentLetter=draft?normalizePhrase(draft.slots.map(slot=>changes.find(item=>item.id===slot.id)?.text??slot.text).join(' ')):''
@@ -79,7 +92,7 @@ export default function CoverLetterGenerator({token,documents,onDocumentsChange,
       {!jobId&&<label className="cover-generator-wide">Role and company details<textarea rows={5} value={role} minLength={20} maxLength={15000} required disabled={!!busy} onChange={e=>{setRole(e.target.value);reset()}} placeholder="Paste the role, company, and job description. Applicant facts must come from your documents."/></label>}
       <fieldset className="cover-generator-wide" disabled={!!busy}><legend>Additional letters for voice and resumes for factual project details (up to 5)</legend>{sources.map(file=><label className="cover-generator-check" key={file._id}><input type="checkbox" checked={references.includes(file._id)} disabled={!references.includes(file._id)&&references.length>=5} onChange={e=>{setReferences(previous=>e.target.checked?[...previous,file._id]:previous.filter(id=>id!==file._id));reset()}}/>{file.name} · {file.tags.includes('resume')?'Resume':'Cover letter'}</label>)}{!sources.length&&<p>Add a resume or more letters to provide factual projects and additional voice examples.</p>}</fieldset>
     </div><button type="submit" disabled={!!busy||!templateId}>{busy==='generate'?generationStage||'Adapting your existing wording…':'Generate using my existing phrases'}</button>{busy==='generate'&&<p role="status">{generationStage} Readable PDFs use text instead of slower vision processing.</p>}</form>
-    {error&&<p role="alert" className="resume-error">{error}</p>}
+    {error&&<CoverLetterError key={error.diagnostics.timestamp} error={error}/>}
     {draft&&<div className="cover-letter-draft"><h3>Review changes in template order</h3><p>{draft.isWord?'The Word file’s existing formatting, runs, margins, headers and paragraph structure are retained. Text changes can still affect wrapping and pagination.':'PDF replacements keep their original positions, fonts and sizes. Text that exceeds its original region must be shortened before saving. Missing original font programs require a Word or embedded-font PDF template. Original text is visually covered, not redacted.'}</p>
       <div className="cover-letter-slot-list">{draft.slots.map(slot=>{const change=changes.find(item=>item.id===slot.id);return <div key={slot.id} className={change?'is-changed':''}><span>{change?'Proposed replacement':'Unchanged template text'}</span>{change?<><small>Original: {slot.text}</small><textarea rows={Math.min(7,Math.max(2,Math.ceil(change.text.length/90)))} value={change.text} maxLength={6000} disabled={!!busy} onChange={e=>{setChanges(previous=>previous.map(item=>item.id===slot.id?{...item,text:e.target.value}:item));setReviewed(false)}}/><button type="button" disabled={!!busy} onClick={()=>{setChanges(previous=>previous.filter(item=>item.id!==slot.id));setReviewed(false)}}>Keep original</button></>:<p>{slot.text}</p>}</div>})}</div>
       {!!reusedPhrases.length&&<details open><summary>Reused phrases checked against your letters</summary><p>These excerpts occur in both the current draft and the template or readable reference text. Case and whitespace are normalized for matching.</p><ul>{reusedPhrases.map((item,i)=><li key={i}><q>{item.quote}</q> — {item.source}</li>)}</ul></details>}
