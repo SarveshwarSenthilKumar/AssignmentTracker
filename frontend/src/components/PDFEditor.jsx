@@ -93,7 +93,7 @@ const cleanForSave = (items) => items.filter(i => !(i.tool === 'text' && !i.text
 /* ------------------------------------------------------------------ */
 /* Burn annotations into the PDF (download)                            */
 /* ------------------------------------------------------------------ */
-async function burnAnnotations(pdfBytes, annotations, usePressure) {
+export async function burnAnnotations(pdfBytes, annotations, usePressure) {
   const pdfDoc = await PDFDocument.load(pdfBytes, { ignoreEncryption: true })
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica)
   const pages = pdfDoc.getPages()

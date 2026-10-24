@@ -381,3 +381,14 @@ References: https://schema.org/JobPosting , https://docs.greenhouse.io/job-board
 ### Cover letters
 
 Open **Cover letters** in navigation or the career-document tabs on Resumes and Jobs. Upload PDF or DOCX files up to 10 MB, give each version a name, then open or download it. Files are saved to your account using the existing document storage with the `cover-letter` tag. They also appear in Documents for rename, organization and removal. AI access follows the Account setting for **Resumes and cover letters**.
+
+
+### Tailor a cover letter using existing letters
+
+In Cover letters, expand **Create a tailored cover letter from your existing letters**. Choose a PDF or Word cover letter as the layout/primary voice template, select up to five additional letters or resumes as voice/factual references, and select a saved job or paste role details. Generation uses the existing Gemini key and requires Account AI permissions for generation and Resumes and cover letters. Only explicitly selected documents and job details are supplied; no background workspace context is included.
+
+The generator proposes replacements for existing text regions only, asks for the original voice and evidence-based applicant facts, and returns source notes/missing-information warnings separately from the letter. Review and edit the proposed replacements, keep original regions where needed, confirm your factual review, then save a separate copy and open it in the editor. AI factual fidelity and voice matching require user review; the model cannot certify that it invented nothing. Drafts expire after one hour and are lost on backend restart. Generation is limited to five requests per five minutes per user, with one active request and a 90-second deadline.
+
+Word output modifies existing text runs in document.xml while preserving paragraph/run properties, headers, footers, margins, and other package files. Content changes may still affect line wrapping/page breaks. PDF templates must have an extractable horizontal text layer, up to four pages/600 regions; replacements preserve original positions, font size, and text styling. Over-wide replacement lines must be shortened before save rather than shrinking the font. PDF source text is covered visually, not redacted; review/export through the PDF editor for an annotated final copy. Download from Cover letters also burns saved PDF edits into the downloaded copy. Templates with editor annotations must first be exported and reuploaded so the chosen template reflects visible content. If a changed PDF region needs an unavailable font program, saving is blocked instead of silently substituting it; use a Word template or embedded-font PDF. Scanned templates need a text-based PDF or Word version.
+
+The saved generated document stays in Cover letters and Documents. Restart the backend and refresh the frontend after pulling this feature; run backend npm install for the declared JSZip dependency if needed.
