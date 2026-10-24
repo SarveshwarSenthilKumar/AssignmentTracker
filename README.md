@@ -363,3 +363,10 @@ Catalog recognition does not install fonts or download them from Google. An unem
 
 
 PDF text editing also calibrates text width automatically against other runs using the exact same PDF font resource on that page. It pools up to 32 longer samples, uses robust median estimates, and skips inconsistent or insufficient evidence. This helps short edited labels and individual letters inherit consistent proportions without borrowing fonts from nearby headings. Per-run size, spacing, color and stretch remain separate. This calibration is local and does not identify fonts visually in scanned images; unavailable font files still require a substitute.
+
+
+### Saved jobs and resume tools
+
+Open **Jobs** from navigation or **Saved jobs & link import** on Resumes. Paste a direct public HTTPS job posting URL and choose **Get job details**. The server reads Schema.org JobPosting JSON-LD (title, employer, location/remote status, salary, employment type, posted/closing dates, description, requirements, responsibilities and benefits). Review and correct the draft, then save it to your account. Saved jobs support full-detail viewing, original-link access and deletion. Account workspace reset also removes saved jobs.
+
+Import does not need an AI key or your connected LinkedIn account. Login walls, bot protection, JavaScript-only postings and pages without structured JobPosting data require pasting the details manually; the importer does not bypass them or guess missing details. Only public HTTPS destinations are accepted, with pinned public IPv4 DNS resolution and revalidation of redirects. Imports are limited to 2 MB, five URL hops, about 20 seconds of request time and eight attempts per user per minute. No new package or provider credentials are needed. Restart the backend for the new routes. Reference: https://schema.org/JobPosting .

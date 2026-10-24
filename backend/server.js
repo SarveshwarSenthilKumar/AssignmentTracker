@@ -392,6 +392,7 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 // Routes
+const SavedJob=require('./jobs')(app,authenticateToken,mongoose);
 const aiRequests = new Map();
 const aiModel = () => process.env.GEMINI_MODEL?.trim() || 'gemini-3.8-flash';
 require('./accountConnections')(app,authenticateToken,{User,mongoose});
@@ -558,7 +559,7 @@ app.post('/api/user/reset', authenticateToken, async (req, res) => {
     if (!await bcrypt.compare(req.body.password, user.password)) return res.status(401).json({ message: 'The password is incorrect. No data was reset.' });
     if ((accountWrites.get(userId) || 0) !== 1 || resettingAccounts.has(userId)) return res.status(409).json({ message: 'Wait for uploads, saves, and imports to finish, then try the reset again.' });
     resettingAccounts.add(userId); locked = true;
-    const deleted = await resetAccountWorkspace({ userId, models: { Todo, PDF, Folder, PDFFolder, User, CalendarEntry, AssistantConversation, CalendarChange: calendarHistory.Change, TaskDeletionRecovery: taskRecovery.Recovery }, startSession: () => mongoose.startSession() });
+    const deleted = await resetAccountWorkspace({ userId, models: { SavedJob, Todo, PDF, Folder, PDFFolder, User, CalendarEntry, AssistantConversation, CalendarChange: calendarHistory.Change, TaskDeletionRecovery: taskRecovery.Recovery }, startSession: () => mongoose.startSession() });
     res.json({ message: 'Account workspace reset.', deleted });
   } catch (error) {
     const unsupported = /Transaction numbers|replica set|mongos/i.test(error.message);
