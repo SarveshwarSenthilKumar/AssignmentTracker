@@ -5,3 +5,5 @@
 .jobs-handshake-help{margin-top:14px;padding:14px;border:1px solid var(--border-strong);border-radius:9px;background:var(--surface-panel);font-size:12px}.jobs-handshake-help strong{font-weight:600}.jobs-handshake-help p{margin:8px 0;}
 
 .jobs-file-import{margin-top:16px;padding:16px;border:1px solid var(--border);border-radius:10px;background:var(--surface-panel)}.jobs-file-import>p{margin:10px 0}.jobs-page .jobs-file-drop{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;width:100%;padding:22px;border:1px dashed var(--border-strong);border-radius:9px;margin:14px 0;overflow-wrap:anywhere;white-space:normal}.jobs-page .jobs-file-drop.is-dragging{border-color:var(--accent);background:var(--surface-input)}.jobs-file-drop small{font-size:10px}
+
+.jobs-local-progress{display:grid;gap:8px;padding:12px 0;color:var(--text-secondary);font-size:12px}.jobs-local-progress progress{width:100%;height:6px;accent-color:var(--accent-solid);}

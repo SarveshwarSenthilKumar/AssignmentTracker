@@ -22,7 +22,7 @@ const groups=[
   ]],
   ['Additional AI features',[
     ['generation','AI document generation','Generate document drafts from prompts you enter.'],
-    ['recognition','AI image, PDF and handwriting recognition','Send selected math/handwriting images or uploaded job screenshots/PDFs to AI for extraction. This is a separate permission from saved file access.'],
+    ['recognition','AI handwriting and math recognition','Send selected math/handwriting images to AI for recognition. Job image/PDF imports use local OCR and do not use this permission.'],
   ]],
 ]
 export default function AccountAIAccess({token}){

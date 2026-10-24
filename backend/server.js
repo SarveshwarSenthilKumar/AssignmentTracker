@@ -397,7 +397,7 @@ const aiRequests = new Map();
 const aiModel = () => process.env.GEMINI_MODEL?.trim() || 'gemini-3.8-flash';
 require('./accountConnections')(app,authenticateToken,{User,mongoose});
 const requireAIAccess=registerAIAccess(app,authenticateToken,User);
-require('./jobFileImport')(app,authenticateToken,{credentials:assistantCredentials,model:aiModel,requireAIAccess});
+require('./jobFileImport')(app,authenticateToken);
 require('./coverLetterGeneration')(app,authenticateToken,{PDF,SavedJob,mongoose,credentials:assistantCredentials,model:aiModel,requireAIAccess});
 app.use('/api/assistant/chat',authenticateToken,requireAIAccess());
 app.use('/api/assistant/test',authenticateToken,requireAIAccess());

@@ -56,7 +56,7 @@ module.exports=function registerJobs(app,auth,mongoose){
       const raw=req.body?.url||'',pasted=req.body?.text;
       if(typeof raw!=='string'||raw.length>2048)throw new Error('Enter a job link up to 2048 characters.');
       const url=raw?safeURL(raw).href:'';
-      if(pasted!==undefined){if(typeof pasted!=='string'||pasted.length>60000)throw new Error('Paste job text up to 60,000 characters.');return res.json(handshakeLink(url)?handshakeText(pasted,url,fromText):fromText(pasted,url))}
+      if(pasted!==undefined){if(typeof pasted!=='string'||pasted.length>60000)throw new Error('Paste job text up to 60,000 characters.');const result=handshakeLink(url)?handshakeText(pasted,url,fromText):fromText(pasted,url);if(['PDF text layer','Local OCR','PDF text + local OCR'].includes(req.body.method)){result.source=`${handshakeLink(url)?'Handshake · ':''}${req.body.method}`;result.warnings.unshift('Extracted without generative AI. Check OCR text, job title, salary and deadlines before saving.')}return res.json(result)}
       if(!url)throw new Error('Enter a job link or paste the job text.');
       res.json(await importJob(url,pageHTML));
     }catch(error){const handshakeError=['HANDSHAKE_ACCESS_REQUIRED','HANDSHAKE_JOB_LINK_REQUIRED'].includes(error.code);res.status(422).json({message:handshakeError?error.message:error.code?'Could not reach the job website. Try the direct posting link or paste its details manually.':error.message,code:handshakeError?error.code:undefined})}finally{active.delete(user)}
