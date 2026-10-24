@@ -12,16 +12,40 @@ function pdfText(content,viewport){
     if(!line){line={y,height,items:[]};lines.push(line)}
     line.items.push({x,width:item.width||0,text:item.str,height})
   }
-  return lines.sort((a,b)=>a.y-b.y).map(line=>{
+  const ordered=lines.sort((a,b)=>a.y-b.y)
+  const gaps=[]
+  for(const line of ordered){const items=[...line.items].sort((a,b)=>a.x-b.x);for(let i=1;i<items.length;i++){const end=items[i-1].x+items[i-1].width;if(items[i].x-end>Math.max(45,line.height*4))gaps.push((items[i].x+end)/2)}}
+  let columnBoundary=null
+  for(const gap of gaps){const cluster=gaps.filter(value=>Math.abs(value-gap)<24);if(cluster.length>=4){columnBoundary=cluster.sort((a,b)=>a-b)[Math.floor(cluster.length/2)];break}}
+  const renderLine=line=>{
     let previous=null
-    return line.items.sort((a,b)=>a.x-b.x).map(item=>{const gap=previous?item.x-previous.x-previous.width:0,prefix=previous&&gap>Math.min(item.height,previous.height)*.12&&!/\s$/.test(previous.text)&&!/^\s/.test(item.text)?' ':'';previous=item;return prefix+item.text}).join('')
-  }).join('\n')
+    return line.items.sort((a,b)=>a.x-b.x).map(item=>{
+      const gap=previous?item.x-previous.x-previous.width:0
+      // Preserve separation between columns/sidebars instead of constructing
+      // a fictional sentence from unrelated text sharing the same baseline.
+      const separate=previous&&gap>Math.max(38,Math.min(item.height,previous.height)*3)
+      const prefix=separate?'\n':previous&&gap>Math.min(item.height,previous.height)*.12&&!/\s$/.test(previous.text)&&!/^\s/.test(item.text)?' ':''
+      previous=item;return prefix+item.text
+    }).join('')
+  }
+  if(columnBoundary!==null){
+    const left=[],right=[]
+    for(const line of ordered){const first=line.items.filter(item=>item.x<columnBoundary),second=line.items.filter(item=>item.x>=columnBoundary);if(first.length)left.push(renderLine({...line,items:first}));if(second.length)right.push(renderLine({...line,items:second}))}
+    // Require substantial text on both sides before changing reading order.
+    if(left.join('').length>200&&right.join('').length>100)return left.join('\n')+'\n\n'+right.join('\n')
+  }
+  return ordered.map(renderLine).join('\n')
 }
 function normalizeImage(canvas){
   const context=canvas.getContext('2d'),w=canvas.width,h=canvas.height
-  // Detect dark-mode screenshots using corners; OCR receives a light background.
-  const corners=[[1,1],[Math.max(1,w-2),1],[1,Math.max(1,h-2)],[Math.max(1,w-2),Math.max(1,h-2)]]
-  const light=corners.reduce((sum,[x,y])=>{const pixel=context.getImageData(Math.min(w-1,x),Math.min(h-1,y),1,1).data;return sum+(pixel[0]+pixel[1]+pixel[2])/3},0)/4
+  // Sample the content, not just borders: dark browser chrome around a white
+  // job page must not cause the actual document to be inverted.
+  const samples=[]
+  for(let row=1;row<=5;row++)for(let column=1;column<=5;column++){
+    const pixel=context.getImageData(Math.min(w-1,Math.floor(w*column/6)),Math.min(h-1,Math.floor(h*row/6)),1,1).data
+    samples.push((pixel[0]+pixel[1]+pixel[2])/3)
+  }
+  const light=samples.sort((a,b)=>a-b)[Math.floor(samples.length/2)]
   const adjusted=document.createElement('canvas');adjusted.width=w;adjusted.height=h
   const output=adjusted.getContext('2d');output.filter=`${light<100?'invert(1) ':''}grayscale(1) contrast(1.15)`;output.drawImage(canvas,0,0)
   canvas.width=1;canvas.height=1
@@ -80,7 +104,7 @@ export async function readLocalJobFile(file,{signal,onProgress=()=>{}}={}){
         check(signal);onProgress({message:`Reading PDF page ${currentPage} of ${pageCount}…`})
         const page=await pdf.getPage(currentPage),content=await page.getTextContent(),viewport=page.getViewport({scale:1})
         const direct=pdfText(content,viewport)
-        const readable=direct.replace(/[^\p{L}\p{N}]/gu,'').length>=80&&direct.split(/\s+/).length>=15
+        const readable=direct.replace(/[^\p{L}\p{N}]/gu,'').length>=80&&direct.split(/\s+/).length>=15&&(direct.match(/\uFFFD/g)||[]).length<Math.max(2,direct.length*.01)
         if(readable){extracted+=direct+'\n\n';textPages++}
         else{
           const scale=Math.min(2.2,5000/Math.max(viewport.width,viewport.height),Math.sqrt(8000000/(viewport.width*viewport.height))),rendered=page.getViewport({scale}),canvas=document.createElement('canvas')

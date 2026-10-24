@@ -30,15 +30,7 @@ function handshakeText(input,url,fromText){
   const navigation=/^(?:handshake|jobs|events|employers|career center|messages|search|saved|for you|profile|notifications|back to jobs|skip to content)$/i;
   while(lines.length&&navigation.test(lines[0]))lines.shift();
   const result=fromText(lines.join('\n'),url);result.source='Handshake copied job text';
-  const match=result.title.match(/^(.+?)\s+at\s+(.+?)(?:\s*[|–]\s*Handshake)?$/i);
-  if(match){result.title=match[1];if(!result.company)result.company=match[2]}
-  // Only infer explicit labels or unambiguous value lines; do not guess employer names.
-  for(const [field,label]of Object.entries({company:/^(?:company|employer)\s*:?$/i,location:/^(?:location|job location|work location)\s*:?$/i,employmentType:/^(?:employment type|job type)\s*:?$/i,salary:/^(?:salary|pay|compensation)\s*:?$/i,validThrough:/^(?:application deadline|apply by|closing date)\s*:?$/i})){
-    const index=lines.findIndex(line=>label.test(line));if(!result[field]&&index>=0&&lines[index+1])result[field]=lines[index+1].slice(0,field==='location'?1000:500);
-  }
-  if(!result.salary)result.salary=lines.find(line=>line.length<160&&/[$€£]\s*\d/.test(line)&&/(?:\/|per\s+)(?:hr|hour|year|yr|month)|(?:hourly|annually)/i.test(line))||'';
-  if(!result.employmentType)result.employmentType=lines.find(line=>/^(?:full[- ]time|part[- ]time|internship|co[- ]op|on[- ]campus(?: student employment)?)(?:\s*[·,|].*)?$/i.test(line))||'';
-  result.warnings=['Imported from text you copied from Handshake. Verify the job title, employer, pay, and deadline before saving. Missing values have been left blank.'];
+  result.warnings.unshift('Check recognized text against the Handshake page. Unlabeled employer names and uncertain values are left blank.');
   return result;
 }
 module.exports={handshakeLink,importHandshake,handshakeText};

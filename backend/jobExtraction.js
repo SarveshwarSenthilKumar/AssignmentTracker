@@ -8,29 +8,7 @@ const text=(value,max=30000)=>{
   return $.root().text().replace(/[ \t\r]+/g,' ').replace(/\n */g,'\n').replace(/\n{3,}/g,'\n\n').trim().slice(0,max);
 };
 const sections={requirements:/^(?:(?:minimum|required|preferred|desired|basic)\s+)?(?:qualifications|requirements|experience|skills|education|what you (?:bring|need)|about you)\s*[:：]?$/i,responsibilities:/^(?:responsibilities|what you(?:'|’)ll do|what you will do|the role|duties|key responsibilities|your responsibilities)\s*[:：]?$/i,benefits:/^(?:benefits|what we offer|perks|compensation(?: and benefits)?|our benefits)\s*[:：]?$/i};
-function fromText(input,url=''){
-  const description=String(input).replace(/\r/g,'').trim().slice(0,30000),lines=description.split('\n').map(v=>v.trim()).filter(Boolean);
-  if(description.length<100)throw new Error('Not enough job content was found. Paste the full job description below.');
-  const result={url,title:lines[0]?.slice(0,300)||'',description,source:'Pasted job text',warnings:['Review inferred fields. Missing information has been left blank.']};
-  for(const [field,pattern]of Object.entries(sections)){
-    const start=lines.findIndex(line=>line.length<100&&pattern.test(line));
-    if(start>=0){let end=start+1;while(end<lines.length&&!(lines[end].length<100&&Object.values(sections).some(p=>p.test(lines[end]))))end++;result[field]=lines.slice(start+1,end).join('\n')}
-  }
-  for(const [field,pattern]of Object.entries({company:/^(?:company|employer|organization)\s*:\s*(.+)$/i,location:/^(?:location|job location)\s*:\s*(.+)$/i,employmentType:/^(?:employment type|job type)\s*:\s*(.+)$/i,salary:/^(?:salary|pay range|compensation range)\s*:\s*(.+)$/i})){
-    const line=lines.find(v=>pattern.test(v));if(line)result[field]=line.match(pattern)[1].slice(0,500);
-  }
-  for(const [field,pattern]of Object.entries({title:/^(?:job title|position|role)\s*:\s*(.+)$/i,datePosted:/^(?:date posted|posted on|posting date)\s*:\s*(.+)$/i,validThrough:/^(?:application deadline|apply by|closing date|deadline)\s*:\s*(.+)$/i})){
-    const line=lines.find(v=>pattern.test(v));if(line)result[field]=line.match(pattern)[1].slice(0,field==='title'?300:100);
-  }
-  for(const [field,label]of Object.entries({company:/^(?:company|employer|organization)\s*:?$/i,location:/^(?:location|job location|work location)\s*:?$/i,employmentType:/^(?:employment type|job type)\s*:?$/i,salary:/^(?:salary|pay range|compensation range)\s*:?$/i,validThrough:/^(?:application deadline|apply by|closing date)\s*:?$/i})){
-    const index=lines.findIndex(line=>label.test(line));if(!result[field]&&index>=0&&lines[index+1])result[field]=lines[index+1].slice(0,field==='location'?1000:field==='validThrough'?100:500);
-  }
-  const titleAt=result.title.match(/^(.+?)\s+at\s+(.+)$/i);if(titleAt){result.title=titleAt[1];if(!result.company)result.company=titleAt[2].slice(0,300)}
-  if(!result.salary)result.salary=lines.find(line=>line.length<200&&/[$€£]\s*\d/.test(line)&&/(?:\/|per\s+)(?:hr|hour|year|yr|month)|(?:hourly|annually)/i.test(line))||'';
-  if(!result.employmentType)result.employmentType=lines.find(line=>/^(?:full[- ]time|part[- ]time|internship|contract|temporary|co[- ]op|on[- ]campus(?: student employment)?)(?:\s*[·,|].*)?$/i.test(line))||'';
-  if(!result.location)result.location=lines.find(line=>/^(?:remote|hybrid|on[- ]site)(?:\s*[:·|–-]\s*.+)?$/i.test(line))||'';
-  return result;
-}
+const {parseJobText:fromText}=require('./jobTextParser');
 function normalize(job,url,source){
   const salary=job.baseSalary,value=salary?.value;
   const location=[job.jobLocation].flat().filter(Boolean).map(place=>{const a=place.address||place;return typeof a==='string'?a:[a.streetAddress,a.addressLocality,a.addressRegion,text(a.addressCountry)].filter(Boolean).join(', ')});
@@ -68,7 +46,7 @@ function extractPage(html,url){
   if(!title||!meaningful||body.length<150)throw new Error('The page did not expose a readable job description. Open it in your browser and paste the job text below.');
   const result=fromText(`${title}\n${body}`,url);
   result.title=title;result.source='Page content / metadata';
-  result.company=text($('.topcard__org-name-link,.topcard__flavor--black,.company-name,[data-testid="company-name"]').first().text(),300);
+  result.company=text($('.topcard__org-name-link,.topcard__flavor--black,.company-name,[data-testid="company-name"]').first().text(),300)||result.company||'';
   result.location=text($('.topcard__flavor--bullet,.location,[data-testid="job-location"]').first().text(),1000)||result.location||'';
   return result;
 }
