@@ -4,7 +4,7 @@ import PDFEditorChrome from './PDFEditorChrome'
 import { straightenStroke } from '../lib/pdfStraightLine'
 import { existingTextRuns, makeSourceReplacement } from '../lib/pdfExistingText'
 import { registerEditor } from '../lib/editorBridge'
-import { pageFontPrograms, fontKey, standardTextFont, replacementCss } from '../lib/pdfTextStyle'
+import { pageFontPrograms, fontKey, standardTextFont, replacementCss, loadPageFontStyles } from '../lib/pdfTextStyle'
 import PDFReferencePane from './PDFReferencePane'
 import PDFStylusSettings from './PDFStylusSettings'
 import usePDFTouchInput from '../hooks/usePDFTouchInput'
@@ -744,12 +744,14 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         setPdfData(data)
         if(data.tags?.includes('handwritten-notebook'))setCurrentTool('pen')
 
+        let fontFile
         if (data.pdfData) {
           try {
             const byteCharacters = atob(data.pdfData)
             const bytes = new Uint8Array(byteCharacters.length)
             for (let i = 0; i < byteCharacters.length; i++) bytes[i] = byteCharacters.charCodeAt(i)
             const blob = new Blob([bytes], { type: 'application/pdf' })
+            fontFile=blob
             setPdfFile(new File([blob], data.name || 'document.pdf', { type: 'application/pdf' }))
           } catch (err) {
 
@@ -764,6 +766,17 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
           }
           return item
         })
+        // Saved font-family names refer to dynamically registered FontFaces.
+        // Reload the actual PDF font programs before displaying saved text.
+        if(fontFile){
+          const pages=[...new Set(loaded.filter(item=>item.textStyle?.embedded).map(item=>(item.page||1)-1))]
+          const fonts=new Map(await Promise.all(pages.map(async index=>[index,await loadPageFontStyles(fontFile,index)])))
+          for(const item of loaded)if(item.textStyle?.embedded){
+            const face=fonts.get((item.page||1)-1)?.get(fontKey(item.textStyle.fontName))
+            if(face)item.textStyle={...item.textStyle,fontFamily:`"${face}"`}
+            else setActionError(`The original font ${item.textStyle.fontName} could not be loaded for this preview. The saved font data has been retained.`)
+          }
+        }
         updatePaths(loaded, { silent: true })
         dirtyRef.current = false
         setSaveStatus('saved')

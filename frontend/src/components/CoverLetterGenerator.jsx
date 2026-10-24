@@ -6,13 +6,13 @@ import {existingTextRuns,makeSourceReplacement} from '../lib/pdfExistingText'
 import './CoverLetterGenerator.css'
 import CoverLetterError from './CoverLetterError'
 import {letterRegions,letterText,editLetter} from '../lib/coverLetterText'
+import {layoutCoverLetter} from '../lib/coverLetterPdfLayout'
 pdfjs.GlobalWorkerOptions.workerSrc=workerUrl
 
 export default function CoverLetterGenerator({token,documents,onDocumentsChange,onOpen}){
   const [templateId,setTemplateId]=useState(''),[references,setReferences]=useState([]),[jobs,setJobs]=useState([]),[jobId,setJobId]=useState(''),[role,setRole]=useState(''),[name,setName]=useState(''),[draft,setDraft]=useState(null),[changes,setChanges]=useState([]),[reviewed,setReviewed]=useState(false),[busy,setBusy]=useState(''),[error,setError]=useState('')
   const runs=useRef(new Map()),lock=useRef(false),referenceCache=useRef(new Map()),errorPanel=useRef(null)
   const [generationStage,setGenerationStage]=useState('')
-  const [fitText,setFitText]=useState(true)
   const [draftText,setDraftText]=useState('')
   const textRegions=useRef([])
   useEffect(()=>{if(error)errorPanel.current?.scrollIntoView({behavior:'smooth',block:'nearest'})},[error])
@@ -67,25 +67,25 @@ export default function CoverLetterGenerator({token,documents,onDocumentsChange,
       setDraftText(letterText(textRegions.current))
     }catch(e){reportError(e,stage)}finally{lock.current=false;setBusy('');setGenerationStage('')}
   }
-  const annotationsFor=()=>{
+  const annotationsFor=(replacements)=>{
     const context=document.createElement('canvas').getContext('2d')
-    return changes.filter(item=>item.text!==draft.slots.find(s=>s.id===item.id)?.text).map(item=>{
+    return replacements.map(item=>{
       const run=runs.current.get(item.id);if(!run)throw new Error('Template layout is unavailable. Generate the letter again.')
       const style=run.textStyle
-      if(style.approximate&&!fitText)throw new Error(`The original font (${style.fontName}) is not embedded in this PDF. Enable “Fit PDF replacements” to use the detected substitute font, or use a Word template.`)
+      if(style.approximate)throw new Error(`The original font (${style.fontName}) is not embedded in this PDF. Upload the Word original or a PDF with embedded fonts to keep the exact font.`)
       context.font=`${style.embedded?'normal':style.italic?'italic':'normal'} ${style.embedded?400:style.fontWeight||400} ${run.fontSize}px ${style.fontFamily}`
-      const text=fitText?item.text.replace(/[\r\n]+/g,' '):item.text
+      const text=item.text
       const width=(context.measureText(text).width+(style.letterSpacing||0)*Math.max(0,text.length-1))*(style.horizontalScale||1)
-      if(!fitText&&(text.includes('\n')||width>run.width+1))throw new Error(`This replacement does not fit its original PDF position: “${text.slice(0,65)}”. Enable “Fit PDF replacements” or shorten the wording.`)
+      if(/[\r\n]/.test(text)||width>run.width+1)throw new Error(`This replacement is too long for its original PDF line: “${text.slice(0,65)}”. Shorten this line or use the Word original, which can wrap naturally. The font, size and spacing will not be compressed.`)
       const replacement=makeSourceReplacement(run,run.page,crypto.randomUUID())
-      return {...replacement,text,textStyle:{...replacement.textStyle,horizontalScale:(style.horizontalScale||1)*(fitText&&width>run.width?run.width/width:1)}}
+      return {...replacement,text}
     })
   }
   const save=async()=>{
     if(lock.current||!reviewed)return;lock.current=true;setBusy('save');setError('')
     try{
-      const replacements=changes.filter(item=>item.text!==draft.slots.find(s=>s.id===item.id)?.text).map(item=>({...item,text:!draft.isWord&&fitText?item.text.replace(/[\r\n]+/g,' '):item.text}))
-      const annotations=draft.isWord?undefined:annotationsFor()
+      const replacements=draft.isWord?changes.filter(item=>item.text!==draft.slots.find(s=>s.id===item.id)?.text):layoutCoverLetter(draft.slots,changes,runs.current)
+      const annotations=draft.isWord?undefined:annotationsFor(replacements)
       const result=await request('/api/cover-letters/save-draft',{method:'POST',body:JSON.stringify({draftId:draft.draftId,name,replacements,annotations,reviewed})})
       if(!result?._id)throw new Error('The server did not return a saved document. Your reviewed draft is still available; retry saving.')
       onDocumentsChange(previous=>[result,...previous.filter(d=>d._id!==result._id)]);onOpen(result._id);reset()
@@ -103,18 +103,17 @@ export default function CoverLetterGenerator({token,documents,onDocumentsChange,
       <fieldset className="cover-generator-wide" disabled={!!busy}><legend>Additional letters for voice and resumes for factual project details (up to 5)</legend>{sources.map(file=><label className="cover-generator-check" key={file._id}><input type="checkbox" checked={references.includes(file._id)} disabled={!references.includes(file._id)&&references.length>=5} onChange={e=>{setReferences(previous=>e.target.checked?[...previous,file._id]:previous.filter(id=>id!==file._id));reset()}}/>{file.name} · {file.tags.includes('resume')?'Resume':'Cover letter'}</label>)}{!sources.length&&<p>Add a resume or more letters to provide factual projects and additional voice examples.</p>}</fieldset>
     </div><button type="submit" disabled={!!busy||!templateId}>{busy==='generate'?generationStage||'Adapting your existing wording…':'Generate using my existing phrases'}</button>{busy==='generate'&&<p role="status">{generationStage} Readable PDFs use text instead of slower vision processing.</p>}</form>
     {error&&<div ref={errorPanel}><CoverLetterError key={error.diagnostics.timestamp} error={error}/></div>}
-    {draft&&<div className="cover-letter-draft"><h3>Review changes in template order</h3><p>{draft.isWord?'The Word file’s existing formatting, runs, margins, headers and paragraph structure are retained. Text changes can still affect wrapping and pagination.':'PDF replacements keep their original positions and font sizes. Fitting can compress longer text horizontally and use substitute fonts when originals are unavailable. Shorten long replacements for better readability. Original text is visually covered, not redacted.'}</p>
+    {draft&&<div className="cover-letter-draft"><h3>Review your cover letter</h3><p>{draft.isWord?'Your original Word package, fonts, sizes, paragraph styles, margins, headers and layout settings are retained. Longer wording can naturally change line wrapping and pagination.':'Your original PDF stays intact. Replacements use its fonts, font sizes, character spacing and line positions. A line that is too long or has an unavailable original font must be corrected before saving. Original text is visually covered, not redacted.'}</p>
       <div className="cover-letter-writing-area">
         <div className="cover-letter-writing-toolbar"><span>Cover letter draft</span><button type="button" disabled={!!busy} onClick={()=>{setChanges(draft.replacements);textRegions.current=letterRegions(draft.slots,draft.replacements,runs.current);setDraftText(letterText(textRegions.current));setReviewed(false)}}>Reset to generated draft</button></div>
-        <label>Review and edit your letter<textarea className="cover-letter-full-text" aria-describedby="cover-letter-edit-help" rows={22} maxLength={30000} value={draftText} disabled={!!busy} onChange={e=>{setDraftText(e.target.value);setChanges(editLetter(textRegions.current,e.target.value));setReviewed(false)}}/></label>
-        <p id="cover-letter-edit-help">Edit the full letter in one place. Reused phrases below update as you type. Saving maps your wording back to the template’s text regions; review the final layout in the editor.</p>
+        <label>Review and edit your letter<textarea className="cover-letter-full-text" aria-describedby="cover-letter-edit-help" rows={22} maxLength={30000} value={draftText} disabled={!!busy} onChange={e=>{try{const updated=editLetter(textRegions.current,e.target.value);textRegions.current=textRegions.current.map((region,index)=>({...region,text:updated[index].text}));setDraftText(e.target.value);setChanges(updated);setReviewed(false);setError('')}catch(error){reportError(error,'Preserving template formatting')}}}/></label>
+        <p id="cover-letter-edit-help">This is a text review, not a rendered layout preview. Edit within the existing text regions and keep paragraph breaks. Reused phrases update as you type. The saved document uses your uploaded template’s formatting.</p>
         <details><summary>Compare with original template</summary><textarea className="cover-letter-full-text" aria-label="Original template text" rows={14} readOnly value={letterText(letterRegions(draft.slots,[],runs.current))}/><button type="button" disabled={!!busy} onClick={()=>{textRegions.current=letterRegions(draft.slots,[],runs.current);setDraftText(letterText(textRegions.current));setChanges([]);setReviewed(false)}}>Use original wording</button></details>
       </div>
       {!!reusedPhrases.length&&<details open><summary>Reused phrases checked against your letters</summary><p>These excerpts occur in both the current draft and the template or readable reference text. Case and whitespace are normalized for matching.</p><ul>{reusedPhrases.map((item,i)=><li key={i}><q>{item.quote}</q> — {item.source}</li>)}</ul></details>}
       {!!draft.evidence?.length&&<details><summary>Factual source notes</summary><ul>{draft.evidence.map((item,i)=><li key={i}>{item}</li>)}</ul></details>}
       {!!draft.warnings?.length&&<div role="status"><h4>Information to review</h4><ul>{draft.warnings.map((item,i)=><li key={i}>{item}</li>)}</ul></div>}
       <label>New cover letter name<input value={name} maxLength={120} disabled={!!busy} onChange={e=>setName(e.target.value)}/></label>
-      {!draft.isWord&&<label className="cover-generator-check"><input type="checkbox" checked={fitText} disabled={!!busy} onChange={e=>{setFitText(e.target.checked);setReviewed(false)}}/>Fit PDF replacements into their original lines (use detected substitute fonts when needed).</label>}
       <label className="cover-generator-check"><input type="checkbox" checked={reviewed} disabled={!!busy} onChange={e=>setReviewed(e.target.checked)}/>I reviewed the voice, role details, and factual claims against my documents.</label>
       {!busy&&(!reviewed||!name.trim()||!draftText.trim())&&<p role="status">{!name.trim()?'Enter a name for the new copy.':!draftText.trim()?'Enter your cover letter text.':'Select the review checkbox above to enable saving.'}</p>}
       <button type="button" disabled={!!busy||!reviewed||!name.trim()||!draftText.trim()} onClick={save}>{busy==='save'?'Saving…':'Save separate copy & open editor'}</button>

@@ -141,7 +141,10 @@ module.exports=function registerCoverLetterGeneration(app,auth,{PDF,SavedJob,mon
       const changes=req.body.replacements,allowed=new Map(draft.slots.map(s=>[s.id,s.text]));
       if(req.body.reviewed!==true||!Array.isArray(changes)||changes.length>600||new Set(changes.map(s=>s.id)).size!==changes.length||changes.some(s=>!allowed.has(s.id)||typeof s.text!=='string'||s.text.length>30000))throw new Error('Review the draft and use only the original template text regions.');
       let bytes=template.pdfData,annotations=[];
-      if(draft.isWord){const {zip,$}=await wordTemplate(bytes),map=new Map(changes.map(s=>[s.id,s.text]));$('w\\:t').each((index,node)=>{if(map.has(String(index)))$(node).attr('xml:space','preserve').text(map.get(String(index)))});zip.file('word/document.xml',$.xml());bytes=await zip.generateAsync({type:'nodebuffer',compression:'DEFLATE'});}
+      if(draft.isWord){
+        if(changes.some(item=>/[\r\n]/.test(item.text)))throw new Error('Keep the original Word paragraph breaks. Edit wording within its existing paragraphs to retain the template formatting.');
+        const {zip,$}=await wordTemplate(bytes),map=new Map(changes.map(s=>[s.id,s.text]));$('w\\:t').each((index,node)=>{if(map.has(String(index)))$(node).attr('xml:space','preserve').text(map.get(String(index)))});zip.file('word/document.xml',$.xml());bytes=await zip.generateAsync({type:'nodebuffer',compression:'DEFLATE'});
+      }
       else{
         const supplied=req.body.annotations;if(!Array.isArray(supplied)||supplied.length!==changes.length||new Set(supplied.map(item=>item.sourceText?.key)).size!==supplied.length||JSON.stringify(supplied).length>1500000)throw new Error('The PDF layout is incomplete. Generate the draft again.');
         const {PDFDocument}=require('pdf-lib'),pdf=await PDFDocument.load(bytes),map=new Map(changes.map(s=>[s.id,s.text]));

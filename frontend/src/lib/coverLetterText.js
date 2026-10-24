@@ -29,23 +29,10 @@ export function editLetter(regions,value){
   while(last<regions.length-1&&bounds[last+1].begin<end)last++
   const prefix=regions[first].text.slice(0,Math.max(0,start-bounds[first].begin))
   const suffix=regions[last].text.slice(Math.max(0,end-bounds[last].begin))
-  let remaining=prefix+value.slice(start,nextEnd)+suffix
   const result=regions.map(({id,text})=>({id,text}))
-  // Multi-region pastes are apportioned at word boundaries so an entire letter
-  // is not squeezed into the first PDF line or Word formatting run.
-  let weight=regions.slice(first,last+1).reduce((sum,region)=>sum+Math.max(1,region.text.length),0)
-  for(let index=first;index<=last;index++){
-    const size=Math.max(1,regions[index].text.length)
-    let cut=remaining.length
-    if(index<last){
-      const target=Math.round(remaining.length*size/weight)
-      const after=remaining.indexOf(' ',target),prior=remaining.lastIndexOf(' ',target)
-      cut=after<0?(prior<0?target:prior):prior>=0&&target-prior<after-target?prior:after
-    }
-    result[index].text=remaining.slice(0,cut)
-    remaining=remaining.slice(cut)
-    if(regions[index+1]?.separator)remaining=remaining.replace(/^ /,'')
-    weight-=size
-  }
+  // Preserve untouched runs and their exact formatting. Do not proportionally
+  // redistribute text between fonts, paragraphs or fixed PDF line positions.
+  if(first!==last)throw new Error('This edit crosses template text regions. Edit one sentence or line at a time to preserve its formatting; keep the original paragraph and line breaks.')
+  result[first].text=prefix+value.slice(start,nextEnd)+suffix
   return result
 }

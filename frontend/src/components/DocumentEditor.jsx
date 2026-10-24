@@ -22,6 +22,7 @@ export default function DocumentEditor({ pdfId, token, onClose, onCleanCopy, ass
   const [changes, setChanges] = useState({}), [gridSize, setGridSize] = useState({ rows: 20, cols: 5 })
   const [mediaUrl, setMediaUrl] = useState(''), [imageDocument, setImageDocument] = useState(null)
   const workbook = useRef(null), bytesRef = useRef(null), revision = useRef(0)
+  const wordTemplate=useRef(null)
   const liveAssistantEditor=useRef(null)
   const [aiUndo,setAiUndo]=useState([])
   const mime = data?.mimeType || 'application/octet-stream'
@@ -50,9 +51,9 @@ export default function DocumentEditor({ pdfId, token, onClose, onCleanCopy, ass
           }
           else setText(content)
         } else if (type === 'word') {
-          const { default: mammoth } = await import('mammoth/mammoth.browser')
-          const result = await mammoth.extractRawText({ arrayBuffer: bytes.buffer })
-          if (!cancelled) setText(result.value)
+          const {openWordTemplate}=await import('../lib/wordTemplateEditor')
+          const template=await openWordTemplate(bytes)
+          if (!cancelled){wordTemplate.current=template;setText(template.text)}
         } else if (type === 'workbook') {
           const { default: ExcelJS } = await import('exceljs')
           const book = new ExcelJS.Workbook(); await book.xlsx.load(bytes.buffer)
@@ -102,8 +103,8 @@ export default function DocumentEditor({ pdfId, token, onClose, onCleanCopy, ass
   }
   const serialize = async () => {
     if (kind === 'word') {
-      const { Document, Packer, Paragraph } = await import('docx')
-      return Packer.toBlob(new Document({ sections: [{ children: text.split('\n').map(line => new Paragraph(line)) }] }))
+      if(!wordTemplate.current)throw new Error('The original Word template is unavailable. Reopen the document before saving.')
+      return wordTemplate.current.serialize(text)
     }
     if (kind === 'workbook') {
       Object.entries(changes).forEach(([key, value]) => { const [sheet, row, col] = key.split(':').map(Number); workbook.current.getWorksheet(sheet).getCell(row, col).value = typedValue(value) })
@@ -122,6 +123,10 @@ export default function DocumentEditor({ pdfId, token, onClose, onCleanCopy, ass
       const result = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(result.message || 'Could not save this document.')
       bytesRef.current = new Uint8Array(await blob.arrayBuffer())
+      if(kind==='word'){
+        const {openWordTemplate}=await import('../lib/wordTemplateEditor')
+        wordTemplate.current=await openWordTemplate(bytesRef.current)
+      }
       setData(prev => ({ ...prev, hasOriginalBackup: true }))
       if (revision.current === currentRevision) setDirty(false)
       if (replacement) onClose()
@@ -165,7 +170,7 @@ export default function DocumentEditor({ pdfId, token, onClose, onCleanCopy, ass
     </div></header>
     <InlineConfirmation {...confirmation} />
     {error && <div role="alert" className="document-error">{error}<button onClick={() => setError('')}>Dismiss</button></div>}
-    {kind === 'word' && <p className="document-notice">DOCX text editing: saves a new document containing your text. Original formatting, images, and tables are not retained in the edited version; the uploaded original remains downloadable.</p>}
+    {kind === 'word' && <p className="document-notice">Text review uses the editor’s display font. Save and Download retain the original Word fonts, sizes, styles, headers, images, tables and layout settings. Keep the existing paragraph breaks. Open the downloaded DOCX in Word to see its formatted layout.</p>}
     {kind === 'workbook' && <div className="document-tools"><label>Worksheet <select value={sheetId || ''} onChange={e => { const id = Number(e.target.value), sheet = workbook.current.getWorksheet(id); setSheetId(id); setGridSize({rows:Math.min(200,Math.max(20,sheet.rowCount)),cols:Math.min(40,Math.max(5,sheet.columnCount))}) }}>{sheets.map(sheet => <option key={sheet.id} value={sheet.id}>{sheet.name}</option>)}</select></label><span>Cell values and formulas; formulas recalculate when opened in Excel. Showing up to 200 rows × 40 columns; other cells are retained.</span></div>}
     {(kind === 'table' || kind === 'workbook') && editable && <div className="document-tools"><button onClick={() => { if (kind === 'table') setTable(prev => [...prev, Array(cols).fill('')]); else setGridSize(prev => ({...prev,rows:Math.min(500,prev.rows+1)})); markDirty() }}><Plus size={15} />Row</button><button onClick={() => { if (kind === 'table') setTable(prev=>prev.map(row=>[...Array.from({length:cols},(_,i)=>row[i]||''),''])); else setGridSize(prev=>({...prev,cols:Math.min(100,prev.cols+1)})); markDirty() }}><Plus size={15} />Column</button></div>}
     <main>
