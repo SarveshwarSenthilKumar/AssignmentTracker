@@ -51,3 +51,8 @@ check online search of company
 check skills and tailor
 connect to github  and linkedin
 base projects off github and linkedin
+
+not only formatting and style but also phrases
+also add the ability to tailor for a job
+base projects off of linkedin and github
+optimize for handshake listings
