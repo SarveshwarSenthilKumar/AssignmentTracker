@@ -14,6 +14,10 @@ async function wordTemplate(bytes){
 }
 module.exports=function registerCoverLetterGeneration(app,auth,{PDF,SavedJob,mongoose,credentials,model,requireAIAccess}){
   const drafts=new Map(),active=new Set(),usage=new Map();
+  const Draft=mongoose.models.CoverLetterDraft||mongoose.model('CoverLetterDraft',new mongoose.Schema({
+    _id:String,user:{type:mongoose.Schema.Types.ObjectId,required:true,index:true},
+    expiresAt:{type:Date,required:true,index:{expires:0}},payload:{type:mongoose.Schema.Types.Mixed,required:true}
+  }));
   const access=[auth,requireAIAccess('generation'),(req,res,next)=>req.aiAccess.resumes?next():res.status(403).json({message:'Enable Resumes and cover letters in Account → AI access.'})];
   const owned=async(id,user)=>{
     if(!mongoose.isValidObjectId(id))throw new Error('Choose one of your saved documents.');
@@ -103,8 +107,9 @@ module.exports=function registerCoverLetterGeneration(app,auth,{PDF,SavedJob,mon
       const warnings=[...contextWarnings,...(Array.isArray(draft.warnings)?draft.warnings.filter(s=>typeof s==='string').slice(0,4).map(s=>s.slice(0,1000)):[])];
       if(!phraseReuse.length)warnings.push('No reused phrase could be verified against the template or supplied reference text. Compare the proposed wording with your previous letters before saving.');
       if(references.some(file=>file.tags.includes('cover-letter')&&!phraseSources.has(String(file._id))))warnings.push('Additional PDF letters are provided to AI as wording references. Verified phrase notes below cover the template and readable text references only.');
-      for(const [id,value]of drafts)if(value.user===user)drafts.delete(id);
-      drafts.set(draftId,{user,expires:Date.now()+3600000,templateId:String(template._id),updatedAt:String(template.updatedAt),slots,replacements,isWord});
+      const storedDraft={user,expires:Date.now()+3600000,templateId:String(template._id),updatedAt:String(template.updatedAt),slots,replacements,isWord};
+      await Draft.create({_id:draftId,user,expiresAt:new Date(storedDraft.expires),payload:storedDraft});
+      drafts.set(draftId,storedDraft);
       res.json({draftId,slots,replacements,isWord,evidence:Array.isArray(draft.evidence)?draft.evidence.filter(s=>typeof s==='string').slice(0,30).map(s=>s.slice(0,1000)):[],warnings,phraseReuse});
     }catch(error){
       if(!res.destroyed){
@@ -118,12 +123,18 @@ module.exports=function registerCoverLetterGeneration(app,auth,{PDF,SavedJob,mon
     finally{clearTimeout(timer);res.off('close',disconnected);active.delete(user)}
   });
   app.post('/api/cover-letters/save-draft',...access,async(req,res)=>{
-    res.set('Cache-Control','no-store');const draft=drafts.get(req.body.draftId);
+    res.set('Cache-Control','no-store');
+    let draft;
+    try{
+      if(typeof req.body.draftId!=='string')return res.status(400).json({message:'Generate a cover letter before saving.'});
+      draft=drafts.get(req.body.draftId);
+      if(!draft){const stored=await Draft.findOne({_id:req.body.draftId,user:req.user.userId,expiresAt:{$gt:new Date()}}).lean();if(stored){draft=stored.payload;drafts.set(req.body.draftId,draft)}}
+    }catch(error){return res.status(503).json({message:'Could not load the saved draft. Keep this page open and retry saving.'})}
     if(!draft||draft.user!==String(req.user.userId)||draft.expires<Date.now())return res.status(410).json({message:'This draft expired. Generate it again.'});
     if(draft.saving)return res.status(409).json({message:'This draft is being saved.'});
-    if(draft.savedId){const previous=await PDF.findOne({_id:draft.savedId,user:req.user.userId,deletedAt:null}).select('-pdfData -originalBackup');return previous?res.json(previous):res.status(410).json({message:'The saved draft is no longer available.'});}
     draft.saving=true;
     try{
+      if(draft.savedId){const previous=await PDF.findOne({_id:draft.savedId,user:req.user.userId,deletedAt:null}).select('-pdfData -originalBackup');return previous?res.json(previous):res.status(410).json({message:'The saved draft is no longer available.'});}
       const template=await owned(draft.templateId,draft.user);if(String(template.updatedAt)!==draft.updatedAt)throw new Error('The template changed. Generate again from the current version.');
       const name=typeof req.body.name==='string'?req.body.name.trim():'';if(!name||name.length>120)throw new Error('Enter a document name up to 120 characters.');
       const changes=req.body.replacements,allowed=new Map(draft.slots.map(s=>[s.id,s.text]));
@@ -136,7 +147,9 @@ module.exports=function registerCoverLetterGeneration(app,auth,{PDF,SavedJob,mon
         annotations=supplied.map(item=>{const source=item.sourceText,key=source?.key,page=pdf.getPage((item.page||1)-1),size=page.getSize();if(item.tool!=='text'||!map.has(key)||item.text!==map.get(key)||source.originalText!==allowed.get(key)||![item.x,item.y,item.fontSize,source.x,source.y,source.width,source.height].every(Number.isFinite)||item.fontSize<1||item.fontSize>200||item.x< -10||item.y< -10||source.x< -2||source.y< -2||source.x+source.width>size.width+2||source.y+source.height>size.height+2||source.width<=0||source.height<=0)throw new Error('Invalid PDF text region.');return {...item,id:randomUUID()};});
       }
       const file=await PDF.create({user:draft.user,name,originalName:name.replace(/[<>:"/\\|?*\u0000-\u001f]/g,'-')+(draft.isWord?'.docx':'.pdf'),mimeType:draft.isWord?'application/vnd.openxmlformats-officedocument.wordprocessingml.document':'application/pdf',pdfData:bytes,annotations,tags:['cover-letter','ai-tailored']});
-      draft.savedId=String(file._id);const metadata=file.toObject();delete metadata.pdfData;delete metadata.originalBackup;res.status(201).json(metadata);
-    }catch(error){res.status(422).json({message:error.message||'Could not save this draft.'})}finally{draft.saving=false}
+      draft.savedId=String(file._id);
+      await Draft.updateOne({_id:req.body.draftId,user:req.user.userId},{$set:{'payload.savedId':draft.savedId}});
+      const metadata=file.toObject();delete metadata.pdfData;delete metadata.originalBackup;res.status(201).json(metadata);
+    }catch(error){const message=safeMessage(error.message)||'Could not save this draft.';const details=diagnostic('save_failed',message,'Your reviewed draft is retained. Correct the issue and retry saving.',{stage:'Saving cover letter',httpStatus:422});res.status(422).json({message,diagnostics:details})}finally{draft.saving=false}
   });
 };
