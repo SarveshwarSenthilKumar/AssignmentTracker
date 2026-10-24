@@ -727,7 +727,7 @@ function App() {
           </button>
 
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
+            <div className="task-title-row flex items-center gap-2">
               {isEditing ? (
                 <input
                   type="text"
@@ -741,7 +741,7 @@ function App() {
                   autoFocus
                 />
               ) : (
-                <span className={cn("text-base transition-all truncate", statusColor.text)}>
+                <span className={cn("task-card-title text-base transition-all", statusColor.text)}>
                   {todo.text}
                 </span>
               )}
