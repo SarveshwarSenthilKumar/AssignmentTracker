@@ -10,7 +10,7 @@ const groups=[
     ['documentLibrary','Document library index','File names, folders, and document/task associations. File contents have separate controls below.'],
   ]],
   ['Files and notes',[
-    ['resumes','Resumes','Resume files and their library entries.'],
+    ['resumes','Resumes and cover letters','Resume and cover-letter files and their library entries.'],
     ['notes','Notes','Files tagged as notes, including handwritten notebooks and imported OneNote documents.'],
     ['documentFiles','Other documents and attachments','Other PDFs, Word files, spreadsheets, images, and supported attached media.'],
   ]],

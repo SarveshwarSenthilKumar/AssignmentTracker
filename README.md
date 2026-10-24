@@ -376,3 +376,8 @@ Saved jobs are account-owned and support full-detail viewing, original-link acce
 Run `npm install` in backend after pulling the dependency updates, then restart the backend and refresh the site. The HTML parser is pinned to Cheerio 1.0.0 for Node 18.17+ compatibility; no browser automation runtime is required.
 
 References: https://schema.org/JobPosting , https://docs.greenhouse.io/job-board.html , https://github.com/lever/postings-api , https://cheerio.js.org/docs/basics/loading/ .
+
+
+### Cover letters
+
+Open **Cover letters** in navigation or the career-document tabs on Resumes and Jobs. Upload PDF or DOCX files up to 10 MB, give each version a name, then open or download it. Files are saved to your account using the existing document storage with the `cover-letter` tag. They also appear in Documents for rename, organization and removal. AI access follows the Account setting for **Resumes and cover letters**.

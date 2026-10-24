@@ -38,7 +38,7 @@ export default function ResumesPage({token,documents,onDocumentsChange,onOpen}){
     }catch(err){setError(err.message)}finally{setDownloading(null)}
   }
   return <section className="resumes-page" aria-label="Resume storage">
-    <nav className="resume-job-navigation" aria-label="Resume tools"><a href="#/resumes" aria-current="page">Your resumes</a><a href="#/jobs">Saved jobs &amp; link import</a></nav>
+    <nav className="resume-job-navigation" aria-label="Resume tools"><a href="#/resumes" aria-current="page">Your resumes</a><a href="#/cover-letters">Cover letters</a><a href="#/jobs">Saved jobs &amp; link import</a></nav>
     <div className="resume-heading"><div><h2>Your resumes</h2><p>Keep versions ready to view, edit, or download.</p></div><span>{resumes.length} saved</span></div>
     <form onSubmit={upload} className="resume-upload-form">
       <input ref={input} id="resume-upload-file" type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" disabled={busy} onChange={event=>{choose(event.target.files[0]);event.target.value=''}} className="sr-only"/>
