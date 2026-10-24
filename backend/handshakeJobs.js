@@ -25,11 +25,11 @@ async function importHandshake(link,fetchPage,extractPage){
   }
   throw accessError();
 }
-function handshakeText(input,url,fromText){
+function handshakeText(input,url,fromText,layout){
   const lines=input.replace(/\r/g,'').split('\n').map(line=>line.trim()).filter(Boolean);
   const navigation=/^(?:handshake|jobs|events|employers|career center|messages|search|saved|for you|profile|notifications|back to jobs|skip to content)$/i;
   while(lines.length&&navigation.test(lines[0]))lines.shift();
-  const result=fromText(lines.join('\n'),url);result.source='Handshake copied job text';
+  const result=fromText(lines.join('\n'),url,layout);result.source='Handshake copied job text';
   result.warnings.unshift('Check recognized text against the Handshake page. Unlabeled employer names and uncertain values are left blank.');
   return result;
 }

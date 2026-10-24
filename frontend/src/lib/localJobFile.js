@@ -1,4 +1,5 @@
 import {pdfjs} from 'react-pdf'
+import {pdfJobLayout,ocrJobLayout} from './jobDocumentLayout'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.js?url'
 pdfjs.GlobalWorkerOptions.workerSrc=workerUrl
 
@@ -66,7 +67,7 @@ export async function readLocalJobFile(file,{signal,onProgress=()=>{}}={}){
   if(!file?.size||file.size>10*1024*1024)throw new Error('Choose a nonempty job file up to 10 MB.')
   if(!/\.(pdf|png|jpe?g|webp)$/i.test(file.name))throw new Error('Choose PDF, PNG, JPEG or WebP.')
   let ocr=null,pdfTask=null,currentPage=1,pageCount=1,ocrPages=0,textPages=0
-  const warnings=[]
+  const warnings=[],layout=[]
   const cancel=()=>{ocr?.terminate().catch(()=>{});pdfTask?.destroy().catch(()=>{})}
   signal?.addEventListener('abort',cancel,{once:true})
   const recognize=async canvas=>{
@@ -87,7 +88,14 @@ export async function readLocalJobFile(file,{signal,onProgress=()=>{}}={}){
         })
         check(signal);await ocr.setParameters({tessedit_pageseg_mode:PSM.AUTO,preserve_interword_spaces:'1',user_defined_dpi:'200'})
       }
-      const result=await ocr.recognize(canvas);check(signal)
+      let result=await ocr.recognize(canvas,{rotateAuto:true}, {text:true,blocks:true});check(signal)
+      if(result.data.confidence<65||result.data.text.trim().length<120){
+        onProgress({message:`Page ${currentPage}: retrying weak OCR with sparse-layout segmentation…`})
+        const retry=await ocr.recognize(canvas,{rotateAuto:true,tessedit_pageseg_mode:'11'},{text:true,blocks:true});check(signal)
+        const quality=data=>data.confidence+Math.min(15,(data.text.match(/\b[a-zA-Z]{3,}\b/g)||[]).length/3)
+        if(quality(retry.data)>quality(result.data)+2)result=retry
+      }
+      layout.push(...ocrJobLayout(result.data,canvas.width,canvas.height,currentPage))
       ocrPages++
       if(result.data.confidence<65)warnings.push(`Page ${currentPage} has low OCR confidence. Check names, salary figures and dates.`)
       return result.data.text
@@ -105,7 +113,7 @@ export async function readLocalJobFile(file,{signal,onProgress=()=>{}}={}){
         const page=await pdf.getPage(currentPage),content=await page.getTextContent(),viewport=page.getViewport({scale:1})
         const direct=pdfText(content,viewport)
         const readable=direct.replace(/[^\p{L}\p{N}]/gu,'').length>=80&&direct.split(/\s+/).length>=15&&(direct.match(/\uFFFD/g)||[]).length<Math.max(2,direct.length*.01)
-        if(readable){extracted+=direct+'\n\n';textPages++}
+        if(readable){extracted+=direct+'\n\n';textPages++;layout.push(...pdfJobLayout(content,viewport,pdfjs,currentPage))}
         else{
           const scale=Math.min(2.2,5000/Math.max(viewport.width,viewport.height),Math.sqrt(8000000/(viewport.width*viewport.height))),rendered=page.getViewport({scale}),canvas=document.createElement('canvas')
           canvas.width=Math.ceil(rendered.width);canvas.height=Math.ceil(rendered.height)
@@ -118,7 +126,7 @@ export async function readLocalJobFile(file,{signal,onProgress=()=>{}}={}){
     check(signal)
     if(extracted.trim().length<100)throw new Error('Not enough job text was readable. Use a sharper screenshot or copy and paste the job description.')
     if(extracted.length>60000)throw new Error('Too much text was found. Use a shorter job file.')
-    return {text:extracted.trim(),method:ocrPages?textPages?'PDF text + local OCR':'Local OCR':'PDF text layer',warnings}
+    return {text:extracted.trim(),layout:layout.slice(0,4000),method:ocrPages?textPages?'PDF text + local OCR':'Local OCR':'PDF text layer',warnings}
   }catch(error){if(signal?.aborted)throw new DOMException('File import canceled.','AbortError');if(error.name==='PasswordException')throw new Error('Choose an unlocked PDF.');throw error}
   finally{signal?.removeEventListener('abort',cancel);if(ocr)await ocr.terminate().catch(()=>{});if(pdfTask)await pdfTask.destroy().catch(()=>{})}
 }
