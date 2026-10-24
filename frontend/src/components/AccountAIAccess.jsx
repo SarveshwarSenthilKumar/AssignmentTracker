@@ -22,7 +22,7 @@ const groups=[
   ]],
   ['Additional AI features',[
     ['generation','AI document generation','Generate document drafts from prompts you enter.'],
-    ['recognition','AI handwriting and math recognition','Send a selected calculation image to AI, including crops from notes or resumes. This is a separate permission from file access.'],
+    ['recognition','AI image, PDF and handwriting recognition','Send selected math/handwriting images or uploaded job screenshots/PDFs to AI for extraction. This is a separate permission from saved file access.'],
   ]],
 ]
 export default function AccountAIAccess({token}){

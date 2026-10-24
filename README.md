@@ -403,3 +403,12 @@ Jobs recognizes app and school-subdomain Handshake links using `/jobs/ID`, `/stu
 If the job is not publicly readable, the Jobs page automatically opens the copied-text panel and provides an Open posting in Handshake link. While signed in to Handshake, copy the job title and full description into that panel and choose Extract from pasted text. Handshake-specific cleanup recognizes navigation lines, explicit employer/location/pay/job-type labels, pay rates and application-deadline headings. Review inferred fields before saving. No Handshake API key is required. Restart the backend and refresh after updating.
 
 Handshake documents that share links can require an eligible signed-in student account and that logged-out users can see a job-unavailable screen for active jobs: https://support.joinhandshake.com/hc/en-us/articles/30881026715415-Share-a-Job-Posting-URL and https://support.joinhandshake.com/hc/en-us/articles/227843887-Searching-for-Jobs-in-Handshake-Career-Services .
+
+
+### Import jobs from screenshots and PDFs
+
+On Jobs, expand **Import from a screenshot, image or PDF**. Choose or drop one PNG, JPEG, WebP or PDF showing a single job posting, then click **Extract job from file**. The extracted fields populate the same editable job draft used by URL imports. An optional job URL already entered in the form is retained; the extractor does not guess a URL from the image. Review details and click Save job. This also works with screenshots/saved PDFs of Handshake postings you can view.
+
+File extraction uses your configured Gemini key and the Account AI recognition permission; it sends the selected file directly for multimodal extraction. It does not save the source file in the document library. Limits: one file up to 10 MB, PDFs up to 12 pages, one active request and five attempts per five minutes per user, 75-second deadline, one retry for transient network/provider failures. Password-protected/unreadable PDFs and files containing multiple jobs are rejected. Missing/unclear values should remain blank and are flagged for review; AI extraction can still misread data. Link and pasted-text imports remain available without AI. Restart the backend and refresh after updating.
+
+Implementation follows Gemini inline image/PDF support: https://ai.google.dev/gemini-api/docs/image-understanding and https://ai.google.dev/gemini-api/docs/document-processing .
