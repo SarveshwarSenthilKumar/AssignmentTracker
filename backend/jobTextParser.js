@@ -1,5 +1,6 @@
 const fieldLimits={title:300,company:300,location:1000,employmentType:500,salary:500,datePosted:100,validThrough:100,description:30000,requirements:30000,responsibilities:30000,benefits:10000};
 const {validateJobLayout,layoutMatches,headerSuggestions}=require('./jobLayoutParser');
+const {inferHeaderFields}=require('./jobHeaderFields');
 const labels={
   title:'job title|position title|position|role title|title',company:'company name|employer name|company|employer|organization',location:'job location|work location|location',employmentType:'employment type|employment status|job type|position type',salary:'salary range|pay range|compensation range|salary|pay rate|hourly rate|annual salary|base salary|pay',datePosted:'date posted|posted on|posting date',validThrough:'application deadline|applications close|apply by|closing date|deadline|valid through'
 };
@@ -74,6 +75,11 @@ function parseJobText(input,url='',documentLayout){
       result[field]=suggested[field].text;evidence[field]={status:'suggested',confidence:.75,source:`Page ${suggested[field].page}, document heading: ${suggested[field].text}`};
     }
   }
+  const headerFields=inferHeaderFields(lines,isLabel,isSection,layout,result.title);
+  for(const field of ['title','company','location'])if(!result[field]&&!matches.has(field)&&headerFields[field]){
+    result[field]=headerFields[field].text.slice(0,fieldLimits[field]);
+    evidence[field]={status:'suggested',confidence:.65,source:headerFields[field].source};
+  }
   if(result.title&&!result.company&&!matches.has('company')&&!layout.length){
     const at=lines.findIndex(line=>line===result.title),neighbors=[lines[at-1],lines[at+1]].filter(Boolean);
     const company=neighbors.filter(line=>line.length<100&&!isLabel(line)&&!isSection(line)&&!navigation.test(line)&&!/[$€£\d]|full[- ]time|part[- ]time|remote|hybrid|internship|location/i.test(line)&&/\b(?:inc\.?|llc|ltd\.?|corporation|company|university|college|technologies|solutions|labs|systems|group|partners|association|foundation)\b/i.test(line));
@@ -93,7 +99,7 @@ function parseJobText(input,url='',documentLayout){
   }
   for(const [field,values]of Object.entries(buckets))if(values.length){result[field]=values.join('\n').slice(0,fieldLimits[field]);evidence[field]={status:'matched',confidence:.9,source:'Recognized section heading and following text'}}
   const descriptionStart=lines.findIndex(line=>/^(?:job description|position description|description|about (?:the|this) (?:job|role|position)|about the opportunity)\s*[:：]?$/i.test(line));
-  const selectedValues=new Set(['title','company','location','salary','employmentType','datePosted','validThrough'].map(field=>result[field]?.toLowerCase()).filter(Boolean));
+  const selectedValues=new Set(['title','company','location','salary','employmentType','datePosted','validThrough'].flatMap(field=>[result[field]?.toLowerCase(),...(field==='location'?(result[field]||'').toLowerCase().split(/\s*[·|]\s*/):[])]).filter(Boolean));
   let metadataEnd=-1;
   for(let index=0;index<Math.min(headerEnd,40);index++)if(selectedValues.has(lines[index].toLowerCase())||isLabel(lines[index]))metadataEnd=index;
   const intro=[];let inSection=false;

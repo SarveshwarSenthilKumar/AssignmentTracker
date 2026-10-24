@@ -25,12 +25,12 @@ function layoutMatches(layout,labels,isLabel,isSection){
   return matches
 }
 function headerSuggestions(layout){
-  const top=layout.filter(line=>line.page===1&&line.y<.5&&line.confidence>=75&&line.text.length<170&&line.text.split(' ').length<=18&&!noise.test(line.text)&&!/[.!?:]$/.test(line.text)&&!/required|experience|qualification|responsibilit|salary|deadline|looking for|we are|must have|years|applicants/i.test(line.text))
+  const top=layout.filter(line=>line.page===1&&line.y<.65&&line.confidence>=55&&line.text.length<170&&line.text.split(' ').length<=18&&!noise.test(line.text)&&!/[!?:]$/.test(line.text)&&!/required|experience|qualification|responsibilit|salary|deadline|looking for|we are|must have|years|applicants/i.test(line.text))
   const sizes=top.map(line=>line.height).sort((a,b)=>a-b),median=sizes[Math.floor(sizes.length/2)]||.015
   const candidates=top.filter(line=>role.test(line.text)).map(line=>({line,score:Math.min(2.8,line.height/median)+(1-line.y)*.5})).sort((a,b)=>b.score-a.score)
   if(!candidates.length||candidates[1]&&candidates[0].score-candidates[1].score<.25)return {}
   const title=candidates[0].line,result={title}
-  const employers=top.filter(line=>line!==title&&!role.test(line.text)&&!/[\d$€£]|remote|hybrid|full.time|part.time|posted|ago|hour|apply|views/i.test(line.text)&&line.text.split(' ').length<=9&&Math.abs(line.x-title.x)<.06&&Math.abs(line.y-title.y)<.1).map(line=>({line,distance:Math.abs(line.y-title.y)})).sort((a,b)=>a.distance-b.distance)
+  const employers=top.filter(line=>line!==title&&!role.test(line.text)&&!/[$€£]|remote|hybrid|full.time|part.time|posted|ago|hour|apply|views/i.test(line.text)&&line.text.split(' ').length<=9&&Math.abs(line.x-title.x)<.14&&Math.abs(line.y-title.y)<.15).map(line=>({line,distance:Math.abs(line.y-title.y)})).sort((a,b)=>a.distance-b.distance)
   if(employers.length&&(!employers[1]||employers[1].distance-employers[0].distance>.012))result.company=employers[0].line
   return result
 }
