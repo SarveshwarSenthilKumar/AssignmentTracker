@@ -48,6 +48,7 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
   const documentMenu=menu('document','Document',FileText,<>
     {action(Download,doc.downloading?'Exporting…':'Download',doc.onDownload,{disabled:doc.downloading,detail:doc.exportImage?'Export edited image':'Export PDF with annotations'})}
     {doc.onCleanCopy&&action(Copy,doc.copying?'Creating copy…':'Create clean copy',doc.onCleanCopy,{disabled:doc.copying||pages.busy,detail:'Separate document without editor annotations'})}
+    {doc.onCleanup&&action(Pen,'Clean up PDF',doc.onCleanup,{disabled:pages.busy,detail:'Use your comments to prepare and review text corrections'})}
     <hr/>{action(Settings,'Document settings',utilities.onSettings,{active:utilities.settingsOpen,detail:'Name, folder, tags and document actions'})}
     {action(Pen,'Stylus setup',utilities.onStylus,{detail:'Button assignments and eraser preferences'})}
     <hr/>{action(X,'Close document',doc.onClose)}
@@ -69,6 +70,7 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
     <hr/>{action(Trash2,`Delete page ${pages.current}`,pages.onDelete,{danger:true,disabled:!pages.count||pages.count<=1||pages.busy})}
   </>)
   const utilityMenu=menu('tools','More tools',SlidersHorizontal,<>
+    {doc.onCleanup&&action(Pen,'Clean up PDF',doc.onCleanup,{disabled:pages.busy,detail:'Describe changes and review before applying'})}
     <label className="pc-checkbox"><input type="checkbox" checked={utilities.timer} onChange={event=>utilities.onTimer(event.target.checked)}/>Show countdown timer</label>
     <label className="pc-checkbox"><input type="checkbox" checked={utilities.stopwatch} onChange={event=>utilities.onStopwatch(event.target.checked)}/>Show stopwatch</label>
     <label className="pc-checkbox"><input type="checkbox" checked={tools.autoStraightLines} onChange={tools.onAutoStraightLines}/>Detect long straight pen lines</label><hr/>

@@ -12,6 +12,8 @@ import useShortcuts from '../hooks/useShortcuts'
 import useInlineConfirm from '../hooks/useInlineConfirm'
 import InlineConfirmation from './InlineConfirmation'
 import PDFCalculator from './PDFCalculator'
+import PDFCleanup from './PDFCleanup'
+import {preparePdfCleanup,cleanupAnnotations} from '../lib/pdfCleanup'
 import PDFGraph from './PDFGraph'
 import {graphExpression,compileGraph} from '../lib/pdfGraph'
 import { eraseAnnotations } from '../lib/pdfEraser'
@@ -441,6 +443,7 @@ function PagePreview({ pageNumber }) {
 /* Main editor                                                         */
 /* ------------------------------------------------------------------ */
 export default function PDFEditor({ pdfId, onClose, token, initialDocument = null, exportImage = false, onCleanCopy, assistantOpen=false, onToggleAssistant, onAssistantHost }) {
+  const [showCleanup,setShowCleanup]=useState(false)
   const confirmation = useInlineConfirm()
   const [copyingClean,setCopyingClean]=useState(false)
   const cleanCopyLock=useRef(false)
@@ -1669,6 +1672,22 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
 
   const pageIndex=useMemo(()=>{const index=new Map();for(const item of drawingPaths){const number=item.page||1;if(!index.has(number))index.set(number,[]);index.get(number).push(item)}return index},[drawingPaths])
 
+  const prepareCleanup=async(scope,signal)=>{
+    if(loading||exportImage||deletingPageRef.current||insertingRef.current)throw new Error('Wait for the PDF to finish its current operation.')
+    commitText();activate(null)
+    const revision=revisionRef.current,file=pdfFile,annotations=pathsRef.current
+    const snapshot=await preparePdfCleanup({file,pdfjs,annotations,page:pageNumber,count:numPages,scope,signal})
+    if(revisionRef.current!==revision)throw new Error('The PDF changed while text was being read. Prepare cleanup again.')
+    return {...snapshot,revision,file}
+  }
+  const applyCleanup=(snapshot,replacements)=>{
+    if(deletingPageRef.current||insertingRef.current||snapshot.file!==pdfFile||snapshot.revision!==revisionRef.current)throw new Error('The PDF changed after this cleanup was prepared. Prepare it again before applying.')
+    const known=new Set(snapshot.texts.map(item=>item.id))
+    if(replacements.some(item=>!known.has(item.id)))throw new Error('Cleanup contains an unknown text region. Prepare it again.')
+    const next=cleanupAnnotations(snapshot,replacements,pathsRef.current)
+    activate(null);editSnapshotRef.current=null;pushHistory();updatePaths(next)
+  }
+
   if (loading) {
     return (
       <div className="fixed inset-0 bg-slate-950 flex items-center justify-center z-50">
@@ -1831,7 +1850,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       {showStylusStudio&&<PDFStylusSettings barrel={stylusBarrel} onBarrel={setStylusBarrel} tip={stylusEraser?stylusExtra.tip:'none'} onTip={tip=>{setStylusEraser(tip!=='none');setStylusExtra(previous=>({...previous,tip}))}} extra={stylusExtra} onExtra={setStylusExtra} onReset={()=>{setStylusBarrel('eraser');setStylusEraser(true);setStylusExtra({secondary:'none',tip:'eraser',mode:'precision',size:20,shape:'round'})}} onClose={()=>setShowStylusStudio(false)}/>}
 
       <PDFEditorChrome
-        doc={{name:pdfData?.name,exportImage,saveStatus,history:historyCount,onUndo:undo,onRedo:redo,onSave:handleSave,onDownload:handleDownload,downloading,onCleanCopy:onCleanCopy?handleCleanCopy:null,copying:copyingClean,onClose:handleClose}}
+        doc={{name:pdfData?.name,exportImage,saveStatus,history:historyCount,onUndo:undo,onRedo:redo,onSave:handleSave,onDownload:handleDownload,downloading,onCleanCopy:onCleanCopy?handleCleanCopy:null,copying:copyingClean,onClose:handleClose,onCleanup:exportImage?null:()=>{commitText();setCurrentTool('text');setShowCalculator(false);setShowGraph(false);setShowCleanup(true)}}}
         tools={{autoStraightLines,onAutoStraightLines:()=>setAutoStraightLines(previous=>!previous),current:currentTool,onTool:tool=>{commitText();setCurrentTool(tool)},color:currentColor,onColor:handleColorChange,colors:COLORS,colorNames:COLOR_NAMES,fontSize,onFontSize:handleFontSizeChange,strokeWidth,onWidth:setStrokeWidth,usePressure,onPressure:()=>setUsePressure(previous=>!previous),eraser:{mode:eraserMode,onMode:setEraserMode,size:eraserSize,onSize:setEraserSize,shape:eraserShape,onShape:setEraserShape,target:eraserTarget,onTarget:setEraserTarget}}}
         pages={{count:numPages,current:pageNumber,showThumbnails:showPages,onToggleThumbnails:()=>{if(focusMode){exitFocusMode();setShowPages(true)}else setShowPages(previous=>!previous)},onNavigate:goToPage,onAddBlank:()=>handleAddPages({mode:'blank',placement:'after'}),onDelete:()=>handleDeletePage(),busy:deletingPage||inserting,canAdd:!!numPages&&!!pageBase&&pageBase.page===pageNumber&&!loading&&!deletingPage&&!inserting}}
         view={{toolbarPosition,onToolbarPosition:setToolbarPosition,scale,onZoomIn:handleZoomIn,onZoomOut:handleZoomOut,onFit:handleFitWidth,onRotate:handleRotate,dark:darkPages,onDark:()=>setDarkPages(previous=>!previous),continuous:continuousView,onContinuous:()=>{handleTextDragEnd();commitText();setContinuousView(previous=>!previous)},reference:showReference,onReference:toggleReference,focus:focusMode,onFocus:enterFocusMode,onExitFocus:exitFocusMode}}
@@ -1844,6 +1863,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       {currentTool==='text'&&!exportImage&&<div className="pdf-existing-text-hint" role="status">Click existing text to replace it, or click blank space to add text. Scanned images need OCR first. Replacements cover the original on a white background; they do not redact the underlying text.</div>}
       {actionError && <div role="alert" className="flex items-center justify-between gap-3 bg-red-950 px-5 py-2 text-sm text-red-200">{actionError}<button onClick={() => setActionError(null)} aria-label="Dismiss error"><X size={16} /></button></div>}
       <div className={cn('pdf-editor-workspace flex flex-1 min-h-0 relative',darkPages&&'pdf-dark-pages')}>
+        <PDFCleanup open={showCleanup} onClose={()=>setShowCleanup(false)} pdfId={pdfId} token={token} page={pageNumber} onPrepare={prepareCleanup} onApply={applyCleanup}/>
         <PDFGraph open={showGraph} onClose={()=>setShowGraph(false)} selection={graphSelection} onInsert={asset=>addImageInsert(asset)} canInsert={!!pageBase&&pageBase.page===pageNumber&&!inserting&&!deletingPage}/>
         <PDFCalculator open={showCalculator} onClose={()=>setShowCalculator(false)} selection={calculationSelection}/>
         {!focusMode && showPages && pdfFile && !pdfError && (
