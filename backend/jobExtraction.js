@@ -1,4 +1,5 @@
 const cheerio=require('cheerio');
+const {handshakeLink,importHandshake}=require('./handshakeJobs');
 const text=(value,max=30000)=>{
   if(Array.isArray(value))return value.map(v=>text(v,max)).filter(Boolean).join('\n').slice(0,max);
   if(value&&typeof value==='object')return text(value.name||value.description||value.value||'',max);
@@ -62,6 +63,8 @@ function extractPage(html,url){
   return result;
 }
 async function importJob(url,fetchPage){
+  const handshake=handshakeLink(url);
+  if(handshake)return importHandshake(handshake,fetchPage,extractPage);
   const u=new URL(url),parts=u.pathname.split('/').filter(Boolean);
   let endpoint='',provider='';
   if(['boards.greenhouse.io','job-boards.greenhouse.io','boards.eu.greenhouse.io','job-boards.eu.greenhouse.io'].includes(u.hostname)&&parts[1]==='jobs'&&/^[\w-]+$/.test(parts[0])&&/^\d+$/.test(parts[2]||'')){

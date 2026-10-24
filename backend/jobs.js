@@ -3,6 +3,7 @@ const dns=require('node:dns').promises;
 const net=require('node:net');
 const zlib=require('node:zlib');
 const {importJob,fromText}=require('./jobExtraction');
+const {handshakeLink,handshakeText}=require('./handshakeJobs');
 function safeURL(value){
   const url=new URL(value);
   if(url.protocol!=='https:'||url.username||url.password||url.port&&url.port!=='443'||url.hostname==='localhost'||url.hostname.endsWith('.local')||url.hostname.endsWith('.internal'))throw new Error('Use a public HTTPS job posting URL.');
@@ -55,10 +56,10 @@ module.exports=function registerJobs(app,auth,mongoose){
       const raw=req.body?.url||'',pasted=req.body?.text;
       if(typeof raw!=='string'||raw.length>2048)throw new Error('Enter a job link up to 2048 characters.');
       const url=raw?safeURL(raw).href:'';
-      if(pasted!==undefined){if(typeof pasted!=='string'||pasted.length>60000)throw new Error('Paste job text up to 60,000 characters.');return res.json(fromText(pasted,url))}
+      if(pasted!==undefined){if(typeof pasted!=='string'||pasted.length>60000)throw new Error('Paste job text up to 60,000 characters.');return res.json(handshakeLink(url)?handshakeText(pasted,url,fromText):fromText(pasted,url))}
       if(!url)throw new Error('Enter a job link or paste the job text.');
       res.json(await importJob(url,pageHTML));
-    }catch(error){res.status(422).json({message:error.code?'Could not reach the job website. Try the direct posting link or paste its details manually.':error.message})}finally{active.delete(user)}
+    }catch(error){const handshakeError=['HANDSHAKE_ACCESS_REQUIRED','HANDSHAKE_JOB_LINK_REQUIRED'].includes(error.code);res.status(422).json({message:handshakeError?error.message:error.code?'Could not reach the job website. Try the direct posting link or paste its details manually.':error.message,code:handshakeError?error.code:undefined})}finally{active.delete(user)}
   });
   app.get('/api/jobs',auth,async(req,res)=>{try{res.set('Cache-Control','no-store');res.json(await Job.find({user:req.user.userId}).sort({createdAt:-1}).limit(300).lean())}catch{res.status(500).json({message:'Could not load saved jobs.'})}});
   app.post('/api/jobs',auth,async(req,res)=>{try{const data={};for(const [key,max]of Object.entries(fields)){if(req.body[key]!==undefined&&typeof req.body[key]!=='string')throw new Error('Job fields must be text.');data[key]=(req.body[key]||'').trim().slice(0,max)}if(!data.title)throw new Error('Enter a job title.');if(data.url)data.url=safeURL(data.url).href;const duplicate=data.url&&await Job.findOne({user:req.user.userId,url:data.url});if(duplicate)return res.status(409).json({message:'This job link is already saved.'});res.status(201).json(await Job.create({...data,user:req.user.userId}))}catch(error){res.status(400).json({message:error.name==='MongoServerError'?'Could not save job.':error.message})}});

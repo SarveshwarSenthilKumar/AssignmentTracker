@@ -394,3 +394,12 @@ Word output modifies existing text runs in document.xml while preserving paragra
 The saved generated document stays in Cover letters and Documents. Restart the backend and refresh the frontend after pulling this feature; run backend npm install for the declared JSZip dependency if needed.
 
 Cover-letter tailoring prioritizes verbatim reuse of the selected letters’ sentences, clauses, transitions, openings and closings before new prose, with minimal role/company and supported factual substitutions. Resumes and job descriptions supply facts rather than phrasing. The review screen shows AI-proposed phrase reuse only after a local substring check against the template/selected Word letter text and the current assembled draft (normalizing case/whitespace). Additional PDF references remain AI-readable but are not covered by these deterministic phrase checks. No verified reuse triggers a review warning; phrase reuse is prioritized rather than guaranteed for every word, and user review remains necessary.
+
+
+### Handshake job imports
+
+Jobs recognizes app and school-subdomain Handshake links using `/jobs/ID`, `/stu/jobs/ID`, and `/emp/jobs/ID`. It tries the supplied public page and, when different, the standard app job URL; existing structured-data and HTML extraction handle exposed content. Login redirects, sign-in-only descriptions and unavailable-job shells do not become saved job descriptions. The importer does not access your signed-in browser session, credentials or private Handshake endpoints.
+
+If the job is not publicly readable, the Jobs page automatically opens the copied-text panel and provides an Open posting in Handshake link. While signed in to Handshake, copy the job title and full description into that panel and choose Extract from pasted text. Handshake-specific cleanup recognizes navigation lines, explicit employer/location/pay/job-type labels, pay rates and application-deadline headings. Review inferred fields before saving. No Handshake API key is required. Restart the backend and refresh after updating.
+
+Handshake documents that share links can require an eligible signed-in student account and that logged-out users can see a job-unavailable screen for active jobs: https://support.joinhandshake.com/hc/en-us/articles/30881026715415-Share-a-Job-Posting-URL and https://support.joinhandshake.com/hc/en-us/articles/227843887-Searching-for-Jobs-in-Handshake-Career-Services .
