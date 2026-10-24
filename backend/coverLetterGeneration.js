@@ -3,7 +3,7 @@ const JSZip=require('jszip');
 const cheerio=require('cheerio');
 const {documentInput}=require('./assistant');
 const {callAssistantAPI,AssistantAPIError,diagnostic,safeMessage}=require('./assistantDiagnostics');
-const {instruction,compactText,generationConfig}=require('./coverLetterPrompt');
+const {instruction,cleanupInstruction,compactText,generationConfig}=require('./coverLetterPrompt');
 
 async function wordTemplate(bytes){
   const zip=await JSZip.loadAsync(bytes),entry=zip.file('word/document.xml');
@@ -37,6 +37,11 @@ module.exports=function registerCoverLetterGeneration(app,auth,{PDF,SavedJob,mon
     let stage='Reading template and references',apiDiagnostics;
     const disconnected=()=>{if(!res.writableEnded)controller.abort()};res.on('close',disconnected);
     try{
+      const mode=req.body.mode||'tailor';
+      if(!['tailor','cleanup'].includes(mode))throw new Error('Choose Tailor for a role or Clean up a letter.');
+      const cleanup=mode==='cleanup';
+      const cleanupComments=typeof req.body.cleanupComments==='string'?req.body.cleanupComments.trim():'';
+      if(cleanup&&(!cleanupComments||cleanupComments.length>6000))throw new Error('Enter cleanup comments between 1 and 6,000 characters.');
       const template=await owned(req.body.templateId,user);
       if(!template.tags.includes('cover-letter'))throw new Error('Use a cover letter as the layout template.');
       const isWord=/\.docx$/i.test(template.originalName),isPDF=/\.pdf$/i.test(template.originalName);
@@ -44,7 +49,7 @@ module.exports=function registerCoverLetterGeneration(app,auth,{PDF,SavedJob,mon
       if(template.annotations?.length)throw new Error('This template has editor annotations. Export the annotated version from the editor and upload that file first so its visible text is included.');
       const ids=req.body.referenceIds;
       if(!Array.isArray(ids)||ids.length>5||ids.some(id=>typeof id!=='string'))throw new Error('Choose up to five supporting documents.');
-      const references=await Promise.all([...new Set(ids.filter(id=>id!==String(template._id)))].map(id=>owned(id,user)));
+      const references=cleanup?[]:await Promise.all([...new Set(ids.filter(id=>id!==String(template._id)))].map(id=>owned(id,user)));
       const files=[template,...references];
       if(files.reduce((n,file)=>n+file.pdfData.length,0)>16*1024*1024)throw new Error('Choose fewer or smaller references (up to 16 MB total).');
       let slots;
@@ -53,7 +58,8 @@ module.exports=function registerCoverLetterGeneration(app,auth,{PDF,SavedJob,mon
       if(!Array.isArray(slots)||!slots.length||slots.length>600||slots.some(s=>typeof s.id!=='string'||typeof s.text!=='string'||!s.text.trim()||s.text.length>6000)||new Set(slots.map(s=>s.id)).size!==slots.length||slots.reduce((n,s)=>n+s.text.length,0)>30000)throw new Error('Use a text-based cover letter template with up to 600 text regions and 30,000 characters. Scanned templates need a Word or text-based PDF version.');
       slots=slots.map(({id,text,separatorBefore})=>({id,text,...(isWord?{separatorBefore}:{} )}));
       let role;
-      if(req.body.jobId){if(!mongoose.isValidObjectId(req.body.jobId))throw new Error('Choose a saved job.');role=await SavedJob.findOne({_id:req.body.jobId,user}).lean();if(!role)throw new Error('The selected job is unavailable.');role=Object.fromEntries(['title','company','location','description','requirements','responsibilities'].map(key=>[key,role[key]||'']));}
+      if(cleanup)role={};
+      else if(req.body.jobId){if(!mongoose.isValidObjectId(req.body.jobId))throw new Error('Choose a saved job.');role=await SavedJob.findOne({_id:req.body.jobId,user}).lean();if(!role)throw new Error('The selected job is unavailable.');role=Object.fromEntries(['title','company','location','description','requirements','responsibilities'].map(key=>[key,role[key]||'']));}
       else{if(typeof req.body.role!=='string'||req.body.role.trim().length<20||req.body.role.length>15000)throw new Error('Choose a saved job or enter 20–15,000 characters describing the role.');role={description:req.body.role.trim()};}
       const credential=await credentials.resolve(user);if(!credential.apiKey)throw new Error('Save a Gemini API key in Account → AI settings.');
       const contextWarnings=[],phraseSources=new Map([[String(template._id),{name:template.name,text:slots.map(slot=>slot.text).join(' ')}]]);
@@ -63,8 +69,8 @@ module.exports=function registerCoverLetterGeneration(app,auth,{PDF,SavedJob,mon
         if(compact.text)briefRole[field]=compact.text;
         if(compact.trimmed)contextWarnings.push(`The job ${field} was shortened for a faster request. Check relevance to the full posting.`);
       }
-      const parts=[{text:JSON.stringify({templateId:String(template._id),format:isWord?'Word text runs':'PDF positioned lines',role:briefRole,slots})}];
-      const suppliedTexts=req.body.referenceTexts;
+      const parts=[{text:JSON.stringify({templateId:String(template._id),format:isWord?'Word text runs':'PDF positioned lines',...(cleanup?{cleanupComments}:{role:briefRole}),slots})}];
+      const suppliedTexts=cleanup?undefined:req.body.referenceTexts;
       if(suppliedTexts!==undefined&&(!suppliedTexts||typeof suppliedTexts!=='object'||Array.isArray(suppliedTexts)||Object.entries(suppliedTexts).some(([id,text])=>!references.some(file=>String(file._id)===id)||typeof text!=='string'||text.length>30000)))throw new Error('Invalid reference text. Select your documents again.');
       let remaining=32000,visualCount=0;
       // The complete template is already present in slots. Do not attach it again.
@@ -88,13 +94,13 @@ module.exports=function registerCoverLetterGeneration(app,auth,{PDF,SavedJob,mon
       }
       const selectedModel=process.env.COVER_LETTER_MODEL?.trim()||model();
       stage='Generating with Gemini';
-      const result=await callAssistantAPI({model:selectedModel,systemInstruction:{parts:[{text:instruction}]},contents:[{role:'user',parts}],generationConfig:generationConfig(selectedModel,slots.reduce((n,slot)=>n+slot.text.length,0))},{apiKey:credential.apiKey,signal:controller.signal,metadata:{kind:'cover_letter_tailoring',referenceCount:references.length,visualReferenceCount:visualCount}});
+      const result=await callAssistantAPI({model:selectedModel,systemInstruction:{parts:[{text:cleanup?cleanupInstruction:instruction}]},contents:[{role:'user',parts}],generationConfig:generationConfig(selectedModel,slots.reduce((n,slot)=>n+slot.text.length,0))},{apiKey:credential.apiKey,signal:controller.signal,metadata:{kind:cleanup?'cover_letter_cleanup':'cover_letter_tailoring',referenceCount:references.length,visualReferenceCount:visualCount}});
       apiDiagnostics=result.diagnostics;stage='Reading and validating generated draft';
       const response=(result.data.candidates?.[0]?.content?.parts||[]).filter(part=>!part.thought&&typeof part.text==='string').map(part=>part.text).join('');
       if(!response||response.length>100000||result.data.candidates?.[0]?.finishReason==='MAX_TOKENS')throw new Error('The AI draft was incomplete. Try a shorter template or fewer references.');
       const draft=JSON.parse(response),allowed=new Map(slots.map(s=>[s.id,s.text]));
       if(!Array.isArray(draft.replacements)||draft.replacements.length>slots.length||new Set(draft.replacements.map(s=>s.id)).size!==draft.replacements.length||draft.replacements.some(s=>!allowed.has(s.id)||typeof s.text!=='string'||!s.text.trim()||s.text.length>6000))throw new Error('The generated draft did not match the template regions. Try again with a simpler template.');
-      if(!draft.replacements.length)contextWarnings.push('No wording changes were proposed. Check the target role and keep the original only if it is already appropriate.');
+      if(!draft.replacements.length)contextWarnings.push(cleanup?'No cleanup changes were proposed. Review your comments and the original wording.':'No wording changes were proposed. Check the target role and keep the original only if it is already appropriate.');
       const replacements=draft.replacements.map(({id,text})=>({id,text})),draftId=randomUUID();
       const normalizePhrase=value=>value.normalize('NFKC').toLowerCase().replace(/\s+/g,' ').trim();
       const proposed=new Map(replacements.map(item=>[item.id,item.text]));
@@ -106,12 +112,12 @@ module.exports=function registerCoverLetterGeneration(app,auth,{PDF,SavedJob,mon
         if(source&&normalizePhrase(source.text).includes(quote)&&letterText.includes(quote)&&!seenPhrases.has(quote)){seenPhrases.add(quote);phraseReuse.push({source:source.name,quote:item.quote})}
       }
       const warnings=[...contextWarnings,...(Array.isArray(draft.warnings)?draft.warnings.filter(s=>typeof s==='string').slice(0,4).map(s=>s.slice(0,1000)):[])];
-      if(!phraseReuse.length)warnings.push('No reused phrase could be verified against the template or supplied reference text. Compare the proposed wording with your previous letters before saving.');
+      if(!cleanup&&!phraseReuse.length)warnings.push('No reused phrase could be verified against the template or supplied reference text. Compare the proposed wording with your previous letters before saving.');
       if(references.some(file=>file.tags.includes('cover-letter')&&!phraseSources.has(String(file._id))))warnings.push('Additional PDF letters are provided to AI as wording references. Verified phrase notes below cover the template and readable text references only.');
       const storedDraft={user,expires:Date.now()+3600000,templateId:String(template._id),updatedAt:String(template.updatedAt),slots,replacements,isWord};
       await Draft.create({_id:draftId,user,expiresAt:new Date(storedDraft.expires),payload:storedDraft});
       drafts.set(draftId,storedDraft);
-      res.json({draftId,slots,replacements,isWord,evidence:Array.isArray(draft.evidence)?draft.evidence.filter(s=>typeof s==='string').slice(0,30).map(s=>s.slice(0,1000)):[],warnings,phraseReuse});
+      res.json({draftId,mode,slots,replacements,isWord,evidence:Array.isArray(draft.evidence)?draft.evidence.filter(s=>typeof s==='string').slice(0,30).map(s=>s.slice(0,1000)):[],warnings,phraseReuse});
     }catch(error){
       if(!res.destroyed){
         const status=controller.signal.aborted?504:error instanceof AssistantAPIError?error.status:422;
