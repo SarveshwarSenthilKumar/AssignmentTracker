@@ -432,3 +432,12 @@ Image/PDF field parsing and copied-text re-extraction now run inside the browser
 
 
 Job file imports now include a remembered Extraction method toggle: Local OCR (default on first use, no AI tokens) or Gemini AI (explicitly sends the selected image/PDF to Gemini using the account key and recognition permission). Both support cancellation and produce an editable review draft; switching the toggle never starts a request or creates an automatic AI fallback. AI mode accepts one validated PNG/JPEG/WebP/PDF up to 10 MB, PDFs up to 12 pages, with a 75-second deadline and five requests per five minutes per user. Local mode continues to parse entirely in the browser. Restart the backend and refresh the frontend to enable AI mode. This supersedes the earlier note about disabling the legacy AI file endpoint.
+
+
+### Cover-letter generation latency
+
+Generation now sends the complete template once as text slots (no duplicate template attachment), extracts/caches readable PDF reference text in the browser, and sends Word references as text. Only references without readable text fall back to PDF vision, limited to two scanned references per request. The prompt is consolidated around factual accuracy, phrase reuse and unchanged formatting; output is restricted to changed slots and brief notes. Readable references share a 32,000-character budget, and job fields are bounded; any excerpts are disclosed in draft warnings. Phrase checks also work against readable PDF reference text.
+
+Known Gemini 3/4 models use low thinking effort and Gemini 2.5 Pro/Flash use a 1,024-token thinking budget. Unknown model families retain defaults. Output budget is sized to the template rather than always requesting 12,000 tokens. The request deadline is 120 seconds as a safety ceiling, not an expected duration; there is no automatic repeated generation or silent omission of selected sources. Optional COVER_LETTER_MODEL overrides only this feature; empty uses GEMINI_MODEL. Frontend generation status distinguishes reading the template, preparing references and adapting wording. Actual model latency and outages remain outside the application's control. Restart backend and refresh frontend after updating.
+
+Thinking configuration reference: https://ai.google.dev/gemini-api/docs/generate-content/thinking .
