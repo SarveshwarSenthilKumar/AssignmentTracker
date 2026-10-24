@@ -1,6 +1,7 @@
 // PDF.js text transforms -> the same scale-1 viewport used by annotations.
 import {fontKey,loadPageFontStyles} from './pdfTextStyle'
 import {detectPdfFont} from './pdfFontCatalog'
+import {calibratePeerFonts} from './pdfPeerFont'
 
 export function makeSourceReplacement(source,page,id){
   return {id,tool:'text',page,text:source.text,fontSize:source.fontSize,textStyle:source.textStyle,color:source.color,x:source.x-4,y:source.baseline-source.fontSize*(source.textStyle?.baselineRatio||.9465)-2,sourceText:{key:source.key,originalText:source.text,x:source.x-.5,y:source.y-.5,width:source.width+1,height:source.height+1,background:'#ffffff'}}
@@ -22,7 +23,7 @@ export async function existingTextRuns(page, pdfjs, file) {
     else if(op===OPS.setGState){for(const [key,value]of args[0]||[])if(key==='ca')state={...state,opacity:value}}
     else if(op===OPS.showText||op===OPS.showSpacedText){const text=(args[0]||[]).map(glyph=>typeof glyph==='object'?glyph?.unicode||'':'').join('');if(text.trim())paints.push({...state,text})}
   }
-  return content.items.flatMap((item, index) => {
+  const runs=content.items.flatMap((item, index) => {
     if (!item.str?.trim() || !item.transform) return []
     const transform = pdfjs.Util.transform(viewport.transform, item.transform)
     const height = Math.hypot(transform[2], transform[3])
@@ -45,6 +46,8 @@ export async function existingTextRuns(page, pdfjs, file) {
     const bold=!!nativeFont?.bold||detected.weight>=600,italic=!!nativeFont?.italic||detected.italic
     const fontWeight=nativeFont?.bold&&detected.weight<600?700:detected.weight
     const textStyle={fontName,fontFamily:face?`"${face}"`:detected.fontFamily,detectedFamily:detected.family,fontCategory:detected.generic,fontWeight,embedded:!!face,approximate:!face&&!/^(Helvetica|Times-Roman|Times-Bold|Times-Italic|Times-BoldItalic|Courier)(-|$)/i.test(fontName),bold,italic,letterSpacing:(paint?.charSpacing||0)*height/(paint?.fontSize||height),opacity:paint?.opacity??1}
+    textStyle.pdfFontId=item.fontName
+    textStyle.pdfHorizontalScale=Math.hypot(transform[0],transform[1])/height
     const canvas=document.createElement('canvas'),context=canvas.getContext('2d')
     context.font=`${face?'normal':italic?'italic':'normal'} ${face?'400':fontWeight} ${height}px ${textStyle.fontFamily}`
     const measured=context.measureText(item.str),natural=measured.width+textStyle.letterSpacing*Math.max(0,item.str.length-1)
@@ -53,4 +56,5 @@ export async function existingTextRuns(page, pdfjs, file) {
     textStyle.baselineRatio=Number.isFinite(metrics.fontBoundingBoxAscent)?(.6+(metrics.fontBoundingBoxAscent-metrics.fontBoundingBoxDescent)/(2*height)):.9465
     return [{ key: `${page.pageNumber}:${index}`, text: item.str, x: transform[4], y: transform[5] - height * ascent, width, height, fontSize: height, baseline: transform[5],textStyle,color:paint?.color||'#000000' }]
   })
+  return calibratePeerFonts(runs)
 }
