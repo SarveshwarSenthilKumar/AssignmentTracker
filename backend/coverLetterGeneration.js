@@ -9,7 +9,8 @@ async function wordTemplate(bytes){
   const zip=await JSZip.loadAsync(bytes),entry=zip.file('word/document.xml');
   if(!entry||entry._data?.uncompressedSize>2*1024*1024)throw new Error('Choose a smaller, readable Word template.');
   const xml=await entry.async('string'),$=cheerio.load(xml,{xmlMode:true}),slots=[];
-  $('w\\:t').each((index,node)=>{const value=$(node).text();if(value.trim())slots.push({id:String(index),text:value})});
+  let previousParagraph;
+  $('w\\:t').each((index,node)=>{const value=$(node).text();if(value.trim()){const paragraph=$(node).closest('w\\:p')[0];slots.push({id:String(index),text:value,separatorBefore:slots.length&&paragraph!==previousParagraph?'\n\n':''});previousParagraph=paragraph}});
   return {zip,$,slots};
 }
 module.exports=function registerCoverLetterGeneration(app,auth,{PDF,SavedJob,mongoose,credentials,model,requireAIAccess}){
@@ -50,7 +51,7 @@ module.exports=function registerCoverLetterGeneration(app,auth,{PDF,SavedJob,mon
       if(isWord)slots=(await wordTemplate(template.pdfData)).slots;
       else slots=req.body.slots;
       if(!Array.isArray(slots)||!slots.length||slots.length>600||slots.some(s=>typeof s.id!=='string'||typeof s.text!=='string'||!s.text.trim()||s.text.length>6000)||new Set(slots.map(s=>s.id)).size!==slots.length||slots.reduce((n,s)=>n+s.text.length,0)>30000)throw new Error('Use a text-based cover letter template with up to 600 text regions and 30,000 characters. Scanned templates need a Word or text-based PDF version.');
-      slots=slots.map(({id,text})=>({id,text}));
+      slots=slots.map(({id,text,separatorBefore})=>({id,text,...(isWord?{separatorBefore}:{} )}));
       let role;
       if(req.body.jobId){if(!mongoose.isValidObjectId(req.body.jobId))throw new Error('Choose a saved job.');role=await SavedJob.findOne({_id:req.body.jobId,user}).lean();if(!role)throw new Error('The selected job is unavailable.');role=Object.fromEntries(['title','company','location','description','requirements','responsibilities'].map(key=>[key,role[key]||'']));}
       else{if(typeof req.body.role!=='string'||req.body.role.trim().length<20||req.body.role.length>15000)throw new Error('Choose a saved job or enter 20–15,000 characters describing the role.');role={description:req.body.role.trim()};}
@@ -138,7 +139,7 @@ module.exports=function registerCoverLetterGeneration(app,auth,{PDF,SavedJob,mon
       const template=await owned(draft.templateId,draft.user);if(String(template.updatedAt)!==draft.updatedAt)throw new Error('The template changed. Generate again from the current version.');
       const name=typeof req.body.name==='string'?req.body.name.trim():'';if(!name||name.length>120)throw new Error('Enter a document name up to 120 characters.');
       const changes=req.body.replacements,allowed=new Map(draft.slots.map(s=>[s.id,s.text]));
-      if(req.body.reviewed!==true||!Array.isArray(changes)||changes.length>600||new Set(changes.map(s=>s.id)).size!==changes.length||changes.some(s=>!allowed.has(s.id)||typeof s.text!=='string'||!s.text.trim()||s.text.length>6000))throw new Error('Review the draft and use only the original template text regions.');
+      if(req.body.reviewed!==true||!Array.isArray(changes)||changes.length>600||new Set(changes.map(s=>s.id)).size!==changes.length||changes.some(s=>!allowed.has(s.id)||typeof s.text!=='string'||s.text.length>30000))throw new Error('Review the draft and use only the original template text regions.');
       let bytes=template.pdfData,annotations=[];
       if(draft.isWord){const {zip,$}=await wordTemplate(bytes),map=new Map(changes.map(s=>[s.id,s.text]));$('w\\:t').each((index,node)=>{if(map.has(String(index)))$(node).attr('xml:space','preserve').text(map.get(String(index)))});zip.file('word/document.xml',$.xml());bytes=await zip.generateAsync({type:'nodebuffer',compression:'DEFLATE'});}
       else{

@@ -5,6 +5,7 @@ import {readApiJson} from '../lib/apiResponse'
 import {existingTextRuns,makeSourceReplacement} from '../lib/pdfExistingText'
 import './CoverLetterGenerator.css'
 import CoverLetterError from './CoverLetterError'
+import {letterRegions,letterText,editLetter} from '../lib/coverLetterText'
 pdfjs.GlobalWorkerOptions.workerSrc=workerUrl
 
 export default function CoverLetterGenerator({token,documents,onDocumentsChange,onOpen}){
@@ -12,6 +13,8 @@ export default function CoverLetterGenerator({token,documents,onDocumentsChange,
   const runs=useRef(new Map()),lock=useRef(false),referenceCache=useRef(new Map()),errorPanel=useRef(null)
   const [generationStage,setGenerationStage]=useState('')
   const [fitText,setFitText]=useState(true)
+  const [draftText,setDraftText]=useState('')
+  const textRegions=useRef([])
   useEffect(()=>{if(error)errorPanel.current?.scrollIntoView({behavior:'smooth',block:'nearest'})},[error])
   const letters=documents.filter(d=>!d.deletedAt&&d.tags?.includes('cover-letter'))
   const sources=documents.filter(d=>!d.deletedAt&&d._id!==templateId&&d.tags?.some(t=>['resume','cover-letter'].includes(t)))
@@ -60,6 +63,8 @@ export default function CoverLetterGenerator({token,documents,onDocumentsChange,
       stage='Generating cover letter'
       const result=await request('/api/cover-letters/generate',{method:'POST',body:JSON.stringify({templateId,referenceIds:references.filter(id=>id!==templateId),referenceTexts,jobId:jobId||undefined,role,slots})})
       setDraft(result);setChanges(result.replacements);setName(`${jobs.find(j=>j._id===jobId)?.title||'Tailored'} cover letter`.slice(0,120))
+      textRegions.current=letterRegions(result.slots,result.replacements,runs.current)
+      setDraftText(letterText(textRegions.current))
     }catch(e){reportError(e,stage)}finally{lock.current=false;setBusy('');setGenerationStage('')}
   }
   const annotationsFor=()=>{
@@ -87,7 +92,7 @@ export default function CoverLetterGenerator({token,documents,onDocumentsChange,
     }catch(e){reportError(e,'Preparing and saving the reviewed draft')}finally{lock.current=false;setBusy('')}
   }
   const normalizePhrase=value=>value.normalize('NFKC').toLowerCase().replace(/\s+/g,' ').trim()
-  const currentLetter=draft?normalizePhrase(draft.slots.map(slot=>changes.find(item=>item.id===slot.id)?.text??slot.text).join(' ')):''
+  const currentLetter=draft?normalizePhrase(draftText):''
   const reusedPhrases=(draft?.phraseReuse||[]).filter(item=>currentLetter.includes(normalizePhrase(item.quote)))
   return <details className="cover-letter-generator"><summary>Create a tailored cover letter from your existing letters</summary>
     <p>Your existing wording comes first: reuse sentences, phrases, transitions and closings from your selected cover letters, changing only what the role and supported facts require. Resumes and job descriptions provide facts, not the writing voice. Only selected documents and job details are sent to your configured AI.</p>
@@ -99,15 +104,20 @@ export default function CoverLetterGenerator({token,documents,onDocumentsChange,
     </div><button type="submit" disabled={!!busy||!templateId}>{busy==='generate'?generationStage||'Adapting your existing wording…':'Generate using my existing phrases'}</button>{busy==='generate'&&<p role="status">{generationStage} Readable PDFs use text instead of slower vision processing.</p>}</form>
     {error&&<div ref={errorPanel}><CoverLetterError key={error.diagnostics.timestamp} error={error}/></div>}
     {draft&&<div className="cover-letter-draft"><h3>Review changes in template order</h3><p>{draft.isWord?'The Word file’s existing formatting, runs, margins, headers and paragraph structure are retained. Text changes can still affect wrapping and pagination.':'PDF replacements keep their original positions and font sizes. Fitting can compress longer text horizontally and use substitute fonts when originals are unavailable. Shorten long replacements for better readability. Original text is visually covered, not redacted.'}</p>
-      <div className="cover-letter-slot-list">{draft.slots.map(slot=>{const change=changes.find(item=>item.id===slot.id);return <div key={slot.id} className={change?'is-changed':''}><span>{change?'Proposed replacement':'Unchanged template text'}</span>{change?<><small>Original: {slot.text}</small><textarea rows={Math.min(7,Math.max(2,Math.ceil(change.text.length/90)))} value={change.text} maxLength={6000} disabled={!!busy} onChange={e=>{setChanges(previous=>previous.map(item=>item.id===slot.id?{...item,text:e.target.value}:item));setReviewed(false)}}/><button type="button" disabled={!!busy} onClick={()=>{setChanges(previous=>previous.filter(item=>item.id!==slot.id));setReviewed(false)}}>Keep original</button></>:<p>{slot.text}</p>}</div>})}</div>
+      <div className="cover-letter-writing-area">
+        <div className="cover-letter-writing-toolbar"><span>Cover letter draft</span><button type="button" disabled={!!busy} onClick={()=>{setChanges(draft.replacements);textRegions.current=letterRegions(draft.slots,draft.replacements,runs.current);setDraftText(letterText(textRegions.current));setReviewed(false)}}>Reset to generated draft</button></div>
+        <label>Review and edit your letter<textarea className="cover-letter-full-text" aria-describedby="cover-letter-edit-help" rows={22} maxLength={30000} value={draftText} disabled={!!busy} onChange={e=>{setDraftText(e.target.value);setChanges(editLetter(textRegions.current,e.target.value));setReviewed(false)}}/></label>
+        <p id="cover-letter-edit-help">Edit the full letter in one place. Reused phrases below update as you type. Saving maps your wording back to the template’s text regions; review the final layout in the editor.</p>
+        <details><summary>Compare with original template</summary><textarea className="cover-letter-full-text" aria-label="Original template text" rows={14} readOnly value={letterText(letterRegions(draft.slots,[],runs.current))}/><button type="button" disabled={!!busy} onClick={()=>{textRegions.current=letterRegions(draft.slots,[],runs.current);setDraftText(letterText(textRegions.current));setChanges([]);setReviewed(false)}}>Use original wording</button></details>
+      </div>
       {!!reusedPhrases.length&&<details open><summary>Reused phrases checked against your letters</summary><p>These excerpts occur in both the current draft and the template or readable reference text. Case and whitespace are normalized for matching.</p><ul>{reusedPhrases.map((item,i)=><li key={i}><q>{item.quote}</q> — {item.source}</li>)}</ul></details>}
       {!!draft.evidence?.length&&<details><summary>Factual source notes</summary><ul>{draft.evidence.map((item,i)=><li key={i}>{item}</li>)}</ul></details>}
       {!!draft.warnings?.length&&<div role="status"><h4>Information to review</h4><ul>{draft.warnings.map((item,i)=><li key={i}>{item}</li>)}</ul></div>}
       <label>New cover letter name<input value={name} maxLength={120} disabled={!!busy} onChange={e=>setName(e.target.value)}/></label>
       {!draft.isWord&&<label className="cover-generator-check"><input type="checkbox" checked={fitText} disabled={!!busy} onChange={e=>{setFitText(e.target.checked);setReviewed(false)}}/>Fit PDF replacements into their original lines (use detected substitute fonts when needed).</label>}
       <label className="cover-generator-check"><input type="checkbox" checked={reviewed} disabled={!!busy} onChange={e=>setReviewed(e.target.checked)}/>I reviewed the voice, role details, and factual claims against my documents.</label>
-      {!busy&&(!reviewed||!name.trim()||changes.some(item=>!item.text.trim()))&&<p role="status">{!name.trim()?'Enter a name for the new copy.':changes.some(item=>!item.text.trim())?'Fill in empty replacements or choose Keep original.':'Select the review checkbox above to enable saving.'}</p>}
-      <button type="button" disabled={!!busy||!reviewed||!name.trim()||changes.some(item=>!item.text.trim())} onClick={save}>{busy==='save'?'Saving…':'Save separate copy & open editor'}</button>
+      {!busy&&(!reviewed||!name.trim()||!draftText.trim())&&<p role="status">{!name.trim()?'Enter a name for the new copy.':!draftText.trim()?'Enter your cover letter text.':'Select the review checkbox above to enable saving.'}</p>}
+      <button type="button" disabled={!!busy||!reviewed||!name.trim()||!draftText.trim()} onClick={save}>{busy==='save'?'Saving…':'Save separate copy & open editor'}</button>
     </div>}
   </details>
 }
