@@ -41,7 +41,7 @@ create a landing page
 create a brochure of every feature and thing in this app
 add automatic starring system for questions and topics to study
 
-resume job tailor:
+resume and cover letter job tailor:
 Get job by links
 read job descriptions
 keep data of resume
@@ -52,7 +52,6 @@ check skills and tailor
 connect to github  and linkedin
 base projects off github and linkedin
 
-not only formatting and style but also phrases
-also add the ability to tailor for a job
-base projects off of linkedin and github
-optimize for handshake listings
+copy logic for resumes from cover letter
+add feature to say if experiencing high demand is the issue then to wait and retry without prompting the user
+add ability to add sports events to calendar including f1
