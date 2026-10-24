@@ -14,7 +14,7 @@ import InlineConfirmation from './InlineConfirmation'
 import PDFCalculator from './PDFCalculator'
 import PDFCleanup from './PDFCleanup'
 import {preparePdfCleanup,cleanupAnnotations} from '../lib/pdfCleanup'
-import {selectablePdfText} from '../lib/pdfSelectableText'
+import PDFSelectableLayer from './PDFSelectableLayer'
 import 'react-pdf/dist/esm/Page/TextLayer.css'
 import PDFGraph from './PDFGraph'
 import {graphExpression,compileGraph} from '../lib/pdfGraph'
@@ -53,6 +53,7 @@ const LINE_HEIGHT = 1.2
 const BASELINE_RATIO = 0.9465 // distance from top of a line box to the baseline, in font sizes
 const FONT_STACK = 'Helvetica, Arial, sans-serif'
 const PDF_OPTIONS = { isEvalSupported: false }
+const EMPTY_PAGE_ITEMS=[]
 const COLORS = ['#000000', '#9e6464', '#526c83', '#62816f', '#9a835e', '#777487', '#967d87']
 const COLOR_NAMES = { '#000000': 'Black', '#9e6464': 'Muted red', '#526c83': 'Slate blue', '#62816f': 'Sage', '#9a835e': 'Ochre', '#777487': 'Violet gray', '#967d87': 'Rose gray' }
 
@@ -448,6 +449,7 @@ function PagePreview({ pageNumber }) {
 /* ------------------------------------------------------------------ */
 export default function PDFEditor({ pdfId, onClose, token, initialDocument = null, exportImage = false, onCleanCopy, assistantOpen=false, onToggleAssistant, onAssistantHost }) {
   const [showCleanup,setShowCleanup]=useState(false)
+  const selectablePage=useRef(null)
   const confirmation = useInlineConfirm()
   const [copyingClean,setCopyingClean]=useState(false)
   const cleanCopyLock=useRef(false)
@@ -850,6 +852,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   }
 
   const onPageLoadSuccess = (page) => {
+    selectablePage.current=page
     calculationPage.current=page
     const generation=++textLoadGeneration.current
     setExistingRuns({page:page.pageNumber,items:[],loading:true})
@@ -1712,7 +1715,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const renderH = ready ? (quarterTurn ? pageBase.w : pageBase.h) * scale : 0
   const cursor =
     currentTool === 'text'||currentTool==='read' ? 'text' : currentTool === 'eraser' ? 'cell' : 'crosshair'
-  const pageItems=pageIndex.get(pageNumber)||[]
+  const pageItems=pageIndex.get(pageNumber)||EMPTY_PAGE_ITEMS
 
   const activePageView = (
             <div
@@ -1732,8 +1735,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
                   pageNumber={pageNumber}
                   scale={scale}
                   rotate={((pageBase?.page === pageNumber ? pageBase.rotation : 0) + rotation) % 360}
-                  renderTextLayer={currentTool==='read'}
-                  customTextRenderer={currentTool==='read'?selectablePdfText(pageItems,pageNumber):undefined}
+                  renderTextLayer={false}
                   renderAnnotationLayer={false}
                   onLoadSuccess={onPageLoadSuccess}
                   loading={<div className="text-white">Loading page...</div>}
@@ -1741,6 +1743,8 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
                   className="bg-white"
                 />
               </Document>}
+
+              {!continuousView&&currentTool==='read'&&selectablePage.current?.pageNumber===pageNumber&&<PDFSelectableLayer page={selectablePage.current} scale={scale} rotation={rotation} annotations={pageItems}/>}
 
               {/* Annotation overlay: laid out in unrotated page space, then rotated to match the page */}
               {ready && (

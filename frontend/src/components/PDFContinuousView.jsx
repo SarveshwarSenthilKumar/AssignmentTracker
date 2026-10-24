@@ -2,7 +2,7 @@ import PDFInkLayer from './PDFInkLayer'
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { Document, Page } from 'react-pdf'
 import { replacementCss, loadPageFontStyles } from '../lib/pdfTextStyle'
-import {selectablePdfText} from '../lib/pdfSelectableText'
+import PDFSelectableLayer from './PDFSelectableLayer'
 
 const EMPTY=[]
 const ContinuousPage=memo(function ContinuousPage({number,active,activeReady,activePage,scale,rotation,fallback,items,onActivate,onReady,viewer,file,usePressure,reading}){
@@ -25,7 +25,8 @@ const ContinuousPage=memo(function ContinuousPage({number,active,activeReady,act
   return <section ref={ref} className={`pdf-continuous-page${active?' is-active':''}`} data-continuous-page={number} aria-label={`Page ${number}`}>
     <div className="pdf-continuous-label"><span>Page {number}</span><button type="button" aria-pressed={active} onClick={()=>onActivate(number)}>{active?'Editing this page':'Select page'}</button></div>
     <div role={active||reading?undefined:'button'} tabIndex={active||reading?undefined:0} aria-label={reading?`Page ${number} text selection`:active?`Editing page ${number}`:`Activate page ${number} for editing`} onClick={()=>{if(!active&&!reading)onActivate(number,{page:pageProxy.current})}} onKeyDown={active||reading?undefined:handleActivateKeyDown} className="pdf-page-surface pdf-continuous-surface" style={{width,height}}>
-      {(near||active)?<Page pageNumber={number} scale={scale} rotate={(dimensions.rotation+rotation)%360} renderTextLayer={reading} customTextRenderer={reading?selectablePdfText(items,number):undefined} renderAnnotationLayer={false} onLoadSuccess={page=>{pageProxy.current=page;const viewport=page.getViewport({scale:1});setBase(previous=>previous?.w===viewport.width&&previous?.h===viewport.height&&previous?.rotation===page.rotate?previous:{w:viewport.width,h:viewport.height,rotation:page.rotate||0});if(active)onReady(page)}} loading={<div className="pdf-continuous-placeholder">Loading page {number}…</div>} error={<div className="pdf-continuous-placeholder">Could not render page {number}.</div>}/>:<div className="pdf-continuous-placeholder">Page {number}</div>}
+      {(near||active)?<Page pageNumber={number} scale={scale} rotate={(dimensions.rotation+rotation)%360} renderTextLayer={false} renderAnnotationLayer={false} onLoadSuccess={page=>{pageProxy.current=page;const viewport=page.getViewport({scale:1});setBase(previous=>previous?.w===viewport.width&&previous?.h===viewport.height&&previous?.rotation===page.rotate?previous:{w:viewport.width,h:viewport.height,rotation:page.rotate||0});if(active)onReady(page)}} loading={<div className="pdf-continuous-placeholder">Loading page {number}…</div>} error={<div className="pdf-continuous-placeholder">Could not render page {number}.</div>}/>:<div className="pdf-continuous-placeholder">Page {number}</div>}
+      {reading&&pageProxy.current&&<PDFSelectableLayer page={pageProxy.current} scale={scale} rotation={rotation} annotations={items}/>}
       {showEditor&&<div className="pdf-continuous-active-layer">{activePage}</div>}
       {!showEditor&&(near||active)&&base&&<div className="pdf-passive-annotations" style={{left:(width-base.w*scale)/2,top:(height-base.h*scale)/2,width:base.w*scale,height:base.h*scale,transform:`rotate(${rotation}deg)`}}>
         {items.filter(item=>item.sourceText).map(item=><div key={`cover-${item.id}`} style={{position:'absolute',left:item.sourceText.x*scale,top:item.sourceText.y*scale,width:item.sourceText.width*scale,height:item.sourceText.height*scale,background:item.sourceText.background||'#fff'}}/>)}
