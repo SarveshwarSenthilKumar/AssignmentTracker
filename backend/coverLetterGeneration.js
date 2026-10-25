@@ -14,6 +14,14 @@ async function wordTemplate(bytes){
   $('w\\:t').each((index,node)=>{const value=$(node).text();if(value.trim()){const paragraph=$(node).closest('w\\:p')[0];slots.push({id:String(index),text:value,separatorBefore:slots.length&&paragraph!==previousParagraph?'\n\n':''});previousParagraph=paragraph}});
   return {zip,$,slots};
 }
+function annotationRegions(annotations=[]){
+  const regions=new Map();
+  annotations.forEach((item,index)=>{
+    if(item.tool!=='text'||typeof item.text!=='string')return;
+    item.text.split('\n').forEach((text,line)=>{if(text.trim())regions.set(`annotation:${index}:${line}`,{index,line,text,page:item.page||1})});
+  });
+  return regions;
+}
 module.exports=function registerCoverLetterGeneration(app,auth,{PDF,SavedJob,mongoose,credentials,model,requireAIAccess,documentType='cover-letter'}){
   const isResume=documentType==='resume',label=isResume?'resume':'cover letter',base=isResume?'/api/resumes':'/api/cover-letters',draftModel=isResume?'ResumeDraft':'CoverLetterDraft';
   const drafts=new Map(),active=new Set(),usage=new Map();
@@ -48,7 +56,9 @@ module.exports=function registerCoverLetterGeneration(app,auth,{PDF,SavedJob,mon
       if(!template.tags.includes(documentType))throw new Error(`Use a saved ${label} as the layout template.`);
       const isWord=/\.docx$/i.test(template.originalName),isPDF=/\.pdf$/i.test(template.originalName);
       if(!isWord&&!isPDF)throw new Error(`Choose a PDF or DOCX ${label} template.`);
-      if(template.annotations?.length)throw new Error('This template has editor annotations. Export the annotated version from the editor and upload that file first so its visible text is included.');
+      if(req.body.templateVersion!==undefined&&Date.parse(req.body.templateVersion)!==new Date(template.updatedAt).getTime())throw new Error('The template changed while it was being read. Generate again to use the latest saved edits.');
+      if(isPDF&&template.annotations?.length&&req.body.templateVersion===undefined)throw new Error('Refresh the page to load support for edited PDF templates, then generate again.');
+      if(isWord&&template.annotations?.length)throw new Error('This Word file has PDF annotations attached. Choose its saved Word version or a PDF template.');
       const ids=req.body.referenceIds;
       if(!Array.isArray(ids)||ids.length>5||ids.some(id=>typeof id!=='string'))throw new Error('Choose up to five supporting documents.');
       const references=cleanup?[]:await Promise.all([...new Set(ids.filter(id=>id!==String(template._id)))].map(id=>owned(id,user)));
@@ -60,12 +70,18 @@ module.exports=function registerCoverLetterGeneration(app,auth,{PDF,SavedJob,mon
       else slots=req.body.slots;
       if(!Array.isArray(slots)||!slots.length||slots.length>600||slots.some(s=>typeof s.id!=='string'||typeof s.text!=='string'||!s.text.trim()||s.text.length>6000)||new Set(slots.map(s=>s.id)).size!==slots.length||slots.reduce((n,s)=>n+s.text.length,0)>30000)throw new Error(`Use a text-based ${label} template with up to 600 text regions and 30,000 characters. Scanned templates need a Word or text-based PDF version.`);
       slots=slots.map(({id,text,separatorBefore})=>({id,text,...(isWord?{separatorBefore}:{} )}));
+      if(isPDF){
+        const visible=annotationRegions(template.annotations),submitted=new Map(slots.map(slot=>[slot.id,slot.text]));
+        const covered=new Set((template.annotations||[]).filter(item=>item.sourceText).map(item=>item.sourceText.key));
+        if(slots.some(slot=>covered.has(slot.id)||(slot.id.startsWith('annotation:')&&visible.get(slot.id)?.text!==slot.text))||[...visible].some(([id,region])=>submitted.get(id)!==region.text))throw new Error('The template text does not match its saved edits. Refresh and generate again so all visible text is included.');
+      }
       let role;
       if(cleanup)role={};
       else if(req.body.jobId){if(!mongoose.isValidObjectId(req.body.jobId))throw new Error('Choose a saved job.');role=await SavedJob.findOne({_id:req.body.jobId,user}).lean();if(!role)throw new Error('The selected job is unavailable.');role=Object.fromEntries(['title','company','location','description','requirements','responsibilities'].map(key=>[key,role[key]||'']));}
       else{if(typeof req.body.role!=='string'||req.body.role.trim().length<20||req.body.role.length>15000)throw new Error('Choose a saved job or enter 20–15,000 characters describing the role.');role={description:req.body.role.trim()};}
       const credential=await credentials.resolve(user);if(!credential.apiKey)throw new Error('Save a Gemini API key in Account → AI settings.');
       const contextWarnings=[],phraseSources=new Map([[String(template._id),{name:template.name,text:slots.map(slot=>slot.text).join(' ')}]]);
+      if(isPDF&&template.annotations?.length)contextWarnings.push('Saved text edits are included in this draft. Existing ink, highlights and images are retained in the copy; handwriting and image content are not interpreted as applicant facts.');
       const briefRole={};
       for(const [field,value]of Object.entries(role)){
         const compact=compactText(value,field==='description'?5500:field==='requirements'?3000:field==='responsibilities'?2000:500);
@@ -157,7 +173,26 @@ module.exports=function registerCoverLetterGeneration(app,auth,{PDF,SavedJob,mon
       else{
         const supplied=req.body.annotations;if(!Array.isArray(supplied)||supplied.length!==changes.length||new Set(supplied.map(item=>item.sourceText?.key)).size!==supplied.length||JSON.stringify(supplied).length>1500000)throw new Error('The PDF layout is incomplete. Generate the draft again.');
         const {PDFDocument}=require('pdf-lib'),pdf=await PDFDocument.load(bytes),map=new Map(changes.map(s=>[s.id,s.text]));
-        annotations=supplied.map(item=>{const source=item.sourceText,key=source?.key,page=pdf.getPage((item.page||1)-1),size=page.getSize();if(item.tool!=='text'||!map.has(key)||item.text!==map.get(key)||source.originalText!==allowed.get(key)||![item.x,item.y,item.fontSize,source.x,source.y,source.width,source.height].every(Number.isFinite)||item.fontSize<1||item.fontSize>200||item.x< -10||item.y< -10||source.x< -2||source.y< -2||source.x+source.width>size.width+2||source.y+source.height>size.height+2||source.width<=0||source.height<=0)throw new Error('Invalid PDF text region.');return {...item,id:randomUUID()};});
+        const inherited=(template.annotations||[]).map(item=>({...item})),visible=annotationRegions(inherited),editedLines=new Map();
+        const additions=[];
+        for(const item of supplied){
+          const source=item.sourceText,key=source?.key;
+          if(item.tool!=='text'||!map.has(key)||item.text!==map.get(key)||source.originalText!==allowed.get(key))throw new Error('Invalid PDF text region.');
+          if(visible.has(key)){
+            const region=visible.get(key);
+            if(region.text!==source.originalText||/[\r\n]/.test(item.text))throw new Error('Keep the existing annotation line structure.');
+            if(!editedLines.has(region.index))editedLines.set(region.index,inherited[region.index].text.split('\n'));
+            editedLines.get(region.index)[region.line]=item.text;
+            continue;
+          }
+          if(key.startsWith('annotation:'))throw new Error('The annotated text region is unavailable. Generate again.');
+          const page=pdf.getPage((item.page||1)-1),box=page.getCropBox(),rotated=Math.abs(page.getRotation().angle%180)===90;
+          const size={width:rotated?box.height:box.width,height:rotated?box.width:box.height};
+          if(![item.x,item.y,item.fontSize,source.x,source.y,source.width,source.height].every(Number.isFinite)||item.fontSize<1||item.fontSize>200||item.x< -10||item.y< -10||source.x< -2||source.y< -2||source.x+source.width>size.width+2||source.y+source.height>size.height+2||source.width<=0||source.height<=0)throw new Error('Invalid PDF text region.');
+          additions.push({...item,id:randomUUID()});
+        }
+        for(const [index,lines]of editedLines)inherited[index]={...inherited[index],text:lines.join('\n')};
+        annotations=[...inherited,...additions];
       }
       const file=await PDF.create({user:draft.user,name,originalName:name.replace(/[<>:"/\\|?*\u0000-\u001f]/g,'-')+(draft.isWord?'.docx':'.pdf'),mimeType:draft.isWord?'application/vnd.openxmlformats-officedocument.wordprocessingml.document':'application/pdf',pdfData:bytes,annotations,tags:[documentType,'ai-tailored']});
       draft.savedId=String(file._id);

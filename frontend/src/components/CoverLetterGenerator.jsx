@@ -7,6 +7,7 @@ import './CoverLetterGenerator.css'
 import CoverLetterError from './CoverLetterError'
 import {letterRegions,letterText,editLetter} from '../lib/coverLetterText'
 import {layoutCoverLetter} from '../lib/coverLetterPdfLayout'
+import {tailoringTemplateRuns} from '../lib/tailoringTemplateRuns'
 pdfjs.GlobalWorkerOptions.workerSrc=workerUrl
 
 export default function CoverLetterGenerator({token,documents,onDocumentsChange,onOpen,documentType='cover-letter'}){
@@ -38,9 +39,10 @@ export default function CoverLetterGenerator({token,documents,onDocumentsChange,
     let stage='Reading template'
     try{
       const file=await request(`/api/pdfs/${templateId}`);runs.current=new Map();let slots
+      if(file.annotations?.length){setGenerationStage('Reading template and saved text edits…');stage='Reading template and saved text edits'}
       if(/\.pdf$/i.test(file.originalName)){
         const bytes=Uint8Array.from(atob(file.pdfData),c=>c.charCodeAt(0)),blob=new Blob([bytes],{type:'application/pdf'}),task=pdfjs.getDocument({data:bytes})
-        try{const pdf=await task.promise;if(pdf.numPages>(isResume?8:4))throw new Error(`Choose a ${label} template of ${isResume?'eight':'four'} pages or fewer.`);for(let n=1;n<=pdf.numPages;n++){const page=await pdf.getPage(n);const items=await existingTextRuns(page,pdfjs,blob);for(const run of items)runs.current.set(run.key,{...run,page:n})}slots=[...runs.current.values()].map(run=>({id:run.key,text:run.text}));if(!slots.length)throw new Error('This PDF has no editable text. Use a text-based PDF or Word template.')}finally{await task.destroy()}
+        try{const pdf=await task.promise;if(pdf.numPages>(isResume?8:4))throw new Error(`Choose a ${label} template of ${isResume?'eight':'four'} pages or fewer.`);for(let n=1;n<=pdf.numPages;n++){const page=await pdf.getPage(n);const items=tailoringTemplateRuns(await existingTextRuns(page,pdfjs,blob),file.annotations||[],n);for(const run of items)runs.current.set(run.key,run)}slots=[...runs.current.values()].map(run=>({id:run.key,text:run.text}));if(!slots.length)throw new Error('This PDF has no editable text. Use a text-based PDF or Word template.')}finally{await task.destroy()}
       }
       const referenceTexts={}
       setGenerationStage('Preparing readable reference text…')
@@ -65,7 +67,7 @@ export default function CoverLetterGenerator({token,documents,onDocumentsChange,
       }))
       setGenerationStage(cleanup?'Cleaning up your letter from your comments…':isResume?'Tailoring supported experience to the role…':'Adapting your phrases to the role…')
       stage=cleanup?'Cleaning up cover letter':`Generating ${label}`
-      const result=await request(`${apiBase}/generate`,{method:'POST',body:JSON.stringify({templateId,mode,referenceIds:cleanup?[]:references.filter(id=>id!==templateId),...(cleanup?{cleanupComments}:{referenceTexts,jobId:jobId||undefined,role}),slots})})
+      const result=await request(`${apiBase}/generate`,{method:'POST',body:JSON.stringify({templateId,templateVersion:file.updatedAt,mode,referenceIds:cleanup?[]:references.filter(id=>id!==templateId),...(cleanup?{cleanupComments}:{referenceTexts,jobId:jobId||undefined,role}),slots})})
       setDraft(result);setChanges(result.replacements);setName((cleanup?`${documents.find(file=>file._id===templateId)?.name||heading} — cleaned up`:`${jobs.find(j=>j._id===jobId)?.title||'Tailored'} ${label}`).slice(0,120))
       textRegions.current=letterRegions(result.slots,result.replacements,runs.current)
       setDraftText(letterText(textRegions.current))
