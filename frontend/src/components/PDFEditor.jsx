@@ -14,8 +14,8 @@ import InlineConfirmation from './InlineConfirmation'
 import PDFCalculator from './PDFCalculator'
 import PDFCleanup from './PDFCleanup'
 import {preparePdfCleanup,cleanupAnnotations} from '../lib/pdfCleanup'
-import PDFSelectableLayer from './PDFSelectableLayer'
-import {copyPdfParagraphs} from '../lib/pdfCopyText'
+import PDFSelectableLayer,{pdfSelectionContent} from './PDFSelectableLayer'
+import {copyPdfParagraphs,copyRun,paragraphText} from '../lib/pdfCopyText'
 import 'react-pdf/dist/esm/Page/TextLayer.css'
 import PDFGraph from './PDFGraph'
 import {graphExpression,compileGraph} from '../lib/pdfGraph'
@@ -453,6 +453,9 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const [copyParagraphs,setCopyParagraphs]=useState(()=>{try{return localStorage.getItem('pdf-copy-paragraphs')!=='false'}catch{return true}})
   useEffect(()=>{try{localStorage.setItem('pdf-copy-paragraphs',String(copyParagraphs))}catch{}},[copyParagraphs])
   const selectablePage=useRef(null)
+  const [copyAllStatus,setCopyAllStatus]=useState(''),[copyAllFallback,setCopyAllFallback]=useState(''),[copyAllBusy,setCopyAllBusy]=useState(false)
+  const copyAllLock=useRef(false),copyAllGeneration=useRef(0)
+  useEffect(()=>()=>{copyAllGeneration.current++},[])
   const confirmation = useInlineConfirm()
   const [copyingClean,setCopyingClean]=useState(false)
   const cleanCopyLock=useRef(false)
@@ -583,6 +586,15 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const [selectedInsertId, setSelectedInsertId] = useState(null)
   const insertingRef = useRef(false)
   const viewerRef = useRef(null)
+  useEffect(()=>{
+    if(currentTool!=='read'||!copyParagraphs)return
+    const copy=event=>{
+      if(event.target?.closest?.('textarea,input,[contenteditable="true"]'))return
+      if(viewerRef.current)copyPdfParagraphs(event,viewerRef.current)
+    }
+    document.addEventListener('copy',copy,true)
+    return()=>document.removeEventListener('copy',copy,true)
+  },[currentTool,copyParagraphs])
   const pinchContentRef=useRef(null),pinchZoomRef=useRef(null),pendingPinchAnchor=useRef(null)
   const clearPinchPreview=()=>{const content=pinchContentRef.current;if(content){content.style.transform='';content.style.transformOrigin='';content.style.willChange=''}}
   const anchorPinch=anchor=>{
@@ -1699,6 +1711,43 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     activate(null);editSnapshotRef.current=null;pushHistory();updatePaths(next)
   }
 
+  const copyAllText=async()=>{
+    if(copyAllLock.current||!pdfFile)return
+    copyAllLock.current=true;setCopyAllBusy(true)
+    const generation=++copyAllGeneration.current,annotations=pathsRef.current
+    let task,text=''
+    setCopyAllStatus('Reading all PDF pages…');setCopyAllFallback('')
+    try{
+      task=pdfjs.getDocument({data:new Uint8Array(await pdfFile.arrayBuffer()),isEvalSupported:false})
+      const pdf=await task.promise,fragments=[]
+      let characters=0,missing=0
+      for(let number=1;number<=pdf.numPages;number++){
+        if(generation!==copyAllGeneration.current)return
+        const page=await pdf.getPage(number),content=await pdfSelectionContent(page,annotations.filter(item=>(item.page||1)===number)),viewport=page.getViewport({scale:1})
+        let pageText=false
+        for(const item of content.items){
+          if(typeof item.str!=='string'||!item.transform)continue
+          pageText||=!!item.str.trim();characters+=item.str.length
+          if(characters>2000000)throw new Error('This PDF exceeds the two-million-character clipboard limit. Copy a smaller selection instead.')
+          fragments.push({...copyRun(item,viewport,number,content.styles),text:item.str})
+        }
+        if(!pageText)missing++
+        if(number===1||number%5===0)setCopyAllStatus(`Reading page ${number} of ${pdf.numPages}…`)
+      }
+      text=paragraphText(fragments,{joinLines:copyParagraphs})
+      if(!text)throw new Error('This PDF has no extractable text. Scanned pages and outlined text need OCR before copying.')
+      if(generation!==copyAllGeneration.current)return
+      try{
+        if(!navigator.clipboard?.writeText)throw new Error('Clipboard unavailable')
+        await navigator.clipboard.writeText(text)
+        if(generation===copyAllGeneration.current)setCopyAllStatus(`All extractable text copied from ${pdf.numPages} ${pdf.numPages===1?'page':'pages'}.${missing?` ${missing} ${missing===1?'page had':'pages had'} no readable text and may need OCR.`:''}`)
+      }catch{
+        if(generation===copyAllGeneration.current){setCopyAllFallback(text);setCopyAllStatus('Clipboard access was blocked. The complete text is selected below; press Ctrl+C to copy.')}
+      }
+    }catch(error){if(generation===copyAllGeneration.current)setCopyAllStatus(error.message||'Could not copy PDF text.')}
+    finally{try{await task?.destroy()}catch{}finally{copyAllLock.current=false;if(generation===copyAllGeneration.current)setCopyAllBusy(false)}}
+  }
+
   if (loading) {
     return (
       <div className="fixed inset-0 bg-slate-950 flex items-center justify-center z-50">
@@ -1875,8 +1924,10 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
 
       {lineSuggestion&&<div className="pdf-line-suggestion" role="status" aria-live="polite"><span>Straight line detected</span><button type="button" onClick={()=>setLineSuggestion(null)} aria-label="Keep straight line"><Check size={15}/>Keep</button><button type="button" onClick={revertStraightLine} aria-label="Restore original freehand stroke"><Undo size={15}/>Undo</button></div>}
       {currentTool==='text'&&!exportImage&&<div className="pdf-existing-text-hint" role="status">Click existing text to replace it, or click blank space to add text. Scanned images need OCR first. Replacements cover the original on a white background; they do not redact the underlying text.</div>}
+      {currentTool==='read'&&!exportImage&&<div className="pdf-select-copy-bar"><span>{copyParagraphs?'Copy joins wrapped lines into paragraphs.':'Copy keeps original line breaks. Change this in View.'}</span><button type="button" disabled={copyAllBusy||!pdfFile} onClick={copyAllText}>{copyAllBusy?'Reading PDF…':'Copy all text'}</button>{copyAllStatus&&<span role="status">{copyAllStatus}</span>}</div>}
       {actionError && <div role="alert" className="flex items-center justify-between gap-3 bg-red-950 px-5 py-2 text-sm text-red-200">{actionError}<button onClick={() => setActionError(null)} aria-label="Dismiss error"><X size={16} /></button></div>}
       <div className={cn('pdf-editor-workspace flex flex-1 min-h-0 relative',darkPages&&'pdf-dark-pages')}>
+        {copyAllFallback&&<section className="pdf-copy-fallback" role="dialog" aria-label="All PDF text ready to copy"><header><strong>All PDF text</strong><button type="button" onClick={()=>setCopyAllFallback('')} aria-label="Close copied text"><X size={16}/></button></header><p>Press Ctrl+C to copy the selected text.</p><textarea aria-label="Complete extracted PDF text" value={copyAllFallback} readOnly autoFocus onFocus={event=>event.currentTarget.select()}/></section>}
         <PDFCleanup open={showCleanup} onClose={()=>setShowCleanup(false)} pdfId={pdfId} token={token} page={pageNumber} onPrepare={prepareCleanup} onApply={applyCleanup}/>
         <PDFGraph open={showGraph} onClose={()=>setShowGraph(false)} selection={graphSelection} onInsert={asset=>addImageInsert(asset)} canInsert={!!pageBase&&pageBase.page===pageNumber&&!inserting&&!deletingPage}/>
         <PDFCalculator open={showCalculator} onClose={()=>setShowCalculator(false)} selection={calculationSelection}/>
@@ -1913,7 +1964,6 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         <button type="button" className="pdf-focus-page-arrow is-next" title="Next page" aria-label="Next page" disabled={pageNumber>=numPages||deletingPage||inserting} onClick={()=>goToPage(pageNumber+1)}><ChevronRight size={19}/></button>
       </nav>}
       <div tabIndex={0}
-        onCopy={event=>{if(currentTool==='read'&&copyParagraphs)copyPdfParagraphs(event,event.currentTarget)}}
         {...(currentTool==='read'?{}:touchInput)}
         onPointerDownCapture={event=>{if(currentTool==='read')return;touchInput.onPointerDownCapture(event);if(!event.isPropagationStopped())handleStylusButton(event,'down')}}
         onPointerMoveCapture={event=>{if(currentTool==='read')return;touchInput.onPointerMoveCapture(event);if(!event.isPropagationStopped())handleStylusButton(event,'move')}}

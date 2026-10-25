@@ -38,6 +38,10 @@ function completeContent(content,annotations,page){
   return {...content,styles,items}
 }
 
+export async function pdfSelectionContent(page,annotations){
+  return completeContent(await readContent(page),annotations,page)
+}
+
 // Fallback keeps text selectable if the native renderer rejects a font or
 // malformed geometry. It uses textContent, never PDF-supplied HTML.
 function fallbackLayer(container,content,viewport,page){
