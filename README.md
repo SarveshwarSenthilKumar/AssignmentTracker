@@ -444,6 +444,8 @@ Thinking configuration reference: https://ai.google.dev/gemini-api/docs/generate
 
 ### Home dashboard
 
+Navigation uses a compact primary bar for Home, Workspace, Tasks, Calendar and Documents. Career groups Resumes, Cover letters and Saved jobs; Tools groups the assistant, visualization, Canvas and shortcuts. Account settings and Sign out are in the profile menu. Smaller screens use an expandable grouped navigation panel instead of wrapping every link into multiple header rows. Dropdowns support arrow-key focus, Escape, outside-click dismissal and ordinary Tab navigation. Existing hash routes and platform shortcuts are retained. Refresh the frontend to load the navigation update.
+
 The default signed-in landing page is Home (`#/home`); existing deep links still open their requested pages. The brand link and Home navigation item return to the dashboard. Home shows real open-task and deadline counts, a task focus list, overall completion, a seven-day agenda, recent non-trashed documents, career tools and quick actions. Tasks and documents open their existing editors; saved calendar entries open the matching event, and public TXST events link to their event pages. Dates and greetings follow the account time zone. Calendar visibility preferences are respected. Empty states, loading states and schedule errors are displayed without inventing activity. Refresh reloads saved tasks, documents and appointments. Refresh the frontend to load this page; no new dependencies or backend setup are required.
 
 ### Nested document and task folders

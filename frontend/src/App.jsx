@@ -4,6 +4,7 @@ import ResumesPage from './components/ResumesPage'
 import JobsPage from './components/JobsPage'
 import CoverLettersPage from './components/CoverLettersPage'
 import HomePage from './components/HomePage'
+import AppNavigation from './components/AppNavigation'
 import {folderTree} from './lib/folderHierarchy'
 import FolderHierarchyControls from './components/FolderHierarchyControls'
 import FolderParentSelect from './components/FolderParentSelect'
@@ -1381,7 +1382,7 @@ function App() {
   return (
     <div className="min-h-screen py-8 px-4">
       <div className="app-shell w-full max-w-[1440px] mx-auto">
-        <header className="platform-header"><a className="platform-brand" href="#/home">Assignment Tracker</a><nav aria-label="Main navigation">{[['home','Home'],['workspace','Workspace'],['tasks','Tasks'],['calendar','Calendar'],['documents','Documents'],['resumes','Resumes'],['cover-letters','Cover letters'],['jobs','Jobs'],['assistant','AI assistant'],['visualization','Visualization'],['canvas','Canvas'],['account','Account'],['shortcuts','Shortcuts']].map(([key,label]) => <a key={key} href={`#/${key}`} aria-current={page===key?'page':undefined}>{key==='shortcuts'&&<Keyboard size={15}/>} {label}</a>)}</nav><button className="platform-signout" onClick={logout}><LogOut size={16}/>Sign out</button></header>
+        <AppNavigation page={page} user={user} onSignOut={logout}/>
         {page!=='home'&&<div className="platform-page-title"><h1>{page==='workspace'?'Workspace':page==='tasks'?'Tasks':page==='calendar'?'Calendar':page==='documents'?'Document library':page==='jobs'?'Jobs':page==='cover-letters'?'Cover letters':page==='resumes'?'Resumes':page==='visualization'?'Task visualization':page==='canvas'?'Canvas integration':page==='account'?'Account':page==='assistant'?'AI assistant':'Keyboard shortcuts'}</h1><p>{page==='cover-letters'?'Store cover letters for your applications and keep versions ready to edit or download.':page==='jobs'?'Save job links and details alongside your resumes.':page==='resumes'?'Upload and keep your resumes ready for your next opportunity.':page==='workspace'?'Build a personal workflow with tabs, tools, and movable windows.':page==='tasks'?'Plan your work and track progress.':page==='calendar'?'Plan deadlines, assignments, and personal events in one place.':page==='documents'?'Organize and edit your files.':page==='visualization'?'Explore relationships, deadlines, and progress across your workspace.':page==='canvas'?'Manage your course connection and imports.':page==='account'?'Review your profile and workspace activity.':page==='assistant'?'Think, write, learn, and work with your files in a dedicated conversation workspace.':'A searchable reference for navigation and actions.'}</p></div>}
         <InlineConfirmation {...taskConfirmation} reveal />
         <TaskDeletionUndo token={token} onRestored={()=>fetchTodos(false)}/>
