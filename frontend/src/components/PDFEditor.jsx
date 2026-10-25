@@ -15,6 +15,7 @@ import PDFCalculator from './PDFCalculator'
 import PDFCleanup from './PDFCleanup'
 import {preparePdfCleanup,cleanupAnnotations} from '../lib/pdfCleanup'
 import PDFSelectableLayer from './PDFSelectableLayer'
+import {copyPdfParagraphs} from '../lib/pdfCopyText'
 import 'react-pdf/dist/esm/Page/TextLayer.css'
 import PDFGraph from './PDFGraph'
 import {graphExpression,compileGraph} from '../lib/pdfGraph'
@@ -449,6 +450,8 @@ function PagePreview({ pageNumber }) {
 /* ------------------------------------------------------------------ */
 export default function PDFEditor({ pdfId, onClose, token, initialDocument = null, exportImage = false, onCleanCopy, assistantOpen=false, onToggleAssistant, onAssistantHost }) {
   const [showCleanup,setShowCleanup]=useState(false)
+  const [copyParagraphs,setCopyParagraphs]=useState(()=>{try{return localStorage.getItem('pdf-copy-paragraphs')!=='false'}catch{return true}})
+  useEffect(()=>{try{localStorage.setItem('pdf-copy-paragraphs',String(copyParagraphs))}catch{}},[copyParagraphs])
   const selectablePage=useRef(null)
   const confirmation = useInlineConfirm()
   const [copyingClean,setCopyingClean]=useState(false)
@@ -1861,7 +1864,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       {showStylusStudio&&<PDFStylusSettings barrel={stylusBarrel} onBarrel={setStylusBarrel} tip={stylusEraser?stylusExtra.tip:'none'} onTip={tip=>{setStylusEraser(tip!=='none');setStylusExtra(previous=>({...previous,tip}))}} extra={stylusExtra} onExtra={setStylusExtra} onReset={()=>{setStylusBarrel('eraser');setStylusEraser(true);setStylusExtra({secondary:'none',tip:'eraser',mode:'precision',size:20,shape:'round'})}} onClose={()=>setShowStylusStudio(false)}/>}
 
       <PDFEditorChrome
-        doc={{name:pdfData?.name,exportImage,saveStatus,history:historyCount,onUndo:undo,onRedo:redo,onSave:handleSave,onDownload:handleDownload,downloading,onCleanCopy:onCleanCopy?handleCleanCopy:null,copying:copyingClean,onClose:handleClose,onCleanup:exportImage?null:()=>{commitText();setCurrentTool('text');setShowCalculator(false);setShowGraph(false);setShowCleanup(true)}}}
+        doc={{name:pdfData?.name,exportImage,saveStatus,history:historyCount,onUndo:undo,onRedo:redo,onSave:handleSave,onDownload:handleDownload,downloading,onCleanCopy:onCleanCopy?handleCleanCopy:null,copying:copyingClean,onClose:handleClose,copyParagraphs,onCopyParagraphs:setCopyParagraphs,onCleanup:exportImage?null:()=>{commitText();setCurrentTool('text');setShowCalculator(false);setShowGraph(false);setShowCleanup(true)}}}
         tools={{autoStraightLines,onAutoStraightLines:()=>setAutoStraightLines(previous=>!previous),current:currentTool,onTool:tool=>{commitText();setCurrentTool(tool)},color:currentColor,onColor:handleColorChange,colors:COLORS,colorNames:COLOR_NAMES,fontSize,onFontSize:handleFontSizeChange,strokeWidth,onWidth:setStrokeWidth,usePressure,onPressure:()=>setUsePressure(previous=>!previous),eraser:{mode:eraserMode,onMode:setEraserMode,size:eraserSize,onSize:setEraserSize,shape:eraserShape,onShape:setEraserShape,target:eraserTarget,onTarget:setEraserTarget}}}
         pages={{count:numPages,current:pageNumber,showThumbnails:showPages,onToggleThumbnails:()=>{if(focusMode){exitFocusMode();setShowPages(true)}else setShowPages(previous=>!previous)},onNavigate:goToPage,onAddBlank:()=>handleAddPages({mode:'blank',placement:'after'}),onDelete:()=>handleDeletePage(),busy:deletingPage||inserting,canAdd:!!numPages&&!!pageBase&&pageBase.page===pageNumber&&!loading&&!deletingPage&&!inserting}}
         view={{toolbarPosition,onToolbarPosition:setToolbarPosition,scale,onZoomIn:handleZoomIn,onZoomOut:handleZoomOut,onFit:handleFitWidth,onRotate:handleRotate,dark:darkPages,onDark:()=>setDarkPages(previous=>!previous),continuous:continuousView,onContinuous:()=>{handleTextDragEnd();commitText();setContinuousView(previous=>!previous)},reference:showReference,onReference:toggleReference,focus:focusMode,onFocus:enterFocusMode,onExitFocus:exitFocusMode}}
@@ -1910,6 +1913,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         <button type="button" className="pdf-focus-page-arrow is-next" title="Next page" aria-label="Next page" disabled={pageNumber>=numPages||deletingPage||inserting} onClick={()=>goToPage(pageNumber+1)}><ChevronRight size={19}/></button>
       </nav>}
       <div tabIndex={0}
+        onCopy={event=>{if(currentTool==='read'&&copyParagraphs)copyPdfParagraphs(event,event.currentTarget)}}
         {...(currentTool==='read'?{}:touchInput)}
         onPointerDownCapture={event=>{if(currentTool==='read')return;touchInput.onPointerDownCapture(event);if(!event.isPropagationStopped())handleStylusButton(event,'down')}}
         onPointerMoveCapture={event=>{if(currentTool==='read')return;touchInput.onPointerMoveCapture(event);if(!event.isPropagationStopped())handleStylusButton(event,'move')}}

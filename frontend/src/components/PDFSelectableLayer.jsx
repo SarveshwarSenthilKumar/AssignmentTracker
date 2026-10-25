@@ -1,5 +1,6 @@
 import {useEffect,useRef} from 'react'
 import {pdfjs} from 'react-pdf'
+import {registerCopyRun} from '../lib/pdfCopyText'
 
 const contents=new WeakMap()
 const readContent=page=>{
@@ -39,7 +40,7 @@ function completeContent(content,annotations,page){
 
 // Fallback keeps text selectable if the native renderer rejects a font or
 // malformed geometry. It uses textContent, never PDF-supplied HTML.
-function fallbackLayer(container,content,viewport){
+function fallbackLayer(container,content,viewport,page){
   const context=document.createElement('canvas').getContext('2d')
   for(const item of content.items){
     if(typeof item.str!=='string'||!item.transform)continue
@@ -50,6 +51,7 @@ function fallbackLayer(container,content,viewport){
     const measured=context.measureText(item.str).width,width=Math.abs(item.width||0)*viewport.scale
     Object.assign(span.style,{left:`${transform[4]}px`,top:`${transform[5]-size*(style.ascent??.8)}px`,fontSize:`${size}px`,fontFamily:style.fontFamily||'sans-serif',transform:`rotate(${angle}rad) scaleX(${measured&&width?width/measured:1})`})
     container.append(span)
+    registerCopyRun(span,item,viewport,page,content.styles)
     if(item.hasEOL)container.append(document.createElement('br'))
   }
 }
@@ -65,11 +67,19 @@ export default function PDFSelectableLayer({page,scale,rotation,annotations}){
       const content=completeContent(await readContent(page),annotations,page)
       if(disposed)return
       try{
-        task=pdfjs.renderTextLayer({container,viewport,textContentSource:content})
+        const textDivs=[]
+        task=pdfjs.renderTextLayer({container,viewport,textContentSource:content,textDivs})
         await task.promise
+        if(disposed)return
+        let index=0
+        for(const item of content.items){
+          if(typeof item.str!=='string')continue
+          const span=textDivs[index++]
+          if(span)registerCopyRun(span,item,viewport,page.pageNumber,content.styles)
+        }
       }catch(error){
         if(disposed)return
-        container.replaceChildren();fallbackLayer(container,content,viewport)
+        container.replaceChildren();fallbackLayer(container,content,viewport,page.pageNumber)
       }
     })().catch(()=>{if(!disposed)container.setAttribute('aria-label','This page has no readable text layer. Scanned or outlined text needs OCR.')})
     return()=>{disposed=true;task?.cancel();container.replaceChildren()}

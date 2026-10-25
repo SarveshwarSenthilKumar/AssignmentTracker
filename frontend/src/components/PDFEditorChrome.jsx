@@ -58,6 +58,7 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
     <div className="pc-zoom-controls">{iconButton(ZoomOut,'Zoom out',view.onZoomOut)}<span>{Math.round(view.scale*100)}%</span>{iconButton(ZoomIn,'Zoom in',view.onZoomIn)}</div>
     {action(Maximize,'Fit page width',view.onFit)}{action(RotateCw,'Rotate view',view.onRotate)}<hr/>
     {!doc.exportImage&&action(Files,'Continuous scrolling',view.onContinuous,{active:view.continuous,disabled:pages.busy})}
+    {!doc.exportImage&&<label className="pc-checkbox"><input type="checkbox" checked={doc.copyParagraphs} onChange={event=>doc.onCopyParagraphs(event.target.checked)}/>Join wrapped lines when copying</label>}
     {action(view.dark?Sun:Moon,view.dark?'Switch to light pages':'Switch to dark pages',view.onDark,{detail:'Display only; exports keep original colors'})}
     {action(Maximize,view.focus?'Exit fullscreen':'Enter fullscreen',view.focus?view.onExitFocus:view.onFocus)}
   </>)
