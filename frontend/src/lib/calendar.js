@@ -1,5 +1,5 @@
 import { activeTimeZone, zonedLocal, localToInstant } from './timeZone.js'
-export const CALENDAR_LABELS = { tasks: 'Task deadlines', canvas: 'Canvas & imports', txst: 'TXST events', appointment: 'Appointments', marker: 'Date markers' }
+export const CALENDAR_LABELS = { tasks: 'Task deadlines', canvas: 'Canvas & imports', txst: 'TXST events', appointment: 'Appointments', sports:'Sports events', marker: 'Date markers' }
 export const validDay = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(`${value}T12:00:00Z`)) && new Date(`${value}T12:00:00Z`).toISOString().slice(0,10) === value
 export function calendarDay(value) {
   if (value == null) return null
@@ -39,7 +39,9 @@ export function calendarItems(tasks, entries, campusEvents = [], colors = {}) {
     const startDate = entry.allDay ? entry.startDate : calendarDay(entry.startAt)
     const endDate = entry.allDay ? entry.endDate || startDate : calendarDay(new Date(Date.parse(entry.endAt)-1))
     if (!validDay(startDate) || !validDay(endDate)) continue
-    items.push({id:`entry:${entry._id}`,title:entry.title,source:entry.kind,kind:entry.kind,startDate,endDate,allDay:entry.allDay,startAt:entry.startAt,endAt:entry.endAt,notes:entry.notes,location:entry.location,done:!!entry.done,entry})
+    const sports=entry.kind==='sports'?entry.sports:null
+    const context=sports?[sports.sport,sports.league,[sports.team,sports.opponent].filter(Boolean).join(' vs ')].filter(Boolean).join(' · '):''
+    items.push({id:`entry:${entry._id}`,title:entry.title,source:entry.kind,kind:entry.kind,startDate,endDate,allDay:entry.allDay,startAt:entry.startAt,endAt:entry.endAt,notes:entry.notes,location:entry.location,context,done:!!entry.done,entry})
   }
   for (const event of campusEvents) {
     if (!event.startsOn || !Number.isFinite(Date.parse(event.startsOn))) continue
@@ -63,8 +65,9 @@ export function entryDraft(day, kind='appointment', entry=null) {
   return {title:'',kind,allDay:kind==='marker',startDate:day,endDate:day,startLocal:`${day}T09:00`,endLocal:`${day}T10:00`,notes:'',location:'',done:false}
 }
 export function entryPayload(draft) {
-  if(!draft.title?.trim() || draft.title.trim().length>200)throw new Error('Enter a title of up to 200 characters.')
-  const payload={title:draft.title,kind:draft.kind,allDay:draft.kind==='marker'||draft.allDay,notes:draft.notes,location:draft.location,done:draft.done,taskIds:draft.taskIds||[],documentIds:draft.documentIds||[]}
+  const title=draft.title?.trim()||(draft.kind==='sports'?[draft.sports?.team,draft.sports?.opponent].filter(Boolean).join(' vs '):'')
+  if(!title || title.length>200)throw new Error('Enter a title of up to 200 characters (or fill in the teams for a sports event).')
+  const payload={title,kind:draft.kind,allDay:draft.kind==='marker'||draft.allDay,notes:draft.notes,location:draft.location,done:draft.done,taskIds:draft.taskIds||[],documentIds:draft.documentIds||[],sports:draft.kind==='sports'?draft.sports||{}:null}
   if(payload.allDay) {
     if(!validDay(draft.startDate)||!validDay(draft.endDate)||draft.endDate<draft.startDate)throw new Error('Choose an end date on or after the start date.')
     return {...payload,startDate:draft.startDate,endDate:draft.endDate}

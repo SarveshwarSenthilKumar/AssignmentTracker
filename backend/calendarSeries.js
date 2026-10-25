@@ -31,7 +31,7 @@ function registerCalendarSeries(app,auth,{CalendarEntry,history,linksOwned}){
       if(!first)return res.status(404).json({message:'Meeting series not found.'});
       let fields;
       try{
-        const allowed=Object.fromEntries(['title','notes','location','taskIds','documentIds'].filter(key=>req.body[key]!==undefined).map(key=>[key,req.body[key]]));
+        const allowed=Object.fromEntries(['title','notes','location','taskIds','documentIds','sports'].filter(key=>req.body[key]!==undefined).map(key=>[key,req.body[key]]));
         const validated=calendarEntry({...first,taskIds:(first.taskIds||[]).map(String),documentIds:(first.documentIds||[]).map(String),startAt:first.startAt?.toISOString(),endAt:first.endAt?.toISOString(),...allowed});
         fields=Object.fromEntries(Object.keys(allowed).map(key=>[key,validated[key]]));
       }catch(error){return res.status(400).json({message:error.message});}
