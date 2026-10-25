@@ -3,6 +3,7 @@ import { Upload, FileText, Download, ArrowUpRight, Loader2 } from 'lucide-react'
 import { readApiJson } from '../lib/apiResponse'
 import { downloadBlob } from '../lib/documentFormats'
 import './ResumesPage.css'
+import CoverLetterGenerator from './CoverLetterGenerator'
 
 export default function ResumesPage({token,documents,onDocumentsChange,onOpen}){
   const [file,setFile]=useState(null),[name,setName]=useState(''),[busy,setBusy]=useState(false),[downloading,setDownloading]=useState(null),[error,setError]=useState(''),[notice,setNotice]=useState(''),[dragging,setDragging]=useState(false)
@@ -32,6 +33,18 @@ export default function ResumesPage({token,documents,onDocumentsChange,onOpen}){
     if(downloading)return
     setDownloading(document._id);setError('')
     try{
+      if(/\.pdf$/i.test(document.originalName||'')){
+        const response=await fetch(`/api/pdfs/${document._id}`,{headers:{Authorization:`Bearer ${token}`},cache:'no-store'})
+        const metadata=await readApiJson(response)
+        if(!response.ok)throw new Error(metadata.message||'Could not load your resume.')
+        if(metadata.annotations?.length){
+          const {burnAnnotations}=await import('./PDFEditor')
+          const bytes=Uint8Array.from(atob(metadata.pdfData),character=>character.charCodeAt(0))
+          const output=await burnAnnotations(bytes,metadata.annotations,true)
+          downloadBlob(new Blob([output],{type:'application/pdf'}),document.originalName||document.name)
+          return
+        }
+      }
       const response=await fetch(`/api/pdfs/${document._id}/download`,{headers:{Authorization:`Bearer ${token}`}})
       if(!response.ok){const result=await readApiJson(response);throw new Error(result.message||'Could not download your resume.')}
       downloadBlob(await response.blob(),document.originalName||document.name)
@@ -40,6 +53,7 @@ export default function ResumesPage({token,documents,onDocumentsChange,onOpen}){
   return <section className="resumes-page" aria-label="Resume storage">
     <nav className="resume-job-navigation" aria-label="Resume tools"><a href="#/resumes" aria-current="page">Your resumes</a><a href="#/cover-letters">Cover letters</a><a href="#/jobs">Saved jobs &amp; link import</a></nav>
     <div className="resume-heading"><div><h2>Your resumes</h2><p>Keep versions ready to view, edit, or download.</p></div><span>{resumes.length} saved</span></div>
+    <CoverLetterGenerator documentType="resume" token={token} documents={documents} onDocumentsChange={onDocumentsChange} onOpen={onOpen}/>
     <form onSubmit={upload} className="resume-upload-form">
       <input ref={input} id="resume-upload-file" type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" disabled={busy} onChange={event=>{choose(event.target.files[0]);event.target.value=''}} className="sr-only"/>
       <label htmlFor="resume-upload-file" className={`resume-dropzone${dragging?' is-dragging':''}`} onDragOver={event=>{event.preventDefault();if(!busy)setDragging(true)}} onDragLeave={()=>setDragging(false)} onDrop={event=>{event.preventDefault();setDragging(false);if(!busy)choose(event.dataTransfer.files[0])}}>

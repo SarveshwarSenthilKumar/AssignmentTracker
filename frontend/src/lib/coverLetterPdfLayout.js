@@ -1,6 +1,6 @@
 // Reflow only within existing adjacent lines with identical typography.
 // No font substitution, resizing, character-spacing changes or extra lines.
-export function layoutCoverLetter(slots,changes,runs){
+export function layoutCoverLetter(slots,changes,runs,{preserveBullets=false}={}){
   const replacements=new Map(changes.map(item=>[item.id,item.text]))
   const context=document.createElement('canvas').getContext('2d')
   const entries=slots.map(slot=>({id:slot.id,run:runs.get(slot.id),text:replacements.get(slot.id)??slot.text,original:slot.text}))
@@ -17,7 +17,8 @@ export function layoutCoverLetter(slots,changes,runs){
   const groups=[]
   for(const entry of entries){
     const group=groups[groups.length-1]
-    if(group&&sameParagraph(group[group.length-1],entry))group.push(entry)
+    const startsBullet=/^\s*(?:[•●○▪◦‣⁃·*–—-]\s*|\d+[.)]\s+)/.test(entry.original)
+    if(group&&sameParagraph(group[group.length-1],entry)&&!(preserveBullets&&startsBullet))group.push(entry)
     else groups.push([entry])
   }
   for(const group of groups){
