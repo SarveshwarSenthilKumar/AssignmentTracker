@@ -67,7 +67,7 @@ export function entryDraft(day, kind='appointment', entry=null) {
 export function entryPayload(draft) {
   const title=draft.title?.trim()||(draft.kind==='sports'?[draft.sports?.team,draft.sports?.opponent].filter(Boolean).join(' vs '):'')
   if(!title || title.length>200)throw new Error('Enter a title of up to 200 characters (or fill in the teams for a sports event).')
-  const payload={title,kind:draft.kind,allDay:draft.kind==='marker'||draft.allDay,notes:draft.notes,location:draft.location,done:draft.done,taskIds:draft.taskIds||[],documentIds:draft.documentIds||[],sports:draft.kind==='sports'?draft.sports||{}:null}
+  const payload={title,kind:draft.kind,allDay:draft.kind==='marker'||draft.allDay,notes:draft.notes,location:draft.location,done:draft.done,taskIds:draft.taskIds||[],documentIds:draft.documentIds||[],sports:draft.kind==='sports'?draft.sports||{}:null,categoryId:draft.categoryId||null}
   if(payload.allDay) {
     if(!validDay(draft.startDate)||!validDay(draft.endDate)||draft.endDate<draft.startDate)throw new Error('Choose an end date on or after the start date.')
     return {...payload,startDate:draft.startDate,endDate:draft.endDate}

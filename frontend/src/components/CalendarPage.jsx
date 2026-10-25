@@ -14,6 +14,8 @@ import './CalendarPage.css'
 import useTxstEvents from '../hooks/useTxstEvents'
 import SimilarEvents from './SimilarEvents'
 import CalendarUndo from './CalendarUndo'
+import F1SeasonImport from './F1SeasonImport'
+import CalendarCategories from './CalendarCategories'
 
 function CampusEventDetails({event}) {
   const text=value=>value==null?'':typeof value==='string'?value:Array.isArray(value)?value.map(text).filter(Boolean).join(', '):typeof value==='object'?text(value.name||value.title||value.label||''):String(value)
@@ -26,6 +28,7 @@ export default function CalendarPage({ tasks, documents=[], documentFolders=[], 
   const [sources,setSources]=useState(new Set(Object.keys(CALENDAR_LABELS))),[hideDone,setHideDone]=useState(false),[selectedId,setSelectedId]=useState(null),[draft,setDraft]=useState(null)
   const [loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('')
   const [attachmentBusy,setAttachmentBusy]=useState(false)
+  const [categories,setCategories]=useState([]),[categoryFilter,setCategoryFilter]=useState('all')
   const {colors,changeColor,loading:colorsLoading,error:colorsError}=useCalendarColors(token)
   const {campus,refreshCampus,changeVisibility}=useTxstEvents(token)
   const [similarTarget,setSimilarTarget]=useState(null)
@@ -46,13 +49,21 @@ export default function CalendarPage({ tasks, documents=[], documentFolders=[], 
   useEffect(()=>{
     if(loading||!focusEntryId)return
     const entry=entries.find(entry=>entry._id===focusEntryId)
-    if(entry){const day=entry.allDay?entry.startDate:calendarDay(entry.startAt);setAnchor(day);setSelectedDay(day);setSelectedId(`entry:${entry._id}`);setQuery('');setSources(new Set(Object.keys(CALENDAR_LABELS)));setHideDone(false)}
+    if(entry){const day=entry.allDay?entry.startDate:calendarDay(entry.startAt);setAnchor(day);setSelectedDay(day);setSelectedId(`entry:${entry._id}`);setQuery('');setSources(new Set(Object.keys(CALENDAR_LABELS)));setHideDone(false);setCategoryFilter('all')}
     else setError('That calendar entry is no longer available.')
     onEntryFocused?.()
   },[loading,entries,focusEntryId])
   useEffect(()=>{if(!draft)return;const previous=document.activeElement;panel.current?.scrollIntoView({block:'nearest'});panel.current?.querySelector('input')?.focus();return()=>previous?.focus?.({preventScroll:true})},[draft?._id,!!draft])
-  const all=useMemo(()=>calendarItems(tasks,entries,campus.events,colors).filter(item=>!(campus.hiddenCalendarIds||[]).includes(item.id)&&!(campus.hideTxstEvents&&item.source==='txst')),[tasks,entries,campus,zone,colors])
-  const filtered=useMemo(()=>all.filter(item=>sources.has(item.source)&&(!hideDone||!item.done)&&`${item.title} ${item.notes||''} ${item.location||''} ${item.context||''}`.toLowerCase().includes(query.toLowerCase())),[all,sources,hideDone,query])
+  useEffect(()=>{
+    const controller=new AbortController()
+    request('/api/calendar/categories',{signal:controller.signal}).then(data=>{if(!Array.isArray(data))throw new Error('Could not read calendar categories.');setCategories(data);setCategoryFilter(previous=>previous==='all'||previous==='none'||data.some(category=>category.id===previous)?previous:'all')}).catch(error=>{if(error.name!=='AbortError')setError(error.message)})
+    return()=>controller.abort()
+  },[token,calendarRevision])
+  const all=useMemo(()=>calendarItems(tasks,entries,campus.events,colors).filter(item=>!(campus.hiddenCalendarIds||[]).includes(item.id)&&!(campus.hideTxstEvents&&item.source==='txst')).map(item=>{
+    const category=categories.find(category=>category.id===item.entry?.categoryId)
+    return category?{...item,category,color:item.color||category.color,context:[category.name,item.context].filter(Boolean).join(' · ')}:item
+  }),[tasks,entries,campus,zone,colors,categories])
+  const filtered=useMemo(()=>all.filter(item=>sources.has(item.source)&&(!hideDone||!item.done)&&(categoryFilter==='all'||(categoryFilter==='none'?!item.category:item.category?.id===categoryFilter))&&`${item.title} ${item.notes||''} ${item.location||''} ${item.context||''}`.toLowerCase().includes(query.toLowerCase())),[all,sources,hideDone,query,categoryFilter])
   const month=itemsInMonth(filtered,anchor), dayItems=itemsOnDay(filtered,selectedDay), selected=filtered.find(item=>item.id===selectedId), unscheduled=tasks.filter(task=>!task.dueDate||!Number.isFinite(Date.parse(task.dueDate)))
   const openForm=(kind='appointment',entry=null)=>{setError('');setNotice('');setDraft(entryDraft(selectedDay,kind,entry));setSelectedId(entry?`entry:${entry._id}`:null)}
   const navigate=count=>{const next=shiftMonth(anchor,count);setAnchor(next);setSelectedDay(next);setSelectedId(null)}
@@ -66,7 +77,7 @@ export default function CalendarPage({ tasks, documents=[], documentFolders=[], 
     const saved=result.entries||[result]
     setEntries(previous=>draft._seriesDetails?[...previous.filter(entry=>entry.seriesId!==draft.seriesId),...saved]:id?previous.map(entry=>entry._id===id?saved[0]:entry):[...previous,...saved])
     const target=saved.find(entry=>entry._id===id)||saved[0]
-    setDraft(null);setSelectedId(`entry:${target._id}`)
+    setDraft(null);setSelectedId(`entry:${target._id}`);setCategoryFilter('all');setSources(previous=>new Set([...previous,target.kind]));setQuery('');setHideDone(false)
     const date=target.allDay?target.startDate:calendarDay(target.startAt);setSelectedDay(date);setAnchor(date)
     setNotice(repeated?`${saved.length} recurring meetings created.`:draft._seriesDetails?'Series details updated for every meeting.':id?'Calendar entry updated.':'Calendar entry added.')
   })}
@@ -94,10 +105,14 @@ export default function CalendarPage({ tasks, documents=[], documentFolders=[], 
       {(campus.hideTxstEvents||campus.hiddenCalendarIds?.length>0)&&<button type="button" disabled={busy||loading} onClick={()=>run(async()=>{await changeVisibility('restore');setNotice('Removed calendar items restored.')})}>Restore removed events</button>}
     </div>
     {error&&<div className="calendar-feedback is-error" role="alert">{error}<button onClick={()=>setError('')} aria-label="Dismiss calendar error"><X size={15}/></button></div>}{notice&&<div className="calendar-feedback" role="status">{notice}<button onClick={()=>setNotice('')} aria-label="Dismiss calendar notice"><X size={15}/></button></div>}
+    <CalendarCategories categories={categories} token={token} disabled={busy||loading||attachmentBusy} onChange={setCategories} onCreated={category=>setDraft(previous=>previous?{...previous,categoryId:category.id}:previous)} onAdd={categoryId=>{openForm();setDraft({...entryDraft(selectedDay),categoryId})}}/>
+    <label className="calendar-category-filter">Category<select value={categoryFilter} onChange={event=>setCategoryFilter(event.target.value)}><option value="all">All categories</option><option value="none">Uncategorized</option>{categories.map(category=><option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
+    <F1SeasonImport categories={categories} token={token} disabled={busy||loading||attachmentBusy} onImported={added=>{setCategoryFilter('all');setEntries(previous=>{const ids=new Set(added.map(entry=>entry._id));return [...previous.filter(entry=>!ids.has(entry._id)),...added]});setSources(previous=>new Set([...previous,'sports']));setHideDone(false);setQuery('');if(added.length){const next=added.find(entry=>(entry.allDay?entry.startDate:calendarDay(entry.startAt))>=today)||added[0];const day=next.allDay?next.startDate:calendarDay(next.startAt);setAnchor(day);setSelectedDay(day);setSelectedId(`entry:${next._id}`)}}}/>
     <div className="calendar-actions calendar-sports-actions"><button type="button" disabled={busy||loading||attachmentBusy} onClick={()=>openForm('sports')}><Plus size={15}/>Sports event</button><span>Add a game, match, practice, or watch party.</span></div>
     {draft&&<form ref={panel} className="calendar-entry-form" noValidate onSubmit={save} aria-label={draft._id?'Edit calendar entry':'New calendar entry'}><div className="calendar-form-heading"><h3>{draft._seriesDetails?'Edit series details':draft._id?'Edit calendar entry':draft.kind==='sports'?'New sports event':'New calendar entry'}</h3><button type="button" disabled={busy||loading||attachmentBusy} onClick={()=>setDraft(null)} aria-label="Close calendar form"><X size={17}/></button></div><div className="calendar-form-fields">
       <label className="calendar-form-title">Title<input required maxLength={200} value={draft.title} disabled={busy||loading||attachmentBusy} onChange={event=>setDraft(prev=>({...prev,title:event.target.value}))} placeholder={draft.kind==='sports'?'Event title, or leave blank to use the teams':'Appointment or date marker title'}/></label>
       <label>Type<select value={draft.kind} disabled={busy||loading||attachmentBusy||draft._seriesDetails} onChange={event=>setDraft(prev=>({...prev,kind:event.target.value,allDay:event.target.value==='marker'?true:prev.allDay}))}><option value="appointment">Appointment</option><option value="sports">Sports event</option><option value="marker">Date marker</option></select></label>
+      <label>Category<select value={draft.categoryId||''} disabled={busy||loading||attachmentBusy} onChange={event=>setDraft(previous=>({...previous,categoryId:event.target.value||null}))}><option value="">Uncategorized</option>{categories.map(category=><option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
       {draft.kind==='sports'&&<div className="calendar-sports-fields">{[['sport','Sport','e.g. Football, basketball, soccer'],['league','League / competition','e.g. NCAA, NFL, intramural'],['team','Team / participant','e.g. Texas State Bobcats'],['opponent','Opponent','Opposing team or participant']].map(([key,label,placeholder])=><label key={key}>{label}<input maxLength={120} value={draft.sports?.[key]||''} disabled={busy||loading||attachmentBusy} onChange={event=>setDraft(previous=>({...previous,sports:{...previous.sports,[key]:event.target.value}}))} placeholder={placeholder}/></label>)}</div>}
       {draft.kind!=='marker'&&<label className="calendar-check"><input type="checkbox" checked={draft.allDay} disabled={busy||loading||attachmentBusy||draft._seriesDetails} onChange={event=>setDraft(prev=>({...prev,allDay:event.target.checked}))}/>All day</label>}
       {draft.allDay||draft.kind==='marker'?<><label>Start date<input type="date" required value={draft.startDate} disabled={busy||loading||attachmentBusy||draft._seriesDetails} onChange={event=>setDraft(prev=>({...prev,startDate:event.target.value,endDate:prev.endDate<event.target.value?event.target.value:prev.endDate}))} onInput={event=>setDraft(prev=>({...prev,startDate:event.target.value,endDate:prev.endDate<event.target.value?event.target.value:prev.endDate}))}/></label><label>End date (inclusive)<input type="date" required min={draft.startDate} value={draft.endDate} disabled={busy||loading||attachmentBusy||draft._seriesDetails} onChange={event=>setDraft(prev=>({...prev,endDate:event.target.value}))} onInput={event=>setDraft(prev=>({...prev,endDate:event.target.value}))}/></label></>:<><label>Start time<input type="datetime-local" required value={draft.startLocal} disabled={busy||loading||attachmentBusy||draft._seriesDetails} onChange={event=>setDraft(prev=>({...prev,startLocal:event.target.value}))} onInput={event=>setDraft(prev=>({...prev,startLocal:event.target.value}))}/></label><label>End time<input type="datetime-local" required min={draft.startLocal} value={draft.endLocal} disabled={busy||loading||attachmentBusy||draft._seriesDetails} onChange={event=>setDraft(prev=>({...prev,endLocal:event.target.value}))} onInput={event=>setDraft(prev=>({...prev,endLocal:event.target.value}))}/></label></>}

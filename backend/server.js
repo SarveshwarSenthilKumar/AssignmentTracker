@@ -48,6 +48,7 @@ const userSchema = new mongoose.Schema({
   socialConnectionVersions: { type: mongoose.Schema.Types.Mixed, select: false, default: ()=>({}) },
   aiAccess: { type: mongoose.Schema.Types.Mixed, default: ()=>({}) },
   calendarColors: { type: Map, of: String, default: {} },
+  calendarCategories:{type:[new mongoose.Schema({id:String,name:String,color:String},{_id:false})],default:[]},
   hiddenCalendarIds: { type: [String], default: [] },
   calendarHistoryRevision: { type: Number, default: 0 },
   hideTxstEvents: { type: Boolean, default: false },
@@ -189,6 +190,8 @@ const CalendarEntry = mongoose.model('CalendarEntry', new mongoose.Schema({
   title: { type: String, required: true, maxlength: 200 },
   kind: { type: String, enum: ['appointment','marker','sports'], required: true },
   sports:{type:new mongoose.Schema({sport:{type:String,maxlength:120},league:{type:String,maxlength:120},team:{type:String,maxlength:120},opponent:{type:String,maxlength:120}},{_id:false}),default:null},
+  externalId:{type:String,maxlength:200,index:true},
+  categoryId:{type:String,default:null,maxlength:36},
   notes: { type: String, default: '', maxlength: 4000 },
   location: { type: String, default: '', maxlength: 300 },
   allDay: { type: Boolean, default: true },
@@ -576,9 +579,11 @@ async function calendarLinksOwned(entry, userId, previous = {}) {
   return validateCalendarLinks(entry, userId, previous, { Todo, PDF });
 }
 const calendarHistory = createCalendarHistory({mongoose,User,CalendarEntry});
+require('./calendarCategories')(app,authenticateToken,{User,CalendarEntry,history:calendarHistory});
 require('./calendarColors').registerCalendarColors(app,authenticateToken,{User,Todo,CalendarEntry,history:calendarHistory});
 require('./calendarSeries').registerCalendarSeries(app,authenticateToken,{CalendarEntry,history:calendarHistory,linksOwned:calendarLinksOwned});
 calendarHistory.register(app,authenticateToken);
+require('./f1Calendar')(app,authenticateToken,{CalendarEntry,history:calendarHistory});
 registerTxstCalendar(app, authenticateToken, User, calendarHistory);
 app.get('/api/calendar-entries', authenticateToken, async (req, res) => {
   try { res.json(await CalendarEntry.find({ user: req.user.userId }).sort({ startDate: 1, startAt: 1 })); }

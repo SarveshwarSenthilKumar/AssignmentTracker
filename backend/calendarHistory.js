@@ -27,6 +27,14 @@ function createCalendarHistory({ mongoose, User, CalendarEntry }) {
   };
   const mutate = (userId, label, operation) => transaction(userId, async session => {
     const {value,...change} = await operation(session);
+    // Check category references under the same per-account transaction lock
+    // used by category deletion, including series and season imports.
+    const entries=['entry','series','calendar_import'].includes(change.kind)?(Array.isArray(change.after)?change.after:[change.after]).filter(Boolean):[];
+    if(entries.some(entry=>entry.categoryId)){
+      const user=await User.findById(userId).select('calendarCategories').session(session).lean();
+      const known=new Set((user.calendarCategories||[]).map(category=>category.id));
+      if(entries.some(entry=>entry.categoryId&&!known.has(entry.categoryId)))throw new Error('A selected calendar category was removed. Refresh and choose another category.');
+    }
     await Change.create([{user:userId,label,...change}],{session});
     return value;
   });
@@ -43,13 +51,20 @@ function createCalendarHistory({ mongoose, User, CalendarEntry }) {
         const result=await transaction(req.user.userId,async session=>{
           const change=await Change.findOne({user:req.user.userId}).sort({_id:-1}).session(session).lean();
           if(!change)throw new Error('There are no calendar changes to undo.');
-          if(change.kind==='visibility'){
+          if(change.kind==='categories'){
+            const current=await User.findById(req.user.userId).select('calendarCategories').session(session).lean();
+            if(JSON.stringify(current.calendarCategories||[])!==JSON.stringify(change.after))throw new Error('Categories changed elsewhere. Refresh before undoing.');
+            const restored=new Set(change.before.map(category=>category.id));
+            const removed=change.after.filter(category=>!restored.has(category.id)).map(category=>category.id);
+            if(removed.length&&await CalendarEntry.exists({user:req.user.userId,categoryId:{$in:removed}}).session(session))throw new Error('This category is in use. Undo its event changes before undoing category creation.');
+            await User.updateOne({_id:req.user.userId},{$set:{calendarCategories:change.before}},{session});
+          }else if(change.kind==='visibility'){
             const current=await User.findById(req.user.userId).session(session).lean();
             const currentPrefs={hiddenCalendarIds:current.hiddenCalendarIds||[],hideTxstEvents:!!current.hideTxstEvents};
             if(JSON.stringify(currentPrefs)!==JSON.stringify(change.after))throw new Error('Calendar visibility changed elsewhere. Refresh before undoing.');
             await User.updateOne({_id:req.user.userId},{$set:change.before},{session});
-          }else if(change.kind==='series'){
-            const filter={seriesId:change.seriesId,user:req.user.userId};
+          }else if(change.kind==='series'||change.kind==='calendar_import'){
+            const filter=change.kind==='calendar_import'?{_id:{$in:change.after.map(entry=>entry._id)},user:req.user.userId}:{seriesId:change.seriesId,user:req.user.userId};
             const current=await CalendarEntry.find(filter).session(session).lean();
             const expected=new Map(change.after.map(entry=>[String(entry._id),entry]));
             if(current.length!==expected.size||current.some(entry=>!expected.has(String(entry._id))||!same(entry,expected.get(String(entry._id)))))throw new Error('This series changed elsewhere. Undo the newer changes first.');
