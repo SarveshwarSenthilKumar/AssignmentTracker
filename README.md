@@ -442,7 +442,13 @@ Known Gemini 3/4 models use low thinking effort and Gemini 2.5 Pro/Flash use a 1
 
 Thinking configuration reference: https://ai.google.dev/gemini-api/docs/generate-content/thinking .
 
-### Resume tailoring
+### Nested document and task folders
+
+Task and document folders support up to 12 levels of nesting. Existing folders remain at the top level. Select a folder and use **New subfolder**, or choose a parent in the new-folder dialog. The folder-path controls also let you move an existing folder, including its descendants, to another parent or back to the top level. Document sidebars show indentation; task tabs and destination choices display folder paths. Breadcrumb buttons navigate back through the hierarchy. Folder views contain their directly assigned items; select a child folder to view its items.
+
+Removing a folder preserves its directly assigned tasks/documents and its child folders, moving them to its parent (or Inbox/Unfiled and the top level). Parent changes validate ownership, prevent cycles and enforce depth limits. Hierarchy writes are serialized in MongoDB transactions, using the same transaction-capable deployment required by calendar history. Restart the backend and refresh the frontend after updating.
+
+### Resume tailoring workflow
 
 Resumes → “Tailor a resume using your previous resumes” uses the same template/review/save workflow as cover letters. Choose a saved PDF or DOCX resume as the layout, a saved job or pasted job description, and optionally up to five previous resumes. The dedicated resume prompt prioritizes relevant, source-supported bullets and vocabulary while preserving identity, dates, official past titles, qualifications and template structure. AI source explanations and unsupported requirements remain visible for human review; phrase-reuse notes are checked against supplied readable text, not independent factual verification.
 

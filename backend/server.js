@@ -51,6 +51,7 @@ const userSchema = new mongoose.Schema({
   calendarCategories:{type:[new mongoose.Schema({id:String,name:String,color:String},{_id:false})],default:[]},
   hiddenCalendarIds: { type: [String], default: [] },
   calendarHistoryRevision: { type: Number, default: 0 },
+  folderHierarchyRevision:{type:Number,default:0},
   hideTxstEvents: { type: Boolean, default: false },
   workflowLayout: { type: mongoose.Schema.Types.Mixed, select: false },
   workflowRevision: { type: Number, default: 0, select: false },
@@ -100,6 +101,7 @@ const assistantCredentials = createAssistantCredentials(User);
 
 // Folder Schema
 const folderSchema = new mongoose.Schema({
+  parentId:{type:mongoose.Schema.Types.ObjectId,ref:'Folder',default:null,index:true},
   name: {
     type: String,
     required: true,
@@ -257,6 +259,7 @@ const PDF = mongoose.model('PDF', pdfSchema);
 
 // PDF Folder Schema
 const pdfFolderSchema = new mongoose.Schema({
+  parentId:{type:mongoose.Schema.Types.ObjectId,ref:'PDFFolder',default:null,index:true},
   name: {
     type: String,
     required: true,
@@ -776,6 +779,7 @@ app.delete('/api/todos/clear-inbox', authenticateToken, async (req, res) => {
 });
 
 // Folder Routes
+require('./folderHierarchy')(app,authenticateToken,{mongoose,User,Folder,PDFFolder,Todo,PDF});
 // Get all folders
 app.get('/api/folders', authenticateToken, async (req, res) => {
   try {
@@ -787,57 +791,6 @@ app.get('/api/folders', authenticateToken, async (req, res) => {
 });
 
 // Create a new folder
-app.post('/api/folders', authenticateToken, async (req, res) => {
-  try {
-    const { name, color } = req.body;
-    if (!name) {
-      return res.status(400).json({ message: 'Name is required' });
-    }
-    const folder = new Folder({ name, color, user: req.user.userId });
-    await folder.save();
-    res.status(201).json(folder);
-  } catch (error) {
-    res.status(500).json({ message: 'Error creating folder', error: error.message });
-  }
-});
-
-// Update a folder
-app.put('/api/folders/:id', authenticateToken, async (req, res) => {
-  try {
-    const { name, color } = req.body;
-    const updateData = {};
-    if (name !== undefined) updateData.name = name;
-    if (color !== undefined) updateData.color = color;
-
-    const folder = await Folder.findOneAndUpdate(
-      { _id: req.params.id, user: req.user.userId },
-      updateData,
-      { new: true }
-    );
-    if (!folder) {
-      return res.status(404).json({ message: 'Folder not found' });
-    }
-    res.json(folder);
-  } catch (error) {
-    res.status(500).json({ message: 'Error updating folder', error: error.message });
-  }
-});
-
-// Delete a folder
-app.delete('/api/folders/:id', authenticateToken, async (req, res) => {
-  try {
-    const folder = await Folder.findOneAndDelete({ _id: req.params.id, user: req.user.userId });
-    if (!folder) {
-      return res.status(404).json({ message: 'Folder not found' });
-    }
-    // Also delete all todos in this folder
-    await deleteTasksAndConnections({ folder: req.params.id, user: req.user.userId });
-    res.json({ message: 'Folder deleted successfully' });
-  } catch (error) {
-    res.status(500).json({ message: 'Error deleting folder', error: error.message });
-  }
-});
-
 // Canvas Integration Routes
 // Update Canvas credentials
 app.put('/api/user/canvas', authenticateToken, async (req, res) => {
@@ -1365,70 +1318,6 @@ app.get('/api/pdf-folders', authenticateToken, async (req, res) => {
 });
 
 // Create a new PDF folder
-app.post('/api/pdf-folders', authenticateToken, async (req, res) => {
-  try {
-    const { name, color, description } = req.body;
-    if (typeof name !== 'string' || !name.trim() || name.trim().length > 120) {
-      return res.status(400).json({ message: 'Enter a folder name between 1 and 120 characters.' });
-    }
-    const folder = new PDFFolder({
-      name: name.trim(),
-      color: color || '#3b82f6',
-      description: description || '',
-      user: req.user.userId,
-    });
-    await folder.save();
-    res.status(201).json(folder);
-  } catch (error) {
-    res.status(500).json({ message: 'Error creating PDF folder', error: error.message });
-  }
-});
-
-// Update a PDF folder
-app.put('/api/pdf-folders/:id', authenticateToken, async (req, res) => {
-  try {
-    const { name, color, description } = req.body;
-    const updateData = {};
-    if (name !== undefined) {
-      if (typeof name !== 'string' || !name.trim() || name.trim().length > 120) return res.status(400).json({ message: 'Enter a name between 1 and 120 characters.' });
-      updateData.name = name.trim();
-    }
-    if (color !== undefined) updateData.color = color;
-    if (description !== undefined) updateData.description = description;
-
-    const folder = await PDFFolder.findOneAndUpdate(
-      { _id: req.params.id, user: req.user.userId },
-      updateData,
-      { new: true }
-    );
-    if (!folder) {
-      return res.status(404).json({ message: 'PDF folder not found' });
-    }
-    res.json(folder);
-  } catch (error) {
-    res.status(500).json({ message: 'Error updating PDF folder', error: error.message });
-  }
-});
-
-// Delete a PDF folder
-app.delete('/api/pdf-folders/:id', authenticateToken, async (req, res) => {
-  try {
-    const folder = await PDFFolder.findOne({ _id: req.params.id, user: req.user.userId });
-    if (!folder) {
-      return res.status(404).json({ message: 'PDF folder not found' });
-    }
-    // Move all PDFs in this folder to uncategorized
-    await PDF.updateMany(
-      { pdfFolder: req.params.id, user: req.user.userId },
-      { pdfFolder: null }
-    );
-    await PDFFolder.deleteOne({ _id: req.params.id, user: req.user.userId });
-    res.json({ message: 'Document folder removed; documents moved to Unfiled.' });
-  } catch (error) {
-    res.status(500).json({ message: 'Error deleting PDF folder', error: error.message });
-  }
-});
-
 // Health check
 app.get('/api/health', (req, res) => {
   const ready = mongoose.connection.readyState === 1;

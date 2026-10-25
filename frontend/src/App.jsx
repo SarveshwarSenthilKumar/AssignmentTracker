@@ -3,6 +3,9 @@ import AccountAIAccess from './components/AccountAIAccess'
 import ResumesPage from './components/ResumesPage'
 import JobsPage from './components/JobsPage'
 import CoverLettersPage from './components/CoverLettersPage'
+import {folderTree} from './lib/folderHierarchy'
+import FolderHierarchyControls from './components/FolderHierarchyControls'
+import FolderParentSelect from './components/FolderParentSelect'
 import TaskDeletionUndo, { notifyTaskDeletion } from './components/TaskDeletionUndo'
 import TimeZoneSettings from './components/TimeZoneSettings'
 
@@ -62,8 +65,10 @@ function App() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [showFolderModal, setShowFolderModal] = useState(false)
+  useEffect(()=>{if(showFolderModal)setNewFolderParent(selectedFolder&&selectedFolder!=='all'?selectedFolder:null)},[showFolderModal,selectedFolder])
   const [showProfileModal, setShowProfileModal] = useState(false)
   const [newFolderName, setNewFolderName] = useState('')
+  const [newFolderParent,setNewFolderParent]=useState(null)
   const [newFolderColor, setNewFolderColor] = useState('#64788b')
 
 
@@ -982,7 +987,7 @@ function App() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ name: newFolderName.trim(), color: newFolderColor }),
+        body: JSON.stringify({ name: newFolderName.trim(), color: newFolderColor,parentId:newFolderParent }),
       })
       if (!response.ok) {
         const errorData = await readApiJson(response).catch(() => ({}))
@@ -994,7 +999,7 @@ function App() {
         throw new Error(errorMessage)
       }
       const newFolder = await readApiJson(response)
-      setFolders([...folders, newFolder])
+      setFolders(previous=>[...previous, newFolder]);setSelectedFolder(newFolder._id);setNewFolderParent(null)
       setNewFolderName('')
       setShowFolderModal(false)
     } catch (err) {
@@ -1025,9 +1030,10 @@ function App() {
         }
         throw new Error(errorMessage)
       }
-      setFolders(folders.filter(f => f._id !== id))
-      setTodos(todos.filter(t => t.folder !== id))
-      if (selectedFolder === id) setSelectedFolder(null)
+      const result=await readApiJson(response),parentId=result.parentId||null
+      setFolders(previous=>previous.filter(f => f._id !== id).map(folder=>folder.parentId===id?{...folder,parentId}:folder))
+      setTodos(previous=>previous.map(task=>task.folder===id?{...task,folder:parentId}:task))
+      if (selectedFolder === id) setSelectedFolder(parentId)
       setContextMenu(null)
     } catch (err) {
       if (err.message === 'Invalid or expired token') {
@@ -1483,7 +1489,7 @@ function App() {
             </div>
 
             {/* Custom Folders */}
-            {folders.map((folder) => (
+            {folderTree(folders).map((folder) => (
               <div
                 key={folder._id}
                 onContextMenu={(e) => handleContextMenu(e, folder)}
@@ -1523,7 +1529,7 @@ function App() {
                     }}
                   >
                     <Folder size={16} />
-                    <span className="font-medium">{folder.name}</span>
+                    <span className="font-medium" title={folder.path}>{folder.path}</span>
                     <span className={cn(
                       "px-2 py-0.5 rounded-full text-xs",
                       selectedFolder === folder._id
@@ -1548,6 +1554,7 @@ function App() {
           </div>
         </div>
 
+        <FolderHierarchyControls folders={folders} selected={selectedFolder} token={token} base="/api/folders" onFoldersChange={setFolders} onSelect={setSelectedFolder} onCreate={id=>{setNewFolderParent(id);setNewFolderName('');setShowFolderModal(true)}} disabled={loading}/>
         <form onSubmit={addTodo} className="mb-6">
           <div className="flex gap-3">
             <input
@@ -1723,6 +1730,7 @@ function App() {
             <div className="bg-slate-900 border border-white/10 rounded-2xl p-6 w-full max-w-md">
               <h3 className="text-2xl font-bold text-white mb-4">Create New Folder</h3>
               <form onSubmit={createFolder}>
+                <div className="mb-4"><FolderParentSelect folders={folders} value={newFolderParent} onChange={setNewFolderParent}/></div>
                 <div className="mb-4">
                   <label className="block text-slate-400 mb-2 text-sm">Folder Name</label>
                   <input
