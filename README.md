@@ -442,6 +442,10 @@ Known Gemini 3/4 models use low thinking effort and Gemini 2.5 Pro/Flash use a 1
 
 Thinking configuration reference: https://ai.google.dev/gemini-api/docs/generate-content/thinking .
 
+### Home dashboard
+
+The default signed-in landing page is Home (`#/home`); existing deep links still open their requested pages. The brand link and Home navigation item return to the dashboard. Home shows real open-task and deadline counts, a task focus list, overall completion, a seven-day agenda, recent non-trashed documents, career tools and quick actions. Tasks and documents open their existing editors; saved calendar entries open the matching event, and public TXST events link to their event pages. Dates and greetings follow the account time zone. Calendar visibility preferences are respected. Empty states, loading states and schedule errors are displayed without inventing activity. Refresh reloads saved tasks, documents and appointments. Refresh the frontend to load this page; no new dependencies or backend setup are required.
+
 ### Nested document and task folders
 
 Task and document folders support up to 12 levels of nesting. Existing folders remain at the top level. Select a folder and use **New subfolder**, or choose a parent in the new-folder dialog. The folder-path controls also let you move an existing folder, including its descendants, to another parent or back to the top level. Document sidebars show indentation; task tabs and destination choices display folder paths. Breadcrumb buttons navigate back through the hierarchy. Folder views contain their directly assigned items; select a child folder to view its items.
