@@ -33,7 +33,7 @@ function NativePagePreview({page}){
   return url?<><iframe className="onenote-native-preview" title={`OneNote page: ${page.title}`} src={url}/><button type="button" onClick={async()=>{const bytes=Uint8Array.from(atob(page.pdfData),character=>character.charCodeAt(0));await downloadBlob(new Blob([bytes],{type:'application/pdf'}),'OneNote-original-export.pdf')}}>Download original OneNote PDF</button><p>{page.sourceInkObjects==null?'OneNote did not provide an ink count for this section.':page.sourceInkObjects>0?`OneNote reported ${page.sourceInkObjects} ink objects on this source page.`:'OneNote reported no ink objects on this source page. If you expect handwriting, check that this exported .one/.onepkg contains your latest edits.'}</p></>:<p>Preparing preview…</p>
 }
 
-export default function OneNoteImport({token,folderId,onClose,onCreated,initialFile=null,initialTags=[]}){
+export default function OneNoteImport({token,folderId,onClose,onCreated,initialFile=null,initialTags=[],saveDisabled=false}){
   const [file,setFile]=useState(initialFile),[title,setTitle]=useState(initialFile?.name.replace(/\.(one|onepkg)$/i,'')||'Imported notebook'),[data,setData]=useState(null),[selected,setSelected]=useState(new Set()),[busy,setBusy]=useState(''),[error,setError]=useState('')
   const lock=useRef(false),paper=useRef(null),autoStarted=useRef(false)
   const [compatibility,setCompatibility]=useState(false),[previewIndex,setPreviewIndex]=useState(0)
@@ -51,7 +51,7 @@ export default function OneNoteImport({token,folderId,onClose,onCreated,initialF
     setData(result);setPreviewIndex(0);setSelected(new Set(result.pages.map((_,index)=>index)))
   })
   useEffect(()=>{if(initialFile&&!autoStarted.current){autoStarted.current=true;extract()}},[initialFile])
-  const save=()=>run(async()=>{
+  const save=()=>{if(saveDisabled)return;return run(async()=>{
     if(!selected.size||!title.trim())return
     setBusy('Preparing notes…')
     const {PDFDocument}=await import('pdf-lib'),pdf=await PDFDocument.create()
@@ -107,7 +107,7 @@ export default function OneNoteImport({token,folderId,onClose,onCreated,initialF
     const response=await fetch('/api/pdfs',{method:'POST',headers:{Authorization:`Bearer ${token}`},body}),result=await readApiJson(response)
     if(!response.ok||!result._id)throw new Error(result.message||'Could not save the notes document.')
     onCreated(result)
-  })
+  })}
   return <section className="markdown-pdf-creator onenote-import" onKeyDown={event=>event.stopPropagation()} aria-label="Import OneNote notebook">
     <header><div><FileText size={19}/><h3>Import OneNote</h3></div><button disabled={!!busy} onClick={onClose} aria-label="Close OneNote import"><X size={17}/></button></header>
     <p>Import a .one section or .onepkg notebook as a notes PDF, then annotate it in the editor. Text and handwriting become rendered page content. Keep your original file for editing in OneNote.</p>
@@ -120,6 +120,6 @@ export default function OneNoteImport({token,folderId,onClose,onCreated,initialF
       {data.mode==='native'?<div className="markdown-pdf-preview"><label>Preview page or section <select value={previewIndex} onChange={event=>setPreviewIndex(Number(event.target.value))}>{pages.map((page,index)=><option key={index} value={index}>{index+1}. {page.title}</option>)}</select></label><NativePagePreview page={pages[previewIndex]}/><p>Each source page may span multiple PDF sheets. Saving keeps every sheet from each selected page, with OneNote’s rendering intact.</p></div>:<div className="markdown-pdf-preview"><div className="markdown-pdf-preview-label">Compatibility preview · layout and ink may differ</div><article ref={paper} className="markdown-pdf-paper onenote-paper"><div className="assistant-markdown">{pages.map((page,index)=>selected.has(index)&&<section key={index} className="onenote-page"><p className="onenote-section">{page.section}</p><h1>{page.title}</h1><div dangerouslySetInnerHTML={{__html:page.html}}/></section>)}</div></article></div>}
     </>}
     {error&&<p role="alert" className="markdown-pdf-error">{error}</p>}
-    <footer><p role="status">{busy||'Up to 10 MB per package and 200 source pages. Larger notebooks can be imported in parts.'}</p><button className="library-primary" disabled={!!busy||!data||!selected.size||!title.trim()} onClick={save}>Save & open notes</button></footer>
+    <footer><p role="status">{busy||'Up to 10 MB per package and 200 source pages. Larger notebooks can be imported in parts.'}</p><button className="library-primary" disabled={saveDisabled||!!busy||!data||!selected.size||!title.trim()} onClick={save}>Save & open notes</button></footer>
   </section>
 }

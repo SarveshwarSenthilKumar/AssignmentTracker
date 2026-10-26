@@ -2255,6 +2255,7 @@ function App() {
             onUploadSuccess={handlePDFUploadSuccess}
             initialFolder={typeof selectedPDFFolder === 'string' && selectedPDFFolder !== 'all' && selectedPDFFolder !== 'trash' ? selectedPDFFolder : ''}
             pdfFolders={pdfFolders}
+            onFolderCreated={folder=>setPdfFolders(previous=>previous.some(item=>item._id===folder._id)?previous:[...previous,folder])}
           />
         )}
 

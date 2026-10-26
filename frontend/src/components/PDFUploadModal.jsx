@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react'
-import { X, Upload, FileText, Loader2, Tag, Folder } from 'lucide-react'
+import UploadFolderPicker from './UploadFolderPicker'
+import {readApiJson} from '../lib/apiResponse'
+import { useState, useRef } from 'react'
+import { X, Upload, FileText, Loader2, Tag } from 'lucide-react'
 import { cn } from '../lib/utils'
 import OneNoteImport from './OneNoteImport'
 
-export default function PDFUploadModal({ onClose, token, onUploadSuccess, pdfFolders, initialFolder = '' }) {
+export default function PDFUploadModal({ onClose, token, onUploadSuccess, pdfFolders=[], onFolderCreated, initialFolder = '' }) {
   const [pdfFile, setPdfFile] = useState(null)
   const [pdfName, setPdfName] = useState('')
   const [selectedFolder, setSelectedFolder] = useState(initialFolder)
@@ -11,6 +13,11 @@ export default function PDFUploadModal({ onClose, token, onUploadSuccess, pdfFol
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
   const [oneNoteFile, setOneNoteFile] = useState(null)
+  const [folderPending,setFolderPending]=useState(false)
+  const [addedFolders,setAddedFolders]=useState([])
+  const uploadLock=useRef(false)
+  const folders=[...pdfFolders,...addedFolders.filter(folder=>!pdfFolders.some(existing=>existing._id===folder._id))]
+  const folderPicker=<UploadFolderPicker folders={folders} value={selectedFolder} onChange={setSelectedFolder} token={token} disabled={uploading} onPendingChange={setFolderPending} onCreated={folder=>{setAddedFolders(previous=>[...previous,folder]);onFolderCreated?.(folder)}}/>
 
   const handleFileChange = (e) => {
     const file = e.target.files[0]
@@ -27,11 +34,13 @@ export default function PDFUploadModal({ onClose, token, onUploadSuccess, pdfFol
 
   const handleUpload = async (e) => {
     e.preventDefault()
+    if(uploadLock.current||folderPending)return
     if (!pdfFile) {
       setError('Please select a file')
       return
     }
 
+    uploadLock.current=true
     setUploading(true)
     setError('')
 
@@ -54,12 +63,8 @@ export default function PDFUploadModal({ onClose, token, onUploadSuccess, pdfFol
         body: formData
       })
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || 'Failed to upload a document')
-      }
-
-      const data = await response.json()
+      const data = await readApiJson(response)
+      if (!response.ok||!data._id) throw new Error(data.message || 'Failed to upload a document')
       onUploadSuccess(data)
       onClose()
       setPdfFile(null)
@@ -69,17 +74,14 @@ export default function PDFUploadModal({ onClose, token, onUploadSuccess, pdfFol
     } catch (err) {
       setError(err.message)
     } finally {
+      uploadLock.current=false
       setUploading(false)
     }
   }
 
   if(oneNoteFile) return <div className="app-inline-panel document-upload-panel">
-    <label className="block text-slate-400 text-sm mb-2">Save notes in
-      <select value={selectedFolder} onChange={event=>setSelectedFolder(event.target.value)} className="ml-3 rounded-lg bg-slate-800 p-2 text-white">
-        <option value="">Unfiled</option>{pdfFolders.map(folder=><option key={folder._id} value={folder._id}>{folder.name}</option>)}
-      </select>
-    </label>
-    <OneNoteImport initialFile={oneNoteFile} initialTags={tags.split(',').map(tag=>tag.trim()).filter(Boolean)} token={token} folderId={selectedFolder||null} onClose={()=>{setOneNoteFile(null);setPdfFile(null);setPdfName('')}} onCreated={document=>{onUploadSuccess(document);onClose()}}/>
+    {folderPicker}
+    <OneNoteImport saveDisabled={folderPending} initialFile={oneNoteFile} initialTags={tags.split(',').map(tag=>tag.trim()).filter(Boolean)} token={token} folderId={selectedFolder||null} onClose={()=>{setOneNoteFile(null);setPdfFile(null);setPdfName('')}} onCreated={document=>{onUploadSuccess(document);onClose()}}/>
   </div>
 
   return (
@@ -89,6 +91,7 @@ export default function PDFUploadModal({ onClose, token, onUploadSuccess, pdfFol
           <h3 className="text-2xl font-bold text-white">Upload document</h3>
           <button
             onClick={onClose}
+            disabled={uploading}
             aria-label="Close upload panel"
             className="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition-all"
           >
@@ -105,6 +108,7 @@ export default function PDFUploadModal({ onClose, token, onUploadSuccess, pdfFol
                 type="file"
                 accept="*/*"
                 onChange={handleFileChange}
+                disabled={uploading}
                 className="hidden"
                 id="pdf-upload"
               />
@@ -142,7 +146,7 @@ export default function PDFUploadModal({ onClose, token, onUploadSuccess, pdfFol
             <label htmlFor="upload-pdfName" className="block text-slate-400 text-sm mb-2">Document name</label>
             <input
               type="text"
-              id="upload-pdfName" value={pdfName}
+              id="upload-pdfName" value={pdfName} disabled={uploading}
               onChange={(e) => setPdfName(e.target.value)}
               placeholder="My Document"
               className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
@@ -150,23 +154,7 @@ export default function PDFUploadModal({ onClose, token, onUploadSuccess, pdfFol
             />
           </div>
 
-          {/* Folder Selection */}
-          <div>
-            <label htmlFor="upload-selectedFolder" className="block text-slate-400 text-sm mb-2">Folder (Optional)</label>
-            <div className="relative">
-              <select
-                id="upload-selectedFolder" value={selectedFolder}
-                onChange={(e) => setSelectedFolder(e.target.value)}
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none"
-              >
-                <option value="">Unfiled</option>
-                {pdfFolders.map((folder) => (
-                  <option key={folder._id} value={folder._id}>{folder.name}</option>
-                ))}
-              </select>
-              <Folder size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-            </div>
-          </div>
+          {folderPicker}
 
           {/* Tags */}
           <div>
@@ -174,7 +162,7 @@ export default function PDFUploadModal({ onClose, token, onUploadSuccess, pdfFol
             <div className="relative">
               <input
                 type="text"
-                id="upload-tags" value={tags}
+                id="upload-tags" value={tags} disabled={uploading}
                 onChange={(e) => setTags(e.target.value)}
                 placeholder="homework, important, chapter1"
                 className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 pl-10"
@@ -195,13 +183,14 @@ export default function PDFUploadModal({ onClose, token, onUploadSuccess, pdfFol
             <button
               type="button"
               onClick={onClose}
+            disabled={uploading}
               className="flex-1 px-4 py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl transition-all"
             >
               Cancel
             </button>
             <button
               type="submit"
-              disabled={uploading || !pdfFile}
+              disabled={uploading || folderPending || !pdfFile}
               className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 text-white rounded-xl transition-all flex items-center justify-center gap-2"
             >
               {uploading ? (
