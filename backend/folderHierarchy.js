@@ -15,7 +15,7 @@ module.exports=function registerFolderHierarchy(app,auth,{mongoose,User,Folder,P
           if(mode!=='delete'){
             if(mode==='create'||req.body.name!==undefined){if(typeof req.body.name!=='string'||!req.body.name.trim()||req.body.name.trim().length>120)throw new Error('Enter a folder name between 1 and 120 characters.');data.name=req.body.name.trim()}
             if(req.body.color!==undefined){if(typeof req.body.color!=='string'||!/^#[a-f\d]{6}$/i.test(req.body.color))throw new Error('Choose a valid folder color.');data.color=req.body.color}
-            if(Model===PDFFolder&&req.body.description!==undefined){if(typeof req.body.description!=='string'||req.body.description.length>2000)throw new Error('Folder description must be up to 2,000 characters.');data.description=req.body.description}
+            if(req.body.description!==undefined){if(typeof req.body.description!=='string'||req.body.description.length>2000)throw new Error('Folder description must be up to 2,000 characters.');data.description=req.body.description.trim()}
             const parent=req.body.parentId===undefined?(current?.parentId?String(current.parentId):null):req.body.parentId;
             if(parent!==null&&(typeof parent!=='string'||!known.has(parent)))throw new Error('Choose a parent folder from your account.');
             data.parentId=parent;

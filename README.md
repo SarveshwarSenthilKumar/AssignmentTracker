@@ -494,3 +494,8 @@ Cancelling does not download a second copy. Failed file writes keep the prepared
 ### Creating folders during upload
 
 In **Upload document**, use **Save in folder → New folder**. Enter a name, choose a parent (or Top level), then select **Create & select folder**. The new folder is added to the library and selected as the upload destination without clearing the chosen file, name or tags. Folder choices display their full nested paths. Finish creating the folder or cancel its inline form before uploading. The same destination controls are available when a OneNote upload opens the importer. Created folders remain in the library if the upload is cancelled or fails, and can be reused on retry. Refresh the frontend; no new dependencies or backend changes are needed.
+
+
+### Folder descriptions
+
+Task and document folders, including subfolders, support optional descriptions of up to 2,000 characters. Add a description in the folder creation form or select an existing folder and use **Add description / Edit description** below its breadcrumb path. Save an empty description to remove it. The upload dialog’s inline folder creator also includes the description field. Descriptions save to the account-owned folder record and are searchable through global search. Existing folders default to an empty description. Restart the backend and refresh the frontend; no dependency changes are required.

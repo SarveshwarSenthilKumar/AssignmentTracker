@@ -103,6 +103,7 @@ const assistantCredentials = createAssistantCredentials(User);
 
 // Folder Schema
 const folderSchema = new mongoose.Schema({
+  description:{type:String,default:'',maxlength:2000},
   parentId:{type:mongoose.Schema.Types.ObjectId,ref:'Folder',default:null,index:true},
   name: {
     type: String,

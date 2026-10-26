@@ -1,3 +1,4 @@
+import {FolderDescriptionInput} from './components/FolderDescription'
 import TaskDisplaySettings from './components/TaskDisplaySettings'
 import StudyPage from './components/StudyPage'
 import AccountConnections from './components/AccountConnections'
@@ -75,6 +76,8 @@ function App() {
   useEffect(()=>{if(showFolderModal)setNewFolderParent(selectedFolder&&selectedFolder!=='all'?selectedFolder:null)},[showFolderModal,selectedFolder])
   const [showProfileModal, setShowProfileModal] = useState(false)
   const [newFolderName, setNewFolderName] = useState('')
+  const [newFolderDescription,setNewFolderDescription]=useState('')
+  useEffect(()=>{if(showFolderModal)setNewFolderDescription('')},[showFolderModal])
   const [newFolderParent,setNewFolderParent]=useState(null)
   const [newFolderColor, setNewFolderColor] = useState('#64788b')
 
@@ -996,7 +999,7 @@ function App() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ name: newFolderName.trim(), color: newFolderColor,parentId:newFolderParent }),
+        body: JSON.stringify({ name: newFolderName.trim(), color: newFolderColor,parentId:newFolderParent,description:newFolderDescription }),
       })
       if (!response.ok) {
         const errorData = await readApiJson(response).catch(() => ({}))
@@ -1781,6 +1784,7 @@ function App() {
                     autoFocus
                   />
                 </div>
+                <FolderDescriptionInput value={newFolderDescription} onChange={setNewFolderDescription}/>
                 <div className="mb-6">
                   <label className="block text-slate-400 mb-2 text-sm">Folder Color</label>
                   <div className="flex gap-3">

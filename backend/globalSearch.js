@@ -71,8 +71,8 @@ module.exports=function registerGlobalSearch(app,auth,{mongoose,User,Todo,PDF,Fo
         events:[CalendarEntry,{...owner,$and:terms.map(term=>({$or:[...['title','notes','location','kind','startDate','endDate','sports.sport','sports.league','sports.team','sports.opponent'].map(field=>({[field]:term})),{categoryId:{$in:(userInfo?.calendarCategories||[]).filter(category=>term.test(category.name)).map(category=>category.id)}}]}))},'title notes location startAt startDate kind'],
         jobs:[SavedJob,{...owner,...match(['title','company','location','url','description','requirements','responsibilities','benefits','employmentType','salary','datePosted','validThrough','source'])},'title company location'],
         chats:[AssistantConversation,{...owner,...match(['title','messages.content','messages.attachments.name'])},'title archived'],
-        taskFolders:[Folder,{...owner,_id:{$in:taskPaths.filter(folder=>terms.every(term=>term.test(folder.path))).map(folder=>folder.id)}},'name parentId'],
-        documentFolders:[PDFFolder,{...owner,$or:[match(['name','description']),{_id:{$in:documentPaths.filter(folder=>terms.every(term=>term.test(folder.path))).map(folder=>folder.id)}}]},'name parentId'],
+        taskFolders:[Folder,{...owner,$and:terms.map(term=>({$or:[{description:term},{_id:{$in:taskPaths.filter(folder=>term.test(folder.path)).map(folder=>folder.id)}}]}))},'name parentId description'],
+        documentFolders:[PDFFolder,{...owner,$and:terms.map(term=>({$or:[{description:term},{_id:{$in:documentPaths.filter(folder=>term.test(folder.path)).map(folder=>folder.id)}}]}))},'name parentId description'],
       };
       const selected=req.query.group?Object.entries(groups).filter(([key])=>key===req.query.group):Object.entries(groups);
       const results=await Promise.all(selected.map(async([type,[Model,filter,fields]])=>{
