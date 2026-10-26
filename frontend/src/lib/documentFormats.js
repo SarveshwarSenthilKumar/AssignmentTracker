@@ -38,7 +38,4 @@ export function serializeDelimited(rows, separator = ',') {
 }
 export const fileBytes = base64 => Uint8Array.from(atob(base64), ch => ch.charCodeAt(0))
 export const blobBase64 = blob => new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result.split(',')[1]); reader.onerror = () => reject(new Error('Could not read file content.')); reader.readAsDataURL(blob) })
-export function downloadBlob(blob, name) {
-  const url = URL.createObjectURL(blob), link = document.createElement('a')
-  link.href = url; link.download = name; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000)
-}
+export {saveDownload as downloadBlob} from './download'

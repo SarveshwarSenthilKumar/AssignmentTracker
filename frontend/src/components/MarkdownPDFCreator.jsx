@@ -43,7 +43,7 @@ export default function MarkdownPDFCreator({token,folderId,onClose,onCreated,ini
       })
       const blob=new Blob([await merged.save()],{type:'application/pdf'}),filename=(title.replace(/[<>:"/\\|?*\u0000-\u001f]/g,'-').replace(/\.pdf$/i,'').trim()||'Markdown document')+'.pdf'
       if(!blob.size)throw new Error('PDF conversion returned an empty file. Try a shorter document.')
-      if(!save){downloadBlob(blob,filename);return}
+      if(!save){await downloadBlob(blob,filename);return}
       if(blob.size>10*1024*1024)throw new Error('This PDF exceeds the 10 MB library limit. Download it or split the Markdown into smaller documents.')
       const body=new FormData();body.append('pdfFile',new File([blob],filename,{type:'application/pdf'}));body.append('name',title.trim());body.append('tags',JSON.stringify(['markdown-pdf']));if(folderId)body.append('pdfFolderId',folderId)
       const response=await fetch('/api/pdfs',{method:'POST',headers:{Authorization:`Bearer ${token}`},body})

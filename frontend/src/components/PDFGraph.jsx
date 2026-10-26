@@ -1,3 +1,4 @@
+import {downloadBlob} from '../lib/documentFormats'
 import {useEffect,useRef,useState} from 'react'
 import {LineChart,X} from 'lucide-react'
 import {compileGraph,drawGraph} from '../lib/pdfGraph'
@@ -21,7 +22,7 @@ export default function PDFGraph({open,onClose,selection,onInsert,canInsert}) {
     <div className="pdf-graph-limits">{['X min','X max','Y min','Y max'].map((label,i)=><label key={label}>{label}<input type="number" step="any" value={limits[i]} onChange={e=>setLimits(values=>values.map((v,j)=>i===j?e.target.value:v))}/></label>)}</div>
     {error&&<p className="pdf-calculator-error" role="alert">{error}</p>}{notice&&<p role="status">{notice}</p>}
     <canvas ref={canvas} width={720} height={520} hidden={!valid} aria-label={`Plot of ${expression}`} role="img"/>
-    <div className="pdf-graph-actions"><button type="button" disabled={!valid||!canInsert} onClick={()=>{try{onInsert(asset())}catch(e){setError(e.message)}}}>Insert on page</button><button type="button" disabled={!valid} onClick={()=>{const a=document.createElement('a');a.href=asset().dataUrl;a.download='equation-graph.png';a.click()}}>Download PNG</button></div>
+    <div className="pdf-graph-actions"><button type="button" disabled={!valid||!canInsert} onClick={()=>{try{onInsert(asset())}catch(e){setError(e.message)}}}>Insert on page</button><button type="button" disabled={!valid} onClick={async()=>{try{const blob=await new Promise(resolve=>canvas.current.toBlob(resolve,'image/png'));if(!blob)throw new Error('Could not export the graph.');await downloadBlob(blob,'equation-graph.png')}catch(error){setError(error.message||'Could not save the graph.')}}>Download PNG</button></div>
     <p>Supports powers, fractions, implicit multiplication (2x), sin, cos, tan, asin, acos, atan, sqrt, abs, ln, log (base 10), exp, floor, ceil, pi and e. Sampled preview; narrow features may need smaller axis limits.</p>
   </aside>
 }

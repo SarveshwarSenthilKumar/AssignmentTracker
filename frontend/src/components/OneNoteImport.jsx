@@ -30,7 +30,7 @@ function NativePagePreview({page}){
     const next=URL.createObjectURL(new Blob([bytes],{type:'application/pdf'}));setUrl(next)
     return()=>URL.revokeObjectURL(next)
   },[page.pdfData])
-  return url?<><iframe className="onenote-native-preview" title={`OneNote page: ${page.title}`} src={url}/><button type="button" onClick={()=>{const bytes=Uint8Array.from(atob(page.pdfData),character=>character.charCodeAt(0));downloadBlob(new Blob([bytes],{type:'application/pdf'}),'OneNote-original-export.pdf')}}>Download original OneNote PDF</button><p>{page.sourceInkObjects==null?'OneNote did not provide an ink count for this section.':page.sourceInkObjects>0?`OneNote reported ${page.sourceInkObjects} ink objects on this source page.`:'OneNote reported no ink objects on this source page. If you expect handwriting, check that this exported .one/.onepkg contains your latest edits.'}</p></>:<p>Preparing preview…</p>
+  return url?<><iframe className="onenote-native-preview" title={`OneNote page: ${page.title}`} src={url}/><button type="button" onClick={async()=>{const bytes=Uint8Array.from(atob(page.pdfData),character=>character.charCodeAt(0));await downloadBlob(new Blob([bytes],{type:'application/pdf'}),'OneNote-original-export.pdf')}}>Download original OneNote PDF</button><p>{page.sourceInkObjects==null?'OneNote did not provide an ink count for this section.':page.sourceInkObjects>0?`OneNote reported ${page.sourceInkObjects} ink objects on this source page.`:'OneNote reported no ink objects on this source page. If you expect handwriting, check that this exported .one/.onepkg contains your latest edits.'}</p></>:<p>Preparing preview…</p>
 }
 
 export default function OneNoteImport({token,folderId,onClose,onCreated,initialFile=null,initialTags=[]}){

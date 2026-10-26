@@ -154,8 +154,8 @@ export default function DocumentEditor({ pdfId, token, onClose, onCleanCopy, ass
       if (original) {
         const response = await fetch(`/api/pdfs/${pdfId}/original`, { headers: { Authorization: `Bearer ${token}` } })
         if (!response.ok) throw new Error('Could not download the original.')
-        downloadBlob(await response.blob(), filename)
-      } else downloadBlob(dirty && !loadFailed && ['text','word','table','workbook'].includes(kind) ? await serialize() : new Blob([bytesRef.current], { type: mime }), filename)
+        await downloadBlob(await response.blob(), filename)
+      } else await downloadBlob(dirty && !loadFailed && ['text','word','table','workbook'].includes(kind) ? await serialize() : new Blob([bytesRef.current], { type: mime }), filename)
     } catch (err) { setError(err.message) }
   }
   useShortcuts('Document editor', {

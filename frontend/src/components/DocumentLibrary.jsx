@@ -133,7 +133,7 @@ export default function DocumentLibrary({ tasks = [], onOpenTask, documents, fol
   const download = file => run(async () => {
     const response = await fetch(`/api/pdfs/${file._id}/download`, { headers: { Authorization: `Bearer ${token}` } })
     if (!response.ok) throw new Error('Could not download the document.')
-    downloadBlob(await response.blob(), file.originalName)
+    await downloadBlob(await response.blob(), file.originalName)
   })
   useShortcuts('Documents', {
     upload: () => { if (!inTrash) onUpload() },

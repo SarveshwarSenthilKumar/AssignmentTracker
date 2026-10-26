@@ -1,3 +1,4 @@
+import {downloadBlob} from '../lib/documentFormats'
 import PDFInkLayer, { PDFLiveInk } from './PDFInkLayer'
 import { serializeAnnotations } from '../lib/annotationSerializer'
 import PDFEditorChrome from './PDFEditorChrome'
@@ -1493,14 +1494,8 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
           if (!blob) throw new Error('Could not export the image.')
         } finally { await task.destroy() }
       }
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = exportImage ? `${(pdfData?.originalName || 'image').replace(/\.[^.]+$/, '')}-edited.png` : pdfData?.originalName || pdfData?.name || 'document.pdf'
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      window.URL.revokeObjectURL(url)
+      const filename = exportImage ? `${(pdfData?.originalName || 'image').replace(/\.[^.]+$/, '')}-edited.png` : pdfData?.originalName || pdfData?.name || 'document.pdf'
+      await downloadBlob(blob, filename)
     } catch (err) {
 
       setActionError(err.message || 'Failed to download PDF')

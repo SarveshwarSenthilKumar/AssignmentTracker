@@ -41,13 +41,13 @@ export default function ResumesPage({token,documents,onDocumentsChange,onOpen}){
           const {burnAnnotations}=await import('./PDFEditor')
           const bytes=Uint8Array.from(atob(metadata.pdfData),character=>character.charCodeAt(0))
           const output=await burnAnnotations(bytes,metadata.annotations,true)
-          downloadBlob(new Blob([output],{type:'application/pdf'}),document.originalName||document.name)
+          await downloadBlob(new Blob([output],{type:'application/pdf'}),document.originalName||document.name)
           return
         }
       }
       const response=await fetch(`/api/pdfs/${document._id}/download`,{headers:{Authorization:`Bearer ${token}`}})
       if(!response.ok){const result=await readApiJson(response);throw new Error(result.message||'Could not download your resume.')}
-      downloadBlob(await response.blob(),document.originalName||document.name)
+      await downloadBlob(await response.blob(),document.originalName||document.name)
     }catch(err){setError(err.message)}finally{setDownloading(null)}
   }
   return <section className="resumes-page" aria-label="Resume storage">

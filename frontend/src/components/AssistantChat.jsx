@@ -1,3 +1,4 @@
+import {downloadBlob} from '../lib/documentFormats'
 import {studyRequest} from '../lib/study'
 import {editorSnapshot,applyEditorActions} from '../lib/editorBridge'
 import { createPortal } from 'react-dom'
@@ -194,10 +195,11 @@ export default function AssistantChat({open,onClose,token,section,documentId,doc
     }catch(error){fail(error)}finally{managementLock.current=false;setManaging(false)}
   }
   const copy=async text=>{try{await navigator.clipboard.writeText(text);setNotice('Copied to clipboard.')}catch{setNotice('Clipboard unavailable. Select the message text to copy it.')}}
-  const exportChat=()=>{
+  const exportChat=async()=>{
     if(!chat)return
     const content=`# ${chat.title}\n\n`+messages.map(message=>`## ${message.role==='user'?'You':'Assistant'}\n\n${message.content}\n`).join('\n')
-    const url=URL.createObjectURL(new Blob([content],{type:'text/markdown;charset=utf-8'})),link=document.createElement('a');link.href=url;link.download=`${chat.title.replace(/[^a-zA-Z0-9 _-]/g,'').slice(0,80)||'conversation'}.md`;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);setNotice('Chat exported as Markdown.')
+    try{const saved=await downloadBlob(new Blob([content],{type:'text/markdown;charset=utf-8'}),`${chat.title.replace(/[^a-zA-Z0-9 _-]/g,'').slice(0,80)||'conversation'}.md`);if(saved)setNotice('Chat exported as Markdown.')}catch(error){setError(error.message||'Could not export the chat.')}
+
   }
   const last=messages.at(-1)
   const assistantPanel=open&&<aside ref={sizing.panelRef} data-assistant-ui className={`assistant-panel has-history is-expanded is-resizable${sizing.interacting?' is-interacting':''}${mode==='page'?' is-page':''}${historyOpen?' history-visible':''}`} role={mode==='page'?'region':'dialog'} aria-modal={mode==='page'?undefined:false} aria-labelledby="assistant-title" onKeyDown={event=>event.stopPropagation()}>
