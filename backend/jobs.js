@@ -14,14 +14,16 @@ function publicV4(ip){
   const [a,b,c]=ip.split('.').map(Number);
   return !(a===0||a===10||a===127||a>=224||a===169&&b===254||a===172&&b>=16&&b<=31||a===192&&(b===168||b===0||b===2)||a===100&&b>=64&&b<=127||a===198&&(b===18||b===19||b===51&&c===100)||a===203&&b===0&&c===113);
 }
-async function pageHTML(input,json=false){
-  let url=safeURL(input);const deadline=Date.now()+20000;
+async function pageHTML(input,json=false,{signal,timeoutMs=20000,maxBytes=6*1024*1024}={}){
+  let url=safeURL(input);const deadline=Date.now()+timeoutMs;
   for(let hop=0;hop<5;hop++){
-    const addresses=await dns.lookup(url.hostname,{all:true,family:4});
+    if(signal?.aborted)throw new Error('The public-page request was canceled.');
+    let dnsTimer;
+    const addresses=await Promise.race([dns.lookup(url.hostname,{all:true,family:4}),new Promise((_,reject)=>{dnsTimer=setTimeout(()=>reject(new Error('The public website address lookup timed out.')),Math.max(1,deadline-Date.now()))})]).finally(()=>clearTimeout(dnsTimer));
     if(!addresses.length||addresses.some(item=>!publicV4(item.address)))throw new Error('Only public job websites can be imported.');
     const address=addresses[0].address;
     const result=await new Promise((resolve,reject)=>{
-      const req=https.get(url,{agent:false,headers:{'User-Agent':'AssignmentTracker/1.0 (job posting import)','Accept':json?'application/json':'text/html,application/xhtml+xml','Accept-Encoding':'gzip, deflate, br'},lookup:(_host,options,callback)=>options?.all?callback(null,[{address,family:4}]):callback(null,address,4)},res=>{
+      const req=https.get(url,{agent:false,signal,headers:{'User-Agent':'AssignmentTracker/1.0 (job posting import)','Accept':json?'application/json':'text/html,application/xhtml+xml','Accept-Encoding':'gzip, deflate, br'},lookup:(_host,options,callback)=>options?.all?callback(null,[{address,family:4}]):callback(null,address,4)},res=>{
         if([301,302,303,307,308].includes(res.statusCode)){res.resume();resolve({location:res.headers.location});return}
         if(res.statusCode!==200){res.resume();reject(new Error(`The job website returned ${res.statusCode}. Paste the job details manually if it requires sign-in or blocks imports.`));return}
         if(!(json?/application\/(?:[\w.+-]*\+)?json/i:/text\/html|application\/xhtml\+xml/i).test(res.headers['content-type']||'')){res.resume();reject(new Error('This link does not return a job web page.'));return}
@@ -29,8 +31,8 @@ async function pageHTML(input,json=false){
         const decoder=encoding==='gzip'?zlib.createGunzip():encoding==='deflate'?zlib.createInflate():encoding==='br'?zlib.createBrotliDecompress():null;
         const stream=decoder?res.pipe(decoder):res;
         const chunks=[];let size=0,received=0;
-        res.on('data',chunk=>{received+=chunk.length;if(received>6*1024*1024)req.destroy(new Error('Job page is too large.'))});
-        stream.on('data',chunk=>{size+=chunk.length;if(size>6*1024*1024){req.destroy(new Error('Job page is too large.'));stream.destroy();return}chunks.push(chunk)});
+        res.on('data',chunk=>{received+=chunk.length;if(received>maxBytes)req.destroy(new Error('Web page is too large.'))});
+        stream.on('data',chunk=>{size+=chunk.length;if(size>maxBytes){req.destroy(new Error('Web page is too large.'));stream.destroy();return}chunks.push(chunk)});
         res.on('error',reject);stream.on('error',reject);stream.on('end',()=>resolve({html:Buffer.concat(chunks).toString('utf8')}));
       });
       const timer=setTimeout(()=>req.destroy(new Error('The job website took too long. Paste the details manually.')),Math.max(1,deadline-Date.now()));
@@ -67,3 +69,5 @@ module.exports=function registerJobs(app,auth,mongoose){
   app.delete('/api/jobs/:id',auth,async(req,res)=>{if(!mongoose.isValidObjectId(req.params.id))return res.status(400).json({message:'Invalid job.'});try{const job=await Job.findOneAndDelete({_id:req.params.id,user:req.user.userId});if(!job)return res.status(404).json({message:'Job not found.'});res.json({ok:true})}catch{res.status(500).json({message:'Could not delete job.'})}});
   return Job;
 };
+module.exports.pageHTML=pageHTML;
+module.exports.safeURL=safeURL;

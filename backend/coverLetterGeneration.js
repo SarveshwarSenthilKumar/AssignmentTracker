@@ -5,6 +5,7 @@ const {documentInput}=require('./assistant');
 const {callAssistantAPI,AssistantAPIError,diagnostic,safeMessage}=require('./assistantDiagnostics');
 const {instruction,cleanupInstruction,compactText,generationConfig}=require('./coverLetterPrompt');
 const resumeInstruction=require('./resumePrompt');
+const researchCompany=require('./companyResearch');
 
 async function wordTemplate(bytes){
   const zip=await JSZip.loadAsync(bytes),entry=zip.file('word/document.xml');
@@ -80,7 +81,14 @@ module.exports=function registerCoverLetterGeneration(app,auth,{PDF,SavedJob,mon
       else if(req.body.jobId){if(!mongoose.isValidObjectId(req.body.jobId))throw new Error('Choose a saved job.');role=await SavedJob.findOne({_id:req.body.jobId,user}).lean();if(!role)throw new Error('The selected job is unavailable.');role=Object.fromEntries(['title','company','location','description','requirements','responsibilities'].map(key=>[key,role[key]||'']));}
       else{if(typeof req.body.role!=='string'||req.body.role.trim().length<20||req.body.role.length>15000)throw new Error('Choose a saved job or enter 20–15,000 characters describing the role.');role={description:req.body.role.trim()};}
       const credential=await credentials.resolve(user);if(!credential.apiKey)throw new Error('Save a Gemini API key in Account → AI settings.');
+      let companyResearch=null;
+      if(isResume&&req.body.researchCompany!==undefined&&typeof req.body.researchCompany!=='boolean')throw new Error('Choose whether to research the company website.');
+      if(isResume&&req.body.researchCompany===true){
+        stage='Researching company website';
+        companyResearch=await researchCompany(req.body.companyWebsite,{signal:controller.signal,company:role.company});
+      }
       const contextWarnings=[],phraseSources=new Map([[String(template._id),{name:template.name,text:slots.map(slot=>slot.text).join(' ')}]]);
+      if(companyResearch)contextWarnings.push(...companyResearch.warnings);
       if(isPDF&&template.annotations?.length)contextWarnings.push('Saved text edits are included in this draft. Existing ink, highlights and images are retained in the copy; handwriting and image content are not interpreted as applicant facts.');
       const briefRole={};
       for(const [field,value]of Object.entries(role)){
@@ -89,6 +97,7 @@ module.exports=function registerCoverLetterGeneration(app,auth,{PDF,SavedJob,mon
         if(compact.trimmed)contextWarnings.push(`The job ${field} was shortened for a faster request. Check relevance to the full posting.`);
       }
       const parts=[{text:JSON.stringify({templateId:String(template._id),format:isWord?'Word text runs':'PDF positioned lines',...(cleanup?{cleanupComments}:{role:briefRole}),slots})}];
+      if(companyResearch?.sources.length)parts.push({text:JSON.stringify({companyContext:{purpose:'Employer background only, never applicant qualifications',fetchedAt:companyResearch.fetchedAt,sources:companyResearch.sources}})});
       const suppliedTexts=cleanup?undefined:req.body.referenceTexts;
       if(suppliedTexts!==undefined&&(!suppliedTexts||typeof suppliedTexts!=='object'||Array.isArray(suppliedTexts)||Object.entries(suppliedTexts).some(([id,text])=>!references.some(file=>String(file._id)===id)||typeof text!=='string'||text.length>30000)))throw new Error('Invalid reference text. Select your documents again.');
       let remaining=32000,visualCount=0;
@@ -133,10 +142,10 @@ module.exports=function registerCoverLetterGeneration(app,auth,{PDF,SavedJob,mon
       const warnings=[...contextWarnings,...(Array.isArray(draft.warnings)?draft.warnings.filter(s=>typeof s==='string').slice(0,isResume?6:4).map(s=>s.slice(0,1000)):[])];
       if(!cleanup&&!phraseReuse.length)warnings.push(`No reused phrase could be verified against the template or supplied reference text. Compare the proposed wording with your previous ${isResume?'resumes':'letters'} before saving.`);
       if(references.some(file=>file.tags.includes('cover-letter')&&!phraseSources.has(String(file._id))))warnings.push('Additional PDF letters are provided to AI as wording references. Verified phrase notes below cover the template and readable text references only.');
-      const storedDraft={user,expires:Date.now()+3600000,templateId:String(template._id),updatedAt:String(template.updatedAt),slots,replacements,isWord};
+      const storedDraft={user,expires:Date.now()+3600000,templateId:String(template._id),updatedAt:String(template.updatedAt),slots,replacements,isWord,companyResearch};
       await Draft.create({_id:draftId,user,expiresAt:new Date(storedDraft.expires),payload:storedDraft});
       drafts.set(draftId,storedDraft);
-      res.json({draftId,documentType,mode,slots,replacements,isWord,evidence:Array.isArray(draft.evidence)?draft.evidence.filter(s=>typeof s==='string').slice(0,30).map(s=>s.slice(0,1000)):[],warnings,phraseReuse});
+      res.json({draftId,documentType,mode,slots,replacements,isWord,evidence:Array.isArray(draft.evidence)?draft.evidence.filter(s=>typeof s==='string').slice(0,30).map(s=>s.slice(0,1000)):[],warnings,phraseReuse,companyResearch});
     }catch(error){
       if(!res.destroyed){
         const status=controller.signal.aborted?504:error instanceof AssistantAPIError?error.status:422;
