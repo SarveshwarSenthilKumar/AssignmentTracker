@@ -20,7 +20,8 @@
     "mammoth": "^1.13.0",
     "mongoose": "^8.0.3",
     "multer": "^2.4.0",
-    "pdf-lib": "^1.17.1"
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^3.11.174"
   },
   "devDependencies": {
     "nodemon": "^3.0.2"

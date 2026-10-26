@@ -22,13 +22,14 @@ function CampusEventDetails({event}) {
   return <>{[['Categories',event.categories],['Themes',event.themes],['Benefits',event.benefits],['Online location',event.onlineLocation]].map(([label,value])=>text(value)?<p key={label}><strong>{label}:</strong> {text(value)}</p>:null)}</>
 }
 
-export default function CalendarPage({ tasks, documents=[], documentFolders=[], onDocumentsChange, onOpenDocument, token, onOpenTask, onRefreshTasks, onSyncCanvas, onCanvasSettings, canvasStatus, syncing, keyboardEnabled=true,focusEntryId,onEntryFocused }) {
+export default function CalendarPage({ tasks, documents=[], documentFolders=[], onDocumentsChange, onOpenDocument, token, onOpenTask, onRefreshTasks, onSyncCanvas, onCanvasSettings, canvasStatus, syncing, keyboardEnabled=true,focusEntryId,onEntryFocused,focusCategoryId,onCategoryFocused }) {
   const today=calendarDay(new Date()), zone=activeTimeZone()
   const [anchor,setAnchor]=useState(today),[selectedDay,setSelectedDay]=useState(today),[view,setView]=useState('month'),[entries,setEntries]=useState([]),[query,setQuery]=useState('')
   const [sources,setSources]=useState(new Set(Object.keys(CALENDAR_LABELS))),[hideDone,setHideDone]=useState(false),[selectedId,setSelectedId]=useState(null),[draft,setDraft]=useState(null)
   const [loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('')
   const [attachmentBusy,setAttachmentBusy]=useState(false)
   const [categories,setCategories]=useState([]),[categoryFilter,setCategoryFilter]=useState('all')
+  useEffect(()=>{if(focusCategoryId){setCategoryFilter(focusCategoryId);setQuery('');setSources(new Set(Object.keys(CALENDAR_LABELS)));setHideDone(false);onCategoryFocused?.()}},[focusCategoryId])
   const {colors,changeColor,loading:colorsLoading,error:colorsError}=useCalendarColors(token)
   const {campus,refreshCampus,changeVisibility}=useTxstEvents(token)
   const [similarTarget,setSimilarTarget]=useState(null)

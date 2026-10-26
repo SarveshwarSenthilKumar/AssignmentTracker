@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useEffect,useState } from 'react'
 import { Keyboard, Search } from 'lucide-react'
 import { SHORTCUTS } from '../lib/shortcuts'
-export default function ShortcutsPage() {
+export default function ShortcutsPage({initialQuery=''}) {
   const [query, setQuery] = useState('')
+  useEffect(()=>{setQuery(initialQuery)},[initialQuery])
   const scopes = [...new Set(SHORTCUTS.map(shortcut => shortcut.scope))]
   return <section className="shortcuts-page" aria-label="Keyboard shortcuts"><div className="page-heading"><Keyboard size={22}/><div><h2>Keyboard shortcuts</h2><p>Navigate the workspace and act on your files without leaving the keyboard.</p></div></div>
     <p className="shortcut-note">Shortcuts apply to the page or editor you’re using. Navigation and letter shortcuts are paused while typing. Esc cancels inline confirmations. Save and download work inside editors. Tab and Shift + Tab always move focus normally. Enter activates the focused control; Enter submits the new-task form. Text fields keep their standard typing and undo shortcuts.</p>

@@ -96,10 +96,11 @@ export default function DocumentEditor({ pdfId, token, onClose, onCleanCopy, ass
   }, [dirty, text, table, changes, loading, loadFailed, pdfId, data])
   const markDirty = () => { revision.current++; setDirty(true) }
   const close = async () => {
-    if (saving) return
-    if (dirty && !await confirmation.ask('You have unsaved edits. Discard them and close the editor?', 'Discard edits')) return
+    if (saving) return false
+    if (dirty && !await confirmation.ask('You have unsaved edits. Discard them and close the editor?', 'Discard edits')) return false
     try { sessionStorage.removeItem(`document-draft:${pdfId}`) } catch { /* Closing remains available without local storage. */ }
     onClose()
+    return true
   }
   const serialize = async () => {
     if (kind === 'word') {
@@ -151,9 +152,9 @@ export default function DocumentEditor({ pdfId, token, onClose, onCleanCopy, ass
     setAiUndo(previous=>[...previous.slice(-9),text]);revision.current++;setText(actions[0].text);setDirty(true)
   }}
   useEffect(()=>{
-    if(kind!=='text')return
-    return registerEditor(pdfId,{snapshot:()=>liveAssistantEditor.current.snapshot(),apply:actions=>liveAssistantEditor.current.apply(actions)})
-  },[pdfId,kind])
+    if(!kind||kind==='pdf'||kind==='image')return
+    return registerEditor(pdfId,{snapshot:()=>liveAssistantEditor.current.snapshot(),apply:actions=>liveAssistantEditor.current.apply(actions),close})
+  },[pdfId,kind,dirty,saving])
   if (kind === 'pdf' && !loading && !error) return <PDFEditor assistantOpen={assistantOpen} onToggleAssistant={onToggleAssistant} onAssistantHost={onAssistantHost} onCleanCopy={onCleanCopy} pdfId={pdfId} token={token} onClose={onClose} />
   if (kind === 'image' && imageDocument && !error) return <PDFEditor assistantOpen={assistantOpen} onToggleAssistant={onToggleAssistant} onAssistantHost={onAssistantHost} onCleanCopy={onCleanCopy} pdfId={pdfId} token={token} onClose={onClose} initialDocument={imageDocument} exportImage />
   const editable = ['text','word','table','workbook'].includes(kind) && !loading && !loadFailed

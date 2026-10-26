@@ -442,6 +442,14 @@ Known Gemini 3/4 models use low thinking effort and Gemini 2.5 Pro/Flash use a 1
 
 Thinking configuration reference: https://ai.google.dev/gemini-api/docs/generate-content/thinking .
 
+### Global platform search
+
+Use the navigation Search control or Ctrl/Cmd+K on any signed-in page, including inside document editors and fullscreen PDF mode. Tab retains normal focus navigation. The former command box is still available on Ctrl/Cmd+Shift+K. Search includes platform pages/features, shortcut descriptions, tasks and their descriptions/links, nested folder paths, documents/tags/text annotations, saved calendar events and sports/category details, saved job fields, archived and active assistant conversation text, and the public TXST events currently available to the account. Results are grouped and paginated, with direct navigation to the matching record. Trashed documents are opt-in and open selected in Trash. Job matches outside the default saved-job list are loaded individually. Editor navigation uses the existing save/discard safeguards.
+
+Readable PDF, DOCX, XLSX and UTF-8 text/code files are indexed locally on the backend without AI. PDF extraction respects source-text replacements and includes saved text annotations, embedded comments and form text. Initial indexing runs in bounded worker threads (two workers, 256 MB heap and 30 seconds per file); results update while it runs. Up to two million characters per file are indexed. Failures, empty text and unsupported formats are disclosed, and Reindex file contents retries extraction. Search checks current file versions rather than using stale text. Scanned/outlined images, handwriting, audio/video and unsaved editor text require OCR/transcription or saving first; account credential fields are excluded. Search inputs accept 2–160 characters and up to 12 terms. Index records are scoped to the authenticated account and removed on account reset.
+
+Restart the backend after installing updated backend dependencies (`npm install` in backend on another checkout), then refresh the frontend. No search engine service or API key is needed.
+
 ### Home dashboard
 
 Navigation uses a compact primary bar for Home, Workspace, Tasks, Calendar and Documents. Career groups Resumes, Cover letters and Saved jobs; Tools groups the assistant, visualization, Canvas and shortcuts. Account settings and Sign out are in the profile menu. Smaller screens use an expandable grouped navigation panel instead of wrapping every link into multiple header rows. Dropdowns support arrow-key focus, Escape, outside-click dismissal and ordinary Tab navigation. Existing hash routes and platform shortcuts are retained. Refresh the frontend to load the navigation update.

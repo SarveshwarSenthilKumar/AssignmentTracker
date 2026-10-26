@@ -744,9 +744,10 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     commitText()
     if (dirtyRef.current || saveStatus === 'saving') {
       const saved = await saveAnnotations()
-      if (!saved) { setActionError('Your changes could not be saved. Retry Save before closing.'); return }
+      if (!saved) { setActionError('Your changes could not be saved. Retry Save before closing.'); return false }
     }
     onClose()
+    return true
   }
 
   /* ---------- loading ---------- */
@@ -1657,6 +1658,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
 
   const liveAssistantEditor=useRef(null)
   liveAssistantEditor.current={
+    close:handleClose,
     snapshot:()=>{
       if(loading||exportImage||deletingPageRef.current||insertingRef.current||existingRuns.loading||existingRuns.page!==pageNumber)return null
       const edited=new Set(pathsRef.current.filter(item=>item.page===pageNumber&&item.sourceText).map(item=>item.sourceText.key))
@@ -1691,7 +1693,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       if(target)goToPage(target)
     }
   }
-  useEffect(()=>registerEditor(pdfId,{snapshot:()=>liveAssistantEditor.current.snapshot(),apply:actions=>liveAssistantEditor.current.apply(actions)}),[pdfId])
+  useEffect(()=>registerEditor(pdfId,{snapshot:()=>liveAssistantEditor.current.snapshot(),apply:actions=>liveAssistantEditor.current.apply(actions),close:()=>liveAssistantEditor.current.close()}),[pdfId])
 
   const pageIndex=useMemo(()=>{const index=new Map();for(const item of drawingPaths){const number=item.page||1;if(!index.has(number))index.set(number,[]);index.get(number).push(item)}return index},[drawingPaths])
 

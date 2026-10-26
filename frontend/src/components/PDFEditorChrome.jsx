@@ -71,6 +71,7 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
     <hr/>{action(Trash2,`Delete page ${pages.current}`,pages.onDelete,{danger:true,disabled:!pages.count||pages.count<=1||pages.busy})}
   </>)
   const utilityMenu=menu('tools','More tools',SlidersHorizontal,<>
+    {action(FileText,'Search the platform',()=>window.dispatchEvent(new Event('global-search-open')),{detail:'Ctrl / Cmd + K · tasks, files, events and more'})}
     {doc.onCleanup&&action(Pen,'Clean up PDF',doc.onCleanup,{disabled:pages.busy,detail:'Describe changes and review before applying'})}
     <label className="pc-checkbox"><input type="checkbox" checked={utilities.timer} onChange={event=>utilities.onTimer(event.target.checked)}/>Show countdown timer</label>
     <label className="pc-checkbox"><input type="checkbox" checked={utilities.stopwatch} onChange={event=>utilities.onStopwatch(event.target.checked)}/>Show stopwatch</label>

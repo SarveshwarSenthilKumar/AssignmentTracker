@@ -15,6 +15,7 @@ async function resetAccountWorkspace({ userId, models, startSession }) {
       }
       if (models.SavedJob) await models.SavedJob.deleteMany(owner, {session});
       if (models.ResumeDraft) await models.ResumeDraft.deleteMany(owner, {session});
+      if (models.DocumentSearchIndex) await models.DocumentSearchIndex.deleteMany(owner, {session});
       if (models.CoverLetterDraft) await models.CoverLetterDraft.deleteMany(owner, {session});
       if (models.TaskDeletionRecovery) await models.TaskDeletionRecovery.deleteMany(owner, {session});
       if (models.CalendarChange) await models.CalendarChange.deleteMany(owner, {session});
