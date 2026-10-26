@@ -1,3 +1,4 @@
+import TaskDisplaySettings from './components/TaskDisplaySettings'
 import StudyPage from './components/StudyPage'
 import AccountConnections from './components/AccountConnections'
 import AccountAIAccess from './components/AccountAIAccess'
@@ -46,6 +47,7 @@ import PDFUploadModal from './components/PDFUploadModal'
 
 function App() {
   const { isAuthenticated, token, logout, user, loading: authLoading } = useAuth()
+  const showInProgressColumn=user?.showInProgressColumn!==false
   const taskConfirmation = useInlineConfirm('tasks')
   const deletingTaskIds=useRef(new Set())
   const readPage = () => {
@@ -1661,7 +1663,7 @@ function App() {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className={cn("grid grid-cols-1 gap-4",showInProgressColumn?"md:grid-cols-3":"md:grid-cols-2")}>
             {/* Todo Tasks */}
             <div
               data-task-status="todo"
@@ -1671,11 +1673,11 @@ function App() {
             >
               <h2 className="text-base font-semibold text-white mb-3 flex items-center gap-2">
                 <span className="w-2 h-2 bg-primary-500 rounded-full "></span>
-                To Do ({filteredTodos.filter(t => t.status === 'todo').length})
+                {showInProgressColumn?'To Do':'To Do & In Progress'} ({filteredTodos.filter(t => t.status === 'todo'||(!showInProgressColumn&&t.status === 'in-progress')).length})
               </h2>
               <div className="space-y-2">
-                {filteredTodos.filter(t => t.status === 'todo').length > 0 ? (
-                  filteredTodos.filter(t => t.status === 'todo').map((todo) =>
+                {filteredTodos.filter(t => t.status === 'todo'||(!showInProgressColumn&&t.status === 'in-progress')).length > 0 ? (
+                  filteredTodos.filter(t => t.status === 'todo'||(!showInProgressColumn&&t.status === 'in-progress')).map((todo) =>
                     renderTaskCard(todo, {
                       bg: 'bg-white/10',
                       border: 'border border-white/10 hover:bg-white/15',
@@ -1693,7 +1695,7 @@ function App() {
             </div>
 
             {/* In Progress Tasks */}
-            <div
+            {showInProgressColumn&&<div
               data-task-status="in-progress"
               className={cn(
                 "rounded-2xl p-3 min-h-[150px]"
@@ -1720,7 +1722,7 @@ function App() {
                   </div>
                 )}
               </div>
-            </div>
+            </div>}
 
             {/* Completed Tasks */}
             <div
@@ -1889,6 +1891,7 @@ function App() {
 
               <AccountConnections token={token}/>
               <TimeZoneSettings />
+              <TaskDisplaySettings />
               <ConfirmationSettings />
               <AccountAISettings token={token}/>
               <AccountAIAccess token={token}/>
