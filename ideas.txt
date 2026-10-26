@@ -30,28 +30,16 @@ create new folders instead of to do in progress and completed
 add option to add special links section
 add option to give each folder a descripption
 add ability to give each folder description media
-add ability to create a folder as i upload a doc
-add ability to choose the location when downloading from platform
-add subfolders for docs and tasks
-improve document creator with fancy features
 add share with link feature
 fix bugs
 create a full page of how to use app
 create a landing page
 create a brochure of every feature and thing in this app
-add automatic starring system for questions and topics to study
 
 resume and cover letter job tailor:
-Get job by links
-read job descriptions
-keep data of resume
-tailor resume
-check website of company
 check online search of company
 check skills and tailor
 connect to github  and linkedin
 base projects off github and linkedin
 
-copy logic for resumes from cover letter
-add feature to say if experiencing high demand is the issue then to wait and retry without prompting the user
 add ability to add sports events to calendar including f1
