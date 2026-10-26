@@ -1,3 +1,6 @@
+import NoteStudio from './NoteStudio'
+import MarkdownPDFCreator from './MarkdownPDFCreator'
+import {readApiJson} from '../lib/apiResponse'
 import {registerEditor} from '../lib/editorBridge'
 import useShortcuts from '../hooks/useShortcuts'
 import useInlineConfirm from '../hooks/useInlineConfirm'
@@ -22,12 +25,13 @@ export default function DocumentEditor({ pdfId, token, onClose, onCleanCopy, ass
   const [changes, setChanges] = useState({}), [gridSize, setGridSize] = useState({ rows: 20, cols: 5 })
   const [mediaUrl, setMediaUrl] = useState(''), [imageDocument, setImageDocument] = useState(null)
   const workbook = useRef(null), bytesRef = useRef(null), revision = useRef(0)
-  const wordTemplate=useRef(null)
+  const wordTemplate=useRef(null),saveLock=useRef(false),autoAttempt=useRef(-1)
+  const [notesExport,setNotesExport]=useState(false),[autoSave,setAutoSave]=useState(false)
   const liveAssistantEditor=useRef(null)
   const [aiUndo,setAiUndo]=useState([])
   const mime = data?.mimeType || 'application/octet-stream'
   const filename = data?.originalName || 'document.txt'
-  const isNotes=data?.tags?.includes('notes')&&mime==='text/plain'
+  const isNotes=kind==='text'&&(data?.tags?.includes('notes')||['md','markdown'].includes(extensionOf(filename)))
   const separator = extensionOf(filename) === 'tsv' ? '\t' : ','
 
   useEffect(() => {
@@ -96,7 +100,7 @@ export default function DocumentEditor({ pdfId, token, onClose, onCleanCopy, ass
   }, [dirty, text, table, changes, loading, loadFailed, pdfId, data])
   const markDirty = () => { revision.current++; setDirty(true) }
   const close = async () => {
-    if (saving) return false
+    if (saveLock.current) return false
     if (dirty && !await confirmation.ask('You have unsaved edits. Discard them and close the editor?', 'Discard edits')) return false
     try { sessionStorage.removeItem(`document-draft:${pdfId}`) } catch { /* Closing remains available without local storage. */ }
     onClose()
@@ -115,25 +119,36 @@ export default function DocumentEditor({ pdfId, token, onClose, onCleanCopy, ass
     return new Blob([kind === 'table' ? serializeDelimited(table, separator) : text], { type: mime })
   }
   const save = async (replacement) => {
-    if (saving) return
+    if (saveLock.current) return
+    saveLock.current=true
     const currentRevision = revision.current
     setSaving(true); setError('')
     try {
       const blob = replacement || await serialize()
       const response = await fetch(`/api/pdfs/${pdfId}/content`, { method: 'PUT', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ data: await blobBase64(blob), mimeType: replacement?.type || mime }) })
-      const result = await response.json().catch(() => ({}))
+      const result = await readApiJson(response)
       if (!response.ok) throw new Error(result.message || 'Could not save this document.')
       bytesRef.current = new Uint8Array(await blob.arrayBuffer())
       if(kind==='word'){
         const {openWordTemplate}=await import('../lib/wordTemplateEditor')
         wordTemplate.current=await openWordTemplate(bytesRef.current)
       }
-      setData(prev => ({ ...prev, hasOriginalBackup: true }))
+      setData(prev => ({ ...prev, updatedAt:result.updatedAt||prev.updatedAt, hasOriginalBackup: true }))
       if (revision.current === currentRevision) setDirty(false)
       if (replacement) onClose()
     } catch (err) { setError(err.message) }
-    finally { setSaving(false) }
+    finally { saveLock.current=false;setSaving(false) }
   }
+  useEffect(()=>{
+    if(!autoSave||!isNotes||!dirty||loading||loadFailed||saving||autoAttempt.current===revision.current)return
+    const timer=setTimeout(()=>{autoAttempt.current=revision.current;save()},1800)
+    return()=>clearTimeout(timer)
+  },[autoSave,isNotes,dirty,text,loading,loadFailed,saving])
+  useEffect(()=>{
+    if(!dirty)return
+    const warn=event=>{event.preventDefault();event.returnValue=''}
+    window.addEventListener('beforeunload',warn);return()=>window.removeEventListener('beforeunload',warn)
+  },[dirty])
   const download = async (original = false) => {
     try {
       if (original) {
@@ -163,6 +178,7 @@ export default function DocumentEditor({ pdfId, token, onClose, onCleanCopy, ass
   return <div className="document-editor" role="region" aria-label="Document editor">
     <header><div className="document-title"><FileText size={22} /><div><h2>{data?.name || 'Document editor'}</h2><p>{filename} · {loading ? 'Loading…' : dirty ? 'Unsaved changes' : 'Saved'}</p></div></div><div className="document-actions">
       {onToggleAssistant&&<button type="button" onClick={onToggleAssistant} aria-pressed={assistantOpen}><MessageSquare size={17}/>AI assistant</button>}
+      {isNotes&&<label className="note-autosave"><input type="checkbox" checked={autoSave} onChange={e=>{autoAttempt.current=-1;setAutoSave(e.target.checked)}}/>Autosave</label>}
       {kind==='text'&&aiUndo.length>0&&<button disabled={saving} onClick={()=>{const previous=aiUndo[aiUndo.length-1];setAiUndo(history=>history.slice(0,-1));revision.current++;setText(previous);setDirty(true)}}>Undo AI edit</button>}
       {editable && <button className="document-save" disabled={saving || !dirty} onClick={() => save()}><Save size={17} />{saving ? 'Saving…' : 'Save'}</button>}
       <button disabled={loading || saving || !data} onClick={() => download()}><Download size={17} />Download</button>
@@ -175,7 +191,7 @@ export default function DocumentEditor({ pdfId, token, onClose, onCleanCopy, ass
     {kind === 'workbook' && <div className="document-tools"><label>Worksheet <select value={sheetId || ''} onChange={e => { const id = Number(e.target.value), sheet = workbook.current.getWorksheet(id); setSheetId(id); setGridSize({rows:Math.min(200,Math.max(20,sheet.rowCount)),cols:Math.min(40,Math.max(5,sheet.columnCount))}) }}>{sheets.map(sheet => <option key={sheet.id} value={sheet.id}>{sheet.name}</option>)}</select></label><span>Cell values and formulas; formulas recalculate when opened in Excel. Showing up to 200 rows × 40 columns; other cells are retained.</span></div>}
     {(kind === 'table' || kind === 'workbook') && editable && <div className="document-tools"><button onClick={() => { if (kind === 'table') setTable(prev => [...prev, Array(cols).fill('')]); else setGridSize(prev => ({...prev,rows:Math.min(500,prev.rows+1)})); markDirty() }}><Plus size={15} />Row</button><button onClick={() => { if (kind === 'table') setTable(prev=>prev.map(row=>[...Array.from({length:cols},(_,i)=>row[i]||''),''])); else setGridSize(prev=>({...prev,cols:Math.min(100,prev.cols+1)})); markDirty() }}><Plus size={15} />Column</button></div>}
     <main>
-      {loading ? <div className="document-empty"><Loader2 className="animate-spin" />Loading document…</div> : !loadFailed && (kind === 'text' || kind === 'word') ? <textarea aria-label="Document content" className={`document-text ${kind === 'word'||isNotes ? 'document-prose' : ''}`} spellCheck={kind === 'word'||isNotes} placeholder={isNotes?'Start writing your notes…':undefined} value={text} onChange={e=>{setText(e.target.value);markDirty()}} /> : !loadFailed && (kind === 'table' || kind === 'workbook') ? <div className="document-grid"><table><thead><tr><th>#</th>{Array.from({length:cols},(_,c)=><th key={c}>{c+1}</th>)}</tr></thead><tbody>{Array.from({length:rows},(_,r)=><tr key={r}><th>{r+1}</th>{Array.from({length:cols},(_,c)=>{
+      {loading ? <div className="document-empty"><Loader2 className="animate-spin" />Loading document…</div> : !loadFailed && isNotes ? <NoteStudio key={pdfId} value={text} title={data?.name||'Notes'} onSave={()=>save()} saving={saving} dirty={dirty} saveError={error} onChange={value=>{setText(value);markDirty()}} onExportPDF={()=>setNotesExport(true)}/> : !loadFailed && (kind === 'text' || kind === 'word') ? <textarea aria-label="Document content" className={`document-text ${kind === 'word'||isNotes ? 'document-prose' : ''}`} spellCheck={kind === 'word'||isNotes} placeholder={isNotes?'Start writing your notes…':undefined} value={text} onChange={e=>{setText(e.target.value);markDirty()}} /> : !loadFailed && (kind === 'table' || kind === 'workbook') ? <div className="document-grid"><table><thead><tr><th>#</th>{Array.from({length:cols},(_,c)=><th key={c}>{c+1}</th>)}</tr></thead><tbody>{Array.from({length:rows},(_,r)=><tr key={r}><th>{r+1}</th>{Array.from({length:cols},(_,c)=>{
         const key=`${sheetId}:${r+1}:${c+1}`
         const value=kind==='table' ? table[r]?.[c]||'' : changes[key] ?? cellText(workbook.current.getWorksheet(sheetId).getCell(r+1,c+1).value)
         return <td key={c}><input aria-label={`Row ${r+1}, column ${c+1}`} value={value} onChange={e=>{const value=e.target.value;if(kind==='table')setTable(prev=>prev.map((row,i)=>i===r?Array.from({length:cols},(_,j)=>j===c?value:row[j]||''):row));else setChanges(prev=>({...prev,[key]:value}));markDirty()}} /></td>
@@ -185,5 +201,6 @@ export default function DocumentEditor({ pdfId, token, onClose, onCleanCopy, ass
         <label className="document-replace"><Upload size={18} />Replace file contents<input type="file" disabled={saving} accept={extensionOf(filename) ? `.${extensionOf(filename)}` : undefined} onChange={e=>{const file=e.target.files[0];if(!file)return;if(file.size>10*1024*1024){setError('Choose a file smaller than 10 MB.');return}if(extensionOf(file.name)!==extensionOf(filename)){setError('Replace with a file of the same type.');return}save(file)}} /></label>
       </div>}
     </main>
+    {notesExport&&<div className="notes-export-overlay"><MarkdownPDFCreator token={token} initialTitle={data?.name||'Notes'} initialMarkdown={text} allowSave={false} onClose={()=>setNotesExport(false)}/></div>}
   </div>
 }
