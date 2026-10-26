@@ -60,7 +60,7 @@ function documentSpacing(){
   }
 }
 
-export default function AssistantMarkdown({content,sources=[],onOpenSource,preserveSpacing=false}) {
+export default function AssistantMarkdown({content,sources=[],onOpenSource,preserveSpacing=false,onOpenLink,baseUrl}) {
   return <div className="assistant-markdown"><ReactMarkdown
     remarkPlugins={[remarkGfm,remarkMath,workspaceCitations(sources),...(preserveSpacing?[documentSpacing]:[])]}
     rehypePlugins={[[rehypeKatex,{trust:false,strict:'ignore',throwOnError:false,maxExpand:1000,maxSize:20,errorColor:'#cfb1b1',output:'htmlAndMathml'}]]}
@@ -71,8 +71,10 @@ export default function AssistantMarkdown({content,sources=[],onOpenSource,prese
         const key=href?.startsWith('#assistant-source/')?href.slice('#assistant-source/'.length):null
         const source=key&&sources.find(item=>`${item.type}:${item.id}`===key)
         if(source)return <button type="button" className="assistant-source" onClick={()=>onOpenSource(source)}>{children}<ArrowUpRight size={12}/></button>
-        if(!href||!/^https?:\/\//i.test(href))return <span>{children}</span>
-        return <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>
+        let target=href
+        if(baseUrl&&href){try{target=new URL(href,baseUrl).href}catch{return <span>{children}</span>}}
+        if(!target||!/^https?:\/\//i.test(target))return <span>{children}</span>
+        return <a href={target} target="_blank" rel="noopener noreferrer" onClick={onOpenLink?event=>{if(event.button===0&&!event.ctrlKey&&!event.metaKey&&!event.shiftKey&&!event.altKey){event.preventDefault();onOpenLink(target)}}:undefined}>{children}</a>
       },
       img:({src,alt})=>src&&/^https?:\/\//i.test(src)?<a href={src} target="_blank" rel="noopener noreferrer">{alt||'View image'} ↗</a>:<span>{alt||'Image'}</span>,
       table:({children})=><div className="assistant-table-scroll" role="region" aria-label="Answer table" tabIndex={0}><table>{children}</table></div>,

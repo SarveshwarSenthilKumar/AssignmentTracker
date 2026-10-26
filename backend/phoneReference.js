@@ -27,7 +27,7 @@ async function readPage(input,signal,redirects=0){
         return reject(readerError(status===401?'authentication':status===403?'website_block':status===429?'rate_limit':'website_http',`${message} (${source}, HTTP ${status})`,{source,providerStatus:status}));
       }
       const type=String(response.headers['content-type']||'');
-      if(!/text\/(html|plain)|application\/(xhtml\+xml|json)/i.test(type)){response.resume();return reject(new Error('This address is not a readable webpage. Open files in Documents or use the full browser.'))}
+      if(!/text\/(html|plain|markdown|x-markdown)|application\/(xhtml\+xml|json)/i.test(type)){response.resume();return reject(new Error('This address is not a readable webpage. Open files in Documents or use the full browser.'))}
       const encoding=String(response.headers['content-encoding']||'identity').toLowerCase();
       const decoder=encoding==='gzip'?zlib.createGunzip():encoding==='br'?zlib.createBrotliDecompress():encoding==='deflate'?zlib.createInflate():null;
       if(!decoder&&encoding!=='identity'){response.resume();return reject(readerError('encoding','This website uses a response encoding the reader cannot decode.'))}
@@ -37,21 +37,30 @@ async function readPage(input,signal,redirects=0){
       response.on('error',error=>{decoder?.destroy();reject(error)});stream.on('error',reject);stream.on('end',()=>{
         const bytes=Buffer.concat(chunks),charset=type.match(/charset\s*=\s*["']?([^;\s"']+)/i)?.[1]||'utf-8';let html;
         try{html=new TextDecoder(charset).decode(bytes)}catch{html=bytes.toString('utf8')}
-        resolve({html,plain:/text\/plain/i.test(type),json:/application\/json/i.test(type)});
+        resolve({html,plain:/text\/(plain|markdown|x-markdown)/i.test(type),markdown:/text\/(markdown|x-markdown)/i.test(type)||/\.(md|markdown)$/i.test(url.pathname),json:/application\/json/i.test(type)});
       });
     });request.on('error',reject);request.setTimeout(10000,()=>request.destroy(new Error('The website took too long to respond.')));
   });
   if(page.redirect){const next=new URL(page.redirect,url);if(url.protocol==='https:'&&next.protocol!=='https:')throw new Error('This page redirects to an insecure address. Use the full browser.');return readPage(next.href,signal,redirects+1)}
   if(page.json)return {json:JSON.parse(page.html),url:url.href};
-  if(page.plain)return {url:url.href,title:url.hostname,blocks:[{type:'pre',text:page.html.slice(0,60000)}],links:[]};
+  if(page.plain)return {url:url.href,title:url.hostname,...(page.markdown?{markdown:page.html.slice(0,60000)}:{}),blocks:[{type:'pre',text:page.html.slice(0,60000)}],links:[]};
   const $=cheerio.load(page.html);const title=$('title').first().text().trim().slice(0,300)||url.hostname;
+  // Retain source TeX instead of flattening rendered KaTeX/MathML into duplicate text.
+  $('.katex-display,.katex,math,mjx-container,script[type^="math/tex"],img.mwe-math-fallback-image-inline,img.mwe-math-fallback-image-display').each((_index,node)=>{
+    const item=$(node),annotation=item.find('annotation').filter((_i,entry)=>/tex/i.test($(entry).attr('encoding')||'')).first()
+    const tex=(annotation.text()||(node.tagName==='script'?item.text():'')||item.attr('alttext')||item.attr('alt')||'').trim().slice(0,10000)
+    if(!tex)return
+    const display=/display/.test(item.attr('class')||'')||item.attr('display')==='block'||/mode\s*=\s*display/.test(item.attr('type')||'')
+    item.replaceWith($('<span>').attr('data-phone-math','true').text(display?`\n\n$$\n${tex}\n$$\n\n`:`$${tex}$`))
+  });
   if(/^(just a moment|access denied|attention required|security check|captcha)/i.test(title)||/\/cdn-cgi\/challenge-platform\//i.test(page.html))throw readerError('website_protection',`This website requires a browser security challenge (${url.hostname}). The reader cannot complete it.`,{source:url.hostname,providerStatus:200});
   $('script,style,noscript,iframe,svg,canvas,form,nav,footer,header,[hidden],[aria-hidden="true"]').remove();
   const article=$('article').first(),main=$('main').first(),root=article.length?article:main.length?main:$('body');
   const blocks=[];let characters=0;
-  root.find('h1,h2,h3,h4,p,li,pre,blockquote').each((_index,node)=>{
+  root.find('h1,h2,h3,h4,p,li,pre,blockquote,span[data-phone-math]').each((_index,node)=>{
     if(blocks.length>=160||characters>=60000)return;
     if($(node).parents('pre,blockquote,li').length)return;
+    if(node.tagName==='span'&&$(node).parents('p,h1,h2,h3,h4').length)return;
     const type=node.tagName,text=$(node).text().trim().slice(0,8000);if(!text)return;
     characters+=text.length;blocks.push({type,text});
   });
