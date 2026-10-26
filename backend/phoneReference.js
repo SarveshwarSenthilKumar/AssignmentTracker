@@ -3,6 +3,8 @@ const https=require('node:https');
 const dns=require('node:dns').promises;
 const ipaddr=require('ipaddr.js');
 const cheerio=require('cheerio');
+const zlib=require('node:zlib');
+function readerError(category,message,details={}){const error=new Error(message);error.category=category;error.details=details;return error}
 
 function publicIP(address){
   try{let ip=ipaddr.parse(address);if(ip.kind()==='ipv6'&&ip.isIPv4MappedAddress())ip=ip.toIPv4Address();return ip.range()==='unicast'}catch{return false}
@@ -17,19 +19,33 @@ async function readPage(input,signal,redirects=0){
   if(!addresses.length||addresses.some(item=>!publicIP(item.address)))throw new Error('Only public internet webpages can be read.');
   const pinned=addresses[0];
   const page=await new Promise((resolve,reject)=>{
-    const request=(url.protocol==='https:'?https:http).get(url,{signal,agent:false,headers:{'User-Agent':'AssignmentTracker-ReferenceReader/1.0','Accept':'text/html, text/plain;q=0.9','Accept-Encoding':'identity'},lookup:(_host,options,callback)=>options?.all?callback(null,[pinned]):callback(null,pinned.address,pinned.family)},response=>{
+    const request=(url.protocol==='https:'?https:http).get(url,{signal,agent:false,headers:{'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36','Accept':'text/html, application/xhtml+xml, application/json;q=0.9, text/plain;q=0.8','Accept-Language':'en-US,en;q=0.9','Accept-Encoding':'gzip, deflate, br'},lookup:(_host,options,callback)=>options?.all?callback(null,[pinned]):callback(null,pinned.address,pinned.family)},response=>{
       if([301,302,303,307,308].includes(response.statusCode)){response.resume();return resolve({redirect:response.headers.location})}
-      if(response.statusCode<200||response.statusCode>=300){response.resume();return reject(new Error('This website refused the reader request or requires sign-in. Use the full browser for this page.'))}
+      if(response.statusCode<200||response.statusCode>=300){
+        response.resume();const status=response.statusCode,source=url.hostname;
+        const message=status===401?'This page requires authentication that the reader does not have.':status===403?'This website blocks automated reader access.':status===404?'This webpage was not found.':status===429?'This website is rate-limiting reader requests. Wait before trying again.':status>=500?'The reference website returned a server error.':'The reference website returned an unsuccessful response.';
+        return reject(readerError(status===401?'authentication':status===403?'website_block':status===429?'rate_limit':'website_http',`${message} (${source}, HTTP ${status})`,{source,providerStatus:status}));
+      }
       const type=String(response.headers['content-type']||'');
-      if(!/text\/(html|plain)|application\/xhtml\+xml/i.test(type)){response.resume();return reject(new Error('This address is not a readable webpage. Open files in Documents or use the full browser.'))}
+      if(!/text\/(html|plain)|application\/(xhtml\+xml|json)/i.test(type)){response.resume();return reject(new Error('This address is not a readable webpage. Open files in Documents or use the full browser.'))}
+      const encoding=String(response.headers['content-encoding']||'identity').toLowerCase();
+      const decoder=encoding==='gzip'?zlib.createGunzip():encoding==='br'?zlib.createBrotliDecompress():encoding==='deflate'?zlib.createInflate():null;
+      if(!decoder&&encoding!=='identity'){response.resume();return reject(readerError('encoding','This website uses a response encoding the reader cannot decode.'))}
+      const stream=decoder?response.pipe(decoder):response;
       const chunks=[];let size=0;
-      response.on('data',chunk=>{size+=chunk.length;if(size>2*1024*1024){response.destroy();reject(new Error('This page is too large for the phone reader.'))}else chunks.push(chunk)});
-      response.on('error',reject);response.on('end',()=>resolve({html:Buffer.concat(chunks).toString('utf8'),plain:/text\/plain/i.test(type)}));
+      stream.on('data',chunk=>{size+=chunk.length;if(size>2*1024*1024){stream.destroy();response.destroy();reject(new Error('This page is too large for the phone reader.'))}else chunks.push(chunk)});
+      response.on('error',error=>{decoder?.destroy();reject(error)});stream.on('error',reject);stream.on('end',()=>{
+        const bytes=Buffer.concat(chunks),charset=type.match(/charset\s*=\s*["']?([^;\s"']+)/i)?.[1]||'utf-8';let html;
+        try{html=new TextDecoder(charset).decode(bytes)}catch{html=bytes.toString('utf8')}
+        resolve({html,plain:/text\/plain/i.test(type),json:/application\/json/i.test(type)});
+      });
     });request.on('error',reject);request.setTimeout(10000,()=>request.destroy(new Error('The website took too long to respond.')));
   });
   if(page.redirect){const next=new URL(page.redirect,url);if(url.protocol==='https:'&&next.protocol!=='https:')throw new Error('This page redirects to an insecure address. Use the full browser.');return readPage(next.href,signal,redirects+1)}
+  if(page.json)return {json:JSON.parse(page.html),url:url.href};
   if(page.plain)return {url:url.href,title:url.hostname,blocks:[{type:'pre',text:page.html.slice(0,60000)}],links:[]};
   const $=cheerio.load(page.html);const title=$('title').first().text().trim().slice(0,300)||url.hostname;
+  if(/^(just a moment|access denied|attention required|security check|captcha)/i.test(title)||/\/cdn-cgi\/challenge-platform\//i.test(page.html))throw readerError('website_protection',`This website requires a browser security challenge (${url.hostname}). The reader cannot complete it.`,{source:url.hostname,providerStatus:200});
   $('script,style,noscript,iframe,svg,canvas,form,nav,footer,header,[hidden],[aria-hidden="true"]').remove();
   const article=$('article').first(),main=$('main').first(),root=article.length?article:main.length?main:$('body');
   const blocks=[];let characters=0;
@@ -54,10 +70,20 @@ module.exports=function registerPhoneReference(app,authenticateToken){
     res.set('Cache-Control','no-store');const now=Date.now(),id=String(req.user.userId);
     for(const [key,value]of rates)if(now-value.start>60000)rates.delete(key);
     const state=rates.get(id)||{start:now,count:0};if(state.count>=12)return res.status(429).json({message:'Please wait a minute before opening more references.'});state.count++;rates.set(id,state);
-    if(typeof req.body.url!=='string'||req.body.url.length>2000)return res.status(400).json({message:'Enter a webpage address.'});
+    const query=typeof req.body.query==='string'?req.body.query.trim().slice(0,300):'';
+    if(!query&&(typeof req.body.url!=='string'||req.body.url.length>2000))return res.status(400).json({message:'Enter a webpage address or a reference search.'});
     const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),15000),disconnect=()=>{if(!res.writableEnded)controller.abort()};res.on('close',disconnect);
-    try{const page=await readPage(req.body.url,controller.signal);if(!res.destroyed)res.json(page)}
-    catch(error){if(!res.destroyed)res.status(422).json({message:controller.signal.aborted?'The reference request timed out. Try another page or open the browser.':/^[A-Z]/.test(error.message)?error.message:'This webpage could not be read. Try a public article or open the full browser.'})}
+    try{
+      let page;
+      if(query){
+        const target=`https://en.wikipedia.org/w/api.php?action=query&list=search&srnamespace=0&srlimit=12&format=json&srsearch=${encodeURIComponent(query)}`;
+        const result=await readPage(target,controller.signal);if(!result.json?.query?.search)throw readerError('search_unavailable','The reference search service could not return results. Try a public webpage address instead.');
+        page={search:true,url:`https://en.wikipedia.org/w/index.php?search=${encodeURIComponent(query)}`,title:`Reference search: ${query}`,blocks:[{type:'p',text:'Public reference results from Wikipedia. Select a result below to read it inside the phone.'}],links:result.json.query.search.map(item=>({text:String(item.title).slice(0,160),url:`https://en.wikipedia.org/wiki/${encodeURIComponent(String(item.title).replace(/ /g,'_'))}`}))};
+        if(!page.links.length)page.blocks.push({type:'p',text:'No matching references found. Try a different phrase or paste a public article URL.'});
+      }else{page=await readPage(req.body.url,controller.signal);if(page.json)throw readerError('unsupported_page','This address returned raw data rather than a readable webpage.')}
+      if(!res.destroyed)res.json(page)
+    }
+    catch(error){if(!res.destroyed)res.status(422).json({message:controller.signal.aborted?'The reference request timed out. Try another page or open the browser.':error.category||/^[A-Z]/.test(error.message)?error.message:'The backend could not fetch this page. Check the backend network connection or try another public page.',category:controller.signal.aborted?'timeout':error.category||'network',...error.details})}
     finally{clearTimeout(timeout);res.off('close',disconnect);if(res.destroyed&&!res.writableEnded)res.end()}
   });
 };
