@@ -1,0 +1,186 @@
+{
+  "chapters": [
+    {
+      "title": "How to use this handbook",
+      "page": 4
+    },
+    {
+      "title": "Your interview pitch",
+      "page": 5
+    },
+    {
+      "title": "Architecture: the whole system",
+      "page": 6
+    },
+    {
+      "title": "Data model and persistence",
+      "page": 7
+    },
+    {
+      "title": "Setup, configuration and deployment boundaries",
+      "page": 8
+    },
+    {
+      "title": "Home, navigation and global search",
+      "page": 9
+    },
+    {
+      "title": "Tasks: everyday planning",
+      "page": 10
+    },
+    {
+      "title": "Task relationships and attached evidence",
+      "page": 11
+    },
+    {
+      "title": "Folders, descriptions and folder media",
+      "page": 12
+    },
+    {
+      "title": "Calendar: a unified view of several sources",
+      "page": 13
+    },
+    {
+      "title": "Calendar: recurrence, colors, categories and undo",
+      "page": 14
+    },
+    {
+      "title": "Public TXST events and the scraper",
+      "page": 15
+    },
+    {
+      "title": "Sports and F1 season import",
+      "page": 16
+    },
+    {
+      "title": "Canvas synchronization and ICS import",
+      "page": 17
+    },
+    {
+      "title": "Document library and supported formats",
+      "page": 18
+    },
+    {
+      "title": "Typed notes and the writing studio",
+      "page": 19
+    },
+    {
+      "title": "Document creation: blank, Markdown and AI",
+      "page": 20
+    },
+    {
+      "title": "PDF editor: annotation fundamentals",
+      "page": 21
+    },
+    {
+      "title": "PDF text: editing, fonts and copying",
+      "page": 22
+    },
+    {
+      "title": "PDF pages, views and productivity tools",
+      "page": 23
+    },
+    {
+      "title": "Pen, touch, mouse and rendering performance",
+      "page": 24
+    },
+    {
+      "title": "Mathematics, calculator, function scanning and graphs",
+      "page": 25
+    },
+    {
+      "title": "OneNote imports and preserving handwriting",
+      "page": 26
+    },
+    {
+      "title": "AI assistant: conversations and user experience",
+      "page": 27
+    },
+    {
+      "title": "AI context, credentials, access and diagnostics",
+      "page": 28
+    },
+    {
+      "title": "AI document editing and PDF cleanup",
+      "page": 29
+    },
+    {
+      "title": "Jobs: links, screenshots, PDFs and local extraction",
+      "page": 30
+    },
+    {
+      "title": "Cover letters: reference voice and template fidelity",
+      "page": 31
+    },
+    {
+      "title": "Resumes and company-specific tailoring",
+      "page": 32
+    },
+    {
+      "title": "Custom workspace and task visualization",
+      "page": 33
+    },
+    {
+      "title": "Study stars and learning workflows",
+      "page": 34
+    },
+    {
+      "title": "Account, authentication and security boundaries",
+      "page": 35
+    },
+    {
+      "title": "Downloads, recovery and the meaning of Save",
+      "page": 36
+    },
+    {
+      "title": "Separate daily-events site and QR poster",
+      "page": 37
+    },
+    {
+      "title": "A practical eight-minute demonstration",
+      "page": 38
+    },
+    {
+      "title": "Interview questions: architecture and data",
+      "page": 39
+    },
+    {
+      "title": "Interview questions: PDF, input and performance",
+      "page": 40
+    },
+    {
+      "title": "Interview questions: AI, extraction and trust",
+      "page": 41
+    },
+    {
+      "title": "Preparing your own engineering stories",
+      "page": 42
+    },
+    {
+      "title": "Limitations, testing plan and roadmap",
+      "page": 43
+    },
+    {
+      "title": "Troubleshooting and demonstration recovery",
+      "page": 44
+    },
+    {
+      "title": "Source map and feature inventory",
+      "page": 45
+    },
+    {
+      "title": "Keyboard shortcut reference",
+      "page": 46
+    },
+    {
+      "title": "API implementation inventory",
+      "page": 50
+    },
+    {
+      "title": "Rapid interview cheat sheet",
+      "page": 57
+    }
+  ],
+  "shortcut_count": 87,
+  "route_declaration_count": 102
+}
