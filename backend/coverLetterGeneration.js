@@ -82,8 +82,8 @@ module.exports=function registerCoverLetterGeneration(app,auth,{PDF,SavedJob,mon
       else{if(typeof req.body.role!=='string'||req.body.role.trim().length<20||req.body.role.length>15000)throw new Error('Choose a saved job or enter 20–15,000 characters describing the role.');role={description:req.body.role.trim()};}
       const credential=await credentials.resolve(user);if(!credential.apiKey)throw new Error('Save a Gemini API key in Account → AI settings.');
       let companyResearch=null;
-      if(isResume&&req.body.researchCompany!==undefined&&typeof req.body.researchCompany!=='boolean')throw new Error('Choose whether to research the company website.');
-      if(isResume&&req.body.researchCompany===true){
+      if(!cleanup&&req.body.researchCompany!==undefined&&typeof req.body.researchCompany!=='boolean')throw new Error('Choose whether to research the company website.');
+      if(!cleanup&&req.body.researchCompany===true){
         stage='Researching company website';
         companyResearch=await researchCompany(req.body.companyWebsite,{signal:controller.signal,company:role.company});
       }

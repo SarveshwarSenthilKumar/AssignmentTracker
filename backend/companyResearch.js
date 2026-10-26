@@ -56,6 +56,6 @@ module.exports=async function companyResearch(value,{signal,company}={}){
     const result={requestedUrl:url.href,sources,warnings,fetchedAt:new Date().toISOString(),cached:false};
     if(cache.size>=40)cache.delete(cache.keys().next().value);
     cache.set(url.href,{at:Date.now(),result});return checkIdentity(result,company);
-  }catch(error){if(signal?.aborted)throw error;return {requestedUrl:url.href,sources:[],warnings:[`Company website research was unavailable: ${safeMessage(error.message)||'The public pages could not be read.'} Tailoring used only your resumes and job details; no company facts were guessed.`],fetchedAt:new Date().toISOString()}}
+  }catch(error){if(signal?.aborted)throw error;return {requestedUrl:url.href,sources:[],warnings:[`Company website research was unavailable: ${safeMessage(error.message)||'The public pages could not be read.'} Tailoring used only your selected documents and job details; no company facts were guessed.`],fetchedAt:new Date().toISOString()}}
   finally{clearTimeout(timer);signal?.removeEventListener('abort',abort)}
 };
