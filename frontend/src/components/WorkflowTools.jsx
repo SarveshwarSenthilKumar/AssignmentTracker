@@ -1,4 +1,4 @@
-import {toggleStudyPhone} from './StudyPhone'
+import {StudyPhoneButton} from './StudyPhone'
 import useCalendarColors from '../hooks/useCalendarColors'
 import { useEffect, useMemo, useState } from 'react'
 import { Search, Plus, Check, ArrowUpRight, Play, Pause, RotateCcw, FileText, MessageSquare } from 'lucide-react'
@@ -70,7 +70,7 @@ function DocumentsPane({documents,documentFolders,onOpenDocument,onUpload,onNavi
 }
 function NotesPane({pane,onNoteChange}){
   const [preview,setPreview]=useState(false)
-  return <div className="workflow-notes"><div><span>Workflow scratchpad · saved with layout</span><button type="button" onClick={toggleStudyPhone} title="Study phone · Alt + P">Phone</button><button type="button" onClick={()=>setPreview(value=>!value)} aria-pressed={preview}>{preview?'Edit notes':'Preview Markdown'}</button></div>{preview?<AssistantMarkdown content={pane.note||'*No notes yet.*'} onOpenSource={()=>{}}/>:<textarea aria-label="Workflow notes" maxLength={12000} placeholder="Capture ideas, draft a plan, or keep reference notes here. Markdown is supported…" value={pane.note} onChange={event=>onNoteChange(event.target.value)}/>}<small>{pane.note.length.toLocaleString()} / 12,000 characters</small></div>
+  return <div className="workflow-notes"><div><span>Workflow scratchpad · saved with layout</span><StudyPhoneButton/><button type="button" onClick={()=>setPreview(value=>!value)} aria-pressed={preview}>{preview?'Edit notes':'Preview Markdown'}</button></div>{preview?<AssistantMarkdown content={pane.note||'*No notes yet.*'} onOpenSource={()=>{}}/>:<textarea aria-label="Workflow notes" maxLength={12000} placeholder="Capture ideas, draft a plan, or keep reference notes here. Markdown is supported…" value={pane.note} onChange={event=>onNoteChange(event.target.value)}/>}<small>{pane.note.length.toLocaleString()} / 12,000 characters</small></div>
 }
 function FocusPane({tasks,onOpenTask}){
   const [duration,setDuration]=useState(25),[remaining,setRemaining]=useState(1500),[deadline,setDeadline]=useState(null),[taskId,setTaskId]=useState(''),[done,setDone]=useState(false)

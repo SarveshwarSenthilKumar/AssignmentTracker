@@ -63,6 +63,7 @@ const userSchema = new mongoose.Schema({
   confirmTaskDeletion: { type: Boolean, default: true },
   confirmOtherActions: { type: Boolean, default: true },
   showInProgressColumn: { type: Boolean, default: true },
+  studyPhoneEnabled: { type: Boolean, default: true },
   username: {
     type: String,
     required: true,
@@ -357,6 +358,7 @@ app.post('/api/auth/register', async (req, res) => {
         username: user.username,
         email: user.email,
         timeZone: user.timeZone || '',
+        studyPhoneEnabled: user.studyPhoneEnabled!==false,
       },
     });
   } catch (error) {
@@ -396,6 +398,7 @@ app.post('/api/auth/login', async (req, res) => {
         username: user.username,
         email: user.email,
         timeZone: user.timeZone || '',
+        studyPhoneEnabled: user.studyPhoneEnabled!==false,
       },
     });
   } catch (error) {
@@ -541,13 +544,13 @@ app.post('/api/assistant/chat', authenticateToken, async (req, res) => {
 });
 app.get('/api/account/preferences', authenticateToken, async (req, res) => {
   try {
-    const user = await User.findById(req.user.userId).select('timeZone confirmTaskDeletion confirmOtherActions showInProgressColumn');
+    const user = await User.findById(req.user.userId).select('timeZone confirmTaskDeletion confirmOtherActions showInProgressColumn studyPhoneEnabled');
     if (!user) return res.status(404).json({ message: 'Account not found.' });
-    res.json({ timeZone: user.timeZone || '', confirmTaskDeletion:user.confirmTaskDeletion!==false, confirmOtherActions:user.confirmOtherActions!==false, showInProgressColumn:user.showInProgressColumn!==false });
+    res.json({ timeZone: user.timeZone || '', confirmTaskDeletion:user.confirmTaskDeletion!==false, confirmOtherActions:user.confirmOtherActions!==false, showInProgressColumn:user.showInProgressColumn!==false,studyPhoneEnabled:user.studyPhoneEnabled!==false });
   } catch { res.status(500).json({ message: 'Could not load account preferences.' }); }
 });
 app.put('/api/account/preferences', authenticateToken, async (req, res) => {
-  const { timeZone,confirmTaskDeletion,confirmOtherActions,showInProgressColumn } = req.body;
+  const { timeZone,confirmTaskDeletion,confirmOtherActions,showInProgressColumn,studyPhoneEnabled } = req.body;
   const update={};
   if(timeZone!==undefined){
   if (typeof timeZone !== 'string' || timeZone.length > 100) return res.status(400).json({ message: 'Choose a valid time zone.' });
@@ -555,16 +558,16 @@ app.put('/api/account/preferences', authenticateToken, async (req, res) => {
   catch { return res.status(400).json({ message: 'Choose a valid time zone.' }); }
   update.timeZone=timeZone;
   }
-  for(const [key,value] of Object.entries({confirmTaskDeletion,confirmOtherActions,showInProgressColumn})){
+  for(const [key,value] of Object.entries({confirmTaskDeletion,confirmOtherActions,showInProgressColumn,studyPhoneEnabled})){
     if(value===undefined)continue;
     if(typeof value!=='boolean')return res.status(400).json({message:'Preferences must be enabled or disabled.'});
     update[key]=value;
   }
   if(!Object.keys(update).length)return res.status(400).json({message:'Choose a preference to update.'});
   try {
-    const user = await User.findByIdAndUpdate(req.user.userId, { $set: update }, { new: true }).select('timeZone confirmTaskDeletion confirmOtherActions showInProgressColumn');
+    const user = await User.findByIdAndUpdate(req.user.userId, { $set: update }, { new: true }).select('timeZone confirmTaskDeletion confirmOtherActions showInProgressColumn studyPhoneEnabled');
     if (!user) return res.status(404).json({ message: 'Account not found.' });
-    res.json({ timeZone: user.timeZone || '',confirmTaskDeletion:user.confirmTaskDeletion!==false,confirmOtherActions:user.confirmOtherActions!==false, showInProgressColumn:user.showInProgressColumn!==false });
+    res.json({ timeZone: user.timeZone || '',confirmTaskDeletion:user.confirmTaskDeletion!==false,confirmOtherActions:user.confirmOtherActions!==false, showInProgressColumn:user.showInProgressColumn!==false,studyPhoneEnabled:user.studyPhoneEnabled!==false });
   } catch { res.status(500).json({ message: 'Could not save your account preferences.' }); }
 });
 app.post('/api/user/reset', authenticateToken, async (req, res) => {

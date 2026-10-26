@@ -5,8 +5,13 @@ import { calculate } from '../lib/calculator'
 import { taskDueLabel } from '../lib/calendar'
 import { activeTimeZone } from '../lib/timeZone'
 import './StudyPhone.css'
+import { useAuth } from '../contexts/AuthContext'
 
 export const toggleStudyPhone=()=>window.dispatchEvent(new Event('study-phone-toggle'))
+export function StudyPhoneButton({className}){
+  const {user}=useAuth()
+  return user?.studyPhoneEnabled!==false?<button type="button" className={className} onClick={toggleStudyPhone} title="Study phone · Alt + P">Phone</button>:null
+}
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value))
 const apps=[['reference','Reference',Globe],['notes','Scratchpad',FileText],['calculator','Calculator',Calculator],['timer','Focus timer',Timer],['tasks','My tasks',ListChecks]]
 function fit(rect){
@@ -15,7 +20,7 @@ function fit(rect){
   const width=clamp(rect?.width||320,Math.min(260,maxWidth),maxWidth),height=clamp(rect?.height||640,Math.min(380,maxHeight),maxHeight)
   return {width,height,x:clamp(rect?.x??window.innerWidth-width-20,8,Math.max(8,window.innerWidth-width-8)),y:clamp(rect?.y??70,8,Math.max(8,maxHeight-height+8))}
 }
-export default function StudyPhone({userId,tasks=[]}){
+export default function StudyPhone({userId,tasks=[],enabled=true}){
   const key=`study-phone:${userId}`,[open,setOpen]=useState(false),[minimized,setMinimized]=useState(false),[app,setApp]=useState('home'),[host,setHost]=useState(document.fullscreenElement||document.body)
   const [rect,setRect]=useState(()=>{try{return fit(JSON.parse(localStorage.getItem(key)||'{}').rect)}catch{return fit()}}),[note,setNote]=useState(()=>{try{const value=JSON.parse(localStorage.getItem(key)||'{}').note;return typeof value==='string'?value.slice(0,20000):''}catch{return ''}}),[notice,setNotice]=useState(''),[clock,setClock]=useState(new Date()),[dragging,setDragging]=useState(false)
   const [address,setAddress]=useState(''),[url,setUrl]=useState(''),[expression,setExpression]=useState(''),[answer,setAnswer]=useState(''),[minutes,setMinutes]=useState(25),[remaining,setRemaining]=useState(1500),[deadline,setDeadline]=useState(null)
@@ -29,14 +34,20 @@ export default function StudyPhone({userId,tasks=[]}){
     const value=cancel?active.rect:active.next;apply(value);setRect(value);setDragging(false)
   }
   useEffect(()=>{
+    if(!enabled){end();setOpen(false);setMinimized(false);setDeadline(null);return}
     const toggle=()=>{setOpen(value=>{if(!value)restoreFocus.current=document.activeElement;return !value});setMinimized(false)}
     const shortcut=event=>{if(event.altKey&&!event.ctrlKey&&!event.metaKey&&!event.shiftKey&&(event.code==='KeyP'||event.key.toLowerCase()==='p')&&!event.repeat&&!event.isComposing){event.preventDefault();event.stopImmediatePropagation();toggle()}else if(event.key==='Escape'&&gesture.current){event.preventDefault();event.stopImmediatePropagation();end(true)}}
     const fullscreen=()=>{end();setHost(document.fullscreenElement||document.body)}
     const resize=()=>{end();setRect(value=>fit(value))}
     const blur=()=>end()
-    const reset=event=>{if(event.detail!==userId)return;discard.current=true;setOpen(false);setNote('');setUrl('');setAddress('');try{localStorage.removeItem(key)}catch{}}
-    window.addEventListener('study-phone-toggle',toggle);window.addEventListener('keydown',shortcut,true);document.addEventListener('fullscreenchange',fullscreen);window.addEventListener('resize',resize);window.addEventListener('blur',blur);window.visualViewport?.addEventListener('resize',resize);window.addEventListener('workspace-reset',reset)
-    return()=>{end(true);window.removeEventListener('study-phone-toggle',toggle);window.removeEventListener('keydown',shortcut,true);document.removeEventListener('fullscreenchange',fullscreen);window.removeEventListener('resize',resize);window.removeEventListener('blur',blur);window.visualViewport?.removeEventListener('resize',resize);window.removeEventListener('workspace-reset',reset)}
+
+    window.addEventListener('study-phone-toggle',toggle);window.addEventListener('keydown',shortcut,true);document.addEventListener('fullscreenchange',fullscreen);window.addEventListener('resize',resize);window.addEventListener('blur',blur);window.visualViewport?.addEventListener('resize',resize)
+    return()=>{end(true);window.removeEventListener('study-phone-toggle',toggle);window.removeEventListener('keydown',shortcut,true);document.removeEventListener('fullscreenchange',fullscreen);window.removeEventListener('resize',resize);window.removeEventListener('blur',blur);window.visualViewport?.removeEventListener('resize',resize)}
+  },[userId,enabled])
+  useEffect(()=>{
+    const reset=event=>{if(event.detail!==userId)return;discard.current=true;setOpen(false);setDeadline(null);setNote('');setUrl('');setAddress('');try{localStorage.removeItem(key)}catch{}}
+    window.addEventListener('workspace-reset',reset)
+    return()=>window.removeEventListener('workspace-reset',reset)
   },[userId])
   useLayoutEffect(()=>{if(open&&!minimized){apply(fit(rect));panel.current?.focus({preventScroll:true})}},[open,minimized,host])
   useLayoutEffect(()=>{if(!gesture.current)apply(fit(rect))},[rect])
@@ -61,7 +72,7 @@ export default function StudyPhone({userId,tasks=[]}){
   const browse=event=>{
     event.preventDefault();try{const next=new URL(/^https?:\/\//i.test(address.trim())?address.trim():`https://${address.trim()}`);if(!['http:','https:'].includes(next.protocol)||next.username||next.password||next.origin===location.origin)throw new Error();setUrl(next.href);setNotice('')}catch{setNotice('Enter an external http or https website address.')}
   }
-  if(!open)return null
+  if(!enabled||!open)return null
   if(minimized)return createPortal(<button type="button" className="study-phone-minimized" onClick={()=>setMinimized(false)}><Smartphone size={16}/>Study phone{deadline?' · Timer running':''}</button>,host)
   return createPortal(<aside ref={panel} tabIndex={-1} data-phone-ui className={`study-phone${dragging?' is-dragging':''}`} role="dialog" aria-modal="false" aria-label="Study phone companion" onKeyDown={event=>{event.stopPropagation();if(event.key==='Escape'){event.preventDefault();close()}}} onPointerDown={event=>event.stopPropagation()}>
     <header className="study-phone-handle" onPointerDown={event=>begin(event)} {...handlers}><span><Grip size={13}/>Study phone</span><div><button type="button" aria-label="Reset phone size and position" onClick={()=>setRect(fit())}>↺</button><button type="button" aria-label="Minimize phone" onClick={()=>setMinimized(true)}><Minus size={14}/></button><button type="button" aria-label="Close phone" onClick={close}><X size={14}/></button></div></header>

@@ -35,6 +35,7 @@ fix bugs
 create a full page of how to use app
 create a landing page
 create a brochure of every feature and thing in this app
+add proper authentication for people in the future
 
 resume and cover letter job tailor:
 check online search of company
