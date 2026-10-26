@@ -1,5 +1,5 @@
+import PhoneBrowser from './PhoneBrowser'
 import AssistantMarkdown from './AssistantMarkdown'
-import { referenceMarkdown } from '../lib/referenceMarkdown'
 import { memo, useDeferredValue, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Smartphone, X, Minus, Home, ArrowLeft, Globe, FileText, Calculator, Timer, ListChecks, ExternalLink, Wifi, Grip } from 'lucide-react'
@@ -26,11 +26,10 @@ function fit(rect){
 export default function StudyPhone({userId,token,tasks=[],enabled=true}){
   const key=`study-phone:${userId}`,[open,setOpen]=useState(false),[minimized,setMinimized]=useState(false),[app,setApp]=useState('home'),[host,setHost]=useState(document.fullscreenElement||document.body)
   const [rect,setRect]=useState(()=>{try{return fit(JSON.parse(localStorage.getItem(key)||'{}').rect)}catch{return fit()}}),[note,setNote]=useState(()=>{try{const value=JSON.parse(localStorage.getItem(key)||'{}').note;return typeof value==='string'?value.slice(0,20000):''}catch{return ''}}),[notice,setNotice]=useState(''),[clock,setClock]=useState(new Date()),[dragging,setDragging]=useState(false)
-  const [address,setAddress]=useState(''),[url,setUrl]=useState(''),[expression,setExpression]=useState(''),[answer,setAnswer]=useState(''),[minutes,setMinutes]=useState(25),[remaining,setRemaining]=useState(1500),[deadline,setDeadline]=useState(null)
-  const [referenceMode,setReferenceMode]=useState('window'),[referenceHistory,setReferenceHistory]=useState([]),[frameState,setFrameState]=useState('idle'),[frameVersion,setFrameVersion]=useState(0)
+  const [expression,setExpression]=useState(''),[answer,setAnswer]=useState(''),[minutes,setMinutes]=useState(25),[remaining,setRemaining]=useState(1500),[deadline,setDeadline]=useState(null)
   const [padMode,setPadMode]=useState('split')
   const deferredNote=useDeferredValue(note)
-  const [readerPage,setReaderPage]=useState(null),[readerError,setReaderError]=useState(''),[readerLoading,setReaderLoading]=useState(false)
+  const expandedRect=useRef(null)
   const panel=useRef(null),gesture=useRef(null),frame=useRef(null),geometry=useRef(rect),restoreFocus=useRef(null),discard=useRef(false)
   const apply=value=>{geometry.current=value;if(panel.current)for(const [name,number]of Object.entries(value))panel.current.style.setProperty(`--phone-${name}`,`${number}px`)}
   const end=(cancel=false)=>{
@@ -52,7 +51,7 @@ export default function StudyPhone({userId,token,tasks=[],enabled=true}){
     return()=>{end(true);window.removeEventListener('study-phone-toggle',toggle);window.removeEventListener('keydown',shortcut,true);document.removeEventListener('fullscreenchange',fullscreen);window.removeEventListener('resize',resize);window.removeEventListener('blur',blur);window.visualViewport?.removeEventListener('resize',resize)}
   },[userId,enabled])
   useEffect(()=>{
-    const reset=event=>{if(event.detail!==userId)return;discard.current=true;setOpen(false);setDeadline(null);setNote('');setUrl('');setAddress('');try{localStorage.removeItem(key)}catch{}}
+    const reset=event=>{if(event.detail!==userId)return;discard.current=true;setOpen(false);setDeadline(null);setNote('');try{localStorage.removeItem(key);localStorage.removeItem('study-phone-browser:'+userId)}catch{}}
     window.addEventListener('workspace-reset',reset)
     return()=>window.removeEventListener('workspace-reset',reset)
   },[userId])
@@ -61,16 +60,6 @@ export default function StudyPhone({userId,token,tasks=[],enabled=true}){
   useEffect(()=>{if(discard.current)return;try{localStorage.setItem(key,JSON.stringify({rect,note}))}catch{setNotice('Browser storage is unavailable. Copy your scratchpad before closing this session.')}},[rect,note,key])
   useEffect(()=>{if(!open)return;setClock(new Date());const timer=setInterval(()=>setClock(new Date()),15000);return()=>clearInterval(timer)},[open])
   useEffect(()=>{if(!deadline)return;const tick=()=>{const left=Math.max(0,Math.ceil((deadline-Date.now())/1000));setRemaining(left);if(!left){setDeadline(null);setNotice('Focus session complete.')}};tick();const timer=setInterval(tick,500);return()=>clearInterval(timer)},[deadline])
-  useEffect(()=>{
-    if(referenceMode!=='reader'||!url||!open||!enabled||minimized||app!=='reference')return
-    const controller=new AbortController();setReaderLoading(true);setReaderError('');setReaderPage(null)
-    fetch('/api/phone/reference',{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({url,query:referenceMode==='reader'&&url.startsWith('https://en.wikipedia.org/w/index.php?search=')?new URL(url).searchParams.get('search'):undefined}),signal:controller.signal}).then(async response=>{
-      const data=await response.json().catch(()=>({message:'Restart the updated backend to enable the in-phone reader.'}))
-      if(!response.ok)throw new Error(data.message||'This page could not be read.')
-      if(!controller.signal.aborted)setReaderPage(data)
-    }).catch(error=>{if(!controller.signal.aborted)setReaderError(error.message)}).finally(()=>{if(!controller.signal.aborted)setReaderLoading(false)})
-    return()=>controller.abort()
-  },[referenceMode,url,open,enabled,minimized,app,token,frameVersion])
   const begin=(event,resize=false)=>{
     if(event.button!==0||event.isPrimary===false||gesture.current||(!resize&&event.target.closest('button')))return
     event.preventDefault();event.stopPropagation();const start=geometry.current
@@ -86,33 +75,12 @@ export default function StudyPhone({userId,token,tasks=[],enabled=true}){
   const handlers={onPointerMove:move,onPointerUp:()=>end(),onPointerCancel:()=>end(true),onLostPointerCapture:()=>end()}
   const close=()=>{end();setOpen(false);restoreFocus.current?.isConnected&&restoreFocus.current.focus({preventScroll:true})}
   const copy=async()=>{try{await navigator.clipboard.writeText(note);setNotice('Scratchpad copied.')}catch{setNotice('Select the scratchpad text to copy it manually.')}}
-  const openWebWindow=target=>{
-    const width=Math.min(420,window.screen.availWidth),height=Math.min(780,window.screen.availHeight)
-    const left=Math.max(0,window.screenX+window.outerWidth-width-20),top=Math.max(0,window.screenY+40)
-    window.open(target,'_blank',`popup=yes,width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes,noopener,noreferrer`)
-    setNotice('Requested a phone-sized browser window. If Opera opens a tab instead or blocks the window, use the browser link or allow pop-ups for this app.')
+  const expandPhone=()=>{
+    if(expandedRect.current){setRect(fit(expandedRect.current));expandedRect.current=null}
+    else{expandedRect.current={...geometry.current};setRect(fit({x:8,y:8,width:Math.min(1000,window.innerWidth-16),height:(window.visualViewport?.height||window.innerHeight)-16}))}
   }
-  const browse=event=>{
-    event.preventDefault()
-    const input=address.trim();if(!input)return
-    try{
-      const explicitScheme=/^[a-z][a-z\d+.-]*:/i.test(input)
-      const looksLikeAddress=/^[^\s/?#]+\.[^\s/?#]+(?:[/?#]|$)/.test(input)
-      const next=new URL(explicitScheme?input:looksLikeAddress?`https://${input}`:(referenceMode==='reader'?`https://en.wikipedia.org/w/index.php?search=${encodeURIComponent(input)}`:`https://www.google.com/search?q=${encodeURIComponent(input)}`))
-      if(!['http:','https:'].includes(next.protocol)||next.username||next.password||next.origin===location.origin)throw new Error()
-      setUrl(next.href);setReferenceHistory(previous=>[next.href,...previous.filter(item=>item!==next.href)].slice(0,8));setFrameVersion(value=>value+1)
-      if(referenceMode==='window')openWebWindow(next.href)
-      else if(referenceMode==='browser'){
-        // Open synchronously during the user's submit gesture, not after async work.
-        window.open(next.href,'_blank','noopener,noreferrer')
-        setNotice('Requested a browser tab. If it did not open, use Open reference below.')
-      }else if(referenceMode==='embedded'){setFrameState('loading');setNotice('Embedded mode depends on the website allowing frames. Use Open reference if the view is blank or refused.')}
-      else setNotice('')
-    }catch{setNotice('Enter a search or a valid external http/https address. Other URL schemes are not supported.')}
-  }
-  if(!enabled||!open)return null
-  if(minimized)return createPortal(<button type="button" className="study-phone-minimized" onClick={()=>setMinimized(false)}><Smartphone size={16}/>Study phone{deadline?' · Timer running':''}</button>,host)
-  return createPortal(<aside ref={panel} tabIndex={-1} data-phone-ui className={`study-phone${dragging?' is-dragging':''}`} role="dialog" aria-modal="false" aria-label="Study phone companion" onKeyDown={event=>{event.stopPropagation();if(event.key==='Escape'){event.preventDefault();close()}}} onPointerDown={event=>event.stopPropagation()}>
+  if(!enabled)return null
+  return createPortal(<>{open&&minimized&&<button type="button" className="study-phone-minimized" onClick={()=>setMinimized(false)}><Smartphone size={16}/>Study phone{deadline?' · Timer running':'}</button>}<aside hidden={!open||minimized} ref={panel} tabIndex={-1} data-phone-ui className={`study-phone${dragging?' is-dragging':''}`} role="dialog" aria-modal="false" aria-label="Study phone companion" onKeyDown={event=>{event.stopPropagation();if(event.key==='Escape'){event.preventDefault();close()}}} onPointerDown={event=>event.stopPropagation()}>
     <header className="study-phone-handle" onPointerDown={event=>begin(event)} {...handlers}><span><Grip size={13}/>Study phone</span><div><button type="button" aria-label="Reset phone size and position" onClick={()=>setRect(fit())}>↺</button><button type="button" aria-label="Minimize phone" onClick={()=>setMinimized(true)}><Minus size={14}/></button><button type="button" aria-label="Close phone" onClick={close}><X size={14}/></button></div></header>
     <div className="study-phone-device"><div className="study-phone-status"><time>{clock.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit',timeZone:activeTimeZone()})}</time><i/><Wifi size={12}/></div><div className="study-phone-appbar"><button type="button" aria-label="Phone home" onClick={()=>{setApp('home');setNotice('')}}><ArrowLeft size={15}/></button><strong>{apps.find(item=>item[0]===app)?.[1]||'Companion'}</strong><small>Alt + P</small></div>
       <main className="study-phone-screen">
@@ -121,19 +89,8 @@ export default function StudyPhone({userId,token,tasks=[],enabled=true}){
         {app==='calculator'&&<form className="study-phone-calculator" onSubmit={event=>{event.preventDefault();try{setAnswer(String(calculate(expression)));setNotice('')}catch(error){setNotice(error.message)}}}><label htmlFor="phone-expression">Expression</label><input id="phone-expression" value={expression} maxLength={1000} onChange={event=>setExpression(event.target.value)} placeholder="(12 + 8) / 4"/><output>{answer||'0'}</output><div>{['7','8','9','/','4','5','6','*','1','2','3','-','0','.','(',')'].map(value=><button type="button" key={value} onClick={()=>setExpression(previous=>previous+value)}>{value}</button>)}</div><div className="study-phone-calc-actions"><button type="button" onClick={()=>{setExpression('');setAnswer('')}}>Clear</button><button type="button" onClick={()=>setExpression(previous=>previous+'+')}>+</button><button type="submit">Calculate</button></div></form>}
         {app==='timer'&&<div className="study-phone-timer"><p>FOCUS SESSION</p><output role="timer">{String(Math.floor(remaining/60)).padStart(2,'0')}:{String(remaining%60).padStart(2,'0')}</output><div>{[5,15,25,50].map(value=><button type="button" key={value} disabled={!!deadline} onClick={()=>{setMinutes(value);setRemaining(value*60)}}>{value}m</button>)}</div><button type="button" onClick={()=>{if(deadline){setRemaining(Math.max(0,Math.ceil((deadline-Date.now())/1000)));setDeadline(null)}else setDeadline(Date.now()+(remaining||minutes*60)*1000)}}>{deadline?'Pause':'Start / resume'}</button><button type="button" onClick={()=>{setDeadline(null);setRemaining(minutes*60)}}>Reset</button><small>Continues while minimized or switching apps. Reloading resets the timer.</small></div>}
         {app==='tasks'&&<div className="study-phone-tasks"><h3>Active tasks</h3>{tasks.filter(task=>task.status!=='completed').slice(0,60).map(task=><article key={task._id}><strong>{task.text}</strong><small>{taskDueLabel(task,true)}</small><span>{task.status==='in-progress'?'In progress':'To do'}</span></article>)}{!tasks.some(task=>task.status!=='completed')&&<p>No active tasks.</p>}</div>}
-        {app==='reference'&&<div className="study-phone-browser">
-          <label className="study-phone-reference-mode">Open references in<select value={referenceMode} onChange={event=>{setReferenceMode(event.target.value);setFrameState('idle');setNotice('')}}><option value="window">Live website · phone-sized window</option><option value="reader">Phone reader · text articles</option><option value="browser">Full browser tab</option><option value="embedded">Embedded phone view · limited</option></select></label>
-          <form onSubmit={browse}><input aria-label="Search or reference website address" value={address} onChange={event=>setAddress(event.target.value)} placeholder={referenceMode==='reader'?'Search references or paste a URL…':'Search Google or enter a URL…'} maxLength={2000}/><button type="submit" disabled={!address.trim()}>{['browser','window'].includes(referenceMode)?'Open':referenceMode==='reader'?'Read':'Go'}</button></form>
-          {url&&referenceMode==='window'&&<button type="button" className="study-phone-open-reference" onClick={()=>openWebWindow(url)}><ExternalLink size={13}/>Open live phone window</button>}{url&&<a className="study-phone-open-reference" href={url} target="_blank" rel="noopener noreferrer"><ExternalLink size={13}/>Open reference in browser</a>}
-          {referenceMode==='reader'?<div className="study-phone-reader">
-            {!url&&<p>Enter a public webpage address to read its text and follow its links inside the phone. In-phone searches use Wikipedia, not Google. Interactive apps and sign-in pages need the full browser.</p>}
-            {readerLoading&&<p role="status">Reading webpage…</p>}
-            {readerError&&<div role="alert"><p>{readerError}</p><button type="button" onClick={()=>setFrameVersion(value=>value+1)}>Retry page</button></div>}
-            {readerPage&&<><div className="study-phone-reader-source"><span>PUBLIC PAGE · READER VIEW</span><small>{readerPage.url}</small><button type="button" onClick={()=>setFrameVersion(value=>value+1)}>Refresh</button></div><article><h2>{readerPage.title}</h2><PhoneMarkdown preserveSpacing content={referenceMarkdown(readerPage)} baseUrl={readerPage.url} onOpenLink={target=>{setAddress(target);setUrl(target);setFrameVersion(value=>value+1);setReferenceHistory(previous=>[target,...previous.filter(item=>item!==target)].slice(0,8))}}/></article>{readerPage.links.length>0&&<details open={readerPage.search||undefined}><summary>{readerPage.search?'Search results':'Links on this page'} ({readerPage.links.length})</summary>{readerPage.links.map(link=><button type="button" key={link.url} onClick={()=>{setAddress(link.url);setUrl(link.url);setFrameVersion(value=>value+1);setReferenceHistory(previous=>[link.url,...previous.filter(item=>item!==link.url)].slice(0,8))}}>{link.text}</button>)}</details>}</>}
-          </div>:referenceMode==='window'?<div className="study-phone-reference-help"><Globe size={26}/><strong>Live websites beside your notes</strong><p>This opens the actual website in a narrow, resizable browser window. You can navigate, search Google, sign in, and use interactive pages through your normal browser.</p><small>The window is separate from the simulated phone so website embedding restrictions do not prevent it from opening. Opera controls whether a new window or tab is created.</small>{url&&<small>Current website: {url}</small>}</div>:referenceMode==='browser'?<div className="study-phone-reference-help"><Globe size={26}/><strong>Use the full browser for references</strong><p>Searches, Google, sign-ins and websites open in a regular browser tab. Keep your PDF, notes and study tools open here, then switch back when ready.</p>{url&&<small>Current reference: {url}</small>}</div>:<><small>Many sites, including Google Search, prohibit embedding. A load event cannot confirm that a site displayed successfully. Open the reference in your browser if it is blank, refused, or needs sign-in.</small>{url&&<><div className="study-phone-reference-controls"><button type="button" onClick={()=>{setFrameState('loading');setFrameVersion(value=>value+1)}}>Reload view</button><span>{frameState==='loading'?'Loading requested…':frameState==='error'?'Could not load this view. Open in browser.':frameState==='loaded'?'Frame navigation finished; check the page below.':''}</span></div><iframe key={`${url}:${frameVersion}`} title="Optional embedded reference website" src={url} sandbox="allow-scripts allow-forms allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-downloads" referrerPolicy="no-referrer" onLoad={()=>setFrameState('loaded')} onError={()=>setFrameState('error')}/></>}</>}
-          {!!referenceHistory.length&&<details className="study-phone-reference-history"><summary>Recent references · this session</summary>{referenceHistory.map(item=>referenceMode==='window'?<button key={item} type="button" onClick={()=>{setAddress(item);setUrl(item);openWebWindow(item)}}>{item}</button>:referenceMode==='reader'?<button key={item} type="button" onClick={()=>{setAddress(item);setUrl(item);setFrameVersion(value=>value+1)}}>{item}</button>:<a key={item} href={item} target="_blank" rel="noopener noreferrer">{item}</a>)}</details>}
-        </div>}
+        <div className="study-phone-reference-app" hidden={app!=='reference'}><PhoneBrowser userId={userId} token={token} onExpand={expandPhone} note={note} onNoteChange={setNote} onCaptureNote={text=>{if(note.length+text.length>20000){setNotice('The scratchpad is full. Make space before adding a reference.');return false}setNote(note+text);setNotice('Reference link added to the scratchpad.');return true}}/></div>
       </main>{notice&&<p role="status" className="study-phone-notice">{notice}</p>}<footer><button type="button" aria-label="Return to phone home" onClick={()=>setApp('home')}><Home size={17}/></button></footer>
     </div><button type="button" className="study-phone-resize" aria-label="Resize phone" title="Drag to resize · Arrow keys resize; Shift for larger steps" onPointerDown={event=>begin(event,true)} {...handlers} onKeyDown={event=>{if(!event.key.startsWith('Arrow'))return;event.preventDefault();const step=event.shiftKey?40:10;setRect(previous=>fit({...previous,width:previous.width+(event.key==='ArrowRight'?step:event.key==='ArrowLeft'?-step:0),height:previous.height+(event.key==='ArrowDown'?step:event.key==='ArrowUp'?-step:0)}))}}/>
-  </aside>,host)
+  </aside></>,host)
 }
