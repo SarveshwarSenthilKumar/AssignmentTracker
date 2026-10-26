@@ -1,3 +1,4 @@
+import {toggleStudyPhone} from './StudyPhone'
 import { cloneElement, isValidElement, useEffect, useId, useRef, useState } from 'react'
 import { FileText, ChevronDown, ChevronLeft, ChevronRight, Pen, Highlighter, Type, Move, Eraser, Undo, Redo, Save, Download, Files, Settings, X, Maximize, Sun, Moon, LineChart, Calculator, Plus, Trash2, RotateCw, ZoomIn, ZoomOut, MessageSquare, SlidersHorizontal, Copy, PanelLeft, Loader2, Minimize2, Maximize2, TextSelect } from 'lucide-react'
 import PDFEraserControls from './PDFEraserControls'
@@ -102,7 +103,7 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
       {documentMenu}<div className="pc-file-name"><strong title={doc.name}>{doc.name||'Document editor'}</strong><span className={`pc-save-state is-${doc.saveStatus}`} role="status"><i/>{doc.saveStatus==='saving'?'Saving…':doc.saveStatus==='saved'?'Saved':doc.saveStatus==='error'?'Save failed':'Unsaved'}</span></div>
       <div className="pc-history">{iconButton(Undo,'Undo (Ctrl+Z)',doc.onUndo,!doc.history.undo)}{iconButton(Redo,'Redo (Ctrl+Shift+Z)',doc.onRedo,!doc.history.redo)}</div>
       {!doc.exportImage&&<button type="button" className={`pc-button pc-side-button${view.reference?' is-active':''}`} onClick={view.onReference} aria-pressed={view.reference} disabled={!pages.count||pages.busy}><Files size={16}/><span>Side page</span></button>}
-      {utilities.onAssistant&&<button type="button" className={`pc-button${utilities.assistantOpen?' is-active':''}`} onClick={utilities.onAssistant} aria-pressed={utilities.assistantOpen}><MessageSquare size={16}/><span>AI assistant</span></button>}
+      <button type="button" className="pc-button" onClick={toggleStudyPhone} title="Study phone · Alt + P">Phone</button>{utilities.onAssistant&&<button type="button" className={`pc-button${utilities.assistantOpen?' is-active':''}`} onClick={utilities.onAssistant} aria-pressed={utilities.assistantOpen}><MessageSquare size={16}/><span>AI assistant</span></button>}
       {iconButton(Maximize,'Fullscreen',view.onFocus)}
       <button type="button" className="pc-button pc-save" onClick={doc.onSave} disabled={doc.saveStatus==='saving'}>{doc.saveStatus==='saving'?<Loader2 size={16} className="animate-spin"/>:<Save size={16}/>}<span>Save</span></button>
       {iconButton(X,'Close editor',doc.onClose)}
@@ -121,7 +122,7 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
       {view.focus&&<>
         {iconButton(Undo,'Undo',doc.onUndo,!doc.history.undo)}{iconButton(Redo,'Redo',doc.onRedo,!doc.history.redo)}
         {!doc.exportImage&&<button type="button" className={`pc-button pc-side-button${view.reference?' is-active':''}`} onClick={view.onReference} aria-pressed={view.reference} disabled={!pages.count||pages.busy}><Files size={16}/>Side page</button>}
-        {utilities.onAssistant&&<button type="button" className={`pc-button${utilities.assistantOpen?' is-active':''}`} onClick={utilities.onAssistant} aria-pressed={utilities.assistantOpen}><MessageSquare size={16}/>AI assistant</button>}
+        <button type="button" className="pc-button" onClick={toggleStudyPhone} title="Study phone · Alt + P">Phone</button>{utilities.onAssistant&&<button type="button" className={`pc-button${utilities.assistantOpen?' is-active':''}`} onClick={utilities.onAssistant} aria-pressed={utilities.assistantOpen}><MessageSquare size={16}/>AI assistant</button>}
         {iconButton(Save,'Save',doc.onSave,doc.saveStatus==='saving')}{iconButton(X,'Exit fullscreen',view.onExitFocus)}
       </>}
     </div>
