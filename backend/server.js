@@ -103,6 +103,7 @@ const assistantCredentials = createAssistantCredentials(User);
 
 // Folder Schema
 const folderSchema = new mongoose.Schema({
+  attachmentIds:[{type:mongoose.Schema.Types.ObjectId,ref:'PDF'}],
   description:{type:String,default:'',maxlength:2000},
   parentId:{type:mongoose.Schema.Types.ObjectId,ref:'Folder',default:null,index:true},
   name: {
@@ -262,6 +263,7 @@ const PDF = mongoose.model('PDF', pdfSchema);
 
 // PDF Folder Schema
 const pdfFolderSchema = new mongoose.Schema({
+  attachmentIds:[{type:mongoose.Schema.Types.ObjectId,ref:'PDF'}],
   parentId:{type:mongoose.Schema.Types.ObjectId,ref:'PDFFolder',default:null,index:true},
   name: {
     type: String,
@@ -785,6 +787,7 @@ app.delete('/api/todos/clear-inbox', authenticateToken, async (req, res) => {
 
 // Folder Routes
 require('./folderHierarchy')(app,authenticateToken,{mongoose,User,Folder,PDFFolder,Todo,PDF});
+require('./folderAttachments')(app,authenticateToken,{mongoose,User,Folder,PDFFolder,PDF,upload});
 // Get all folders
 app.get('/api/folders', authenticateToken, async (req, res) => {
   try {

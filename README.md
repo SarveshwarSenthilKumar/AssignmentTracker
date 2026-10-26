@@ -499,3 +499,10 @@ In **Upload document**, use **Save in folder → New folder**. Enter a name, cho
 ### Folder descriptions
 
 Task and document folders, including subfolders, support optional descriptions of up to 2,000 characters. Add a description in the folder creation form or select an existing folder and use **Add description / Edit description** below its breadcrumb path. Save an empty description to remove it. The upload dialog’s inline folder creator also includes the description field. Descriptions save to the account-owned folder record and are searchable through global search. Existing folders default to an empty description. Restart the backend and refresh the frontend; no dependency changes are required.
+
+
+### Images and files in folder descriptions
+
+Open a task or document folder and use **Files & media** beneath its description. Upload multiple files, drag and drop, paste clipboard images while the attachment area is focused, or attach existing Documents. Each folder supports 50 attachments, up to 10 MB per uploaded file. Image, audio and video previews load on demand; other files open in the existing document editor or download through the platform’s save-location chooser.
+
+Uploads create the library document and its folder attachment in one MongoDB transaction, with ownership checks. Document-folder uploads are stored in that folder; task-folder uploads are stored in Unfiled. Removing an attachment only unlinks it from the description; files remain in Documents. Deleting a folder preserves the library files. Files in Trash or permanently removed display as unavailable links that can be unlinked. Existing folder descriptions and folder hierarchy are retained. Restart the backend and refresh the frontend; no new dependencies are required.

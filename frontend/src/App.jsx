@@ -1596,7 +1596,7 @@ function App() {
           </div>
         </div>
 
-        <FolderHierarchyControls folders={folders} selected={selectedFolder} token={token} base="/api/folders" onFoldersChange={setFolders} onSelect={setSelectedFolder} onCreate={id=>{setNewFolderParent(id);setNewFolderName('');setShowFolderModal(true)}} disabled={loading}/>
+        <FolderHierarchyControls folders={folders} selected={selectedFolder} token={token} base="/api/folders" documents={pdfs} onDocumentsChange={setPdfs} onOpenDocument={setSelectedPDF} onFoldersChange={setFolders} onSelect={setSelectedFolder} onCreate={id=>{setNewFolderParent(id);setNewFolderName('');setShowFolderModal(true)}} disabled={loading}/>
         <form onSubmit={addTodo} className="mb-6">
           <div className="flex gap-3">
             <input

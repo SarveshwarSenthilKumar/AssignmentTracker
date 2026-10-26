@@ -4,7 +4,7 @@ import {readApiJson} from '../lib/apiResponse'
 import FolderParentSelect from './FolderParentSelect'
 import './FolderHierarchyControls.css'
 
-export default function FolderHierarchyControls({folders,selected,token,base,onFoldersChange,onSelect,onCreate,disabled=false}){
+export default function FolderHierarchyControls({folders,selected,token,base,onFoldersChange,onSelect,onCreate,documents=[],onDocumentsChange,onOpenDocument,disabled=false}){
   const folder=folders.find(item=>item._id===selected)
   const [parent,setParent]=useState(folder?.parentId||null),[busy,setBusy]=useState(false),[error,setError]=useState('')
   useEffect(()=>{setParent(folder?.parentId||null);setError('')},[folder?._id,folder?.parentId])
@@ -20,7 +20,7 @@ export default function FolderHierarchyControls({folders,selected,token,base,onF
     }catch(error){setError(error.message)}finally{setBusy(false)}
   }
   return <section className="folder-hierarchy-controls" aria-label="Folder hierarchy"><nav aria-label="Folder path"><button type="button" disabled={busy||disabled} onClick={()=>onSelect('all')}>All {base==='/api/folders'?'tasks':'documents'}</button>{ancestors.map(item=><span key={item._id}><span aria-hidden> / </span><button type="button" disabled={busy||disabled} aria-current={item._id===selected?'page':undefined} onClick={()=>onSelect(item._id)}>{item.name}</button></span>)}</nav>
-    {folder&&<><FolderDescription key={folder._id} folder={folder} token={token} base={base} onFoldersChange={onFoldersChange} disabled={busy||disabled}/><div className="folder-hierarchy-actions"><button type="button" disabled={busy||disabled} onClick={()=>onCreate(folder._id)}>New subfolder</button><small>New folders are created inside this folder. Removing a folder keeps its contents and moves them up one level.</small></div><form onSubmit={move}><FolderParentSelect folders={folders} value={parent} onChange={setParent} exclude={folder._id} disabled={busy||disabled}/><button type="submit" disabled={busy||disabled||(parent||null)===(folder.parentId||null)}>{busy?'Moving…':'Move folder'}</button></form></>}
+    {folder&&<><FolderDescription key={folder._id} folder={folder} token={token} base={base} onFoldersChange={onFoldersChange} documents={documents} onDocumentsChange={onDocumentsChange} onOpenDocument={onOpenDocument} disabled={busy||disabled}/><div className="folder-hierarchy-actions"><button type="button" disabled={busy||disabled} onClick={()=>onCreate(folder._id)}>New subfolder</button><small>New folders are created inside this folder. Removing a folder keeps its contents and moves them up one level.</small></div><form onSubmit={move}><FolderParentSelect folders={folders} value={parent} onChange={setParent} exclude={folder._id} disabled={busy||disabled}/><button type="submit" disabled={busy||disabled||(parent||null)===(folder.parentId||null)}>{busy?'Moving…':'Move folder'}</button></form></>}
     {error&&<p role="alert">{error}</p>}
   </section>
 }
