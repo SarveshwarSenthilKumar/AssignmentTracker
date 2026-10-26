@@ -441,6 +441,7 @@ function aiFailure(res,state,status,category,message,action,extra={}) {
 }
 assistantCredentials.registerRoutes(app,authenticateToken,userId=>{const state=aiRequests.get(userId);if(state)state.lastResult=null});
 registerWorkspaceSettings(app,authenticateToken,User);
+require('./phoneReference')(app,authenticateToken);
 async function aiCredential(req,res,state,traceId){
   let credential;
   try{credential=await assistantCredentials.resolve(req.user.userId)}catch{aiFailure(res,state,503,'configuration','Could not load your saved AI settings.','Try again or review AI settings on the Account page.',{traceId,stage:'configuration'});return null}

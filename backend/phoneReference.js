@@ -1,0 +1,63 @@
+const http=require('node:http');
+const https=require('node:https');
+const dns=require('node:dns').promises;
+const ipaddr=require('ipaddr.js');
+const cheerio=require('cheerio');
+
+function publicIP(address){
+  try{let ip=ipaddr.parse(address);if(ip.kind()==='ipv6'&&ip.isIPv4MappedAddress())ip=ip.toIPv4Address();return ip.range()==='unicast'}catch{return false}
+}
+async function readPage(input,signal,redirects=0){
+  if(redirects>4)throw new Error('This page redirects too many times.');
+  const url=new URL(input);
+  if(!['http:','https:'].includes(url.protocol)||url.username||url.password||url.href.length>2000||url.port&&!['80','443'].includes(url.port))throw new Error('Use a public http or https webpage address.');
+  const hostname=url.hostname.replace(/^\[|\]$/g,'');
+  const addresses=await dns.lookup(hostname,{all:true,verbatim:true});
+  if(signal.aborted)throw new Error('The reference request timed out.');
+  if(!addresses.length||addresses.some(item=>!publicIP(item.address)))throw new Error('Only public internet webpages can be read.');
+  const pinned=addresses[0];
+  const page=await new Promise((resolve,reject)=>{
+    const request=(url.protocol==='https:'?https:http).get(url,{signal,agent:false,headers:{'User-Agent':'AssignmentTracker-ReferenceReader/1.0','Accept':'text/html, text/plain;q=0.9','Accept-Encoding':'identity'},lookup:(_host,options,callback)=>options?.all?callback(null,[pinned]):callback(null,pinned.address,pinned.family)},response=>{
+      if([301,302,303,307,308].includes(response.statusCode)){response.resume();return resolve({redirect:response.headers.location})}
+      if(response.statusCode<200||response.statusCode>=300){response.resume();return reject(new Error('This website refused the reader request or requires sign-in. Use the full browser for this page.'))}
+      const type=String(response.headers['content-type']||'');
+      if(!/text\/(html|plain)|application\/xhtml\+xml/i.test(type)){response.resume();return reject(new Error('This address is not a readable webpage. Open files in Documents or use the full browser.'))}
+      const chunks=[];let size=0;
+      response.on('data',chunk=>{size+=chunk.length;if(size>2*1024*1024){response.destroy();reject(new Error('This page is too large for the phone reader.'))}else chunks.push(chunk)});
+      response.on('error',reject);response.on('end',()=>resolve({html:Buffer.concat(chunks).toString('utf8'),plain:/text\/plain/i.test(type)}));
+    });request.on('error',reject);request.setTimeout(10000,()=>request.destroy(new Error('The website took too long to respond.')));
+  });
+  if(page.redirect){const next=new URL(page.redirect,url);if(url.protocol==='https:'&&next.protocol!=='https:')throw new Error('This page redirects to an insecure address. Use the full browser.');return readPage(next.href,signal,redirects+1)}
+  if(page.plain)return {url:url.href,title:url.hostname,blocks:[{type:'pre',text:page.html.slice(0,60000)}],links:[]};
+  const $=cheerio.load(page.html);const title=$('title').first().text().trim().slice(0,300)||url.hostname;
+  $('script,style,noscript,iframe,svg,canvas,form,nav,footer,header,[hidden],[aria-hidden="true"]').remove();
+  const article=$('article').first(),main=$('main').first(),root=article.length?article:main.length?main:$('body');
+  const blocks=[];let characters=0;
+  root.find('h1,h2,h3,h4,p,li,pre,blockquote').each((_index,node)=>{
+    if(blocks.length>=160||characters>=60000)return;
+    if($(node).parents('pre,blockquote,li').length)return;
+    const type=node.tagName,text=$(node).text().trim().slice(0,8000);if(!text)return;
+    characters+=text.length;blocks.push({type,text});
+  });
+  if(!blocks.length){const text=root.text().replace(/\s+/g,' ').trim().slice(0,60000);if(text)blocks.push({type:'p',text})}
+  if(!blocks.length)throw new Error('This page needs JavaScript or sign-in to display its content. Use the full browser.');
+  const seen=new Set(),links=[];
+  root.find('a[href]').each((_index,node)=>{
+    if(links.length>=40)return;
+    try{const target=new URL($(node).attr('href'),url);if(!['https:','http:'].includes(target.protocol)||target.username||target.password||target.href.length>2000||seen.has(target.href))return;const text=$(node).text().replace(/\s+/g,' ').trim().slice(0,160);if(!text)return;seen.add(target.href);links.push({url:target.href,text})}catch{}
+  });
+  return {url:url.href,title,blocks,links};
+}
+module.exports=function registerPhoneReference(app,authenticateToken){
+  const rates=new Map();
+  app.post('/api/phone/reference',authenticateToken,async(req,res)=>{
+    res.set('Cache-Control','no-store');const now=Date.now(),id=String(req.user.userId);
+    for(const [key,value]of rates)if(now-value.start>60000)rates.delete(key);
+    const state=rates.get(id)||{start:now,count:0};if(state.count>=12)return res.status(429).json({message:'Please wait a minute before opening more references.'});state.count++;rates.set(id,state);
+    if(typeof req.body.url!=='string'||req.body.url.length>2000)return res.status(400).json({message:'Enter a webpage address.'});
+    const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),15000),disconnect=()=>{if(!res.writableEnded)controller.abort()};res.on('close',disconnect);
+    try{const page=await readPage(req.body.url,controller.signal);if(!res.destroyed)res.json(page)}
+    catch(error){if(!res.destroyed)res.status(422).json({message:controller.signal.aborted?'The reference request timed out. Try another page or open the browser.':/^[A-Z]/.test(error.message)?error.message:'This webpage could not be read. Try a public article or open the full browser.'})}
+    finally{clearTimeout(timeout);res.off('close',disconnect);if(res.destroyed&&!res.writableEnded)res.end()}
+  });
+};

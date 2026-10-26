@@ -2271,7 +2271,7 @@ function App() {
         {!selectedPDF&&!assistantOpen&&page!=='assistant'&&<button data-assistant-ui type="button" className="assistant-launcher" onClick={()=>setAssistantOpen(true)} aria-expanded={false} aria-label="Open workspace assistant"><span>Ask assistant</span><kbd>Alt + J</kbd></button>}
         <AssistantChat portalTarget={editorAssistantHost} key={`${user?.id}:${assistantGeneration}`} open={assistantOpen||(page==='assistant'&&!selectedPDF)} mode={page==='assistant'&&!selectedPDF?'page':'panel'} routeConversationId={assistantRouteId} onConversationChange={id=>{if(page!=='assistant')return;const hash=id?'#/assistant/'+id:'#/assistant';window.history.replaceState(null,'',hash);setAssistantRouteId(id)}} onOpenPage={()=>{setAssistantOpen(false);navigate('assistant')}} documents={pdfs} onDocumentsChange={setPdfs} onClose={()=>setAssistantOpen(false)} token={token} section={page} documentId={selectedPDF} documentName={pdfs.find(file=>file._id===selectedPDF)?.name} onOpenSource={openAssistantSource}/>
 
-        <StudyPhone key={'phone:'+user?.id+':'+assistantGeneration} userId={user?.id} tasks={todos} enabled={user?.studyPhoneEnabled!==false}/>
+        <StudyPhone key={'phone:'+user?.id+':'+assistantGeneration} userId={user?.id} token={token} tasks={todos} enabled={user?.studyPhoneEnabled!==false}/>
         {/* PDF Editor */}
         {selectedPDF && (
           <DocumentEditor
