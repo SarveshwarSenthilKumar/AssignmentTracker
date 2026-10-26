@@ -13,6 +13,7 @@ async function resetAccountWorkspace({ userId, models, startSession }) {
         const result = await models.AssistantConversation.deleteMany(owner, { session });
         deleted.assistantConversations = result.deletedCount;
       }
+      if (models.StudyItem) await models.StudyItem.deleteMany(owner, {session});
       if (models.SavedJob) await models.SavedJob.deleteMany(owner, {session});
       if (models.ResumeDraft) await models.ResumeDraft.deleteMany(owner, {session});
       if (models.DocumentSearchIndex) await models.DocumentSearchIndex.deleteMany(owner, {session});

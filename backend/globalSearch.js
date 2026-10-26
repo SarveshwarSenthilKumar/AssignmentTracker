@@ -1,6 +1,6 @@
 const {Worker}=require('node:worker_threads');
 const path=require('node:path');
-module.exports=function registerGlobalSearch(app,auth,{mongoose,User,Todo,PDF,Folder,PDFFolder,CalendarEntry,SavedJob,AssistantConversation}){
+module.exports=function registerGlobalSearch(app,auth,{mongoose,User,Todo,PDF,Folder,PDFFolder,CalendarEntry,SavedJob,AssistantConversation,StudyItem}){
   const Index=mongoose.models.DocumentSearchIndex||mongoose.model('DocumentSearchIndex',new mongoose.Schema({user:{type:mongoose.Schema.Types.ObjectId,index:true},document:mongoose.Schema.Types.ObjectId,version:String,text:String,status:String,error:String}).index({user:1,document:1},{unique:true}));
   const states=new Map();
   let workers=0;const waiting=[];
@@ -65,6 +65,7 @@ module.exports=function registerGlobalSearch(app,auth,{mongoose,User,Todo,PDF,Fo
       const indexed=await Promise.all(terms.map(term=>Index.find({...owner,text:term}).select('document version').lean()));
       const docMatch={$and:terms.map((term,index)=>({$or:[...['name','originalName','tags','annotations.text'].map(field=>({[field]:term})),{pdfFolder:{$in:documentPaths.filter(folder=>term.test(folder.path)).map(folder=>folder.id)}},{_id:{$in:indexed[index].filter(item=>versions.get(String(item.document))===item.version).map(item=>item.document)}}]}))};
       const groups={
+        study:[StudyItem,{...owner,...match(['title','topic','answer','notes'])},'title topic notes'],
         tasks:[Todo,{...owner,$and:terms.map(term=>({$or:[...['text','description','status','calendarLocation','calendarContext','links.url','links.title'].map(field=>({[field]:term})),{folder:{$in:taskPaths.filter(folder=>term.test(folder.path)).map(folder=>folder.id)}}]}))},'text description status dueDate canvasType folder'],
         documents:[PDF,{...owner,...(req.query.trash==='true'?{}:{deletedAt:null}),...docMatch},'name originalName tags pdfFolder deletedAt'],
         events:[CalendarEntry,{...owner,$and:terms.map(term=>({$or:[...['title','notes','location','kind','startDate','endDate','sports.sport','sports.league','sports.team','sports.opponent'].map(field=>({[field]:term})),{categoryId:{$in:(userInfo?.calendarCategories||[]).filter(category=>term.test(category.name)).map(category=>category.id)}}]}))},'title notes location startAt startDate kind'],
