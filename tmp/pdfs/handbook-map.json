@@ -5,7 +5,7 @@
       "page": 4
     },
     {
-      "title": "Your interview pitch",
+      "title": "Product overview",
       "page": 5
     },
     {
@@ -137,23 +137,23 @@
       "page": 37
     },
     {
-      "title": "A practical eight-minute demonstration",
+      "title": "Guided end-to-end workflow",
       "page": 38
     },
     {
-      "title": "Interview questions: architecture and data",
+      "title": "Technical questions: architecture and data",
       "page": 39
     },
     {
-      "title": "Interview questions: PDF, input and performance",
+      "title": "Technical questions: PDF, input and performance",
       "page": 40
     },
     {
-      "title": "Interview questions: AI, extraction and trust",
+      "title": "Technical questions: AI, extraction and trust",
       "page": 41
     },
     {
-      "title": "Preparing your own engineering stories",
+      "title": "Engineering case studies",
       "page": 42
     },
     {
@@ -161,7 +161,7 @@
       "page": 43
     },
     {
-      "title": "Troubleshooting and demonstration recovery",
+      "title": "Troubleshooting and operational recovery",
       "page": 44
     },
     {
@@ -177,7 +177,7 @@
       "page": 50
     },
     {
-      "title": "Rapid interview cheat sheet",
+      "title": "Technical quick reference",
       "page": 57
     }
   ],

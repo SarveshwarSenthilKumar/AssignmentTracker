@@ -12,8 +12,8 @@ from reportlab.pdfbase.ttfonts import TTFont
 
 ROOT=Path(__file__).resolve().parents[2]
 OUT=ROOT/'output/pdf'
-SOURCE=OUT/'AssignmentTracker-Feature-and-Interview-Handbook.md'
-PDF=OUT/'AssignmentTracker-Feature-and-Interview-Handbook.pdf'
+SOURCE=OUT/'AssignmentTracker-Product-and-Technical-Handbook.md'
+PDF=OUT/'AssignmentTracker-Product-and-Technical-Handbook.pdf'
 NAVY=colors.HexColor('#142B45'); ACCENT=colors.HexColor('#247C86'); INK=colors.HexColor('#21364A'); MUTED=colors.HexColor('#647888'); LINE=colors.HexColor('#D9E3E8'); PALE=colors.HexColor('#EFF5F6')
 for name,file in [('Body','calibri.ttf'),('Body-Bold','calibrib.ttf'),('Body-Italic','calibrii.ttf'),('Body-BoldItalic','calibriz.ttf')]:
     pdfmetrics.registerFont(TTFont(name,str(Path('C:/Windows/Fonts')/file)))
@@ -61,26 +61,26 @@ class Cover(Flowable):
         c=self.canv;c.setFillColor(NAVY);c.roundRect(0,232,475,423,15,fill=1,stroke=0)
         c.setFillColor(colors.HexColor('#80CFCC'));c.setFont('Body-Bold',10);c.drawString(30,614,'PRODUCT MANUAL + ENGINEERING HANDBOOK')
         c.setFillColor(colors.white);c.setFont('Body-Bold',39);c.drawString(30,541,'AssignmentTracker')
-        c.setFont('Body',24);c.drawString(31,491,'Every feature.');c.drawString(31,455,'How it works.');c.drawString(31,419,'How to explain it.')
+        c.setFont('Body',24);c.drawString(31,491,'Every feature.');c.drawString(31,455,'How it works.');c.drawString(31,419,'Technical reference.')
         c.setStrokeColor(colors.HexColor('#456075'));c.line(31,387,443,387)
         c.setFont('Body',12);c.drawString(31,358,'Prepared for Sarveshwar Senthil Kumar')
         c.setFillColor(colors.HexColor('#BDD0DF'));c.setFont('Body',10);c.drawString(31,330,'Source-based edition | October 26, 2026')
         c.drawString(31,308,'React / Express / MongoDB / PDF tools / Gemini')
-        c.setFillColor(ACCENT);c.setFont('Body-Bold',11);c.drawString(0,190,'A FIELD GUIDE FOR USING AND PRESENTING THE PROJECT')
-        for i,line in enumerate(['Feature-by-feature instructions, architecture and data flow,', 'demonstration sequence, interview questions, design tradeoffs,', 'limitations, source references and implementation inventories.']):
+        c.setFillColor(ACCENT);c.setFont('Body-Bold',11);c.drawString(0,190,'A COMPLETE PRODUCT AND TECHNICAL REFERENCE')
+        for i,line in enumerate(['Feature-by-feature instructions, architecture and data flow,', 'guided workflows, engineering notes, design tradeoffs,', 'limitations, source references and implementation inventories.']):
             c.setFillColor(INK);c.setFont('Body',12);c.drawString(0,157-i*21,line)
         c.setFillColor(MUTED);c.setFont('Body-Italic',9);c.drawString(0,56,'Implementation descriptions are not runtime-verification claims.')
 
 class Handbook(BaseDocTemplate):
     def __init__(self,path):
-        super().__init__(str(path),pagesize=(595.28,841.89),leftMargin=60,rightMargin=60,topMargin=65,bottomMargin=57,title='AssignmentTracker - Feature and Interview Handbook',author='Prepared for Sarveshwar Senthil Kumar',subject='Application guide, architecture and interview preparation',pageCompression=1)
+        super().__init__(str(path),pagesize=(595.28,841.89),leftMargin=60,rightMargin=60,topMargin=65,bottomMargin=57,title='AssignmentTracker - Product and Technical Handbook',author='Prepared for Sarveshwar Senthil Kumar',subject='Application features, architecture and technical reference',pageCompression=1)
         frame=Frame(self.leftMargin,self.bottomMargin,self.width,self.height,id='body',leftPadding=0,rightPadding=0,topPadding=0,bottomPadding=0)
         self.addPageTemplates(PageTemplate(id='main',frames=frame,onPage=self.decorate));self.chapter='';self.chapters=[]
     def beforeDocument(self): self.chapter='';self.chapters=[]
     def decorate(self,c,doc):
         c.saveState()
         if doc.page>1:
-            c.setFillColor(MUTED);c.setFont('Body-Bold',8);c.drawString(60,810,'ASSIGNMENTTRACKER');c.setFont('Body',8);c.drawRightString(535,810,'FEATURES / ARCHITECTURE / INTERVIEW PREP')
+            c.setFillColor(MUTED);c.setFont('Body-Bold',8);c.drawString(60,810,'ASSIGNMENTTRACKER');c.setFont('Body',8);c.drawRightString(535,810,'FEATURES / ARCHITECTURE / TECHNICAL REFERENCE')
             c.setStrokeColor(LINE);c.line(60,798,535,798)
         c.setStrokeColor(LINE);c.line(60,43,535,43)
         c.setFillColor(MUTED);c.setFont('Body',8);c.drawString(60,28,'Source-based edition | 26 OCT 2026');c.drawRightString(535,28,f'{doc.page:02d}')
@@ -150,9 +150,9 @@ story.append(p('Registration notes','h2'))
 story.append(p('Folder hierarchy and folder attachment templates register under /api/folders and /api/pdf-folders. Tailoring registers separate cover-letter and resume generation/save-draft paths. Route templates and helper-generated routes should be read with their registration calls in server.js; the literal inventory may omit routes constructed by helpers.'))
 story.append(PageBreak())
 
-story.extend([p('APPENDIX C','eyebrow'),Paragraph('Rapid interview cheat sheet',styles['chapter'])])
-rows=[['If asked about...','Lead with...','Then disclose...'],['The product','Connected academic and career workspace','Feature breadth does not prove reliability'],['Architecture','React -> Express -> MongoDB','Not microservices or real-time collaboration'],['Ownership','Token plus owner-scoped queries','IDs alone are not authorization'],['Undo','Workflow-specific snapshots/history','No universal rollback; reset is permanent'],['PDF editing','Base file plus annotations and overlays','Not secure redaction or full Word layout'],['Performance','Canvas, bounded work, workers','No measured speedup without profiling'],['Palm rejection','Pointer type and gesture arbitration','No hardware/ML palm classifier'],['AI use','Language/recognition with restricted context','Review required; provider dependency'],['Math','AI transcribes; local parser computes','Wrong transcription can yield wrong result'],['Career tailoring','Source evidence plus template fidelity','No invented facts or ATS guarantee'],['Job imports','Structured data, layout/OCR, manual review','No universal accuracy or login bypass'],['Events','Public source fetch, cache and identity','Upstream changes and freshness limits'],['Scaling','Storage/queues/shared coordination next','Do not claim those are deployed'],['Testing','Describe a concrete validation plan','Do not invent passed checks or metrics']]
-story.append(table(rows,[95,190,190]));story.append(Spacer(1,16));story.append(p('Before you walk in','h2'));story.append(p('Prepare a clean demo account, source documents, a reviewed output and a local-only fallback. Know one failure case, one technical tradeoff and one next improvement. Show evidence of your own contribution and be clear about adapted libraries and assistance.'))
+story.extend([p('APPENDIX C','eyebrow'),Paragraph('Technical quick reference',styles['chapter'])])
+rows=[['Area','Implementation','Boundary / tradeoff'],['The product','Connected academic and career workspace','Feature breadth does not prove reliability'],['Architecture','React -> Express -> MongoDB','Not microservices or real-time collaboration'],['Ownership','Token plus owner-scoped queries','IDs alone are not authorization'],['Undo','Workflow-specific snapshots/history','No universal rollback; reset is permanent'],['PDF editing','Base file plus annotations and overlays','Not secure redaction or full Word layout'],['Performance','Canvas, bounded work, workers','No measured speedup without profiling'],['Palm rejection','Pointer type and gesture arbitration','No hardware/ML palm classifier'],['AI use','Language/recognition with restricted context','Review required; provider dependency'],['Math','AI transcribes; local parser computes','Wrong transcription can yield wrong result'],['Career tailoring','Source evidence plus template fidelity','No invented facts or ATS guarantee'],['Job imports','Structured data, layout/OCR, manual review','No universal accuracy or login bypass'],['Events','Public source fetch, cache and identity','Upstream changes and freshness limits'],['Scaling','Storage/queues/shared coordination next','Proposed, not deployed infrastructure'],['Testing','Representative fixtures and metrics','Source inspection is not test execution']]
+story.append(table(rows,[95,190,190]));story.append(Spacer(1,16));story.append(p('Operational checklist','h2'));story.append(p('Keep source documents, reviewed exports and recovery options available. Check integration configuration, protect credentials, review errors before retrying and distinguish implemented behavior from proposed improvements. Track adapted components and their license requirements.'))
 
 doc=Handbook(PDF);doc.multiBuild(story)
 import json

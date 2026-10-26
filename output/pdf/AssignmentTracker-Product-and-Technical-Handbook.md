@@ -1,45 +1,47 @@
 # How to use this handbook
 
-This is a source-based guide to Sarveshwar Senthil Kumar's AssignmentTracker, prepared on October 26, 2026. It combines a user manual, an architecture explanation, a demonstration plan and interview preparation. It describes implementation, not a claim that every feature has passed runtime testing or works with every external service.
+This is a source-based guide to Sarveshwar Senthil Kumar's AssignmentTracker, prepared on October 26, 2026. It combines a complete product manual, an architecture reference, guided workflows and engineering notes. It describes the implementation without assuming that every feature has passed runtime testing or works with every external service.
 
 ## Three ways to read it
-- Before an interview: read the pitch, architecture, demo, interview questions and limitations chapters first.
-- While demonstrating: follow the demo sequence and use the feature chapters to explain individual controls.
-- When answering technical follow-ups: use the source map and API appendix to find the implementation behind a claim.
+- Getting started: read Product overview, Architecture and Setup, then follow the guided end-to-end workflow.
+- Using a feature: find its chapter in the linked contents or PDF bookmarks for controls, behavior and limitations.
+- Understanding the implementation: use the technical questions, engineering case studies, source map and API inventory.
 
 ## Important distinctions
 - Saved in the platform is different from downloaded to a local file. PDF annotations can be stored separately until export.
 - Account preferences and records live in MongoDB; some display preferences and recovery drafts live only in the browser.
 - Local parsing and calculation are different from AI recognition. The app uses both, with explicit boundaries.
-- An undo facility is scoped to a workflow. There is no universal rollback of every application operation.
-- The presence of test files is not evidence they pass. No application tests, builds, live API probes or browser QA were run to prepare this guide, following the repository's workflow preference.
+- Undo is scoped to a workflow. There is no universal rollback of every application operation.
+- Source inspection establishes implemented structure, not runtime reliability. No application tests, builds, live API probes or browser QA were run to prepare this guide, following the repository's workflow preference.
 
-## How to speak credibly
-Use the sample answers as a starting point, not a script to memorize. Say "the implementation uses..." for code-backed behavior. Use "I measured..." or "users reported..." only when you have that evidence. Describe personal authorship and collaboration accurately. Avoid invented user counts, performance improvements, deployment history or business outcomes.
+## Reading implementation notes
+Each feature chapter separates user-visible behavior from design decisions and external dependencies. Source references identify the relevant modules. Suggested improvements are described as future work, not as deployed capabilities. Performance, extraction quality and integration availability require measurement under representative conditions.
 
-Code takes precedence over old documentation. Some earlier README sections describe previous versions: the assistant can now edit supported open documents, notes have a Markdown studio, supported DOCX editing preserves the original package, and Ctrl/Cmd+K opens global search.
+Code takes precedence over older documentation. For example, the assistant can edit supported open documents, notes have a Markdown studio, supported DOCX editing preserves the original package, and Ctrl/Cmd+K opens global search.
 
 Sources: README.md; frontend/src/App.jsx; frontend/src/components/DocumentEditor.jsx; backend/assistantEditor.js.
 
-# Your interview pitch
+# Product overview
 
-## A 30-second answer
-"AssignmentTracker is a full-stack student workspace that connects tasks, calendars, documents and career preparation. It started around organizing academic work and expanded into an annotated PDF editor, typed notes, campus-event discovery and AI-assisted document workflows. The frontend uses React, the API uses Express, and MongoDB stores account-owned records. A key design principle is keeping related work connected while making destructive and AI-powered actions explicit."
+## Purpose
+AssignmentTracker is a full-stack student workspace connecting tasks, calendars, documents, study material and career preparation. It brings related work into one account while retaining clear distinctions between source records, linked files and the views that display them.
 
-## A 90-second answer
-"The problem is that students move between assignment lists, calendars, notes, files and job applications. This app brings those workflows together. Tasks can have deadlines, dependencies and attachments; the calendar combines deadlines with personal entries, Canvas data and public events. The document library supports typed notes and an annotation-heavy PDF editor. Career tools import job details and tailor letters or resumes from existing documents.
+## Main workflows
+- Plan academic work with tasks, deadlines, folders, prerequisites, attached evidence and deletion recovery.
+- Combine task deadlines, personal appointments, Canvas imports and public events in a calendar with categories, recurrence and supported undo.
+- Store documents, create typed notes or blank notebooks, annotate PDFs, copy text and use local mathematical tools.
+- Ask questions with selected workspace/file context, save study questions and prepare bounded edits to supported open documents.
+- Save job postings and tailor resumes or letters using existing source material, reviewed replacements and optional employer research.
+- Arrange tools in a customizable workspace, inspect task relationships visually and navigate through global search.
 
-"Technically, it is a React/Vite client talking to an Express/Mongoose backend. Files use the existing document collection, and relationships connect them to tasks, events and folders. Some operations, such as deletion recovery and calendar undo, use MongoDB transactions. AI is deliberately bounded: local code handles parsing and calculation where possible, while Gemini supplies language generation or recognition with account-level access controls.
+## Core technology
+The React/Vite frontend provides interactive views and document tools. An Express API handles authentication, validation, persistence, external retrieval and AI requests. MongoDB stores account-owned records, file data and transaction-backed recovery/history. Local utilities handle operations such as Markdown conversion, supported extraction, arithmetic and plotting; Gemini provides optional language generation or recognition.
 
-"The most interesting engineering problems are preserving annotations across page changes, distinguishing pen input from navigation, maintaining document formatting, and preventing stale async results from overwriting newer edits. I would demonstrate those workflows, explain their limitations, and discuss the next steps in testing, storage and maintainability."
+## Design priorities
+Related entities use stable references so a task, event or folder can link the same document. Destructive operations have workflow-specific recovery paths. AI capabilities are restricted by account permissions and supported editor actions. Public-source imports retain their provenance and expose freshness or collection failures.
 
-## What makes the project distinctive
-- Connected academic and career workflows, rather than unrelated standalone tools.
-- Both local-first document utilities and optional AI assistance.
-- Recovery designed into several destructive workflows.
-- Difficult browser interactions: PDF geometry, text extraction, handwriting input and long conversion jobs.
-
-Do not call it a real-time collaborative editor, autonomous agent, perfect PDF word processor or universally accurate job scraper. Those descriptions exceed the implementation.
+## Scope
+The application is not a real-time collaborative editor, an unrestricted autonomous agent, a complete PDF word processor or a universally accurate job scraper. Its supported workflows and practical limits are documented in the following chapters.
 
 # Architecture: the whole system
 
@@ -59,7 +61,7 @@ UI state is not necessarily persistent data. A selected page or open menu is tem
 
 This is a modular application on one backend, not a fleet of microservices. Some coordination is per process, so multiple backend instances would require shared locking, rate limits and caches. MongoDB transactions require Atlas or a replica set.
 
-Interview explanation: "I keep interactive rendering close to the browser and credentials and persistence on the server. I use structured records for relationships, and transaction snapshots where a destructive mutation must be recoverable. The tradeoff is coordination complexity as the feature set grows."
+Design rationale: Interactive rendering stays close to the browser, while credentials and persistence stay on the server. Structured IDs represent relationships, and transactional snapshots support recoverable mutations. Coordination becomes more complex as the feature set grows.
 
 Sources: frontend/vite.config.js; frontend/src/App.jsx; backend/server.js; backend/calendarHistory.js.
 
@@ -97,8 +99,8 @@ From the repository root, install dependencies in backend and frontend with npm 
 - OAuth: configure GitHub/LinkedIn client credentials, exact callback URLs and public application/API URLs. Production account linking expects HTTPS with a same-host /api proxy.
 - OneNote: native preservation needs desktop OneNote on the Windows backend machine; compatibility conversion has its own Python requirements.
 
-## Before a live demonstration
-Prepare a working account, a small PDF, a typed note, sample tasks and a saved job. Confirm optional integrations yourself. Keep a local-only demonstration path if the network or AI provider is unavailable. Never display .env files, tokens, private documents or a real key on a projector.
+## Prepare the workspace
+Prepare an account, a small PDF, a typed note, sample tasks and a saved job. Verify optional integrations before depending on them. Local notes and PDF tools remain useful when network services are unavailable. Keep environment files, credentials and private documents protected.
 
 Deployment instructions in the repository describe hosting options; they do not establish that a public deployment is currently running. No installation, backend start or live integration check was performed for this handbook.
 
@@ -116,7 +118,7 @@ Ctrl/Cmd+K opens global search, including from editors and fullscreen PDF mode. 
 
 Document content indexing runs in bounded worker threads. The index version tracks saved file updates; outdated index text should not be treated as current. Reindex rebuilds the account's extracted text. Pagination prevents returning every result in one response. Search includes supported PDF text/annotations, DOCX, workbook and text content; it does not magically OCR every scanned image or index unsaved edits, audio speech or all embedded media.
 
-Interview explanation: "Search crosses different entity types, so I preserve each result's type and ID and route to the correct destination. Text extraction is isolated from request handling with bounded workers. The main tradeoff is freshness: saved document content must be indexed, and unsupported content has explicit coverage limits."
+Design rationale: Search results retain entity types and IDs so navigation can resolve the correct destination. Bounded workers isolate extraction from request handling. Saved content must be indexed before its newest text is searchable, and unsupported formats have explicit coverage limits.
 
 Sources: AppNavigation.jsx; HomePage.jsx; GlobalSearch.jsx; backend/globalSearch.js; backend/searchTextWorker.js.
 
@@ -137,7 +139,7 @@ Custom order supports drag and drop. A compact floating preview and insertion li
 ## Deletion recovery
 Successful task deletions create account-owned recovery snapshots for seven days. Undo deletion appears below the page heading, works after reload and can be repeated for earlier groups. It covers individual deletions, bulk selections and clear actions. Restoration preserves IDs, details, dates, order and dependency links; a missing original folder sends the task to Inbox. Account reset intentionally clears these snapshots.
 
-Interview follow-up: "The status column is a view, not the identity of a task. Hiding a column should not silently delete or lose access to its tasks. For deletion I snapshot the mutation in a database transaction, which is different from a temporary client-side toast."
+Design rationale: A status column is a view rather than a task identity. Hiding it must not delete tasks or make them inaccessible. Transaction-backed deletion snapshots are persistent recovery records, unlike a temporary client-side notification.
 
 Sources: frontend/src/App.jsx; useTaskPointerDrag.js; TaskDeletionUndo.jsx; TaskDisplaySettings.jsx; backend/taskDeletionRecovery.js.
 
@@ -153,8 +155,8 @@ Task details and expanded editors have Files & media. Upload multiple files, dro
 
 An existing document can be referenced by several tasks. Insert in description adds a stable document reference rather than copying the binary or freezing its filename. Library rows and the task map expose related tasks/documents. Unlinking an attachment keeps the library file, and Trash makes a reference unavailable until the document is restored.
 
-## How to explain the design
-"I model relationships with IDs so a renamed document still resolves correctly. A relationship update and a document upload are different actions; deleting a relationship should not destroy shared data. For prerequisites, I chose advisory links rather than enforcing a scheduling engine, which makes the workflow flexible while still exposing cycles."
+## Relationship design
+Stable IDs let renamed documents resolve correctly. Updating a relationship differs from uploading a file, and removing a link does not destroy shared data. Prerequisites are advisory rather than enforced scheduling constraints, preserving flexibility while exposing cycles.
 
 This is not automatic project scheduling or critical-path optimization. Do not claim that the graph guarantees a feasible plan, detects every business dependency, or assigns resources.
 
@@ -196,7 +198,7 @@ Timed events represent instants displayed in the chosen account time zone. All-d
 ## Remove versus delete
 Remove this event targets exactly one event ID. Excluding a task deadline does not delete its task or modify Canvas. Excluding a public event does not alter the source. Deleting a personal calendar record is a different operation. Matching-name removal is a separate reviewed action; similar titles alone do not trigger bulk removal.
 
-Interview explanation: "I preserve source identity and apply visibility separately. That prevents a calendar-only action from destroying the underlying academic record."
+Design rationale: Source identity and calendar visibility are separate. A calendar-only removal can leave the underlying task or external source untouched.
 
 Sources: CalendarPage.jsx; CalendarAttachments.jsx; backend/calendarEntries.js; backend/calendarLinks.js; frontend/src/lib/calendar.js.
 
@@ -230,7 +232,7 @@ The backend scraper requests public CampusLabs discovery search pages using skip
 
 Calendar requests share an in-process public cache. An open calendar can trigger refresh after an hour; manual refresh has a cooldown. Partial results can retain prior data, so stale events are possible until a complete refresh. A restart clears this cache, and multiple backend processes do not automatically share it.
 
-## Interview caveat
+## Coverage boundary
 "All events" means all publicly returned events within the selected search, not private, restricted, unpublished or deleted university records. Website endpoints can change. The app does not bypass login restrictions, RSVP on behalf of the user, or guarantee live upstream compatibility.
 
 CLI examples: npm run scrape:txst in backend; optional --from, --to, --out and --csv arguments. Pass an explicit time-zone offset when a UTC midnight date boundary is not intended.
@@ -250,10 +252,10 @@ The backend normalizes schedule sessions into stable external IDs. Re-import ski
 ## Data quality
 The F1 schedule comes from Jolpica's public data. Sessions with known start times use those timestamps; finish times may be estimates. Missing times can appear as all-day placeholders. Public data and race schedules can change. Imports are snapshots, not a subscribed live calendar that continuously rewrites the user's events.
 
-## Interview answer
-"The interesting part is not displaying a list of races. It is normalization and idempotency: identifying the same session on a later import, separating session types, handling missing timing data and preserving user edits. I make uncertainty visible instead of inventing an exact end time."
+## Design rationale
+Schedule import depends on normalization and idempotency: identifying the same session on a later import, separating session types, handling missing timing data and preserving user edits. Uncertainty is visible rather than replaced with an invented exact end time.
 
-Suggested demo: preview a season, choose only Grands Prix, assign a Sports category, import, then demonstrate that another import reports existing entries. Only show that flow after verifying the live endpoint yourself.
+Example workflow: preview a season, choose only Grands Prix, assign a Sports category and import. A subsequent import should identify already imported sessions. Check the live source and review timing information before relying on the schedule.
 
 Sources: F1SeasonImport.jsx; backend/f1Calendar.js; CalendarPage.jsx; backend/calendarHistory.js.
 
@@ -270,7 +272,7 @@ Users can import an exported calendar file. The parser handles folded lines, UID
 ## Limits and privacy
 These are imports/syncs into the application, not two-way editing of Canvas. A status change in the app should not be described as completing an assignment in Canvas. Credentials stay out of AI workspace context, but Canvas credentials and their storage still deserve a separate security review; do not assume they have the same encryption path as saved Gemini keys.
 
-Interview answer: "I separate source identity from local state so an import does not erase user work. I also treat a partially fetched collection as partial, not empty. A production extension would add a scheduled job queue, monitored retries and a clear conflict policy for source changes."
+Design rationale: Imports keep source identity separate from local state so updates do not erase user work. Partial retrieval is reported as partial rather than empty. Scheduled queues, monitored retries and broader conflict policies are potential extensions.
 
 Sources: frontend/src/App.jsx; backend/canvasPagination.js; backend/canvasTasks.js; backend/calendarICS.js; backend/server.js.
 
@@ -291,7 +293,7 @@ The legacy PDF collection stores multiple file kinds. Opening a document routes 
 - Browser-supported audio/video: playback, download and replacement.
 - Other formats: storage, download and same-format replacement; no arbitrary native editor.
 
-Interview answer: "Format dispatch gives each file a realistic capability set. Preserving a DOCX package is different from reconstructing a Word document, and keeping an original backup provides an escape hatch when editing is limited."
+Design rationale: Format dispatch gives each file a defined capability set. Preserving an original DOCX package differs from rebuilding a generic document; original backups provide a recovery path when edits are limited.
 
 Sources: DocumentLibrary.jsx; DocumentEditor.jsx; frontend/src/lib/documentFormats.js; frontend/src/lib/wordTemplateEditor.js.
 
@@ -314,7 +316,7 @@ Manual Save persists content; optional Autosave saves after a writing pause. Ses
 
 Download Markdown preserves editable source. Export PDF opens the existing converter with current text, including unsaved edits, and creates a separate downloadable PDF. Writing font/size are display preferences, not a promise that PDF export inherits those settings. The export preview has its own typography.
 
-Interview explanation: "I chose Markdown as a durable source format with a richer editing shell. It gives portable notes and local previews without introducing arbitrary editable HTML. The tradeoff is that toolbar actions insert syntax rather than providing a complete word processor."
+Design rationale: Markdown provides durable, portable source text and local previews without arbitrary editable HTML. Toolbar actions insert syntax rather than implementing a complete word processor.
 
 Sources: NoteStudio.jsx; noteTemplates.js; DocumentEditor.jsx; MarkdownPDFCreator.jsx.
 
@@ -333,7 +335,7 @@ Describe the desired document. Gemini returns a draft title/text for review. Aft
 
 The generation flow uses the configured AI key and generation permissions. The basic document creator sends the supplied description, not the entire document library automatically. Review facts and unsupported characters before relying on the result.
 
-Interview distinction: "The AI drafts content; local code creates and paginates the editing artifact. Markdown conversion is a separate deterministic local workflow and does not require spending model tokens."
+Design rationale: AI drafts content while local code creates and paginates the artifact. Markdown conversion is a separate deterministic workflow with no model-token requirement.
 
 Sources: DocumentLibrary.jsx; AIDocumentCreator.jsx; MarkdownPDFCreator.jsx; markdownPdfExport.js; backend/generatedDocuments.js.
 
@@ -353,7 +355,7 @@ A long, sufficiently straight pen stroke can snap to a line at release. Keep / U
 ## Images, snippets and inserts
 Insert includes files/images, PDF pages, shapes, image tables and stamps. Tables accept cell entry or pasted spreadsheet cells up to 12 rows by 8 columns, then insert as an image. Stamps have editable text and presets such as APPROVED, DRAFT, REVIEWED and CONFIDENTIAL. Shapes and other inserts can be moved and resized. PDF merge accepts multiple files, import ranges and before/after/start/end placement. Copy region captures a selected page region as a snippet; paste it elsewhere and move/resize it. This transfers rendered content, not necessarily the original editable source objects. The selection/move tools and keyboard nudges help place inserts precisely.
 
-Interview answer: "I keep a semantic annotation model separate from the base document. That supports undo and editing without mutating the PDF after every pointer sample. Export is the point where annotations are composed into a portable artifact."
+Design rationale: The annotation model is separate from the base document, supporting editing and undo without rewriting the PDF for every pointer sample. Export composes the annotations into a portable artifact.
 
 Sources: PDFEditor.jsx; PDFInsertPanel.jsx; PDFEraserControls.jsx; pdfEraser.js; pdfStraightLine.js; insertGeometry.js.
 
@@ -365,7 +367,7 @@ Choose Text and click a supported source text run. The editor extracts text and 
 Leaving text unchanged preserves the original rendering. Unsupported characters and missing/custom subset fonts can require an approximation or stop export rather than silently substitute every glyph. Independently skewed, vertical or image-only text is not equivalent to ordinary horizontal selectable text.
 
 ## A crucial security distinction
-Source text is visually covered and replaced. It is not necessarily removed from the PDF content stream. This is editing by overlay, not secure redaction. A white cover also cannot reconstruct arbitrary photographs or colored backgrounds behind the old text. Never claim otherwise in an interview.
+Source text is visually covered and replaced. It is not necessarily removed from the PDF content stream. This is editing by overlay, not secure redaction. A white cover also cannot reconstruct arbitrary photographs or colored backgrounds behind the old text. Use a dedicated redaction workflow when underlying source content must be removed.
 
 ## Copying text
 Select text mode exposes native selection without drawing. The text layer includes different fonts, sizes and positions plus relevant saved text annotations, and suppresses covered source runs for copying. Copy all text extracts across pages, including pages not currently rendered. Join wrapped lines groups soft line wraps into coherent paragraphs while preserving useful structure such as lists, headings, contact lines and code-like content.
@@ -427,7 +429,7 @@ Graph selected region or type an explicit function of x. Adjust X/Y limits, insp
 
 Plots use finite sampling. They can miss narrow features or behave poorly around discontinuities; implicit relations and arbitrary multivariable equations must be rewritten. This is not a complete computer algebra system.
 
-Interview answer: "I separate recognition from computation. That gives a useful AI fallback for handwriting without delegating every arithmetic result to a language model. The parser restricts the accepted expression language rather than executing arbitrary JavaScript."
+Design rationale: Recognition transcribes expressions and a restricted local parser evaluates them. This supports handwriting assistance without running arbitrary JavaScript or delegating every arithmetic result to a language model.
 
 Sources: PDFCalculator.jsx; PDFGraph.jsx; calculator.js; pdfCalculation.js; pdfGraph.js; mathSelectionImage.js.
 
@@ -447,7 +449,7 @@ An explicit compatibility option uses the separately installed Python converter.
 ## Limits and troubleshooting
 Uploads are 10 MB, source pages are bounded, and resulting PDFs must fit the library limit. Desktop OneNote must open normally under the backend Windows account, complete sign-in/setup and unlock protected sections. Keep original files; flattened imported ink cannot be erased as individual platform strokes. New annotations are editable, but source OneNote objects are not.
 
-Interview answer: "A notebook parser was insufficient for annotation fidelity, so the preferred route uses the original application's renderer. That improves visual preservation but introduces a Windows/desktop dependency. Exporting PDF from OneNote and uploading it is an explicit alternative."
+Design rationale: Native OneNote export uses the original application renderer to preserve visual content more faithfully than a compatibility parser. The resulting dependency on Windows/desktop OneNote is explicit; direct PDF upload is an alternative.
 
 Sources: OneNoteImport.jsx; backend/oneNoteImport.js; backend/scripts/export_onenote.ps1; backend/scripts/import_onenote.py; backend/requirements-onenote.txt.
 
@@ -464,8 +466,8 @@ Messages render Markdown, tables, code and KaTeX inline/display math, with sourc
 ## History is bounded
 The server supplies saved history, not an arbitrary browser-authored transcript. Conversations have a message cap, while only a bounded recent slice is sent to the model. Older messages remain viewable; a long chat does not mean the provider sees all of it on every request. Generation leases and revision checks reduce overlapping replies from multiple sessions.
 
-## Interview phrasing
-"The assistant is integrated into the workflow, but it is not an unrestricted autonomous agent. It answers with selected context and can prepare a narrow set of supported edits for the currently open editor when authorized. It cannot arbitrarily mutate tasks or browse the entire internet as a general tool."
+## Capability boundary
+The assistant answers using selected context and can prepare a narrow set of supported edits for the currently open editor when authorized. It is not an unrestricted autonomous agent: it cannot arbitrarily mutate tasks or browse the entire internet as a general tool.
 
 Sources: AssistantChat.jsx; AssistantMarkdown.jsx; useAssistantResize.js; backend/assistantConversations.js; backend/assistant.js.
 
@@ -483,7 +485,7 @@ Personal Gemini keys are encrypted server-side with AES-256-GCM and account-boun
 ## Failure handling
 The backend bounds request concurrency, context and rate. Timeouts abort requests; it does not indiscriminately retry provider calls. Diagnostics distinguish authentication, permission, model, quota, throttling, safety/context, network and service failures. Trace IDs, stage, timings, safe provider details and retry countdowns make errors actionable. A deliberate connection test consumes provider usage; a configuration/status refresh need not call Gemini.
 
-Interview answer: "AI safety here is primarily capability scoping, data minimization and validated output, not a claim that prompt instructions make a model perfectly trustworthy. Provider policy and availability remain external dependencies."
+Design rationale: AI controls rely on capability scoping, data minimization and validated output. Prompt instructions alone cannot guarantee trustworthy model behavior. Provider policies and availability remain external dependencies.
 
 Sources: backend/aiAccess.js; backend/assistantCredentials.js; backend/assistantDiagnostics.js; AccountAIAccess.jsx; AssistantDiagnostics.jsx.
 
@@ -498,7 +500,7 @@ The provider prepares an editor-actions JSON block. Backend validation checks ac
 The cleanup tool accepts user comments, extracts supported text from the current page or bounded document scope, and asks for proposed corrections. The user reviews individual proposals and can select/edit them before applying. Supported corrections become text edits in one undo batch; it does not magically repair arbitrary handwriting, diagrams or document semantics.
 
 ## Why both layers validate
-"The server checks what the model is allowed to propose, and the browser checks whether the target is still current. That handles both malformed output and the race where I keep editing while a request is in flight. The language model is not given direct database or filesystem access."
+The server validates proposed model actions and the browser checks whether the target is still current. Together these checks handle malformed output and the race where editing continues while a request is in flight. The model receives no direct database or filesystem access.
 
 Restrictions remain real: PDF replacements are visual overlays, font coverage can fail, scans may lack text, and context is bounded. Do not describe this as full autonomous document editing, secure redaction or guaranteed correctness.
 
@@ -517,8 +519,8 @@ Universal does not mean unrestricted: the server cannot access a private authent
 ## Import from files
 Upload an image or PDF of the posting. Local mode uses PDF text/layout extraction or browser OCR for raster content, then heuristics to classify header fields and sections. The layout-aware parser helps separate title, company and location from a long description. Manual correction remains available. AI mode is an explicit alternative and can consume tokens; the local extractor is deterministic/OCR-based, not a privately hosted language model.
 
-## Interview explanation
-"I try cheap structured extraction first, retain raw evidence, and let the user correct the result. The difficult part is recovering semantic fields from arbitrary page layout, not just extracting text. A bigger version would use labeled evaluation sets and measure per-field precision/recall before claiming broad accuracy."
+## Implementation rationale
+Structured extraction is attempted where available, source evidence is retained and fields remain reviewable. Recovering semantic fields from arbitrary layout differs from extracting raw text. Labeled evaluation sets and per-field precision/recall would support a broader quality assessment.
 
 No claim of perfect imports is warranted. A screenshot can omit context, OCR can confuse symbols and columns, and different job boards can change their markup.
 
@@ -537,7 +539,7 @@ The generation model supplies structured text replacements, not the final PDF/DO
 ## Save and error review
 Save a separate copy and open the editor, leaving the reference intact. Review/acknowledgement gates and descriptive warnings help avoid treating an AI draft as a final application. Expandable errors include stage, category, safe provider/application details, HTTP status, trace ID and suggested next step. Compact prompts and bounded references reduce unnecessary context; provider latency can still vary.
 
-Interview answer: "The model handles language tailoring; deterministic code retains format ownership. I prioritized matching the user's source phrasing and supported facts rather than optimizing for a generic polished AI voice."
+Design rationale: The model proposes language changes while deterministic code retains format ownership. Existing source phrasing and supported facts take priority over generic generated wording.
 
 Sources: CoverLettersPage.jsx; CoverLetterGenerator.jsx; CoverLetterError.jsx; backend/coverLetterPrompt.js; backend/coverLetterGeneration.js; coverLetterPdfLayout.js; wordTemplateEditor.js.
 
@@ -556,7 +558,7 @@ Both resume and letter generation can use the employer's official public website
 
 Public pages are untrusted input. Retrieval is bounded, validated and separated from applicant documents; the app does not send the user's resume to the employer website. Website failure falls back with a warning to role and source documents. Cleanup-only letter mode does not need research.
 
-Interview answer: "I distinguish employer facts from applicant facts. Research can change relevance, but it must not change what the candidate actually did."
+Design rationale: Employer facts and applicant facts have distinct roles. Research may change relevance but must not change what the applicant actually did.
 
 Sources: backend/resumePrompt.js; backend/companyResearch.js; backend/coverLetterGeneration.js; tailoringTemplateRuns.js; ResumesPage.jsx.
 
@@ -574,7 +576,7 @@ The task map groups by folder/status or uses planned sequence. It shows actual t
 
 Dragged map positions are temporary view adjustments, not persistent changes to task order. Filters can hide graph edges to excluded nodes without deleting the relationships.
 
-Interview answer: "The workspace composes tools around shared records. The graph is another projection of that same model, so I avoid maintaining a second task database just to display a visualization."
+Design rationale: Workspace tools and the task graph project the same underlying records. They do not require a second task database for display.
 
 Sources: WorkflowWorkspace.jsx; WorkspaceWindow.jsx; WorkflowTools.jsx; useWorkspaceLayout.js; backend/workspaceSettings.js; TaskVisualization.jsx; taskVisualization.js.
 
@@ -591,7 +593,7 @@ Study records are account-owned and stored in MongoDB. When starring a saved con
 ## An example learning flow
 Create lecture notes, attach a source PDF, ask the assistant to explain a concept, star the difficult question, then revisit it in Study stars and reveal the answer only after attempting recall. Manual topic entries can organize material that did not originate in the assistant.
 
-Interview answer: "I wanted generated explanations to become reusable study material rather than disappear in chat history. The current feature is a review collection with status tracking, not a spaced-repetition algorithm or an adaptive learning model. Scheduling reviews would be a separate enhancement."
+Design rationale: Study stars turns saved explanations into reusable review material. The current implementation tracks collection/review status; it is not an adaptive learning or spaced-repetition algorithm.
 
 Sources: StudyPage.jsx; backend/study.js; AssistantChat.jsx; frontend/src/lib/study.js.
 
@@ -609,7 +611,7 @@ The existing CORS and token-storage choices should not be presented as a complet
 GitHub/LinkedIn connections link a provider profile to the current account; they do not replace application login or automatically import repositories, contacts or social activity. Authorization uses expiring single-use state tied to a browser cookie; GitHub also uses PKCE. Provider tokens fetch profile information and are discarded. Disconnect invalidates pending attempts and removes the local link; provider-side revocation is separate.
 
 ## Destructive account reset
-Reset requires the current password and RESET confirmation, uses a transaction, and clears application data including recovery/history while preserving login identity. It is not undoable. Per-process write guards must be coordinated before deploying multiple backend instances. Do not offer a live reset during a demo with valuable data.
+Reset requires the current password and RESET confirmation, uses a transaction, and clears application data including recovery/history while preserving login identity. It is not undoable. Per-process write guards must be coordinated before deploying multiple backend instances. Do not reset an account containing valuable data without retaining any required exports first.
 
 Sources: AuthContext.jsx; backend/server.js; backend/accountConnections.js; backend/accountReset.js; TimeZoneSettings.jsx; ConfirmationSettings.jsx.
 
@@ -630,8 +632,8 @@ Cancelling does not trigger a second download automatically. Write failure keeps
 
 None of these promise recovery of data from before the feature existed, externally changed sources, expired snapshots, account reset, every deleted page or files already exported to another program.
 
-## Interview answer
-"Save changes the app's persistent record; Download creates a local artifact. Some formats have a base file plus separately editable annotations. I make the export step explicit and use different recovery models for different data, rather than describing every action as universally undoable."
+## Design rationale
+Save changes the app's persistent record; Download creates a local artifact. Some formats consist of a base file plus separately editable annotations. Export is explicit, and each workflow has its own recovery model rather than a universal rollback mechanism.
 
 Sources: frontend/src/lib/download.js; DocumentEditor.jsx; PDFEditor.jsx; TaskDeletionUndo.jsx; backend/calendarHistory.js; useWorkspaceLayout.js.
 
@@ -656,113 +658,114 @@ The browser's minute refresh only reads events.json. The separate scraper must u
 ## Running and explaining it
 From the repository root: python -m http.server 8080 --directory daily-events. Open http://localhost:8080. Use a real public URL in a printed QR code, not localhost. Host the full directory including vendor assets and events.json.
 
-Interview answer: "This spin-off separates public read-only distribution from the private student workspace. Static hosting is simple, but publishing fresh data remains a separate responsibility."
+Design rationale: The standalone site separates public read-only event distribution from the private student workspace. Static hosting simplifies delivery, but fresh-data publishing remains a separate responsibility.
 
 Sources: daily-events/README.md; daily-events/index.html; daily-events/app.js; backend/scrapeTxstEvents.js.
 
-# A practical eight-minute demonstration
+# Guided end-to-end workflow
 
-## 0:00-0:45 | Problem and overview
-Deliver the short pitch. Open Home and show how tasks, dates and documents connect. Explain that this is one account's persisted data, not a hardcoded dashboard. Keep private account information off-screen.
+## 1. Start with an overview
+Open Home to review task counts, upcoming dates and recent documents. Select an item to open its underlying record. Use a disposable workspace or non-sensitive sample material while learning the controls.
 
-## 0:45-2:00 | Tasks and safe recovery
-Create a task, assign a folder/deadline and add a prerequisite. Drag it to another position/status. Delete a disposable task and restore it with Undo deletion. Explain the transaction-backed snapshot. If asked about hidden In Progress, show the setting without spending the entire demo customizing it.
+## 2. Organize a task
+Create a task, assign a folder and deadline, and add a prerequisite. Drag it to another position or status. Delete a disposable task and restore it with Undo deletion. The recovery snapshot preserves task identity and relevant relationships. Account -> Task display controls whether In Progress has its own column.
 
-## 2:00-3:00 | Calendar integration
-Open the task deadline, create a personal event and link a document. Explain source identity, time zones and one-event versus similar-name removal. Demonstrate calendar undo. Use preverified campus/F1 data rather than waiting for an unreliable live import.
+## 3. Connect it to the calendar
+Open the task's deadline from Calendar. Create a personal appointment and link a document. Check the time zone, then distinguish removing a single displayed event from deleting a personal entry or selecting matching-name removals. Use calendar undo for supported saved changes.
 
-## 3:00-4:15 | Notes, folders and media
-Create a lecture note template, enter a heading/list/equation, switch Split/Read, and show the outline. Add a description and a small image to its folder. Explain that attachments live in the shared document library.
+## 4. Create notes and supporting material
+Create a lecture-note template, add a heading, list and equation, and switch between Write, Split and Read. Use the outline to navigate. Add a description and a small image to its folder; the attachment remains a document-library record.
 
-## 4:15-5:45 | PDF engineering
-Open a prepared PDF, draw one stroke, undo it, copy text and show a side page. Show a local calculation or graph. Explain that text replacement is an overlay and dark pages are view-only. Mention touch/pen input design; do not depend on unfamiliar demonstration hardware.
+## 5. Work with a PDF
+Open a small PDF, draw and undo a stroke, select/copy text, and open a side page. Try a local calculation or graph. Source-text replacement uses visual overlays; dark-page inversion is a display setting. Test pen and touch behavior on the actual device before relying on it for substantial work.
 
-## 5:45-7:00 | AI and career flow
-Show access controls and a preprepared assistant conversation. Explain a supported edit and stale-response validation. Show a saved job and a reviewed tailored document; compare source evidence rather than inventing a live result. Reveal diagnostics only if asked.
+## 6. Use AI and career tools selectively
+Review Account -> AI access before sharing content. Open a saved conversation or request a supported edit with appropriate context enabled. In Career, save a job and review a tailored document against source evidence. Keep provider diagnostics available when requests fail, and review all generated facts and layout warnings.
 
-## 7:00-8:00 | Architecture and next steps
-Use global search to return to a record. Explain React -> Express -> MongoDB and identify one honest technical limitation. End with the highest-priority improvement and why you would measure it. Keep the optional workspace, study list and daily-events QR as follow-up material.
+## 7. Return to related work
+Use global search to reopen the task, file, event or conversation. Explore Workspace, Visualization and Study stars as alternate views or collections. The separate daily-events QR site is a public distribution workflow with its own data-publishing step.
 
-# Interview questions: architecture and data
+# Technical questions: architecture and data
 
 ## Why React, Express and MongoDB?
-"React fits the stateful editor and composed panels. Express keeps the API straightforward, and Mongoose gives a common record layer for owner-scoped data. MongoDB accommodates evolving task/document metadata. The cost is coordinating relationships and transactions explicitly; I would revisit binary storage as files grow."
+React supports the stateful editor and composed panels. Express provides a straightforward API layer, and Mongoose supplies a shared record model for owner-scoped data. MongoDB accommodates evolving task/document metadata. Relationships and transactions still require explicit coordination; binary storage is a candidate for future separation.
 
-## How is this more than CRUD?
-"CRUD is the foundation, but the difficult parts are document geometry, gesture ownership, safe recovery, cross-entity relationships, extraction/indexing, AI context boundaries and template-preserving exports. I can show the data path for each rather than relying on a large feature list."
+## Which parts extend beyond CRUD?
+Record management supports more complex workflows: document geometry, gesture ownership, safe recovery, cross-entity relationships, extraction/indexing, AI context boundaries and template-preserving exports. Each has its own validation, state transitions and failure handling.
 
-## How do you prevent another user reading my data?
-"The token establishes identity, and database filters include the owning user. Relationship writes validate that referenced documents, tasks or folders belong to that account. A valid-looking object ID does not bypass that check. I would still include negative authorization tests in a security validation plan."
+## How is account data isolated?
+The token establishes identity and protected database queries include the owning user. Relationship writes validate ownership of referenced documents, tasks and folders. An object ID alone does not grant access. Negative authorization cases should be covered by the validation plan.
 
-## Why transactions?
-"A deleted task and its recovery record must commit together. The same idea applies to a calendar mutation and its undo history, or a folder attachment upload and its link. Otherwise a partial failure could lose recovery or leave inconsistent relationships. This requires a transaction-capable MongoDB deployment."
+## Why use transactions?
+A deleted task and its recovery record must commit together. The same requirement applies to a calendar mutation and its history, or a folder attachment upload and its link. Transactions avoid partial relationship/history writes and require a transaction-capable MongoDB deployment.
 
 ## What happens with concurrent edits?
-"Some workflows use revision checks or per-account transaction locks, such as chats, layouts and calendar history. Others need further concurrency review. I do not claim the entire app provides collaborative editing or identical conflict handling everywhere."
+Some workflows use revisions or per-account transaction locks, including chats, layouts and calendar history. Other paths need additional concurrency review. The application does not provide general-purpose real-time collaboration or identical conflict handling for every record type.
 
-## How would you scale it?
-"Move binaries to object storage, run slow conversions/indexing in a job queue, paginate large collections, share public caches and rate limits across instances, and add observability. Measure memory, response times and queue delay first. These are next steps, not infrastructure already deployed."
+## How could the system scale?
+Possible extensions include object storage for binaries, a job queue for slow conversion/indexing, broader pagination, shared public caches/rate limits and operational observability. Memory, response time and queue delay should guide those changes. These are proposed improvements rather than deployed infrastructure.
 
-# Interview questions: PDF, input and performance
+# Technical questions: PDF, input and performance
 
-## Why are PDFs hard to edit?
-"A PDF often describes positioned glyphs and graphics rather than semantic paragraphs. Replacing a sentence can require font coverage, line layout and background reconstruction. I support bounded text-run replacement and disclose that the original is visually covered, not securely redacted."
+## Why are PDFs difficult to edit?
+A PDF often describes positioned glyphs and graphics rather than semantic paragraphs. Replacing text can require font coverage, line layout and background reconstruction. Supported source-text replacement uses overlays; it does not securely redact the underlying content.
 
 ## How are annotations preserved across pages?
-"Annotations retain page references and document-space coordinates. Page changes remap those references. Continuous view separates passive rendered pages from the active editable overlay and waits for matching geometry. Async callbacks must not apply another page's dimensions to the active page."
+Annotations retain page references and document-space coordinates. Page mutations remap those references. Continuous view separates passive pages from the active overlay and waits for matching geometry. Late callbacks must not apply a different page's dimensions to the active page.
 
-## How did you reduce drawing lag?
-"The implementation draws live and completed ink on canvas layers instead of creating a large React/SVG tree for every pressure segment. It appends where possible, indexes bounds for erasing, caps canvas resolution and defers serialization/save work. I would substantiate the improvement with frame-time and memory profiling before giving a percentage."
+## How is repeated drawing work reduced?
+The implementation uses live/completed canvas layers instead of a large React/SVG tree for every pressure segment. It appends where possible, indexes stroke bounds for erasing, caps backing resolution and defers serialization/save work. Quantitative improvements require frame-time and memory measurements.
 
 ## Is palm rejection AI-based?
-"No. It relies on pointer type, pen ownership and explicit touch modes. Two-pointer gestures are navigation. Hardware and browser events limit what can be inferred. Small input helpers are adapted from Excalidraw under MIT, with attribution; that is not a claim that I wrote hardware-level palm detection."
+No. Input handling relies on pointer type, pen ownership and explicit touch modes. Two-pointer gestures support navigation. Browser/hardware events limit classification. Small input helpers were adapted from Excalidraw under MIT with attribution; this is not hardware-level palm recognition.
 
-## Why not just use a full editor library?
-"A full library could reduce maintenance and provide mature behavior, but integrating a narrower annotation model gives direct control over features and exports. The decision has costs: text layout and device compatibility need substantial testing. I would reassess the boundary as the project grows."
+## What is the tradeoff of a custom annotation model?
+A narrower model provides direct control over annotation behavior and exports, but text layout and device compatibility require substantial maintenance. A mature full editor library could replace some of that work if its capabilities and integration costs fit the product.
 
-## What would you profile?
-Input-to-paint latency, long tasks, stroke-count scaling, memory at high zoom/continuous view, export time, large-file extraction and worker overhead. Compare a defined device/document/stroke workload before and after changes; do not treat a visual impression as a benchmark.
+## What should be profiled?
+Input-to-paint latency, browser long tasks, stroke-count scaling, memory at high zoom/continuous view, export duration, extraction time and worker overhead. Use defined device/document/stroke workloads for comparisons rather than interpreting a visual impression as a benchmark.
 
-# Interview questions: AI, extraction and trust
+# Technical questions: AI, extraction and trust
 
-## Where is AI necessary?
-"It is useful for language tailoring, explanations and difficult handwriting recognition. It is unnecessary for arithmetic once the expression is parsed, ordinary search, many job imports or Markdown-to-PDF conversion. I keep those local or deterministic to reduce latency, tokens and unnecessary data sharing."
+## Which tasks benefit from AI?
+Language tailoring, explanations and difficult handwriting recognition can benefit from model assistance. Ordinary search, supported job extraction, arithmetic after parsing, and Markdown-to-PDF conversion use local or deterministic paths. Separating those paths limits latency, token use and unnecessary sharing.
 
-## How do you reduce hallucination?
-"I constrain the task, provide source evidence, bound the output schema and require review. For resumes, employer context does not authorize inventing applicant facts. For math, the model transcribes while a local evaluator computes. None of these guarantee that a model never makes an error."
+## How are unsupported claims reduced?
+Generation uses source evidence, bounded tasks, structured replacements and user review. Employer context does not authorize invented applicant facts. For mathematics, recognition and evaluation are separate. These controls reduce risk but do not guarantee error-free output.
 
-## Can a malicious document instruct the assistant?
-"Document and website content are untrusted data. Prompts state that, but the stronger boundary is capability limitation: backend-validated actions against known IDs and browser revision checks, not arbitrary code execution. Prompt injection remains a risk that deserves adversarial evaluation."
+## Can source content contain malicious instructions?
+Documents and websites are untrusted input. Prompt instructions state that boundary, while validated capabilities provide stronger restrictions: known target IDs, bounded actions and browser revision checks, without arbitrary execution. Prompt-injection behavior still needs adversarial evaluation.
 
-## Why can job imports still fail?
-"Public HTML, OCR and PDF layout are incomplete signals. Some sites require login or render fields dynamically; screenshots may omit the title or company entirely. I provide multiple input paths and reviewable fields. The correct response to missing data is an explicit gap, not fabricated certainty."
+## Why can job extraction fail?
+HTML, OCR and PDF layout provide incomplete signals. A page may require login or dynamic rendering, and a screenshot may omit important fields. Multiple input paths and editable fields support recovery. Missing information should remain an explicit gap rather than be fabricated.
 
-## How do you improve speed without losing quality?
-"Use structured extraction first, trim irrelevant reference text, bound employer research, select an appropriate configured model and avoid blind automatic retries. Measure provider latency separately from document parsing, network retrieval and export. Faster prompts alone cannot fix provider quota or network failure."
+## How can latency be improved?
+Use structured extraction first, trim irrelevant references, bound employer research, choose an appropriate configured model and avoid blind retries. Provider latency should be measured separately from parsing, retrieval and export. Prompt changes cannot resolve quota or network failures by themselves.
 
-## How would you evaluate quality?
-Build consented/redacted fixtures: per-field job extraction accuracy, phrase/evidence compliance, layout overflow, math transcription correctness and unsupported-action rejection. Compare local and AI modes on the same dataset. Record model/version and input conditions. Existing code and test files are not a substitute for recorded results.
+## How should quality be evaluated?
+Use consented/redacted fixtures to measure per-field job accuracy, evidence/phrase compliance, layout overflow, math transcription and action rejection. Compare modes on equivalent inputs and record model versions and conditions. Existing source and test files are not evidence of recorded pass results.
 
-# Preparing your own engineering stories
+# Engineering case studies
 
-## Story 1 | Making destructive operations recoverable
-Situation: users can delete a task group accidentally. Task: preserve recoverability without treating deleted items as active work. Action to explain: snapshot tasks and dependencies in a separate expiring collection within a transaction, then restore stable IDs and validate surviving folders. Result to report: the implemented restoration behavior. Add a measured result only after you personally verify it.
+## Recoverable task deletion
+Problem: deleting a task group can remove details and dependency relationships. Approach: store task/dependency snapshots in a separate expiring collection and delete the active records in the same transaction. Restoration preserves stable IDs and validates surviving folders. Boundary: recovery expires and account reset clears it.
 
-## Story 2 | Handling heavy annotation workloads
-Situation: accumulating strokes makes UI work grow. Task: reduce redraw and save overhead. Action to explain: canvas layers, incremental painting, cached bounds, worker serialization and bounded rendering resolution. Result to report: architectural reduction in repeated work; supply profiling data only if you have it. Discuss quality/memory tradeoffs at high zoom.
+## Heavy annotation workloads
+Problem: accumulated strokes increase rendering, hit-testing and serialization work. Approach: use canvas layers, incremental painting, cached bounds, worker serialization and bounded backing resolution. Tradeoff: high-zoom display resolution is capped to control resources. Performance conclusions require measured workloads.
 
-## Story 3 | Preserving a user's writing and layout
-Situation: generated cover letters can sound generic and break the uploaded template. Task: tailor content while keeping evidence, voice and supported formatting. Action to explain: source phrases, structured replacement regions, template-owned serialization, font/overflow checks and human review. Result to report: the designed workflow, not a fabricated hiring outcome.
+## Writing and template fidelity
+Problem: generated career documents can diverge from source voice, evidence or layout. Approach: reuse supported source phrases, generate structured replacement regions, preserve template-owned formatting and report font/overflow failures. User review remains necessary; the application does not guarantee application outcomes.
 
-## Story 4 | Recovering OneNote annotation fidelity
-Situation: a compatibility parser can lose ink. Task: preserve rendered annotations. Action to explain: prefer native OneNote PDF export, keep diagnostics and explicit fallback selection, preserve all PDF sheets. Tradeoff: better native rendering introduces a desktop dependency; it cannot restore strokes absent from the source upload.
+## OneNote annotation fidelity
+Problem: a compatibility parser can omit ink or rearrange annotated printouts. Approach: prefer native OneNote PDF export, preserve sheets, expose diagnostics and make the compatibility path explicit. Tradeoff: native fidelity introduces a Windows/desktop dependency and cannot recover content missing from the uploaded source.
 
-## Personal preparation checklist
-- Identify exactly what you built, adapted, generated or reviewed with assistance.
-- Reproduce one bug and explain its cause in plain language.
-- Pick a source file you can walk through without reading it line by line.
-- State what was not tested and describe the verification you would perform next.
-- Prepare one design decision you would change and explain the new evidence that would justify changing it.
+## Shared lessons
+- Preserve identity and provenance when data appears in multiple workflows.
+- Commit related state changes together when partial success would be misleading.
+- Distinguish interactive previews from portable exported artifacts.
+- Isolate slow or uncertain work and show actionable failure states.
+- Attribute adapted components and review their licenses.
+- Record verification conditions before asserting performance or accuracy improvements.
 
 # Limitations, testing plan and roadmap
 
@@ -781,9 +784,9 @@ These are recommended checks, not checks executed for this handbook. The reposit
 ## Prioritized evolution
 First: stabilize critical workflows with representative fixtures and observability. Next: split large coordinator components, centralize data fetching and formalize API schemas/conflict rules. Then: move binaries to object storage and slow jobs to a queue, with shared coordination. Finally: broaden extraction support or add review scheduling only after measuring demand and quality.
 
-Interview closing: "I am proud of the connected workflows, but the next engineering milestone is reliability and maintainability, not adding another feature before understanding current behavior."
+Engineering priority: Stabilize and measure the existing workflows before expanding feature breadth. Reliability, observability and maintainability are the next milestones.
 
-# Troubleshooting and demonstration recovery
+# Troubleshooting and operational recovery
 
 ## App does not load
 A Vite/Babel syntax error points to a source file and line; inspect that location rather than hiding the overlay. Confirm frontend dependencies and server startup. The frontend's /api proxy must reach the backend. An empty/non-JSON response often means a wrong route, stopped backend or stale running version.
@@ -800,8 +803,8 @@ Expand diagnostics and identify the stage: credentials, provider request, templa
 ## File output looks wrong
 Compare original, editor view and exported file. Confirm annotations were saved/exported, check the page count and font warnings, and distinguish native OneNote output from compatibility conversion. Dark-page display colors should not be mistaken for export colors.
 
-## Safe demo fallback
-Use prepared records and local notes/PDF tools when external integrations fail. Explain the failure boundary and diagnostic rather than repeatedly calling a provider in front of the interviewer. Keep a copy of the source PDF and final reviewed artifact. Never reset the entire account as a troubleshooting shortcut during a demonstration.
+## Working without external services
+Use saved records and local notes/PDF tools when external integrations fail. Inspect the failure stage and diagnostic before retrying a provider. Keep a copy of the source PDF and final reviewed artifact. Account reset is a permanent data operation, not a routine troubleshooting shortcut.
 
 # Source map and feature inventory
 
@@ -820,4 +823,4 @@ AssistantChat.jsx plus backend/assistant*.js implement chat, context, diagnostic
 ## Backend source of truth
 server.js defines models and registers routes. Feature modules own transactional behavior, parsing and external calls. Consult the endpoint and shortcut appendices that follow for a source-derived inventory. Filenames in this guide are repository-relative identifiers, not claims that the guide exercised every path.
 
-The separate daily-events project has its own README and script assets. Vendor source notes identify adapted Excalidraw input helpers. Review licenses and attribution when presenting reused components.
+The separate daily-events project has its own README and script assets. Vendor source notes identify adapted Excalidraw input helpers. Review licenses and attribution for adapted components.
