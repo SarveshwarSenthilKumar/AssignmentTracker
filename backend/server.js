@@ -425,6 +425,7 @@ const requireAIAccess=registerAIAccess(app,authenticateToken,User);
 require('./jobFileImport')(app,authenticateToken,{credentials:assistantCredentials,model:aiModel,requireAIAccess});
 require('./coverLetterGeneration')(app,authenticateToken,{PDF,SavedJob,mongoose,credentials:assistantCredentials,model:aiModel,requireAIAccess});
 require('./coverLetterGeneration')(app,authenticateToken,{PDF,SavedJob,mongoose,credentials:assistantCredentials,model:aiModel,requireAIAccess,documentType:'resume'});
+require('./resumeQuiz')(app,authenticateToken,{PDF,mongoose,credentials:assistantCredentials,model:aiModel,requireAIAccess});
 require('./pdfCleanup')(app,authenticateToken,{PDF,mongoose,credentials:assistantCredentials,model:aiModel,requireAIAccess});
 app.use('/api/assistant/chat',authenticateToken,requireAIAccess());
 app.use('/api/assistant/test',authenticateToken,requireAIAccess());

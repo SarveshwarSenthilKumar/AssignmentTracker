@@ -1,3 +1,4 @@
+import ResumeQuiz from './ResumeQuiz'
 import ResumeTemplateGallery from './ResumeTemplateGallery'
 import { useRef, useState } from 'react'
 import { Upload, FileText, Download, ArrowUpRight, Loader2 } from 'lucide-react'
@@ -9,6 +10,7 @@ import CoverLetterGenerator from './CoverLetterGenerator'
 export default function ResumesPage({token,documents,onDocumentsChange,onOpen}){
   const [file,setFile]=useState(null),[name,setName]=useState(''),[busy,setBusy]=useState(false),[downloading,setDownloading]=useState(null),[error,setError]=useState(''),[notice,setNotice]=useState(''),[dragging,setDragging]=useState(false)
   const [selectedTemplate,setSelectedTemplate]=useState('')
+  const [quizDocument,setQuizDocument]=useState('')
   const input=useRef(null),lock=useRef(false)
   const resumes=documents.filter(document=>!document.deletedAt&&document.tags?.includes('resume')).sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt))
   const choose=selected=>{
@@ -55,6 +57,7 @@ export default function ResumesPage({token,documents,onDocumentsChange,onOpen}){
   return <section className="resumes-page" aria-label="Resume storage">
     <nav className="resume-job-navigation" aria-label="Resume tools"><a href="#/resumes" aria-current="page">Your resumes</a><a href="#/cover-letters">Cover letters</a><a href="#/jobs">Saved jobs &amp; link import</a></nav>
     <div className="resume-heading"><div><h2>Your resumes</h2><p>Keep versions ready to view, edit, or download.</p></div><span>{resumes.length} saved</span></div>
+    <ResumeQuiz token={token} documents={documents} selectedDocumentId={quizDocument}/>
     <ResumeTemplateGallery token={token} onCreated={document=>{onDocumentsChange(previous=>[document,...previous]);setSelectedTemplate(document._id);setNotice('Resume template saved. It is selected in the tailoring tool below and available in Documents.')}}/>
     <CoverLetterGenerator selectedTemplateId={selectedTemplate} documentType="resume" token={token} documents={documents} onDocumentsChange={onDocumentsChange} onOpen={onOpen}/>
     <form onSubmit={upload} className="resume-upload-form">
@@ -65,7 +68,7 @@ export default function ResumesPage({token,documents,onDocumentsChange,onOpen}){
       <div className="resume-upload-details"><label htmlFor="resume-name">Resume name<input id="resume-name" value={name} maxLength={120} disabled={busy} onChange={event=>setName(event.target.value)} placeholder="e.g. Software engineering resume" required/></label><button type="submit" className="resume-primary" disabled={busy||!file||!name.trim()}>{busy?<Loader2 size={16} className="animate-spin"/>:<Upload size={16}/>} {busy?'Saving…':'Upload resume'}</button></div>
     </form>
     {error&&<p className="resume-error" role="alert">{error}</p>}{notice&&<p className="resume-notice" role="status">{notice}</p>}
-    <div className="resume-list">{resumes.map(document=><article className="resume-card" key={document._id}><div className="resume-file-icon"><FileText size={22}/></div><div className="resume-file-info"><h3>{document.name}</h3><p>{document.originalName} · {new Date(document.createdAt).toLocaleDateString()}</p></div><div className="resume-file-actions"><button type="button" onClick={()=>setSelectedTemplate(document._id)} aria-label={`Use ${document.name} as a resume template`}>Use as template</button><button type="button" onClick={()=>onOpen(document._id)} aria-label={`Open ${document.name}`}><ArrowUpRight size={16}/>Open</button><button type="button" disabled={!!downloading} onClick={()=>download(document)} aria-label={`Download ${document.name}`}>{downloading===document._id?<Loader2 size={16} className="animate-spin"/>:<Download size={16}/>}Download</button></div></article>)}</div>
+    <div className="resume-list">{resumes.map(document=><article className="resume-card" key={document._id}><div className="resume-file-icon"><FileText size={22}/></div><div className="resume-file-info"><h3>{document.name}</h3><p>{document.originalName} · {new Date(document.createdAt).toLocaleDateString()}</p></div><div className="resume-file-actions"><button type="button" onClick={()=>setQuizDocument(document._id)} aria-label={`Practice interview questions about ${document.name}`}>Quiz me</button><button type="button" onClick={()=>setSelectedTemplate(document._id)} aria-label={`Use ${document.name} as a resume template`}>Use as template</button><button type="button" onClick={()=>onOpen(document._id)} aria-label={`Open ${document.name}`}><ArrowUpRight size={16}/>Open</button><button type="button" disabled={!!downloading} onClick={()=>download(document)} aria-label={`Download ${document.name}`}>{downloading===document._id?<Loader2 size={16} className="animate-spin"/>:<Download size={16}/>}Download</button></div></article>)}</div>
     {!resumes.length&&<div className="resume-empty"><FileText size={30}/><h3>No resumes saved yet</h3><p>Create a resume from a template or upload your first resume above. It will stay available here when you sign back in.</p></div>}
     <p className="resume-library-note">Resumes are also available in Documents, where you can rename, organize, or remove them.</p>
   </section>
