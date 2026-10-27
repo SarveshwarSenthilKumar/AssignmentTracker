@@ -10,12 +10,14 @@ import {layoutCoverLetter} from '../lib/coverLetterPdfLayout'
 import {tailoringTemplateRuns} from '../lib/tailoringTemplateRuns'
 pdfjs.GlobalWorkerOptions.workerSrc=workerUrl
 
-export default function CoverLetterGenerator({token,documents,onDocumentsChange,onOpen,documentType='cover-letter'}){
+export default function CoverLetterGenerator({token,documents,onDocumentsChange,onOpen,documentType='cover-letter',selectedTemplateId=''}){
   const isResume=documentType==='resume',label=isResume?'resume':'cover letter',heading=isResume?'Resume':'Cover letter',apiBase=isResume?'/api/resumes':'/api/cover-letters'
   const [templateId,setTemplateId]=useState(''),[references,setReferences]=useState([]),[jobs,setJobs]=useState([]),[jobId,setJobId]=useState(''),[role,setRole]=useState(''),[name,setName]=useState(''),[draft,setDraft]=useState(null),[changes,setChanges]=useState([]),[reviewed,setReviewed]=useState(false),[busy,setBusy]=useState(''),[error,setError]=useState('')
+  const generatorPanel=useRef(null)
   const runs=useRef(new Map()),lock=useRef(false),referenceCache=useRef(new Map()),errorPanel=useRef(null)
   const [generationStage,setGenerationStage]=useState('')
   const [draftText,setDraftText]=useState('')
+  useEffect(()=>{if(!selectedTemplateId)return;setTemplateId(selectedTemplateId);setReferences(previous=>previous.filter(id=>id!==selectedTemplateId));setDraft(null);setChanges([]);setDraftText('');setReviewed(false);setError('');if(generatorPanel.current){generatorPanel.current.open=true;generatorPanel.current.scrollIntoView({behavior:'smooth',block:'start'})}},[selectedTemplateId])
   const [mode,setMode]=useState('tailor'),[cleanupComments,setCleanupComments]=useState('')
   const [researchCompany,setResearchCompany]=useState(true),[companyWebsite,setCompanyWebsite]=useState('')
   useEffect(()=>{
@@ -109,7 +111,7 @@ export default function CoverLetterGenerator({token,documents,onDocumentsChange,
   const normalizePhrase=value=>value.normalize('NFKC').toLowerCase().replace(/\s+/g,' ').trim()
   const currentLetter=draft?normalizePhrase(draftText):''
   const reusedPhrases=(draft?.phraseReuse||[]).filter(item=>currentLetter.includes(normalizePhrase(item.quote)))
-  return <details className="cover-letter-generator"><summary>{isResume?'Tailor a resume using your previous resumes':'Create or clean up a cover letter'}</summary>
+  return <details ref={generatorPanel} className="cover-letter-generator"><summary>{isResume?'Tailor a resume using your previous resumes':'Create or clean up a cover letter'}</summary>
     {!isResume&&<div className="cover-letter-mode" role="group" aria-label="Cover letter action"><button type="button" aria-pressed={!cleanup} disabled={!!busy} onClick={()=>{setMode('tailor');reset()}}>Tailor for a role</button><button type="button" aria-pressed={cleanup} disabled={!!busy} onClick={()=>{setMode('cleanup');reset()}}>Clean up a letter</button></div>}
     <p>{isResume?'Choose a resume as the layout template and optionally select previous resumes for supporting facts and wording. AI adapts existing bullets and descriptions to the job using only supported projects, skills and experience. Identity, employers, dates, official titles and qualifications must stay accurate. Review the proposed wording and source notes, then save a separate copy. Only selected documents and job details are sent to your configured AI.':cleanup?'Choose an uploaded letter and describe what to clean up. AI makes focused corrections using your comments and existing wording, with the original file supplying formatting. Only that letter and your comments are sent to your configured AI. Review the draft, then save a separate copy.':'Your existing wording comes first: reuse sentences, phrases, transitions and closings from your selected cover letters, changing only what the role and supported facts require. Resumes and job descriptions provide facts, not the writing voice. Only selected documents and job details are sent to your configured AI.'}</p>
     <form onSubmit={generate}><div className="cover-generator-fields">
