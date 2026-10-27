@@ -1,0 +1,9 @@
+{
+  "name": "assignment-tracker-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Optional desktop host for native in-phone web browsing",
+  "main": "main.cjs",
+  "scripts": { "start": "electron ." },
+  "devDependencies": { "electron": "latest" }
+}

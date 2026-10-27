@@ -46,3 +46,5 @@
 .study-phone .phone-browser-status>span{min-width:0;white-space:nowrap;text-overflow:ellipsis;overflow:hidden}
 .phone-browser-blocked{height:100%;width:100%;overflow:auto;box-sizing:border-box;display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;gap:13px;padding:24px 16px;background:var(--surface-panel);color:var(--text-primary);font-size:12px;line-height:1.8;overflow-anchor:none}
 .phone-browser-blocked>strong{font-size:17px;line-height:1.5;font-weight:550}.phone-browser-blocked>p{font-size:11px;color:var(--text-secondary)}.phone-browser-blocked>a{font-size:11px;text-align:center;text-decoration:underline}.phone-browser-blocked details{font-size:10px;color:var(--text-muted);margin-top:8px}.phone-browser-blocked summary{cursor:pointer}.phone-browser-blocked details p{margin:8px 0}.phone-browser-blocked details button{font-size:10px}
+
+.phone-browser-native{position:absolute;inset:0;overflow:hidden;background:var(--bg,#161c24)}
