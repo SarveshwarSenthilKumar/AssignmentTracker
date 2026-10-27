@@ -1,3 +1,4 @@
+import {matchingFontAsset,replacementFontBytes,replacementFontFace} from '../lib/pdfReplacementFonts'
 import {downloadBlob} from '../lib/documentFormats'
 import PDFInkLayer, { PDFLiveInk } from './PDFInkLayer'
 import { serializeAnnotations } from '../lib/annotationSerializer'
@@ -105,12 +106,14 @@ export async function burnAnnotations(pdfBytes, annotations, usePressure) {
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica)
   const pages = pdfDoc.getPages()
   const fontCache=new Map(),programCache=new Map()
-  if(annotations.some(item=>item.textStyle?.embedded)){const {default:fontkit}=await import('@pdf-lib/fontkit');pdfDoc.registerFontkit(fontkit)}
+  if(annotations.some(item=>item.textStyle)){const {default:fontkit}=await import('@pdf-lib/fontkit');pdfDoc.registerFontkit(fontkit)}
   const textFont=async item=>{
     if(!item.textStyle)return font
-    const style=item.textStyle,key=`${item.page||1}:${style.fontName}:${style.bold}:${style.italic}:${style.embedded}`
+    const style=item.textStyle,key=`${item.page||1}:${style.fontName}:${style.bold}:${style.italic}:${style.embedded}:${style.replacementFont}:${style.fontData||''}`
     if(!fontCache.has(key)){
-      if(style.embedded){
+      if(style.fontData||style.replacementFont){
+        fontCache.set(key,await pdfDoc.embedFont(await replacementFontBytes(style),{subset:true}))
+      }else if(style.embedded){
         const index=(item.page||1)-1
         if(!programCache.has(index))programCache.set(index,pageFontPrograms(pdfDoc,index))
         const bytes=programCache.get(index).get(fontKey(style.fontName))
@@ -583,6 +586,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const deletingPageRef = useRef(false)
   const [downloading, setDownloading] = useState(false)
   const [actionError, setActionError] = useState(null)
+  const [missingFont,setMissingFont]=useState(null)
   const [inserting, setInserting] = useState(false)
   const [selectedInsertId, setSelectedInsertId] = useState(null)
   const insertingRef = useRef(false)
@@ -794,10 +798,13 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         })
         // Saved font-family names refer to dynamically registered FontFaces.
         // Reload the actual PDF font programs before displaying saved text.
+        for(const item of loaded)if(item.textStyle&&!item.textStyle.embedded&&!item.textStyle.fontData){const asset=matchingFontAsset(item.textStyle.fontName);if(asset)item.textStyle={...item.textStyle,replacementFont:asset}}
         if(fontFile){
           const pages=[...new Set(loaded.filter(item=>item.textStyle?.embedded).map(item=>(item.page||1)-1))]
           const fonts=new Map(await Promise.all(pages.map(async index=>[index,await loadPageFontStyles(fontFile,index)])))
-          for(const item of loaded)if(item.textStyle?.embedded){
+          for(const item of loaded)if(item.textStyle?.fontData||item.textStyle?.replacementFont){
+            const face=await replacementFontFace(item.textStyle).catch(()=>null);if(face)item.textStyle={...item.textStyle,fontFamily:`"${face}"`}
+          }else if(item.textStyle?.embedded){
             const face=fonts.get((item.page||1)-1)?.get(fontKey(item.textStyle.fontName))
             if(face)item.textStyle={...item.textStyle,fontFamily:`"${face}"`}
             else setActionError(`The original font ${item.textStyle.fontName} could not be loaded for this preview. The saved font data has been retained.`)
@@ -1149,7 +1156,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       if(source){
         const snapshot=pathsRef.current
         const item=makeSourceReplacement(source,pageNumber,uid())
-        editSnapshotRef.current=snapshot;updatePaths(previous=>[...previous,item]);setFontSize(source.fontSize);setCurrentColor(source.color);if(source.textStyle?.approximate)setActionError(`The original font (${source.textStyle.fontName}) is not available as an embedded font. Preview uses the installed font where available; PDF export uses an equivalent standard font. Exact font matching is unavailable for this text.`);activate(item.id);return
+        editSnapshotRef.current=snapshot;updatePaths(previous=>[...previous,item]);setFontSize(source.fontSize);setCurrentColor(source.color);if(source.textStyle?.approximate){setMissingFont(source.textStyle.fontName);setActionError(source.textStyle.replacementFont?'Using a bundled Computer Modern compatible font in preview and export. You can supply the original font below for a closer match.':'The original font data is unavailable. Supply a TTF or OTF font below to use the same font in preview and export.');}activate(item.id);return
       }
       const item = {
         id: uid(),
@@ -1922,6 +1929,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       {lineSuggestion&&<div className="pdf-line-suggestion" role="status" aria-live="polite"><span>Straight line detected</span><button type="button" onClick={()=>setLineSuggestion(null)} aria-label="Keep straight line"><Check size={15}/>Keep</button><button type="button" onClick={revertStraightLine} aria-label="Restore original freehand stroke"><Undo size={15}/>Undo</button></div>}
       {currentTool==='text'&&!exportImage&&<div className="pdf-existing-text-hint" role="status">Click existing text to replace it, or click blank space to add text. Scanned images need OCR first. Replacements cover the original on a white background; they do not redact the underlying text.</div>}
       {currentTool==='read'&&!exportImage&&<div className="pdf-select-copy-bar"><span>{copyParagraphs?'Copy joins wrapped lines into paragraphs.':'Copy keeps original line breaks. Change this in View.'}</span><button type="button" disabled={copyAllBusy||!pdfFile} onClick={copyAllText}>{copyAllBusy?'Reading PDF…':'Copy all text'}</button>{copyAllStatus&&<span role="status">{copyAllStatus}</span>}</div>}
+      {missingFont&&<div className="flex items-center gap-3 px-5 py-2 text-sm" role="status"><span>Font: {missingFont.replace(/^[A-Z]{6}\+/, '')}</span><label className="cursor-pointer underline">Use font file<input type="file" hidden accept=".ttf,.otf" onChange={async event=>{const file=event.target.files?.[0];event.target.value='';if(!file)return;try{if(file.size>10*1024*1024)throw new Error('Choose a font smaller than 10 MB.');const bytes=new Uint8Array(await file.arrayBuffer());const {default:fontkit}=await import('@pdf-lib/fontkit');fontkit.create(bytes);let binary='';for(let offset=0;offset<bytes.length;offset+=8192)binary+=String.fromCharCode(...bytes.subarray(offset,offset+8192));const fontData=btoa(binary),family=await replacementFontFace({fontData});updatePaths(previous=>previous.map(item=>item.textStyle?.fontName===missingFont?{...item,textStyle:{...item.textStyle,fontData,replacementFont:undefined,embedded:false,approximate:false,fontFamily:`"${family}"`}}:item));setActionError(null);setMissingFont(null)}catch(error){setActionError('Could not use this font: '+error.message)}}}/></label><button type="button" onClick={()=>setMissingFont(null)} aria-label="Hide font options"><X size={14}/></button></div>}
       {actionError && <div role="alert" className="flex items-center justify-between gap-3 bg-red-950 px-5 py-2 text-sm text-red-200">{actionError}<button onClick={() => setActionError(null)} aria-label="Dismiss error"><X size={16} /></button></div>}
       <div className={cn('pdf-editor-workspace flex flex-1 min-h-0 relative',darkPages&&'pdf-dark-pages')}>
         {copyAllFallback&&<section className="pdf-copy-fallback" role="dialog" aria-label="All PDF text ready to copy"><header><strong>All PDF text</strong><button type="button" onClick={()=>setCopyAllFallback('')} aria-label="Close copied text"><X size={16}/></button></header><p>Press Ctrl+C to copy the selected text.</p><textarea aria-label="Complete extracted PDF text" value={copyAllFallback} readOnly autoFocus onFocus={event=>event.currentTarget.select()}/></section>}

@@ -54,5 +54,5 @@ export async function loadPageFontStyles(file,pageIndex){
 
 export function replacementCss(item,scale=1){
   const style=item.textStyle||{}
-  return {fontFamily:style.fontFamily||'Helvetica, Arial, sans-serif',fontWeight:style.embedded?400:style.fontWeight||(style.bold?700:400),fontStyle:style.embedded?'normal':style.italic?'italic':'normal',letterSpacing:(style.letterSpacing||0)*scale,opacity:style.opacity??1,transform:style.horizontalScale?`scaleX(${style.horizontalScale})`:undefined,transformOrigin:'left top'}
+  return {fontFamily:style.fontFamily||'Helvetica, Arial, sans-serif',fontWeight:(style.embedded||style.replacementFont||style.fontData)?400:style.fontWeight||(style.bold?700:400),fontStyle:(style.embedded||style.replacementFont||style.fontData)?'normal':style.italic?'italic':'normal',letterSpacing:(style.letterSpacing||0)*scale,opacity:style.opacity??1,transform:style.horizontalScale?`scaleX(${style.horizontalScale})`:undefined,transformOrigin:'left top'}
 }

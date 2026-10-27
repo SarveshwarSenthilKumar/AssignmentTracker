@@ -21,9 +21,9 @@ export function detectPdfFont(name){
   const original=String(name||'Helvetica').replace(/^[A-Z]{6}\+/,'')
   const normalized=key(original),match=entries.find(entry=>normalized.startsWith(entry.key)&&suffix.test(normalized.slice(entry.key.length)))
   const weight=/extrablack|ultrablack|black|heavy/i.test(original)?900:/extrabold|ultrabold/i.test(original)?800:/semibold|demibold|demi/i.test(original)?600:/bold|(?:[-,]bd)|cmbx/i.test(original)?700:/medium/i.test(original)?500:/extralight|ultralight/i.test(original)?200:/thin/i.test(original)?100:/light/i.test(original)?300:400
-  const italic=/italic|oblique|(?:[-,](?:it|bi)(?:mt)?$)|cmti|cmbxti|cmsl/i.test(original)
+  const italic=/italic|oblique|(?:[-,](?:it|bi)(?:mt)?$)|cmmi|cmmib|cmti|cmbxti|cmsl/i.test(original)
   const clean=original.replace(/[-,](?:regular|roman|bolditalic|boldoblique|semibold|bold|italic|oblique|medium|light|thin|black|psmt|mt)(?:[-,]?(?:italic|oblique|mt))?$/i,'').replace(/PSMT$/i,'')
-  const generic=match?.generic||(/mono|courier|typewriter|consolas|cmtt/i.test(original)?'monospace':/sans/i.test(original)?'sans-serif':/serif|times|roman|garamond|baskerville|palatino|cambria|cmr\d/i.test(original)?'serif':'sans-serif')
+  const generic=match?.generic||(/mono|courier|typewriter|consolas|cmtt/i.test(original)?'monospace':/sans/i.test(original)?'sans-serif':/serif|times|roman|garamond|baskerville|palatino|cambria|cmr\d|cmmi|cmmib/i.test(original)?'serif':'sans-serif')
   const family=match?.family||clean
   const fallback=generic==='monospace'?['Courier New','Liberation Mono']:generic==='serif'?['Times New Roman','Liberation Serif']:generic==='sans-serif'?['Arial','Liberation Sans']:[]
   return {family,generic,weight,italic,recognized:!!match,fontFamily:[...new Set([family,clean,...fallback])].filter(Boolean).map(quote).concat(generic).join(', ')}

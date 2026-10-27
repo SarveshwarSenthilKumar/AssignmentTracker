@@ -1,3 +1,4 @@
+import {matchingFontAsset,replacementFontFace} from './pdfReplacementFonts'
 // PDF.js text transforms -> the same scale-1 viewport used by annotations.
 import {fontKey,loadPageFontStyles} from './pdfTextStyle'
 import {detectPdfFont} from './pdfFontCatalog'
@@ -23,7 +24,7 @@ export async function existingTextRuns(page, pdfjs, file) {
     else if(op===OPS.setGState){for(const [key,value]of args[0]||[])if(key==='ca')state={...state,opacity:value}}
     else if(op===OPS.showText||op===OPS.showSpacedText){const text=(args[0]||[]).map(glyph=>typeof glyph==='object'?glyph?.unicode||'':'').join('');if(text.trim())paints.push({...state,text})}
   }
-  const runs=content.items.flatMap((item, index) => {
+  const runs=(await Promise.all(content.items.map(async (item, index) => {
     if (!item.str?.trim() || !item.transform) return []
     const transform = pdfjs.Util.transform(viewport.transform, item.transform)
     const height = Math.hypot(transform[2], transform[3])
@@ -41,11 +42,11 @@ export async function existingTextRuns(page, pdfjs, file) {
     if(paint?.font!==item.fontName)paint=null
     let nativeFont
     try{nativeFont=page.commonObjs.get(item.fontName)}catch{}
-    const fontName=nativeFont?.name||style.fontFamily||'Helvetica',face=embedded.get(fontKey(fontName))
+    const fontName=nativeFont?.name||style.fontFamily||'Helvetica',originalFace=embedded.get(fontKey(fontName)),replacementFont=!originalFace?matchingFontAsset(fontName):null,face=originalFace||(replacementFont?await replacementFontFace({replacementFont}).catch(()=>null):null)
     const detected=detectPdfFont(fontName)
     const bold=!!nativeFont?.bold||detected.weight>=600,italic=!!nativeFont?.italic||detected.italic
     const fontWeight=nativeFont?.bold&&detected.weight<600?700:detected.weight
-    const textStyle={fontName,fontFamily:face?`"${face}"`:detected.fontFamily,detectedFamily:detected.family,fontCategory:detected.generic,fontWeight,embedded:!!face,approximate:!face&&!/^(Helvetica|Times-Roman|Times-Bold|Times-Italic|Times-BoldItalic|Courier)(-|$)/i.test(fontName),bold,italic,letterSpacing:(paint?.charSpacing||0)*height/(paint?.fontSize||height),opacity:paint?.opacity??1}
+    const textStyle={fontName,fontFamily:face?`"${face}"`:detected.fontFamily,detectedFamily:detected.family,fontCategory:detected.generic,fontWeight,replacementFont:face&&replacementFont?replacementFont:undefined,embedded:!!originalFace,approximate:!originalFace&&!/^(Helvetica|Times-Roman|Times-Bold|Times-Italic|Times-BoldItalic|Courier)(-|$)/i.test(fontName),bold,italic,letterSpacing:(paint?.charSpacing||0)*height/(paint?.fontSize||height),opacity:paint?.opacity??1}
     textStyle.pdfFontId=item.fontName
     textStyle.pdfHorizontalScale=Math.hypot(transform[0],transform[1])/height
     const canvas=document.createElement('canvas'),context=canvas.getContext('2d')
@@ -55,6 +56,6 @@ export async function existingTextRuns(page, pdfjs, file) {
     const metrics=context.measureText('Mg')
     textStyle.baselineRatio=Number.isFinite(metrics.fontBoundingBoxAscent)?(.6+(metrics.fontBoundingBoxAscent-metrics.fontBoundingBoxDescent)/(2*height)):.9465
     return [{ key: `${page.pageNumber}:${index}`, text: item.str, x: transform[4], y: transform[5] - height * ascent, width, height, fontSize: height, baseline: transform[5],textStyle,color:paint?.color||'#000000' }]
-  })
+  }))).flat()
   return calibratePeerFonts(runs)
 }
