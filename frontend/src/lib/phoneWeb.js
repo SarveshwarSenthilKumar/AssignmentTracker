@@ -11,3 +11,11 @@ export function embedTarget(input){
   if(host==='vimeo.com'&&/^\/\d+\/?$/.test(url.pathname))return {url:`https://player.vimeo.com/video/${url.pathname.split('/')[1]}`,adapter:'Vimeo embed player'}
   return {url:url.href,adapter:null}
 }
+
+export function embeddedSiteNotice(input){
+  try{
+    const host=new URL(input).hostname.toLowerCase().replace(/^www\./,'')
+    if(host==='chess.com')return {title:'Chess.com needs a browser window',message:'Chess.com refused the embedded connection in this browser. Changing the phone size or zoom cannot remove a website framing restriction. Your notes can stay open here while you use Chess.com in a separate window.'}
+  }catch{}
+  return null
+}
