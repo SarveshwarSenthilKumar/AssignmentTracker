@@ -27,8 +27,11 @@ export const AuthProvider = ({ children }) => {
     const storedUser = localStorage.getItem('user')
     
     if (storedToken && storedUser) {
-      setToken(storedToken)
-      setUser(JSON.parse(storedUser))
+      try{
+        const restored=JSON.parse(storedUser)
+        if(!restored||typeof restored.id!=='string')throw new Error('Invalid stored session')
+        setToken(storedToken);setUser(restored)
+      }catch{localStorage.removeItem('token');localStorage.removeItem('user')}
     }
     setLoading(false)
   }, [])

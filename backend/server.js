@@ -328,6 +328,14 @@ const authenticateToken = (req, res, next) => {
 
 // Auth Routes
 // Register
+// Fail promptly rather than buffering authentication queries while MongoDB is offline.
+app.use(['/api/auth/login','/api/auth/register'], (req,res,next)=>{
+  res.set('Cache-Control','no-store');
+  if(!process.env.JWT_SECRET)return res.status(503).json({message:'Sign-in is unavailable because the backend is missing JWT_SECRET. Configure it and restart the backend.'});
+  if(mongoose.connection.readyState!==1)return res.status(503).json({message:'The account database is not connected yet. Check the backend MongoDB configuration and try again shortly.'});
+  next();
+});
+
 app.post('/api/auth/register', async (req, res) => {
   try {
     const { username, email, password } = req.body;

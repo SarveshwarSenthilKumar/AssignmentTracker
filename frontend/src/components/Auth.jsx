@@ -1,3 +1,4 @@
+import {readApiJson} from '../lib/apiResponse'
 import { useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { Loader2 } from 'lucide-react'
@@ -13,31 +14,37 @@ export default function Auth() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    if(loading)return
     setError('')
     setLoading(true)
 
+    const controller=new AbortController()
+    const timeout=setTimeout(()=>controller.abort(),20000)
     try {
       const endpoint = isLogin ? '/api/auth/login' : '/api/auth/register'
       const body = isLogin
-        ? { email, password }
-        : { username, email, password }
+        ? { email:email.trim().toLowerCase(), password }
+        : { username:username.trim(), email:email.trim().toLowerCase(), password }
 
       const response = await fetch(endpoint, {
         method: 'POST',
+        signal:controller.signal,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
 
-      const data = await response.json()
+      const data = await readApiJson(response)
 
       if (!response.ok) {
-        throw new Error(data.message || 'Authentication failed')
+        throw new Error((typeof data?.message==='string'&&data.message) || 'Authentication failed')
       }
 
+      if(typeof data?.token!=='string'||!data.token||!data.user||typeof data.user.id!=='string')throw new Error('The sign-in service returned an incomplete response. Restart the backend and try again.')
       login(data.token, data.user)
     } catch (err) {
-      setError(err.message)
+      setError(err.name==='AbortError'?'Sign-in timed out. Check that the backend and database are running, then try again.':err instanceof TypeError?'Could not reach the sign-in service. Check your connection and that the backend is running.':err.message)
     } finally {
+      clearTimeout(timeout)
       setLoading(false)
     }
   }
