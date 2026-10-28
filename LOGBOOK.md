@@ -4,9 +4,9 @@ Updated: October 28, 2026 (America/Chicago).
 
 ## Numbering and coverage
 
-This logbook covers all 282 commits reachable from HEAD `5d82697`, ordered oldest to newest when assigning numbers. Each commit receives one sequential update number starting at 001. These are documentation references, not application release versions. Dates and original subjects come from Git history. Unmerged branches and work outside this checkout are not covered.
+This logbook covers all 285 commits reachable from HEAD `bd6a839`, ordered oldest to newest when assigning numbers. Each commit receives one sequential update number starting at 001. These are documentation references, not application release versions. Dates and original subjects come from Git history. Unmerged branches and work outside this checkout are not covered.
 
-Update 283 records this documentation change and has no commit hash yet. Append the next unused number for future work; never renumber existing entries. Multiple changes in one commit share its update number.
+Update 286 records the hidden update-history page correction and has no commit hash yet. Append the next unused number for future work; never renumber existing entries. Multiple changes in one commit share its update number.
 
 ## Verification and setup
 
@@ -18,6 +18,10 @@ Backend routes/models require a backend restart; Vite proxy changes require a fr
 
 | Update | Date | Change | Commit |
 | --- | --- | --- | --- |
+| [Update 286](#update-286) | 2026-10-28 | Show actual numbered updates on hidden logbook page | `pending` |
+| [Update 285](#update-285) | 2026-10-28 | Hidden handbook page | `bd6a839` |
+| [Update 284](#update-284) | 2026-10-28 | Updated product and technical handbook | `c5020f3` |
+| [Update 283](#update-283) | 2026-10-28 | Created numbered update logbook | `bd7c154` |
 | [Update 282](#update-282) | 2026-10-28 | Updated focusing logic in calendar | `5d82697` |
 | [Update 281](#update-281) | 2026-10-28 | Added more ideas for the future of the platform | `cfef494` |
 | [Update 280](#update-280) | 2026-10-28 | Added ability to log events for attendance | `9a0c46e` |
@@ -35,9 +39,55 @@ Backend routes/models require a backend restart; Vite proxy changes require a fr
 | [Update 268](#update-268) | 2026-10-26 | Added more complex features to the embedded phone | `8fe7c14` |
 | [Update 267](#update-267) | 2026-10-26 | Updated rendering logic for latex and markdown | `6888758` |
 
+## Update 286
+
+**Date:** 2026-10-28. **Commit:** pending (working-tree implementation).
+
+**Change:** Corrected the hidden logbook page to display the actual numbered platform update history.
+
+The unlisted /#/logbook route now loads LOGBOOK.md through authenticated GET /api/logbook. It provides newest-first update browsing, search by number/feature/commit/file, per-update selection, incremental display, refresh, Markdown download and coverage notes. It remains absent from navigation. It reads maintained documentation rather than automatically claiming to log every runtime action. Deploy LOGBOOK.md with the backend and restart it. No tests, builds, linters, API probes or browser QA were run.
+
+**Changed files:**
+
+- `backend/server.js`
+- `frontend/src/App.jsx`
+- `frontend/src/components/UpdateLogbookPage.jsx`
+- `frontend/src/components/HandbookPage.css`
+- `LOGBOOK.md`
+
+## Update 285
+
+**Date:** 2026-10-28. **Commit:** `bd6a839`.
+
+**Change:** Implemented a hidden handbook page for the site.
+
+The original /#/logbook implementation displayed the product handbook and PDF download. Update 286 corrects this route to show the actual update logbook. The fixed-file authenticated handbook endpoints remain available; no navigation item was added.
+
+**Changed files:**
+
+- `backend/server.js`
+- `frontend/src/App.jsx`
+- `frontend/src/components/HandbookPage.jsx`
+- `frontend/src/components/HandbookPage.css`
+
+## Update 284
+
+**Date:** 2026-10-28. **Commit:** `c5020f3`.
+
+**Change:** Updated the product and technical handbook.
+
+Added feature instructions, technical boundaries and update-number references for Prep, resume layouts, interview quizzes, campus suggestions, attendance, event focus, font replacement, native phone browsing and login handling. Regenerated the handbook PDF with current source-derived shortcut and API inventories. PDF authoring was performed; application tests and visual QA were not run.
+
+**Changed files:**
+
+- `output/pdf/AssignmentTracker-Product-and-Technical-Handbook.md`
+- `output/pdf/AssignmentTracker-Product-and-Technical-Handbook.pdf`
+- `tmp/pdfs/build_handbook.py`
+- `tmp/pdfs/handbook-map.json`
+
 ## Update 283
 
-**Date:** 2026-10-28. **Commit:** pending (this documentation change).
+**Date:** 2026-10-28. **Commit:** `bd7c154`.
 
 - Created a numbered logbook for every commit reachable from HEAD, including dates, subjects, hashes and changed-file inventories.
 - Expanded recent feature/fix entries with behavior, setup requirements, limitations and verification status.

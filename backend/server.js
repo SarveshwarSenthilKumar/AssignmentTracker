@@ -610,6 +610,14 @@ calendarHistory.register(app,authenticateToken);
 require('./f1Calendar')(app,authenticateToken,{CalendarEntry,history:calendarHistory});
 registerTxstCalendar(app, authenticateToken, User, calendarHistory);
 require('./eventAttendance')(app,authenticateToken,mongoose);
+// The hidden update-history page reads the maintained numbered change log.
+app.get('/api/logbook',authenticateToken,(req,res)=>{
+  res.set({'Cache-Control':'no-store','X-Robots-Tag':'noindex, nofollow','Content-Type':'text/markdown; charset=utf-8'});
+  res.sendFile(require('node:path').join(__dirname,'..','LOGBOOK.md'),error=>{
+    if(error&&!res.headersSent)res.status(error.code==='ENOENT'?404:500).type('application/json').json({message:'The update logbook is unavailable. Include LOGBOOK.md in the server deployment.'});
+  });
+});
+
 // Unlisted, authenticated documentation. Serve only these fixed repository files.
 for(const [route,filename,type]of [
   ['/api/handbook','AssignmentTracker-Product-and-Technical-Handbook.md','text/markdown; charset=utf-8'],
