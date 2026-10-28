@@ -123,6 +123,12 @@ function App() {
   const [dueHasTime,setDueHasTime]=useState(false)
   const [taskDatePrompt,setTaskDatePrompt]=useState(null),[creatingTask,setCreatingTask]=useState(false)
   const createTaskLock=useRef(false)
+  const taskDatePromptRef=useRef(null)
+  useEffect(()=>{
+    if(!taskDatePrompt)return
+    const frame=requestAnimationFrame(()=>taskDatePromptRef.current?.querySelector('button:not(:disabled)')?.focus({preventScroll:true}))
+    return()=>cancelAnimationFrame(frame)
+  },[taskDatePrompt])
   useEffect(()=>{setTaskDatePrompt(null)},[input,dueDate,dueHasTime,selectedFolder])
   const [showCommandMenu, setShowCommandMenu] = useState(false)
   const [commandInput, setCommandInput] = useState('')
@@ -1645,7 +1651,44 @@ function App() {
               {creatingTask?'Adding…':'Add'}
             </button>
           </div>
-          {taskDatePrompt&&<div className="task-date-suggestion" role="group" aria-label="Suggested due date"><strong>Set a due date from your task?</strong><p>Detected date wording in “{taskDatePrompt.text}”. Choose a date below or create the task without a deadline. Your task text stays unchanged.</p><div>{taskDatePrompt.suggestions.map(suggestion=><button key={suggestion.date} type="button" disabled={creatingTask} onClick={()=>createTask(taskDatePrompt,dueHasTime?suggestion.date+'T00:00':suggestion.date,dueHasTime)}>Use {dayLabel(suggestion.date,{weekday:'long',month:'short',day:'numeric',year:'numeric'})}{dueHasTime?' at 12 AM':''}<small>From “{suggestion.phrase}”</small></button>)}</div><div><button type="button" disabled={creatingTask} onClick={()=>createTask(taskDatePrompt,'',false)}>Create without a due date</button><button type="button" disabled={creatingTask} onClick={()=>{setTaskDatePrompt(null);inputRef.current?.focus()}}>Keep editing</button></div></div>}
+          {taskDatePrompt&&<div
+            ref={taskDatePromptRef}
+            className="task-date-suggestion"
+            role="group"
+            aria-label="Suggested due date"
+            aria-describedby="task-date-keyboard-help"
+            onKeyDown={event=>{
+              if(event.isComposing)return
+              if(event.key==='Enter'&&event.repeat){event.preventDefault();return}
+              if(event.key==='Escape'){
+                event.preventDefault();event.stopPropagation()
+                if(!creatingTask){setTaskDatePrompt(null);inputRef.current?.focus()}
+                return
+              }
+              if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End'].includes(event.key))return
+              event.preventDefault();event.stopPropagation()
+              const buttons=[...event.currentTarget.querySelectorAll('button:not(:disabled)')]
+              if(!buttons.length)return
+              const index=buttons.indexOf(document.activeElement)
+              const next=event.key==='Home'?0:event.key==='End'?buttons.length-1:(index+(['ArrowLeft','ArrowUp'].includes(event.key)?-1:1)+buttons.length)%buttons.length
+              buttons[next]?.focus({preventScroll:true})
+            }}
+          >
+            <strong>Set a due date from your task?</strong>
+            <p>Detected date wording in “{taskDatePrompt.text}”. Choose a date below or create the task without a deadline. Your task text stays unchanged.</p>
+            <p id="task-date-keyboard-help">Press Enter to use the focused option. Arrow keys change options. Escape returns to editing. You can also click an option.</p>
+            <div>
+              {taskDatePrompt.suggestions.map(suggestion=><button key={suggestion.date} type="button" disabled={creatingTask} onClick={()=>createTask(taskDatePrompt,dueHasTime?suggestion.date+'T00:00':suggestion.date,dueHasTime)}>
+                Use {dayLabel(suggestion.date,{weekday:'long',month:'short',day:'numeric',year:'numeric'})}{dueHasTime?' at 12 AM':''}
+                <small>From “{suggestion.phrase}”</small>
+              </button>)}
+            </div>
+            <div>
+              <button type="button" disabled={creatingTask} onClick={()=>createTask(taskDatePrompt,'',false)}>Create without a due date</button>
+              <button type="button" disabled={creatingTask} onClick={()=>{setTaskDatePrompt(null);inputRef.current?.focus()}}>Keep editing</button>
+            </div>
+          </div>}
+
         </form>
 
         <section className="task-page-search" aria-label="Find tasks">
