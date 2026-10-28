@@ -610,6 +610,16 @@ calendarHistory.register(app,authenticateToken);
 require('./f1Calendar')(app,authenticateToken,{CalendarEntry,history:calendarHistory});
 registerTxstCalendar(app, authenticateToken, User, calendarHistory);
 require('./eventAttendance')(app,authenticateToken,mongoose);
+// Unlisted, authenticated documentation. Serve only these fixed repository files.
+for(const [route,filename,type]of [
+  ['/api/handbook','AssignmentTracker-Product-and-Technical-Handbook.md','text/markdown; charset=utf-8'],
+  ['/api/handbook/pdf','AssignmentTracker-Product-and-Technical-Handbook.pdf','application/pdf']
+])app.get(route,authenticateToken,(req,res)=>{
+  res.set({'Cache-Control':'no-store','X-Robots-Tag':'noindex, nofollow','Content-Type':type});
+  const file=require('node:path').join(__dirname,'..','output','pdf',filename);
+  res.sendFile(file,error=>{if(error&&!res.headersSent)res.status(error.code==='ENOENT'?404:500).type('application/json').json({message:'The handbook file is unavailable on this server. Include the output/pdf handbook files when deploying.'})});
+});
+
 app.get('/api/calendar-entries', authenticateToken, async (req, res) => {
   try { res.json(await CalendarEntry.find({ user: req.user.userId }).sort({ startDate: 1, startAt: 1 })); }
   catch { res.status(500).json({ message: 'Could not load your calendar entries.' }); }
