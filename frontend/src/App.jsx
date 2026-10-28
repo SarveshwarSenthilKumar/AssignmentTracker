@@ -1,3 +1,4 @@
+import './components/TaskSearch.css'
 import HandbookPage from './components/HandbookPage'
 import {HIDDEN_PAGES} from './lib/hiddenPages'
 import UpdateLogbookPage from './components/UpdateLogbookPage'
@@ -68,13 +69,15 @@ function App() {
   const navigate = next => { if(next==='assistant')setAssistantRouteId(null); window.location.hash = `/${next}`; setPage(next); setShowCommandMenu(false); window.scrollTo({top:0}) }
   useEffect(() => { const change = () => { setPage(readPage()); setAssistantRouteId(window.location.hash.match(/^#\/assistant\/([a-f\d]{24})$/i)?.[1]||null); setShowCommandMenu(false); setContextMenu(null); setSelectedTask(pendingLibraryTask.current); pendingLibraryTask.current = null; setShowFolderModal(false); window.scrollTo({top:0}) }; window.addEventListener('hashchange',change); return () => window.removeEventListener('hashchange',change) }, [])
   const [todos, setTodos] = useState([])
+  const [taskSearch,setTaskSearch]=useState(''),[taskSearchAll,setTaskSearchAll]=useState(true)
+  const taskSearchRef=useRef(null)
   const [selectedTaskIds,setSelectedTaskIds]=useState(new Set())
   const [bulkDeleting,setBulkDeleting]=useState(false)
   const bulkDeleteLock=useRef(false)
   const toggleTaskSelection=id=>setSelectedTaskIds(previous=>{const next=new Set(previous);next.has(id)?next.delete(id):next.add(id);return next})
   const [folders, setFolders] = useState([])
   const [selectedFolder, setSelectedFolder] = useState(null)
-  useEffect(()=>{setSelectedTaskIds(new Set())},[selectedFolder,token])
+  useEffect(()=>{setSelectedTaskIds(new Set())},[selectedFolder,token,taskSearch,taskSearchAll])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -172,7 +175,7 @@ function App() {
     'nav-visualization': () => navigate('visualization'), 'nav-shortcuts': () => navigate('shortcuts'), help: () => navigate('shortcuts'),
     dismiss: () => { if(!showCommandMenu&&!showFolderModal&&!showPDFUploadModal&&!selectedTask&&!contextMenu)return false; setShowCommandMenu(false); setShowFolderModal(false); setShowPDFUploadModal(false); setSelectedTask(null); setContextMenu(null) },
     commands: () => { setShowCommandMenu(true); setTimeout(() => commandInputRef.current?.focus(),0) },
-    search: () => { const field = page === 'documents' ? document.querySelector('[aria-label="Search documents"]') : page === 'shortcuts' ? document.querySelector('[aria-label="Search keyboard shortcuts"]') : page === 'tasks' ? inputRef.current : null; if(!field)return false; field.focus() },
+    search: () => { const field = page === 'documents' ? document.querySelector('[aria-label="Search documents"]') : page === 'shortcuts' ? document.querySelector('[aria-label="Search keyboard shortcuts"]') : page === 'tasks' ? taskSearchRef.current : null; if(!field)return false; field.focus() },
   }, isAuthenticated && !assistantOpen && !selectedPDF && !taskConfirmation.pending)
   useShortcuts('Tasks', { 'new-task': () => inputRef.current?.focus(), 'task-folder': () => setShowFolderModal(true),
     'save-task': () => {if(editingFolder)updateFolder(editingFolder);else [...editingTodos].forEach(id=>saveEdit(id))},
@@ -468,7 +471,7 @@ function App() {
   }
 
   const beginTaskPointerDrag=useTaskPointerDrag({
-    enabled:page==='tasks'&&!bulkDeleting&&!reordering,
+    enabled:page==='tasks'&&!bulkDeleting&&!reordering&&!taskSearch.trim(),
     onDrop:(moving,destination)=>reorderTasks(moving,todos.find(task=>task._id===destination.id)||null,destination.status,destination.position),
 
   })
@@ -802,7 +805,7 @@ function App() {
                 </span>
               )}
 
-              {selectedFolder === 'all' && !isEditing && (
+              {(selectedFolder === 'all'||(taskSearch.trim()&&taskSearchAll)) && !isEditing && (
                 <span
                   className="flex-shrink-0 px-2 py-0.5 rounded-full text-xs"
                   style={{
@@ -1404,13 +1407,15 @@ function App() {
     }
   }
 
-  const filteredTodos = getSortedTodos(
-    selectedFolder === 'all'
-      ? todos
-      : selectedFolder
-        ? todos.filter(t => t.folder === selectedFolder)
-        : todos.filter(t => !t.folder)
-  )
+  const taskSearchTerms=normalizeCommandText(taskSearch.trim()).split(/\s+/).filter(Boolean)
+  const folderTodos=selectedFolder==='all'?todos:selectedFolder?todos.filter(task=>(task.folder?._id||task.folder)===selectedFolder):todos.filter(task=>!task.folder)
+  const taskSearchPool=taskSearchTerms.length&&taskSearchAll?todos:folderTodos
+  const filteredTodos=getSortedTodos(taskSearchPool.filter(task=>{
+    if(!taskSearchTerms.length)return true
+    const folder=folders.find(folder=>folder._id===(task.folder?._id||task.folder))
+    const text=normalizeCommandText([task.text,typeof task.description==='string'?task.description.replace(/<[^>]*>/g,' '):'',folder?.name,task.status,task._id].join(' '))
+    return taskSearchTerms.every(term=>text.includes(term))
+  }))
 
   const openSearchResult=async result=>{
     if(result.type==='campus'){
@@ -1661,6 +1666,7 @@ function App() {
           </div>
         </form>
 
+        <section className="task-page-search" aria-label="Find tasks"><label htmlFor="task-page-search">Search tasks<input id="task-page-search" ref={taskSearchRef} type="search" value={taskSearch} onChange={event=>setTaskSearch(event.target.value)} onKeyDown={event=>{if(event.key==='Escape'&&taskSearch){event.preventDefault();event.stopPropagation();setTaskSearch('')}} placeholder="Search names, descriptions, folders or IDs…"/></label><label className="task-page-search-scope">Search in<select value={taskSearchAll?'all':'current'} onChange={event=>setTaskSearchAll(event.target.value==='all')}><option value="all">All folders</option><option value="current">Selected folder</option></select></label>{taskSearch&&<button type="button" onClick={()=>{setTaskSearch('');taskSearchRef.current?.focus()}}>Clear search</button>}<p role="status">{loading?'Loading tasks…':taskSearchTerms.length?`${filteredTodos.length} matching ${filteredTodos.length===1?'task':'tasks'} · Includes completed tasks. Clear search to drag and reorder.`:'Search your tasks here. Press / to focus search.'}</p></section>
         {/* Sort Controls */}
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <div className="flex items-center gap-2">
@@ -1700,7 +1706,7 @@ function App() {
           <div className="text-center py-12">
             <FileText size={34} className="mx-auto mb-4 text-slate-400"/>
             <p className="text-slate-400 text-lg">
-              {selectedFolder === 'all' ? 'No tasks yet. Add one above!' : selectedFolder ? 'No tasks in this folder yet' : 'No todos yet. Add one above!'}
+              {taskSearchTerms.length ? 'No tasks match your search. Try fewer words, or search all folders.' : selectedFolder === 'all' ? 'No tasks yet. Add one above!' : selectedFolder ? 'No tasks in this folder yet' : 'No todos yet. Add one above!'}
             </p>
           </div>
         ) : (
@@ -1940,7 +1946,7 @@ function App() {
               <AccountReset token={token} disabled={syncing || testing || !!selectedPDF} onReset={() => {
                 window.dispatchEvent(new CustomEvent('workspace-reset',{detail:user?.id}));setAssistantOpen(false);setAssistantGeneration(previous=>previous+1);setAssistantCalendarId(null)
                 try { pdfs.forEach(file => sessionStorage.removeItem(`document-draft:${file._id}`)) } catch { /* Storage may be unavailable. */ }
-                setTodos([]); setFolders([]); setPdfs([]); setPdfFolders([])
+                setTaskSearch('');setTaskSearchAll(true);setTodos([]); setFolders([]); setPdfs([]); setPdfFolders([])
                 setSelectedFolder(null); setSelectedPDFFolder('all'); setSelectedTask(null); setSelectedPDF(null)
                 setExpandedTodos(new Set()); setEditingTodos(new Set()); setEditData({}); editRefs.current = {}
                 setInput(''); setDueDate(''); setSortBy('createdAt'); setSortOrder('desc')
