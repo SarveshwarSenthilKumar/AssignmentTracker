@@ -1,5 +1,7 @@
 # 📝 Todo App
 
+Project history: [Numbered update logbook](LOGBOOK.md) — complete committed history, recent feature notes, setup requirements, and verification status.
+
 Use the PDF editor's **Single page / Continuous view** toggle to switch between page-by-page editing and a scrolling stack of all pages. The browser remembers this preference. Continuous view renders nearby pages lazily and previews saved ink, text, and image annotations. Click a page or its Edit page button to activate the full annotation tools there; other pages remain scrollable previews. Previous/Next, the page-number field, and thumbnail navigation scroll to the requested page in continuous view. Dark pages, zoom, rotation, and page insertion remain available. No tests or browser QA were run for this change.
 
 The PDF editor toolbar includes **Blank page after**, which inserts an empty page immediately after the current page, matches its displayed size/orientation, shifts later annotation page numbers, saves the document, and opens the inserted page. The control is unavailable for images and while pages are loading or another page operation is running. This uses the existing page-insertion API; page operations clear the annotation undo stack. No tests or browser QA were run.
