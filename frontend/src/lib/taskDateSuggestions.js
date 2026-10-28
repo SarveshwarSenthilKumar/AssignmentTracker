@@ -12,14 +12,43 @@ export function taskDateSuggestions(value,now=new Date()){
     const number=Number(m[1])||({one:1,two:2,three:3,four:4,five:5,six:6,seven:7,a:1,an:1}[m[1]])
     return number?shiftDay(today,number*(m[2].startsWith('week')?7:1)):null
   })
-  const days={sun:0,mon:1,tue:2,wed:3,thu:4,fri:5,sat:6}
-  scan(/\b(?:(next|this|coming)\s+)?(sunday|sun|monday|mon|tuesday|tue|tues|wednesday|wed|thursday|thu|thur|thurs|friday|fri|saturday|sat)\b/g,m=>{
-    const target=days[m[2].slice(0,3)],offset=(target-weekday+7)%7
-    return shiftDay(today,offset===0&&m[1]==='next'?7:offset)
+  // Explicit week modifiers refer to Monday-based calendar weeks, not merely
+  // the next occurrence. Consume whole phrases before shorter weekday matches.
+  const days={sun:6,mon:0,tue:1,wed:2,thu:3,fri:4,sat:5}
+  const weekStart=shiftDay(today,-((weekday+6)%7)),claimed=[]
+  const modifier='(?:(?:next\\s+)+|this\\s+|coming\\s+)'
+  const dayNames='sunday|sun|monday|mon|tuesday|tues|tue|wednesday|wed|thursday|thurs|thur|thu|friday|fri|saturday|sat'
+  const nextCount=phrase=>(phrase?.match(/\bnext\b/g)||[]).length
+  const scanCalendar=(pattern,resolve)=>{
+    for(const match of text.matchAll(pattern)){
+      const start=match.index,end=start+match[0].length
+      if(claimed.some(([left,right])=>start<right&&end>left))continue
+      claimed.push([start,end])
+      const result=resolve(match)
+      if(!result)continue
+      const before=results.length
+      add(result.date,match[0],start)
+      if(results.length>before)results[results.length-1].explanation=result.explanation
+    }
+  }
+  const weekDay=(phrase,day)=>{
+    const weeks=nextCount(phrase),offset=days[day.slice(0,3)]
+    if(weeks)return {date:shiftDay(weekStart,offset+weeks*7),explanation:`${weeks===1?'Next week':weeks+' weeks ahead'}; weeks start on Monday.`}
+    if(phrase?.trim()==='this')return {date:shiftDay(weekStart,offset),explanation:'This calendar week (Monday through Sunday).'}
+    return {date:shiftDay(today,(offset-((weekday+6)%7)+7)%7),explanation:'The upcoming occurrence, including today.'}
+  }
+  scanCalendar(new RegExp(`\\b(${modifier})week\\s+(?:on\\s+)?(${dayNames})\\b`,'g'),m=>weekDay(m[1],m[2]))
+  scanCalendar(new RegExp(`\\b(${modifier})?(${dayNames})(?:\\s+(?:of\\s+)?(${modifier})week)?\\b`,'g'),m=>weekDay(m[3]||m[1],m[2]))
+  scanCalendar(new RegExp(`\\b(${modifier})?weekend\\b`,'g'),m=>{
+    const weeks=nextCount(m[1])
+    const date=weeks?shiftDay(weekStart,5+weeks*7):m[1]?.trim()==='this'?(shiftDay(weekStart,5)<today?today:shiftDay(weekStart,5)):shiftDay(today,(6-weekday+7)%7)
+    return {date,explanation:weeks?`Saturday ${weeks===1?'next week':weeks+' weeks ahead'}.`:'The upcoming weekend in the specified week.'}
   })
-  scan(/\b(?:(this|next)\s+)?weekend\b/g,m=>{const offset=(6-weekday+7)%7;return shiftDay(today,offset+(m[1]==='next'?7:0))})
-  scan(/\b(?:end of (?:this )?week|eow)\b/g,()=>shiftDay(today,(5-weekday+7)%7))
-  scan(/\bnext week\b/g,()=>shiftDay(today,(1-weekday+7)%7||7))
+  scanCalendar(new RegExp(`\\b(?:end\\s+of\\s+(${modifier})?week|eow)\\b`,'g'),m=>({date:shiftDay(weekStart,4+nextCount(m[1])*7),explanation:'Friday at the end of the specified workweek.'}))
+  scanCalendar(new RegExp(`\\b(${modifier})week\\b`,'g'),m=>{
+    const weeks=nextCount(m[1])
+    return {date:weeks?shiftDay(weekStart,weeks*7):today,explanation:weeks?`Monday ${weeks===1?'next week':weeks+' weeks ahead'}.`:'This week is already underway; use today or choose a specific weekday.'}
+  })
   scan(/\b(?:end of (?:this )?month|eom)\b/g,()=>{
     const date=new Date(today+'T12:00:00Z');date.setUTCMonth(date.getUTCMonth()+1,0)
     return date.toISOString().slice(0,10)

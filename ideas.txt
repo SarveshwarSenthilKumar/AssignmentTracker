@@ -49,4 +49,7 @@ check skills and tailor
 connect to github  and linkedin
 base projects off github and linkedin
 
+add terms and conditions
+optimize for various screens
+
 add ability to add sports events to calendar including f1

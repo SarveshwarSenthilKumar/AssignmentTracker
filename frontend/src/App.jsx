@@ -1680,7 +1680,7 @@ function App() {
             <div>
               {taskDatePrompt.suggestions.map(suggestion=><button key={suggestion.date} type="button" disabled={creatingTask} onClick={()=>createTask(taskDatePrompt,dueHasTime?suggestion.date+'T00:00':suggestion.date,dueHasTime)}>
                 Use {dayLabel(suggestion.date,{weekday:'long',month:'short',day:'numeric',year:'numeric'})}{dueHasTime?' at 12 AM':''}
-                <small>From “{suggestion.phrase}”</small>
+                <small>From “{suggestion.phrase}”</small>{suggestion.explanation&&<small>{suggestion.explanation}</small>}
               </button>)}
             </div>
             <div>
