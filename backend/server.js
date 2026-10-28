@@ -590,7 +590,7 @@ app.post('/api/user/reset', authenticateToken, async (req, res) => {
     if (!await bcrypt.compare(req.body.password, user.password)) return res.status(401).json({ message: 'The password is incorrect. No data was reset.' });
     if ((accountWrites.get(userId) || 0) !== 1 || resettingAccounts.has(userId)) return res.status(409).json({ message: 'Wait for uploads, saves, and imports to finish, then try the reset again.' });
     resettingAccounts.add(userId); locked = true;
-    const deleted = await resetAccountWorkspace({ userId, models: { StudyItem, SavedJob, Todo, PDF, Folder, PDFFolder, User, CalendarEntry, AssistantConversation, CalendarChange: calendarHistory.Change, TaskDeletionRecovery: taskRecovery.Recovery, ResumeDraft:mongoose.models.ResumeDraft, CoverLetterDraft:mongoose.models.CoverLetterDraft, DocumentSearchIndex:mongoose.models.DocumentSearchIndex }, startSession: () => mongoose.startSession() });
+    const deleted = await resetAccountWorkspace({ userId, models: { EventAttendance:mongoose.models.EventAttendance, StudyItem, SavedJob, Todo, PDF, Folder, PDFFolder, User, CalendarEntry, AssistantConversation, CalendarChange: calendarHistory.Change, TaskDeletionRecovery: taskRecovery.Recovery, ResumeDraft:mongoose.models.ResumeDraft, CoverLetterDraft:mongoose.models.CoverLetterDraft, DocumentSearchIndex:mongoose.models.DocumentSearchIndex }, startSession: () => mongoose.startSession() });
     res.json({ message: 'Account workspace reset.', deleted });
   } catch (error) {
     const unsupported = /Transaction numbers|replica set|mongos/i.test(error.message);
@@ -609,6 +609,7 @@ require('./calendarSeries').registerCalendarSeries(app,authenticateToken,{Calend
 calendarHistory.register(app,authenticateToken);
 require('./f1Calendar')(app,authenticateToken,{CalendarEntry,history:calendarHistory});
 registerTxstCalendar(app, authenticateToken, User, calendarHistory);
+require('./eventAttendance')(app,authenticateToken,mongoose);
 app.get('/api/calendar-entries', authenticateToken, async (req, res) => {
   try { res.json(await CalendarEntry.find({ user: req.user.userId }).sort({ startDate: 1, startAt: 1 })); }
   catch { res.status(500).json({ message: 'Could not load your calendar entries.' }); }
