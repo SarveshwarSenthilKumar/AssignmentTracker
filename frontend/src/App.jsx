@@ -1,3 +1,4 @@
+import {taskDateSuggestions} from './lib/taskDateSuggestions'
 import TaskDueInput,{taskDuePayload} from './components/TaskDueInput'
 import './components/TaskSearch.css'
 import HandbookPage from './components/HandbookPage'
@@ -32,7 +33,7 @@ import WorkflowWorkspace from './components/WorkflowWorkspace'
 import AssistantChat from './components/AssistantChat'
 import { SHORTCUTS, matchesShortcut } from './lib/shortcuts'
 import { localToInstant, zonedLocal } from './lib/timeZone'
-import { taskDueLabel } from './lib/calendar'
+import { taskDueLabel,dayLabel } from './lib/calendar'
 import CalendarPage from './components/CalendarPage'
 import TaskDependencies from './components/TaskDependencies'
 import { dependencySummary } from './lib/taskDependencies'
@@ -120,6 +121,9 @@ function App() {
   const [icsFile, setIcsFile] = useState(null)
   const [dueDate, setDueDate] = useState('')
   const [dueHasTime,setDueHasTime]=useState(false)
+  const [taskDatePrompt,setTaskDatePrompt]=useState(null),[creatingTask,setCreatingTask]=useState(false)
+  const createTaskLock=useRef(false)
+  useEffect(()=>{setTaskDatePrompt(null)},[input,dueDate,dueHasTime,selectedFolder])
   const [showCommandMenu, setShowCommandMenu] = useState(false)
   const [commandInput, setCommandInput] = useState('')
   const [commandNotice,setCommandNotice]=useState('')
@@ -390,45 +394,30 @@ function App() {
     }
   }
 
-  const addTodo = async (e) => {
-    e.preventDefault()
-    if (!input.trim()) return
-
-    try {
-      const response = await fetch('/api/todos', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          text: input.trim(),
-          folder: selectedFolder === 'all' ? null : selectedFolder,
-          ...taskDuePayload(dueDate,dueHasTime)
-        }),
+  const createTask=async(snapshot,date,time)=>{
+    if(createTaskLock.current)return
+    createTaskLock.current=true;setCreatingTask(true)
+    try{
+      const response=await fetch('/api/todos',{
+        method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},
+        body:JSON.stringify({text:snapshot.text,folder:snapshot.folder,...taskDuePayload(date,time)})
       })
-      if (!response.ok) {
-        const errorData = await readApiJson(response).catch(() => ({}))
-        const errorMessage = errorData.message || errorData.error || 'Failed to add todo'
-        if (errorMessage === 'Invalid or expired token') {
-          logout()
-          return
-        }
-        throw new Error(errorMessage)
-      }
-      const newTodo = await readApiJson(response)
-      setTodos([...todos, newTodo])
-      setInput('')
-      setDueDate('')
-    } catch (err) {
-      if (err.message === 'Invalid or expired token') {
-        logout()
-      } else {
-        setError(err.message)
-        setErrorDetails(err.stack || err.toString())
-        setShowErrorDetails(false)
-      }
+      const data=await readApiJson(response)
+      if(!response.ok){if(data.message==='Invalid or expired token'){logout();return}throw new Error(data.message||data.error||'Could not create task.')}
+      if(!data._id)throw new Error('The server did not confirm that the task was saved. Refresh your tasks before trying again.')
+      setTodos(previous=>[...previous,data]);setInput('');setDueDate('');setDueHasTime(false);setTaskDatePrompt(null)
+    }catch(err){setError(err.message);setErrorDetails(err.stack||err.toString());setShowErrorDetails(false)}
+    finally{createTaskLock.current=false;setCreatingTask(false)}
+  }
+  const addTodo=async e=>{
+    e.preventDefault()
+    if(!input.trim()||createTaskLock.current)return
+    const snapshot={text:input.trim(),folder:selectedFolder==='all'?null:selectedFolder}
+    if(!dueDate){
+      const suggestions=taskDateSuggestions(snapshot.text)
+      if(suggestions.length){setTaskDatePrompt({...snapshot,suggestions});return}
     }
+    await createTask(snapshot,dueDate,dueHasTime)
   }
 
   const updateTodoStatus = async (id, newStatus) => {
@@ -1639,21 +1628,24 @@ function App() {
           <div className="flex gap-3">
             <input
               ref={inputRef}
+              disabled={creatingTask}
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder={`Add task to ${selectedFolder === 'all' ? 'Inbox' : selectedFolder ? folders.find(f => f._id === selectedFolder)?.name : 'Inbox'}...`}
               className="flex-1 px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all focus: text-sm"
             />
-            <TaskDueInput value={dueDate} hasTime={dueHasTime} onChange={setDueDate} onModeChange={(hasTime,value)=>{setDueHasTime(hasTime);setDueDate(value)}}/>
+            <TaskDueInput disabled={creatingTask} value={dueDate} hasTime={dueHasTime} onChange={setDueDate} onModeChange={(hasTime,value)=>{setDueHasTime(hasTime);setDueDate(value)}}/>
             <button
               type="submit"
+              disabled={creatingTask||!input.trim()}
               className="px-5 py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-medium transition-all   flex items-center gap-2 shadow-lg shadow-primary-500/30 hover:shadow-primary-500/50 text-sm"
             >
               <Plus size={16} className="" />
-              Add
+              {creatingTask?'Adding…':'Add'}
             </button>
           </div>
+          {taskDatePrompt&&<div className="task-date-suggestion" role="group" aria-label="Suggested due date"><strong>Set a due date from your task?</strong><p>Detected date wording in “{taskDatePrompt.text}”. Choose a date below or create the task without a deadline. Your task text stays unchanged.</p><div>{taskDatePrompt.suggestions.map(suggestion=><button key={suggestion.date} type="button" disabled={creatingTask} onClick={()=>createTask(taskDatePrompt,dueHasTime?suggestion.date+'T00:00':suggestion.date,dueHasTime)}>Use {dayLabel(suggestion.date,{weekday:'long',month:'short',day:'numeric',year:'numeric'})}{dueHasTime?' at 12 AM':''}<small>From “{suggestion.phrase}”</small></button>)}</div><div><button type="button" disabled={creatingTask} onClick={()=>createTask(taskDatePrompt,'',false)}>Create without a due date</button><button type="button" disabled={creatingTask} onClick={()=>{setTaskDatePrompt(null);inputRef.current?.focus()}}>Keep editing</button></div></div>}
         </form>
 
         <section className="task-page-search" aria-label="Find tasks">
