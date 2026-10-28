@@ -13,7 +13,23 @@ module.exports=(app,auth,mongoose)=>{
       const totals=[{$group:{_id:null,count:{$sum:1},bytes:{$sum:{$bsonSize:'$$ROOT'}}}}];
       const dateOnly={$and:[{$eq:['$calendarAllDay',true]},{$ne:[{$ifNull:['$calendarDate',null]},null]}]};
       const dueDay={$cond:[dateOnly,'$calendarDate',{$dateToString:{format:'%Y-%m-%d',date:'$dueDate',timezone:zone,onNull:''}}]};
-      const taskFacet={statuses:[{$match:{canvasType:{$ne:'calendar_event'}}},{$group:{_id:'$status',count:{$sum:1}}}],deadlines:[{$match:{canvasType:{$ne:'calendar_event'},status:{$ne:'completed'}}},{$group:{_id:null,undated:{$sum:{$cond:[{$eq:[{$ifNull:['$dueDate',null]},null]},1,0]}},overdue:{$sum:{$cond:[{$and:[{$ne:[{$ifNull:['$dueDate',null]},null]},{$cond:[dateOnly,{$lt:['$calendarDate',today]},{$lt:['$dueDate',now]}]}]},1,0]}},dueToday:{$sum:{$cond:[{$eq:[dueDay,today]},1,0]}},dueSoon:{$sum:{$cond:[{$and:[{$gte:[dueDay,today]},{$lte:[dueDay,weekEnd]}]},1,0]}}}}],completedDaily:[{$match:{status:'completed',completedAt:{$gte:since},canvasType:{$ne:'calendar_event'}}},{$group:{_id:{$dateToString:{format:'%Y-%m-%d',date:'$completedAt',timezone:zone}},count:{$sum:1}}},{$sort:{_id:1}}],folders:[{$match:{canvasType:{$ne:'calendar_event'}}},{$group:{_id:'$folder',count:{$sum:1},completed:{$sum:{$cond:[{$eq:['$status','completed']},1,0]}}}}]};
+      const hasDue={$ne:[{$ifNull:['$dueDate',null]},null]};
+      const sumIf=condition=>({$sum:{$cond:[condition,1,0]}});
+      const taskFacet={
+        statuses:[{$match:{canvasType:{$ne:'calendar_event'}}},{$group:{_id:'$status',count:{$sum:1}}}],
+        deadlines:[
+          {$match:{canvasType:{$ne:'calendar_event'},status:{$ne:'completed'}}},
+          {$group:{
+            _id:null,
+            undated:sumIf({$eq:[{$ifNull:['$dueDate',null]},null]}),
+            overdue:sumIf({$and:[hasDue,{$cond:[dateOnly,{$lt:['$calendarDate',today]},{$lt:['$dueDate',now]}]}]}),
+            dueToday:sumIf({$eq:[dueDay,today]}),
+            dueSoon:sumIf({$and:[hasDue,{$gte:[dueDay,today]},{$lte:[dueDay,weekEnd]}]})
+          }}
+        ],
+        completedDaily:[{$match:{status:'completed',completedAt:{$gte:since},canvasType:{$ne:'calendar_event'}}},{$group:{_id:{$dateToString:{format:'%Y-%m-%d',date:'$completedAt',timezone:zone}},count:{$sum:1}}},{$sort:{_id:1}}],
+        folders:[{$match:{canvasType:{$ne:'calendar_event'}}},{$group:{_id:'$folder',count:{$sum:1},completed:sumIf({$eq:['$status','completed']})}}]
+      };
       const binarySize=field=>({$cond:[{$eq:[{$type:field},'binData']},{$binarySize:field},0]});
       const fileFacet={storage:[{$group:{_id:{$cond:[{$ne:[{$ifNull:['$deletedAt',null]},null]},'trash','active']},count:{$sum:1},bytes:{$sum:{$bsonSize:'$$ROOT'}},fileBytes:{$sum:binarySize('$pdfData')},backupBytes:{$sum:binarySize('$originalBackup')},annotations:{$sum:{$cond:[{$isArray:'$annotations'},{$size:'$annotations'},0]}}}}],types:[{$match:{deletedAt:null}},{$group:{_id:{$toLower:{$arrayElemAt:[{$split:[{$ifNull:['$originalName','unknown']},'.']},-1]}},count:{$sum:1},bytes:{$sum:binarySize('$pdfData')}}},{$sort:{bytes:-1}}],largest:[{$project:{name:1,originalName:1,deletedAt:1,bytes:{$bsonSize:'$$ROOT'},fileBytes:binarySize('$pdfData'),backupBytes:binarySize('$originalBackup')}},{$sort:{bytes:-1}},{$limit:10}],folders:[{$match:{deletedAt:null}},{$group:{_id:'$pdfFolder',count:{$sum:1},bytes:{$sum:binarySize('$pdfData')}}}],tags:[{$match:{deletedAt:null}},{$unwind:'$tags'},{$group:{_id:'$tags',count:{$sum:1}}},{$sort:{count:-1}},{$limit:15}]};
       const results=await Promise.all(Object.entries(collections).filter(([name])=>mongoose.models[name]).map(async([name,label])=>{
