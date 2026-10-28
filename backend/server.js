@@ -1513,4 +1513,6 @@ app.use((error,req,res,next)=>{
   res.status(status>=400&&status<=599?status:500).json({message:error.type==='entity.parse.failed'?'The request body is not valid JSON.':'The API could not complete this request. Check the backend logs and try again.'});
 });
 
+require('./accountAnalytics')(app,authenticateToken,mongoose);
+
 app.listen(PORT);

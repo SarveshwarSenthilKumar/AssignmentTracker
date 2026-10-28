@@ -6,7 +6,8 @@ module.exports=(app,auth,mongoose)=>{
       const owner={user:new mongoose.Types.ObjectId(req.user.userId)},now=new Date();
       const profile=await mongoose.models.User.findById(owner.user).select('timeZone createdAt').lean();
       if(!profile)return res.status(404).json({message:'Account not found.'});
-      const zone=profile.timeZone||'UTC',day=date=>new Intl.DateTimeFormat('en-CA',{timeZone:zone,year:'numeric',month:'2-digit',day:'2-digit'}).format(date);
+      let zone=profile.timeZone||String(req.query.timeZone||'UTC');try{new Intl.DateTimeFormat('en',{timeZone:zone}).format()}catch{zone='UTC'}
+      const day=date=>new Intl.DateTimeFormat('en-CA',{timeZone:zone,year:'numeric',month:'2-digit',day:'2-digit'}).format(date);
       const today=day(now),weekEnd=day(new Date(now.getTime()+7*86400000)),since=new Date(now.getTime()-90*86400000);
       const daily=[{$match:{createdAt:{$gte:since}}},{$group:{_id:{$dateToString:{format:'%Y-%m-%d',date:'$createdAt',timezone:zone}},count:{$sum:1}}},{$sort:{_id:1}}];
       const totals=[{$group:{_id:null,count:{$sum:1},bytes:{$sum:{$bsonSize:'$$ROOT'}}}}];
