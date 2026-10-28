@@ -64,7 +64,7 @@ class Cover(Flowable):
         c.setFont('Body',24);c.drawString(31,491,'Every feature.');c.drawString(31,455,'How it works.');c.drawString(31,419,'Technical reference.')
         c.setStrokeColor(colors.HexColor('#456075'));c.line(31,387,443,387)
         c.setFont('Body',12);c.drawString(31,358,'Prepared for Sarveshwar Senthil Kumar')
-        c.setFillColor(colors.HexColor('#BDD0DF'));c.setFont('Body',10);c.drawString(31,330,'Source-based edition | October 26, 2026')
+        c.setFillColor(colors.HexColor('#BDD0DF'));c.setFont('Body',10);c.drawString(31,330,'Source-based edition | October 28, 2026')
         c.drawString(31,308,'React / Express / MongoDB / PDF tools / Gemini')
         c.setFillColor(ACCENT);c.setFont('Body-Bold',11);c.drawString(0,190,'A COMPLETE PRODUCT AND TECHNICAL REFERENCE')
         for i,line in enumerate(['Feature-by-feature instructions, architecture and data flow,', 'guided workflows, engineering notes, design tradeoffs,', 'limitations, source references and implementation inventories.']):

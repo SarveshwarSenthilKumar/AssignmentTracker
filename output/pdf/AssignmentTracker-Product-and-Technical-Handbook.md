@@ -1,6 +1,6 @@
 # How to use this handbook
 
-This is a source-based guide to Sarveshwar Senthil Kumar's AssignmentTracker, prepared on October 26, 2026. It combines a complete product manual, an architecture reference, guided workflows and engineering notes. It describes the implementation without assuming that every feature has passed runtime testing or works with every external service.
+This is a source-based guide to Sarveshwar Senthil Kumar's AssignmentTracker, updated on October 28, 2026. It combines a complete product manual, an architecture reference, guided workflows and engineering notes. It describes the implementation without assuming that every feature has passed runtime testing or works with every external service.
 
 ## Three ways to read it
 - Getting started: read Product overview, Architecture and Setup, then follow the guided end-to-end workflow.
@@ -20,6 +20,119 @@ Each feature chapter separates user-visible behavior from design decisions and e
 Code takes precedence over older documentation. For example, the assistant can edit supported open documents, notes have a Markdown studio, supported DOCX editing preserves the original package, and Ctrl/Cmd+K opens global search.
 
 Sources: README.md; frontend/src/App.jsx; frontend/src/components/DocumentEditor.jsx; backend/assistantEditor.js.
+
+# October 28 edition: recent features and update numbers
+
+This edition retains the complete product manual and technical chapters and adds the recent implementation changes below. Update numbers refer to the numbered project history in LOGBOOK.md, not semantic application versions. This edition covers application changes through Update 282 (commit 5d82697). Update 283 records creation of the separate history logbook. Documentation and source inspection are not evidence that a feature has passed runtime testing.
+
+## Quick update map
+- Update 271: optional desktop browser inside the study phone.
+- Update 272: PDF font matching, compatible Computer Modern fonts and supplied font files.
+- Updates 273-275: login handling, implementation corrections and resume template creation.
+- Update 276: resume and project interview quizzes.
+- Update 277: the Prep workspace.
+- Update 278: internet-sourced resume layouts and license credits.
+- Update 279: suggested campus events.
+- Update 280: attended-events logbook.
+- Update 281: future ideas only; not additional implemented functionality.
+- Update 282: scrolling and focus when selecting calendar events.
+
+## Prep: finding all career preparation tools - Update 277
+Open Career in the platform navigation and choose Prep, or use the #/prep route. The workspace contains Interview practice, Resumes & templates, Cover letters, and Saved jobs. These are working tool panels, not just links to unrelated pages. Open a panel to load its tool; previously visited panels remain mounted while you switch within Prep.
+
+Switching Prep tools keeps your current quiz answers and feedback in memory. Leaving Prep clears the quiz session. Saved resumes, templates, letters and jobs remain account records. The standalone Resumes, Cover letters and Saved jobs pages remain available. The product handbook is this document; it is distinct from both the event attendance log and the developer update history.
+
+Sources: frontend/src/components/PrepPage.jsx; frontend/src/components/AppNavigation.jsx; frontend/src/App.jsx.
+
+## Create and choose resume templates - Updates 274-275
+Open Prep, then Resumes & templates, then Create a resume from a template. The built-in choices are Classic, Modern, Compact and Academic. Their differences include serif versus sans serif typography, contact alignment, margins, spacing, section rules and section order. Preview cards illustrate the layout; they do not promise identical pagination for every amount of text or installed font.
+
+- Select a layout and enter your name and contact details.
+- Fill in Profile, Experience, Education, Projects & research and Skills as relevant. Your content remains in the form when you switch layouts.
+- Start a line with a hyphen and a space to create a bullet. Empty sections are omitted.
+- Select Create & use to generate an editable Word document and upload it to your account. This step does not use AI or require a Gemini key.
+- The saved file appears in Resumes and Documents and is selected in the tailoring tool below. Use as template on another saved resume selects that file as the layout source.
+
+The generator uses the existing docx dependency to build a letter-size Word document from your supplied facts. It does not invent experience, import your profile automatically or guarantee a single page. AI tailoring remains a separate review-and-save workflow that preserves the chosen template structure and uses only supplied applicant evidence.
+
+Sources: frontend/src/lib/resumeTemplates.js; frontend/src/components/ResumeTemplateGallery.jsx; frontend/src/components/ResumesPage.jsx; frontend/src/components/CoverLetterGenerator.jsx.
+
+## Internet-sourced resume layouts - Update 278
+In the same picker, choose From the web. Jake's Resume is a centered, education-first serif adaptation with fine section rules. Bajaj Developer uses a left-aligned header and compact ruled sections. These are editable Word adaptations of MIT-licensed LaTeX layouts, not official Word releases or pixel-identical reproductions.
+
+Choose either layout, enter your own content, and use Create & use as with the built-in templates. Original template and MIT license links are shown for the selected layout. Expand Credits & license notices to read attribution. License text is also retained in the generated Word document's description metadata. The original authors' personal resume data is not inserted into your resume.
+
+Original projects: https://github.com/jakegut/resume and https://github.com/sb2nov/resume. Local attribution: frontend/src/assets/resume-template-licenses.txt. Layout metadata and DOCX output: frontend/src/lib/resumeTemplates.js.
+
+## Resume interview quizzes and project deep dives - Update 276
+Open Prep, then Interview practice. Alternatively, use Quiz me on a saved resume. Choose Resume interview to discuss the experience on a resume, or Project deep dive to focus on a particular project. Select an available source document or paste at least 40 characters of context. For a project, explain your contribution, decisions, technologies, challenges and results; if selecting a resume, name the project to focus on.
+
+- Choose Introductory, Standard or Challenging difficulty and 3, 5, 8 or 10 questions.
+- Start practice to generate questions through your saved Gemini API key.
+- Answer one question at a time. Show hint offers a nudge before answering.
+- Get feedback reviews the current answer and returns a coaching score from 0 to 5, constructive feedback, strengths and improvements. Example answer structure is expandable after review.
+- Previous, Next question and Skip for now allow revisiting questions. Changing an answer clears its old feedback so it is not presented as a review of the new wording.
+- View session summary shows reviewed-answer counts and the average available coaching score. Start another session clears the current questions, answers and feedback after the explicit action.
+
+Only the selected document, supplied context, saved text edits and answer/question data needed for the request are sent. Unsaved editor changes are not included. Document ownership and AI category permissions are checked on the backend; generation must be enabled and a Gemini key must be configured in Account. A project file outside the resume category follows that file category's AI permission. Source material is treated as untrusted data, and the prompt prohibits inventing applicant achievements. These controls do not guarantee perfect grounding or reliable scoring: review all feedback against your actual experience. Scores are practice guidance, not hiring predictions.
+
+Sessions are page-local, not stored quiz history. Cancellation and timeouts preserve current local answers. Restart the backend after adding POST /api/resumes/quiz. The route bounds request size, concurrency, rate and provider duration. Edited PDF sources include bounded saved text replacements; handwriting and other unsaved or unsupported visual changes are not interpreted as applicant facts.
+
+Sources: frontend/src/components/ResumeQuiz.jsx; backend/resumeQuiz.js; backend/aiAccess.js; backend/assistant.js.
+
+## Suggested events when campus events are enabled - Update 279
+Calendar and Home now include Suggested events: up to six upcoming loaded TXST events within the next 30 days, ordered by date. Cards include the date, time, title, available location and a View event details action. Calendar opens the event's inspector; Home opens the public event page when a valid URL exists.
+
+The Calendar suggestions section follows the TXST events source checkbox. Both surfaces omit events removed through hidden-event preferences and hide the section when all TXST events have been removed. Home follows the account-wide visibility setting rather than the Calendar page's temporary source checkbox. No invented placeholder events are used when the feed is empty. Loading and feed-warning states explain availability. Suggestions are chronological campus discovery, not AI recommendations or a claim of personalized suitability.
+
+Sources: frontend/src/components/SuggestedEvents.jsx; frontend/src/components/HomePage.jsx; frontend/src/components/CalendarPage.jsx; frontend/src/hooks/useTxstEvents.js.
+
+## Keep a log of attended events - Update 280
+Open Calendar and find Attended events below the suggestions section. The attendance log remains available even when campus suggestions are hidden. It is an account-owned record independent of whether a public event remains in the source feed.
+
+- Select Log an event for an event outside the platform, or select a calendar event and choose Log attendance to prefill its title, location and source identity.
+- Enter the actual date attended and optional notes or takeaways. The date control is limited to today or earlier; if a future event is selected, the form defaults to today and you must confirm the correct attendance date.
+- Save attendance to persist the record to your account. Name, date, location and notes are stored; this does not duplicate the event into your calendar.
+- Search the log by name, location, date or notes. Edit changes an existing record.
+- Remove opens an inline confirmation. Removing a log entry leaves its calendar event unchanged. Calendar-linked records have duplicate-source protection.
+
+The backend registers GET/POST /api/event-attendance and PUT/DELETE /api/event-attendance/:id, with validation and account-scoped queries. EventAttendance stores timestamps plus the attendance fields. Full account reset removes these records. Restart the backend to register the model and routes. The attendance log is not the project update logbook and does not automatically claim that you attended every past event.
+
+Sources: frontend/src/components/EventAttendance.jsx; backend/eventAttendance.js; backend/accountReset.js; backend/server.js.
+
+## Calendar event description scrolling - Update 282
+Click an event in the selected day's side list to automatically scroll up to its details and description. The same event can be clicked again to refocus it. Month and agenda event selection also use the shared selection helper, and suggested-event clicks use the same focus behavior.
+
+Selection first updates the date and event, then schedules focus after the browser can render the selected inspector. Focus does not independently scroll the page; a single explicit scroll positions the details. Reduced-motion preferences use immediate movement instead of smooth scrolling. Scroll margins leave room for sticky navigation. Pending animation frames are canceled on unmount. This improves navigation without altering the event's content or attendance state.
+
+Sources: frontend/src/components/CalendarPage.jsx; frontend/src/components/CalendarPage.css.
+
+## PDF replacement fonts and consistent export - Update 272
+When editing existing PDF text, the editor prefers available embedded font programs. Font names with subset prefixes such as SFXSQO+CMMI12 are normalized for matching. Computer Modern variants, including Math Italic, can use bundled KaTeX-derived compatible font files when the source font cannot be loaded. Preview and PDF export use the same replacement bytes rather than previewing one font and silently exporting a generic standard font for those matched families.
+
+If a missing font is reported, Use font file accepts a TTF or OTF file up to 10 MB. The supplied bytes are stored with matching text annotations and reloaded for later preview/export. The operation applies to matching font-name annotations already in the editor; it is not a system-wide font installation. Standard font fallbacks remain for unmatched fonts. Exact original outlines require the original usable font data, and replacement text still needs glyphs supported by the selected font. Compatible substitution cannot guarantee identical design or line breaks.
+
+Sources: frontend/src/lib/pdfReplacementFonts.js; frontend/src/lib/pdfExistingText.js; frontend/src/lib/pdfTextStyle.js; frontend/src/components/PDFEditor.jsx.
+
+## A real website engine inside the study phone - Update 271
+The ordinary browser version cannot override external X-Frame-Options or Content-Security-Policy frame restrictions. The optional desktop host offers Website inside phone, which displays external HTTPS pages as native Electron WebContentsView content positioned over the phone's page viewport. It avoids opening a separate website window for normal native phone navigation.
+
+- Start the existing configured backend and frontend.
+- In desktop, install dependencies once with npm install, then launch with npm start.
+- Sign in, open the phone with Alt+P, choose its browser or shortcut and enter an HTTPS site.
+- Use Website inside phone mode for native tabs. Back/forward follows actual website history; zoom changes browser zoom. Closing or suspending a tab releases its native view.
+- Phone resizing, hiding, minimizing and switching apps update visibility and bounds. Saved sessions restore addresses and wait for Resume; they do not preserve unsaved website forms after a view is destroyed.
+
+Remote pages have sandboxing, context isolation, web security and no Node.js or app preload bridge. Website cookies persist in separate account partitions on this device; account reset clears that account's website data. Device permissions and downloads are disabled. Website requests for new windows are redirected within the current native phone tab; flows that require special pop-ups or approved clients may fail. Explicit Open in browser actions still launch the system browser. Chess.com and third-party sign-in compatibility were not verified. This is an optional host, not a packaged installer or bundled backend. See desktop/README.md for configuration.
+
+Sources: desktop/main.cjs; desktop/preload.cjs; frontend/src/components/NativePhonePage.jsx; frontend/src/components/PhoneBrowser.jsx; frontend/src/components/StudyPhone.jsx.
+
+## Login failure messages and recovery - Update 273
+Login and registration now read API responses defensively rather than calling response.json unconditionally on empty output. The frontend checks that a successful response contains a token and user identity, handles bounded request timeouts, normalizes submitted email addresses, and avoids storing an incomplete session. Malformed saved user JSON is discarded so it does not block startup.
+
+The Vite development proxy returns a JSON 503 message when the backend on port 5000 is unavailable. The backend checks JWT_SECRET and database readiness before authentication queries are queued. Restart both services after updating. If sign-in still fails, configure the existing environment requirements and restore database/API connectivity; improved parsing does not turn an unavailable backend into a successful login. No credentials are printed or stored by these error messages.
+
+Sources: frontend/src/components/Auth.jsx; frontend/src/contexts/AuthContext.jsx; frontend/src/lib/apiResponse.js; frontend/vite.config.js; backend/server.js.
 
 # Product overview
 
@@ -818,7 +931,7 @@ TaskDependencies.jsx, TaskAttachments.jsx, TaskDeletionUndo.jsx, TaskDisplaySett
 DocumentLibrary.jsx, DocumentEditor.jsx, NoteStudio.jsx, AIDocumentCreator.jsx, MarkdownPDFCreator.jsx and OneNoteImport.jsx are the major document entry points. PDFEditor.jsx and PDFEditorChrome.jsx coordinate PDF behavior; focused helpers cover ink, erasing, text, copy, math, fonts and gestures. StudyPage.jsx and backend/study.js implement starred material.
 
 ## AI, career and workspace
-AssistantChat.jsx plus backend/assistant*.js implement chat, context, diagnostics, credentials and permitted edits. CoverLetterGenerator.jsx and backend/coverLetterGeneration.js share tailoring infrastructure; resumePrompt.js, coverLetterPrompt.js and companyResearch.js separate purpose/evidence/research. JobsPage.jsx, job import modules and jobParsing helpers implement extraction. WorkflowWorkspace.jsx and TaskVisualization.jsx provide additional projections of the same records.
+AssistantChat.jsx plus backend/assistant*.js implement chat, context, diagnostics, credentials and permitted edits. CoverLetterGenerator.jsx and backend/coverLetterGeneration.js share tailoring infrastructure; resumePrompt.js, coverLetterPrompt.js and companyResearch.js separate purpose/evidence/research. JobsPage.jsx, job import modules and jobParsing helpers implement extraction. PrepPage.jsx collects career preparation tools; ResumeTemplateGallery.jsx and resumeTemplates.js create Word layouts; ResumeQuiz.jsx and backend/resumeQuiz.js provide interview practice. EventAttendance.jsx and backend/eventAttendance.js persist attended events. SuggestedEvents.jsx provides feed-based suggestions. NativePhonePage.jsx and desktop/main.cjs implement optional native phone browsing. WorkflowWorkspace.jsx and TaskVisualization.jsx provide additional projections of the same records.
 
 ## Backend source of truth
 server.js defines models and registers routes. Feature modules own transactional behavior, parsing and external calls. Consult the endpoint and shortcut appendices that follow for a source-derived inventory. Filenames in this guide are repository-relative identifiers, not claims that the guide exercised every path.
