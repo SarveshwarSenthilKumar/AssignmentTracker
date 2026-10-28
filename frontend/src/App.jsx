@@ -1,3 +1,5 @@
+import HandbookPage from './components/HandbookPage'
+import {HIDDEN_PAGES} from './lib/hiddenPages'
 import UpdateLogbookPage from './components/UpdateLogbookPage'
 import PrepPage from './components/PrepPage'
 import StudyPhoneSettings from './components/StudyPhoneSettings'
@@ -57,7 +59,7 @@ function App() {
   const deletingTaskIds=useRef(new Set())
   const readPage = () => {
     const route = window.location.hash.replace(/^#\/?/, '').split('/')[0]
-    return ['home','study','tasks','calendar','documents','visualization','canvas','account','shortcuts','assistant','workspace','prep','logbook','resumes','jobs','cover-letters'].includes(route) ? route : 'home'
+    return ['home','study','tasks','calendar','documents','visualization','canvas','account','shortcuts','assistant','workspace','prep',...HIDDEN_PAGES.map(item=>item.route),'resumes','jobs','cover-letters'].includes(route) ? route : 'home'
   }
   const pendingLibraryTask = useRef(null)
   const [page, setPage] = useState(readPage)
@@ -115,6 +117,7 @@ function App() {
   const [dueDate, setDueDate] = useState('')
   const [showCommandMenu, setShowCommandMenu] = useState(false)
   const [commandInput, setCommandInput] = useState('')
+  const [commandNotice,setCommandNotice]=useState('')
   const [errorDetails, setErrorDetails] = useState(null)
   const [showErrorDetails, setShowErrorDetails] = useState(false)
   const [showPDFUploadModal, setShowPDFUploadModal] = useState(false)
@@ -612,15 +615,23 @@ function App() {
   }
 
   const executeCommand = (cmd) => {
-    const parts = cmd.trim().split(' ')
+    const parts = cmd.trim().split(/\s+/)
     const command = parts[0].toLowerCase()
     const args = parts.slice(1)
 
+    const hiddenPage=HIDDEN_PAGES.find(item=>item.route===command)
+    if(command==='open'||hiddenPage){
+      const target=hiddenPage?.route||args.join(' ').toLowerCase().replace(/^\/?#?\/?/,'').replace(/\/$/,'')
+      const page=HIDDEN_PAGES.find(item=>item.route===target)
+      if(!page){setCommandNotice('Choose an available hidden page: '+HIDDEN_PAGES.map(item=>item.route).join(', '));setShowCommandMenu(true);return}
+      setCommandNotice('');setCommandInput('');navigate(page.route);return
+    }
     switch (command) {
       case 'help':
-        setError('Available commands: help, clear, sort [date/due/name/status], folder [name], all, inbox, del [x]')
-        setShowErrorDetails(false)
-        break
+      case 'pages':
+      case 'hidden':
+        setCommandNotice(command==='help'?'Commands and available hidden pages are listed below.':'Select a hidden page below, or type open followed by its name.')
+        setCommandInput('');setShowCommandMenu(true);requestAnimationFrame(()=>commandInputRef.current?.focus());return
       case 'clear':
         setError(null)
         setErrorDetails(null)
@@ -1425,7 +1436,7 @@ function App() {
       <div className="app-shell w-full max-w-[1440px] mx-auto">
         <AppNavigation page={page} user={user} onSignOut={logout}/>
         <GlobalSearch token={token} onChoose={openSearchResult}/>
-        {page!=='home'&&<div className="platform-page-title"><h1>{page==='logbook'?'Update logbook':page==='prep'?'Prep':page==='study'?'Study stars':page==='workspace'?'Workspace':page==='tasks'?'Tasks':page==='calendar'?'Calendar':page==='documents'?'Document library':page==='jobs'?'Jobs':page==='cover-letters'?'Cover letters':page==='resumes'?'Resumes':page==='visualization'?'Task visualization':page==='canvas'?'Canvas integration':page==='account'?'Account':page==='assistant'?'AI assistant':'Keyboard shortcuts'}</h1><p>{page==='logbook'?'Numbered platform changes, fixes and implementation history.':page==='prep'?'Prepare your resumes, cover letters and interview answers in one place.':page==='study'?'Save questions and topics, review answers, and track what you have studied.':page==='cover-letters'?'Store cover letters for your applications and keep versions ready to edit or download.':page==='jobs'?'Save job links and details alongside your resumes.':page==='resumes'?'Upload and keep your resumes ready for your next opportunity.':page==='workspace'?'Build a personal workflow with tabs, tools, and movable windows.':page==='tasks'?'Plan your work and track progress.':page==='calendar'?'Plan deadlines, assignments, and personal events in one place.':page==='documents'?'Organize and edit your files.':page==='visualization'?'Explore relationships, deadlines, and progress across your workspace.':page==='canvas'?'Manage your course connection and imports.':page==='account'?'Review your profile and workspace activity.':page==='assistant'?'Think, write, learn, and work with your files in a dedicated conversation workspace.':'A searchable reference for navigation and actions.'}</p></div>}
+        {page!=='home'&&<div className="platform-page-title"><h1>{page==='handbook'?'Product handbook':page==='logbook'?'Update logbook':page==='prep'?'Prep':page==='study'?'Study stars':page==='workspace'?'Workspace':page==='tasks'?'Tasks':page==='calendar'?'Calendar':page==='documents'?'Document library':page==='jobs'?'Jobs':page==='cover-letters'?'Cover letters':page==='resumes'?'Resumes':page==='visualization'?'Task visualization':page==='canvas'?'Canvas integration':page==='account'?'Account':page==='assistant'?'AI assistant':'Keyboard shortcuts'}</h1><p>{page==='handbook'?'Feature instructions and technical reference.':page==='logbook'?'Numbered platform changes, fixes and implementation history.':page==='prep'?'Prepare your resumes, cover letters and interview answers in one place.':page==='study'?'Save questions and topics, review answers, and track what you have studied.':page==='cover-letters'?'Store cover letters for your applications and keep versions ready to edit or download.':page==='jobs'?'Save job links and details alongside your resumes.':page==='resumes'?'Upload and keep your resumes ready for your next opportunity.':page==='workspace'?'Build a personal workflow with tabs, tools, and movable windows.':page==='tasks'?'Plan your work and track progress.':page==='calendar'?'Plan deadlines, assignments, and personal events in one place.':page==='documents'?'Organize and edit your files.':page==='visualization'?'Explore relationships, deadlines, and progress across your workspace.':page==='canvas'?'Manage your course connection and imports.':page==='account'?'Review your profile and workspace activity.':page==='assistant'?'Think, write, learn, and work with your files in a dedicated conversation workspace.':'A searchable reference for navigation and actions.'}</p></div>}
         <InlineConfirmation {...taskConfirmation} reveal />
         <TaskDeletionUndo token={token} onRestored={()=>fetchTodos(false)}/>
         {page==='home'&&<HomePage user={user} token={token} tasks={todos} documents={pdfs} folders={folders} loading={loading} canvasStatus={canvasStatus} onNavigate={navigate} onOpenTask={task=>setSelectedTask(task)} onOpenDocument={setSelectedPDF} onOpenCalendar={entry=>{setAssistantCalendarId(entry._id);navigate('calendar')}} onNewTask={()=>{setSelectedFolder('all');navigate('tasks');setTimeout(()=>inputRef.current?.focus(),0)}} onUpload={()=>{setSelectedPDFFolder('all');setShowPDFUploadModal(true)}} onRefresh={()=>Promise.all([fetchTodos(false),fetchPDFs()])}/>}
@@ -1434,6 +1445,7 @@ function App() {
         {canvasNotice && <div role="status" className="calendar-feedback">{canvasNotice}<button onClick={()=>setCanvasNotice('')} aria-label="Dismiss Canvas sync notice"><X size={15}/></button></div>}
         {page==='cover-letters' && <CoverLettersPage token={token} documents={pdfs} onDocumentsChange={setPdfs} onOpen={setSelectedPDF}/>}
         {page==='jobs' && <JobsPage token={token} focusJobId={searchJobId} onJobFocused={()=>setSearchJobId(null)}/>}
+        {page==='handbook' && <HandbookPage token={token}/>}
         {page==='logbook' && <UpdateLogbookPage token={token}/>}
         {page==='prep' && <PrepPage token={token} documents={pdfs} onDocumentsChange={setPdfs} onOpen={setSelectedPDF}/>}
         {page==='resumes' && <ResumesPage token={token} documents={pdfs} onDocumentsChange={setPdfs} onOpen={setSelectedPDF}/>}
@@ -1988,7 +2000,7 @@ function App() {
         {/* Command Menu */}
         {showCommandMenu && (
           <div className="app-inline-panel">
-            <div className="bg-slate-900 border border-white/10 rounded-2xl p-6 w-full max-w-md">
+            <div className="bg-slate-900 border border-white/10 rounded-2xl p-6 w-full max-w-md max-h-[85dvh] overflow-y-auto">
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-2xl font-bold text-white">Command Menu</h3>
                 <button
@@ -1999,6 +2011,8 @@ function App() {
                 </button>
               </div>
 
+              {commandNotice&&<p role="status" className="mb-4 text-sm text-slate-300">{commandNotice}</p>}
+              <section aria-label="Hidden pages" className="mb-5 space-y-2"><h4 className="text-sm font-medium text-slate-300">Hidden pages</h4>{HIDDEN_PAGES.map(item=><button key={item.route} type="button" onClick={()=>executeCommand(`open ${item.route}`)} className="w-full rounded-lg border border-white/10 bg-white/5 p-3 text-left text-slate-200 hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-slate-400"><strong className="block text-sm">{item.label}</strong><span className="block text-xs text-slate-400">{item.description}</span><code className="mt-1 block text-xs">open {item.route} · /#/{item.route}</code></button>)}</section>
               <form onSubmit={handleCommandSubmit} className="space-y-4">
                 <div>
                   <label className="block text-slate-400 text-sm mb-2">Enter Command</label>
@@ -2008,7 +2022,7 @@ function App() {
                     value={commandInput}
                     onChange={(e) => setCommandInput(e.target.value)}
                     placeholder="Type 'help' for available commands"
-                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-500"
                     autoComplete="off"
                   />
                 </div>
@@ -2016,19 +2030,21 @@ function App() {
                 <div className="bg-white/5 rounded-xl p-4">
                   <p className="text-slate-400 text-xs mb-2 font-medium">Available Commands:</p>
                   <ul className="text-slate-300 text-xs space-y-1">
-                    <li><code className="text-purple-400">help</code> - Show all commands</li>
-                    <li><code className="text-purple-400">clear</code> - Clear error messages</li>
-                    <li><code className="text-purple-400">sort [date/due/name/status]</code> - Sort tasks</li>
-                    <li><code className="text-purple-400">folder [name]</code> - Switch to folder</li>
-                    <li><code className="text-purple-400">all</code> - Show all tasks</li>
-                    <li><code className="text-purple-400">inbox</code> - Show inbox</li>
-                    <li><code className="text-purple-400">del [x]</code> - Delete last x tasks</li>
+                    <li><code className="text-slate-200">help</code> - Show all commands</li>
+                    <li><code className="text-slate-200">pages / hidden</code> - List hidden pages</li>
+                    <li><code className="text-slate-200">open [page]</code> - Open a hidden page</li>
+                    <li><code className="text-slate-200">clear</code> - Clear error messages</li>
+                    <li><code className="text-slate-200">sort [date/due/name/status]</code> - Sort tasks</li>
+                    <li><code className="text-slate-200">folder [name]</code> - Switch to folder</li>
+                    <li><code className="text-slate-200">all</code> - Show all tasks</li>
+                    <li><code className="text-slate-200">inbox</code> - Show inbox</li>
+                    <li><code className="text-slate-200">del [x]</code> - Delete last x tasks</li>
                   </ul>
                 </div>
 
                 <button
                   type="submit"
-                  className="w-full px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl transition-all font-medium"
+                  className="w-full px-4 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-xl transition-all font-medium"
                 >
                   Execute
                 </button>
