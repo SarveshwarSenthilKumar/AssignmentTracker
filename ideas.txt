@@ -51,5 +51,6 @@ base projects off github and linkedin
 
 add terms and conditions
 optimize for various screens
+create advanced analytics for admins
 
 add ability to add sports events to calendar including f1
