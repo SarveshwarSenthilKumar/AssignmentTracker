@@ -614,11 +614,31 @@ function App() {
     return sorted
   }
 
+  const commandTaskSearch=commandInput.match(/^\s*(?:search|find|task)\s+([\s\S]*)$/i)
+  const commandTaskQuery=commandTaskSearch?.[1]?.trim()||''
+  const normalizeCommandText=value=>String(value||'').normalize('NFKD').replace(/\p{M}/gu,'').toLowerCase()
+  const commandTaskTerms=normalizeCommandText(commandTaskQuery).split(/\s+/).filter(Boolean)
+  const commandTaskResults=commandTaskTerms.length?todos.filter(task=>{
+    if(task.canvasType==='calendar_event')return false
+    const folder=folders.find(folder=>folder._id===(task.folder?._id||task.folder))
+    const text=normalizeCommandText([task.text,typeof task.description==='string'?task.description.replace(/<[^>]*>/g,' '):'',folder?.name,task.status,task._id].join(' '))
+    return commandTaskTerms.every(term=>text.includes(term))
+  }).sort((a,b)=>Number(normalizeCommandText(b.text)===normalizeCommandText(commandTaskQuery))-Number(normalizeCommandText(a.text)===normalizeCommandText(commandTaskQuery))||Number(a.status==='completed')-Number(b.status==='completed')):[]
+  const openCommandTask=task=>{
+    setShowCommandMenu(false);setCommandNotice('');setCommandInput('');setSelectedFolder('all')
+    if(page==='tasks')setSelectedTask(task)
+    else{pendingLibraryTask.current=task;navigate('tasks')}
+  }
+
   const executeCommand = (cmd) => {
     const parts = cmd.trim().split(/\s+/)
     const command = parts[0].toLowerCase()
     const args = parts.slice(1)
 
+    if(['search','find','task'].includes(command)){
+      setCommandInput(cmd.trim());setCommandNotice(args.join(' ').trim()?'Select a matching task below to open its details.':'Type search followed by a task name, description or folder.')
+      setShowCommandMenu(true);requestAnimationFrame(()=>commandInputRef.current?.focus());return
+    }
     const hiddenPage=HIDDEN_PAGES.find(item=>item.route===command)
     if(command==='open'||hiddenPage){
       const target=hiddenPage?.route||args.join(' ').toLowerCase().replace(/^\/?#?\/?/,'').replace(/\/$/,'')
@@ -2021,15 +2041,17 @@ function App() {
                     type="text"
                     value={commandInput}
                     onChange={(e) => setCommandInput(e.target.value)}
-                    placeholder="Type 'help' for available commands"
+                    placeholder="Try search essay, open logbook, or help"
                     className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-500"
                     autoComplete="off"
                   />
                 </div>
 
+                {commandTaskSearch&&<section aria-label="Task search results" className="rounded-xl border border-white/10 bg-white/5 p-3"><p role="status" className="mb-2 text-xs text-slate-400">{loading?'Loading tasks…':!commandTaskQuery?'Enter a task name, description, folder or ID.':`${commandTaskResults.length} matching tasks across all folders, including completed tasks.`}</p>{!loading&&commandTaskQuery&&<div className="max-h-64 space-y-2 overflow-y-auto">{commandTaskResults.slice(0,50).map(task=>{const folder=folders.find(folder=>folder._id===(task.folder?._id||task.folder));return <button key={task._id} type="button" onClick={()=>openCommandTask(task)} className="block w-full rounded-lg border border-white/10 p-3 text-left hover:bg-white/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-slate-400"><strong className="block break-words text-sm text-slate-200">{task.text}</strong><span className="mt-1 block text-xs text-slate-400">{folder?.name||'Inbox'} · {task.status?.replace(/_/g,' ')||'pending'} · {taskDueLabel(task)}</span></button>})}{!commandTaskResults.length&&<p className="text-sm text-slate-300">No tasks match. Try fewer words or a different name.</p>}{commandTaskResults.length>50&&<p className="text-xs text-slate-400">Showing the first 50 matches. Refine your search to find a specific task.</p>}</div>}</section>}
                 <div className="bg-white/5 rounded-xl p-4">
                   <p className="text-slate-400 text-xs mb-2 font-medium">Available Commands:</p>
                   <ul className="text-slate-300 text-xs space-y-1">
+                    <li><code className="text-slate-200">search [text]</code> - Find and open a task (also: find, task)</li>
                     <li><code className="text-slate-200">help</code> - Show all commands</li>
                     <li><code className="text-slate-200">pages / hidden</code> - List hidden pages</li>
                     <li><code className="text-slate-200">open [page]</code> - Open a hidden page</li>
