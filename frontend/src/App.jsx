@@ -1,3 +1,4 @@
+import TaskDueInput,{taskDuePayload} from './components/TaskDueInput'
 import './components/TaskSearch.css'
 import HandbookPage from './components/HandbookPage'
 import {HIDDEN_PAGES} from './lib/hiddenPages'
@@ -118,6 +119,7 @@ function App() {
   const [testing, setTesting] = useState(false)
   const [icsFile, setIcsFile] = useState(null)
   const [dueDate, setDueDate] = useState('')
+  const [dueHasTime,setDueHasTime]=useState(false)
   const [showCommandMenu, setShowCommandMenu] = useState(false)
   const [commandInput, setCommandInput] = useState('')
   const [commandNotice,setCommandNotice]=useState('')
@@ -402,7 +404,7 @@ function App() {
         body: JSON.stringify({
           text: input.trim(),
           folder: selectedFolder === 'all' ? null : selectedFolder,
-          dueDate: dueDate ? localToInstant(dueDate) : null
+          ...taskDuePayload(dueDate,dueHasTime)
         }),
       })
       if (!response.ok) {
@@ -518,7 +520,8 @@ function App() {
       ...editData,
       [todo._id]: {
         text: todo.text,
-        dueDate: zonedLocal(todo.dueDate),
+        dueDate: todo.calendarAllDay?todo.calendarDate||zonedLocal(todo.dueDate).slice(0,10):zonedLocal(todo.dueDate),
+        dueHasTime: !!todo.dueDate&&!todo.calendarAllDay,
         description: todo.description || '',
         links: todo.links?.join('\n') || ''
       }
@@ -549,7 +552,7 @@ function App() {
           text: data.text,
           description: data.description,
           links: linksArray,
-          dueDate: data.dueDate ? localToInstant(data.dueDate) : null
+          ...taskDuePayload(data.dueDate,data.dueHasTime)
         }),
       })
       if (!response.ok) {
@@ -902,16 +905,8 @@ function App() {
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-400 text-xs mb-1">Due Date</label>
-                  <input
-                    type="datetime-local"
-                    value={editData[todo._id]?.dueDate || ''}
-                    onChange={(e) => setEditData({
-                      ...editData,
-                      [todo._id]: { ...editData[todo._id], dueDate: e.target.value }
-                    })}
-                    className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
-                  />
+                  <TaskDueInput value={editData[todo._id]?.dueDate||''} hasTime={editData[todo._id]?.dueHasTime} onChange={value=>setEditData(previous=>({...previous,[todo._id]:{...previous[todo._id],dueDate:value}}))} onModeChange={(hasTime,value)=>setEditData(previous=>({...previous,[todo._id]:{...previous[todo._id],dueHasTime:hasTime,dueDate:value}}))}/>
+
                 </div>
               </>
             ) : (
@@ -1650,12 +1645,7 @@ function App() {
               placeholder={`Add task to ${selectedFolder === 'all' ? 'Inbox' : selectedFolder ? folders.find(f => f._id === selectedFolder)?.name : 'Inbox'}...`}
               className="flex-1 px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all focus: text-sm"
             />
-            <input
-              type="datetime-local"
-              value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
-              className="px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
-            />
+            <TaskDueInput value={dueDate} hasTime={dueHasTime} onChange={setDueDate} onModeChange={(hasTime,value)=>{setDueHasTime(hasTime);setDueDate(value)}}/>
             <button
               type="submit"
               className="px-5 py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-medium transition-all   flex items-center gap-2 shadow-lg shadow-primary-500/30 hover:shadow-primary-500/50 text-sm"

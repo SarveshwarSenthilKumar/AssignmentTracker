@@ -1,3 +1,4 @@
+const taskDueDate=require('./taskDueDate');
 const {registerAIAccess,category:aiFileCategory,restrictRequest:restrictAIRequest,restrictContext:restrictAIContext}=require('./aiAccess');
 const {extractEditorActions}=require('./assistantEditor');
 require('dotenv').config();
@@ -688,11 +689,12 @@ app.get('/api/todos', authenticateToken, async (req, res) => {
 // Create a new todo
 app.post('/api/todos', authenticateToken, async (req, res) => {
   try {
-    const { text, folder, dueDate } = req.body;
+    const { text, folder } = req.body;
+    let deadline;try{deadline=taskDueDate(req.body)}catch(error){return res.status(400).json({message:error.message})}
     if (!text) {
       return res.status(400).json({ message: 'Text is required' });
     }
-    const todo = new Todo({ text, folder, user: req.user.userId, dueDate });
+    const todo = new Todo({ text, folder, user: req.user.userId, ...deadline });
     await todo.save();
     res.status(201).json(todo);
   } catch (error) {
@@ -751,6 +753,7 @@ app.put('/api/todos/:id', authenticateToken, async (req, res) => {
       if (current && (current.dueDate?.getTime() ?? null) !== (dueDate ? new Date(dueDate).getTime() : null)) Object.assign(updateData, { calendarEndDate: null, calendarAllDay: false, calendarDate: null, calendarLastDate: null });
     }
 
+    if(req.body.calendarAllDay!==undefined){try{Object.assign(updateData,taskDueDate(req.body))}catch(error){return res.status(400).json({message:error.message})}}
     const todo = await Todo.findOneAndUpdate(
       { _id: req.params.id, user: req.user.userId },
       updateData,

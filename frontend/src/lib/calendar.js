@@ -26,7 +26,7 @@ export function calendarItems(tasks, entries, campusEvents = [], colors = {}) {
   const items = []
   for (const task of tasks) {
     if (!task.dueDate || !Number.isFinite(Date.parse(task.dueDate))) continue
-    const event = task.canvasType === 'calendar_event', allDay = event && !!task.calendarAllDay
+    const event = task.canvasType === 'calendar_event', allDay = !!task.calendarAllDay
     const startDate = allDay && validDay(task.calendarDate) ? task.calendarDate : calendarDay(task.dueDate)
     let endDate = startDate
     if (event && task.calendarEndDate && Date.parse(task.calendarEndDate) > Date.parse(task.dueDate)) {
