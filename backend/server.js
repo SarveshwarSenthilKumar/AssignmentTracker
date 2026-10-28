@@ -64,6 +64,8 @@ const userSchema = new mongoose.Schema({
   confirmTaskDeletion: { type: Boolean, default: true },
   confirmOtherActions: { type: Boolean, default: true },
   showInProgressColumn: { type: Boolean, default: true },
+  taskSortBy:{type:String,enum:['dueDate','manual','createdAt','completedAt','text','status'],default:'dueDate'},
+  taskSortOrder:{type:String,enum:['asc','desc'],default:'asc'},
   studyPhoneEnabled: { type: Boolean, default: true },
   username: {
     type: String,
@@ -555,13 +557,13 @@ app.post('/api/assistant/chat', authenticateToken, async (req, res) => {
 });
 app.get('/api/account/preferences', authenticateToken, async (req, res) => {
   try {
-    const user = await User.findById(req.user.userId).select('timeZone confirmTaskDeletion confirmOtherActions showInProgressColumn studyPhoneEnabled');
+    const user = await User.findById(req.user.userId).select('timeZone confirmTaskDeletion confirmOtherActions showInProgressColumn studyPhoneEnabled taskSortBy taskSortOrder');
     if (!user) return res.status(404).json({ message: 'Account not found.' });
-    res.json({ timeZone: user.timeZone || '', confirmTaskDeletion:user.confirmTaskDeletion!==false, confirmOtherActions:user.confirmOtherActions!==false, showInProgressColumn:user.showInProgressColumn!==false,studyPhoneEnabled:user.studyPhoneEnabled!==false });
+    res.json({ timeZone: user.timeZone || '', confirmTaskDeletion:user.confirmTaskDeletion!==false, confirmOtherActions:user.confirmOtherActions!==false, showInProgressColumn:user.showInProgressColumn!==false,studyPhoneEnabled:user.studyPhoneEnabled!==false,taskSortBy:user.taskSortBy||'dueDate',taskSortOrder:user.taskSortOrder||'asc' });
   } catch { res.status(500).json({ message: 'Could not load account preferences.' }); }
 });
 app.put('/api/account/preferences', authenticateToken, async (req, res) => {
-  const { timeZone,confirmTaskDeletion,confirmOtherActions,showInProgressColumn,studyPhoneEnabled } = req.body;
+  const { timeZone,confirmTaskDeletion,confirmOtherActions,showInProgressColumn,studyPhoneEnabled,taskSortBy,taskSortOrder } = req.body;
   const update={};
   if(timeZone!==undefined){
   if (typeof timeZone !== 'string' || timeZone.length > 100) return res.status(400).json({ message: 'Choose a valid time zone.' });
@@ -574,11 +576,13 @@ app.put('/api/account/preferences', authenticateToken, async (req, res) => {
     if(typeof value!=='boolean')return res.status(400).json({message:'Preferences must be enabled or disabled.'});
     update[key]=value;
   }
+  if(taskSortBy!==undefined){if(!['dueDate','manual','createdAt','completedAt','text','status'].includes(taskSortBy))return res.status(400).json({message:'Choose a valid task sort mode.'});update.taskSortBy=taskSortBy;}
+  if(taskSortOrder!==undefined){if(!['asc','desc'].includes(taskSortOrder))return res.status(400).json({message:'Choose a valid sort direction.'});update.taskSortOrder=taskSortOrder;}
   if(!Object.keys(update).length)return res.status(400).json({message:'Choose a preference to update.'});
   try {
-    const user = await User.findByIdAndUpdate(req.user.userId, { $set: update }, { new: true }).select('timeZone confirmTaskDeletion confirmOtherActions showInProgressColumn studyPhoneEnabled');
+    const user = await User.findByIdAndUpdate(req.user.userId, { $set: update }, { new: true }).select('timeZone confirmTaskDeletion confirmOtherActions showInProgressColumn studyPhoneEnabled taskSortBy taskSortOrder');
     if (!user) return res.status(404).json({ message: 'Account not found.' });
-    res.json({ timeZone: user.timeZone || '',confirmTaskDeletion:user.confirmTaskDeletion!==false,confirmOtherActions:user.confirmOtherActions!==false, showInProgressColumn:user.showInProgressColumn!==false,studyPhoneEnabled:user.studyPhoneEnabled!==false });
+    res.json({ timeZone: user.timeZone || '',confirmTaskDeletion:user.confirmTaskDeletion!==false,confirmOtherActions:user.confirmOtherActions!==false, showInProgressColumn:user.showInProgressColumn!==false,studyPhoneEnabled:user.studyPhoneEnabled!==false,taskSortBy:user.taskSortBy||'dueDate',taskSortOrder:user.taskSortOrder||'asc' });
   } catch { res.status(500).json({ message: 'Could not save your account preferences.' }); }
 });
 app.post('/api/user/reset', authenticateToken, async (req, res) => {
@@ -724,6 +728,7 @@ app.post('/api/todos/reorder',authenticateToken,async(req,res)=>{
     await session.withTransaction(async()=>{
       const count=await Todo.countDocuments({user:req.user.userId,_id:{$in:ids}}).session(session);
       if(count!==ids.length)throw new Error('Some tasks changed or were removed. Refresh and try again.');
+      await User.updateOne({_id:req.user.userId},{$set:{taskSortBy:'manual'}},{session});
       await Todo.bulkWrite(ids.map((id,index)=>({updateOne:{filter:{_id:id,user:req.user.userId},update:{$set:{manualOrder:index}}}})),{session});
       const current=await Todo.findOne({_id:movedId,user:req.user.userId}).session(session);
       if(current.status!==status)await Todo.updateOne({_id:movedId,user:req.user.userId},{$set:{status,completedAt}},{session});

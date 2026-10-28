@@ -56,7 +56,7 @@ import DocumentEditor from './components/DocumentEditor'
 import PDFUploadModal from './components/PDFUploadModal'
 
 function App() {
-  const { isAuthenticated, token, logout, user, loading: authLoading } = useAuth()
+  const { isAuthenticated, token, logout, user, updatePreferences, loading: authLoading } = useAuth()
   const showInProgressColumn=user?.showInProgressColumn!==false
   const taskConfirmation = useInlineConfirm('tasks')
   const deletingTaskIds=useRef(new Set())
@@ -102,12 +102,15 @@ function App() {
   const [searchLibraryTarget,setSearchLibraryTarget]=useState(null)
   const inputRef = useRef(null)
   const commandInputRef = useRef(null)
-  const [sortBy, setSortBy] = useState('manual')
+  const [sortBy, setSortBy] = useState(user?.taskSortBy||'dueDate')
   const [showFullTaskTitles,setShowFullTaskTitles]=useState(()=>{try{return localStorage.getItem('tasks-show-full-titles')==='true'}catch{return false}})
   useEffect(()=>{try{localStorage.setItem('tasks-show-full-titles',String(showFullTaskTitles))}catch{}},[showFullTaskTitles])
   const [reordering,setReordering]=useState(false)
   const reorderLock=useRef(false)
-  const [sortOrder, setSortOrder] = useState('desc')
+  const [sortOrder, setSortOrder] = useState(user?.taskSortOrder||'asc')
+  const [savingSort,setSavingSort]=useState(false)
+  const sortSaveLock=useRef(false)
+  useEffect(()=>{setSortBy(user?.taskSortBy||'dueDate');setSortOrder(user?.taskSortOrder||'asc')},[user?.id,user?.taskSortBy,user?.taskSortOrder])
   const [editingFolder, setEditingFolder] = useState(null)
   const [editFolderName, setEditFolderName] = useState('')
   const [contextMenu, setContextMenu] = useState(null)
@@ -468,12 +471,12 @@ function App() {
   }
 
   const beginTaskPointerDrag=useTaskPointerDrag({
-    enabled:page==='tasks'&&!bulkDeleting&&!reordering&&!taskSearch.trim(),
+    enabled:page==='tasks'&&!bulkDeleting&&!reordering&&!savingSort&&!taskSearch.trim(),
     onDrop:(moving,destination)=>reorderTasks(moving,todos.find(task=>task._id===destination.id)||null,destination.status,destination.position),
 
   })
   const reorderTasks=async(moving,target,status,position)=>{
-    if(reorderLock.current||moving._id===target?._id)return
+    if(reorderLock.current||sortSaveLock.current||moving._id===target?._id)return
     reorderLock.current=true;setReordering(true)
     const ordered=getSortedTodos(todos).filter(task=>task._id!==moving._id)
     let index=target?ordered.findIndex(task=>task._id===target._id):ordered.reduce((last,task,i)=>task.status===status?i+1:last,ordered.length)
@@ -492,7 +495,7 @@ function App() {
       if(!Array.isArray(data.ids)||!data.task)throw new Error('Unexpected task order response. Refresh your tasks.')
       const ranks=new Map(data.ids.map((id,index)=>[id,index]))
       setTodos(previous=>previous.map(task=>({...task,...(task._id===data.task._id?data.task:{}),...(ranks.has(task._id)?{manualOrder:ranks.get(task._id)}:{})})))
-      setSortBy('manual')
+      setSortBy('manual');updatePreferences({taskSortBy:'manual'})
     }catch(error){
       setTodos(previous=>previous.map(task=>({...task,...(previousOrder.get(task._id)||{})})))
       setSortBy(previousSort);setError(error.message)
@@ -587,32 +590,45 @@ function App() {
     setSelectedTask(todo)
   }
 
-  const getSortedTodos = (todosToSort) => {
-    const sorted = [...todosToSort]
-    sorted.sort((a, b) => {
-      if(sortBy==='manual')return (a.manualOrder??Infinity)-(b.manualOrder??Infinity)||new Date(b.createdAt)-new Date(a.createdAt)||a._id.localeCompare(b._id)
-      let comparison = 0
-
-      if (sortBy === 'createdAt') {
-        comparison = new Date(a.createdAt) - new Date(b.createdAt)
-      } else if (sortBy === 'dueDate') {
-        const aDue = a.dueDate ? new Date(a.dueDate).getTime() : Infinity
-        const bDue = b.dueDate ? new Date(b.dueDate).getTime() : Infinity
-        comparison = aDue - bDue
-      } else if (sortBy === 'completedAt') {
-        const aCompleted = a.completedAt ? new Date(a.completedAt).getTime() : 0
-        const bCompleted = b.completedAt ? new Date(b.completedAt).getTime() : 0
-        comparison = aCompleted - bCompleted
-      } else if (sortBy === 'text') {
-        comparison = a.text.localeCompare(b.text)
-      } else if (sortBy === 'status') {
-        const statusOrder = { 'todo': 0, 'in-progress': 1, 'completed': 2 }
-        comparison = statusOrder[a.status] - statusOrder[b.status]
+  const saveTaskSort=async(nextBy,nextOrder)=>{
+    if(sortSaveLock.current||reorderLock.current)return
+    sortSaveLock.current=true;setSavingSort(true)
+    const previous={by:sortBy,order:sortOrder}
+    setSortBy(nextBy);setSortOrder(nextOrder)
+    try{
+      const response=await fetch('/api/account/preferences',{method:'PUT',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({taskSortBy:nextBy,taskSortOrder:nextOrder})})
+      const data=await readApiJson(response)
+      if(!response.ok||data.taskSortBy!==nextBy||data.taskSortOrder!==nextOrder)throw new Error(data.message||'Could not save sort preferences. Restart the updated backend.')
+      updatePreferences({taskSortBy:nextBy,taskSortOrder:nextOrder})
+    }catch(error){setSortBy(previous.by);setSortOrder(previous.order);setError(error.message)}
+    finally{sortSaveLock.current=false;setSavingSort(false)}
+  }
+  const getSortedTodos=todosToSort=>{
+    const created=task=>Date.parse(task.createdAt)||0
+    const due=task=>{
+      if(task.calendarAllDay&&task.calendarDate){try{return Date.parse(localToInstant(task.calendarDate+'T23:59'))}catch{return Date.parse(task.calendarDate+'T23:59:00Z')}}
+      const value=Date.parse(task.dueDate);return Number.isFinite(value)?value:Infinity
+    }
+    const fallback=(a,b)=>created(b)-created(a)||String(a._id).localeCompare(String(b._id))
+    const dueCompare=(a,b,direction='asc')=>{
+      const left=due(a),right=due(b)
+      if(left===Infinity&&right!==Infinity)return 1
+      if(right===Infinity&&left!==Infinity)return -1
+      return (left===right?0:(left<right?-1:1))*(direction==='asc'?1:-1)||fallback(a,b)
+    }
+    return [...todosToSort].sort((a,b)=>{
+      if(sortBy==='manual'){
+        const left=a.manualOrder??Infinity,right=b.manualOrder??Infinity
+        return (left===right?0:left<right?-1:1)||dueCompare(a,b)
       }
-
-      return sortOrder === 'asc' ? comparison : -comparison
+      if(sortBy==='dueDate')return dueCompare(a,b,sortOrder)
+      let comparison=0
+      if(sortBy==='createdAt')comparison=created(a)-created(b)
+      else if(sortBy==='completedAt')comparison=(Date.parse(a.completedAt)||0)-(Date.parse(b.completedAt)||0)
+      else if(sortBy==='text')comparison=String(a.text).localeCompare(String(b.text))
+      else if(sortBy==='status'){const ranks={todo:0,'in-progress':1,completed:2};comparison=(ranks[a.status]??0)-(ranks[b.status]??0)}
+      return (sortOrder==='asc'?comparison:-comparison)||fallback(a,b)
     })
-    return sorted
   }
 
   const commandTaskSearch=commandInput.match(/^\s*(?:search|find|task)\s+([\s\S]*)$/i)
@@ -662,7 +678,7 @@ function App() {
         if (args[0]) {
           const sortMap = { 'date': 'createdAt', 'due': 'dueDate', 'name': 'text', 'status': 'status' }
           if (sortMap[args[0]]) {
-            setSortBy(sortMap[args[0]])
+            saveTaskSort(sortMap[args[0]],sortMap[args[0]]==='dueDate'?'asc':sortOrder)
             setError(`Sorted by ${args[0]}`)
           } else {
             setError('Invalid sort option. Use: date, due, name, status')
@@ -1729,19 +1745,20 @@ function App() {
             <span className="text-slate-400 text-sm">Sort by:</span>
             <select
               value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
+              disabled={savingSort||reordering}
+              onChange={e=>saveTaskSort(e.target.value,e.target.value==='dueDate'?'asc':sortOrder)}
               className="bg-white/10 border border-white/10 rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             >
               <option value="manual">Custom order · drag to arrange</option>
               <option value="createdAt">Date Created</option>
-              <option value="dueDate">Due Date</option>
+              <option value="dueDate">Due date, then newest created · default</option>
               <option value="completedAt">Date Completed</option>
               <option value="text">Name</option>
               <option value="status">Status</option>
             </select>
             <button
-              disabled={sortBy==='manual'}
-              onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+              disabled={sortBy==='manual'||savingSort||reordering}
+              onClick={()=>saveTaskSort(sortBy,sortOrder==='asc'?'desc':'asc')}
               className="p-1.5 bg-white/10 hover:bg-white/20 rounded-lg transition-all text-slate-400 hover:text-white"
               title="Toggle sort order"
             >
@@ -1751,7 +1768,7 @@ function App() {
           <label className="task-title-toggle"><input type="checkbox" checked={showFullTaskTitles} onChange={event=>setShowFullTaskTitles(event.target.checked)}/>Show full titles</label>
         </div>
 
-        <p className="task-reorder-hint" role="status">{reordering?'Saving task order…':'Drag a task above or below another to arrange it. Scroll with your mouse wheel or trackpad, or hold near the top or bottom for automatic scrolling. Drop into another column to change its status.'}</p>
+        <p className="task-reorder-hint" role="status">{savingSort?'Saving sort preference…':reordering?'Saving task order…':'Default: earliest due date first, then newest created; tasks without dates come last. Dragging switches to Custom order and saves it to your account. Drag a task above or below another to arrange it. Scroll with your mouse wheel or trackpad, or hold near the top or bottom for automatic scrolling. Drop into another column to change its status.'}</p>
         {!loading&&filteredTodos.length>0&&<div className={cn("task-bulk-actions",filteredTodos.some(task=>selectedTaskIds.has(task._id))&&"has-selection")} role="group" aria-label="Bulk task actions"><label><input type="checkbox" disabled={bulkDeleting} checked={filteredTodos.every(task=>selectedTaskIds.has(task._id))} ref={element=>{if(element)element.indeterminate=filteredTodos.some(task=>selectedTaskIds.has(task._id))&&!filteredTodos.every(task=>selectedTaskIds.has(task._id))}} onChange={event=>setSelectedTaskIds(event.target.checked?new Set(filteredTodos.map(task=>task._id)):new Set())}/>Select all</label><span className="task-selection-count" aria-live="polite">{filteredTodos.filter(task=>selectedTaskIds.has(task._id)).length} selected</span><div className="task-selection-actions"><button className="task-selection-delete" type="button" disabled={bulkDeleting||!filteredTodos.some(task=>selectedTaskIds.has(task._id))} onClick={deleteSelectedTasks}><Trash2 size={15}/>{bulkDeleting?'Deleting…':'Delete selected'}</button><button className="task-selection-clear" type="button" disabled={bulkDeleting||!selectedTaskIds.size} onClick={()=>setSelectedTaskIds(new Set())}><X size={14}/>Clear</button></div></div>}
         {loading ? (
           <div className="flex justify-center py-12">
@@ -2001,7 +2018,7 @@ function App() {
               <AccountReset token={token} disabled={syncing || testing || !!selectedPDF} onReset={() => {
                 window.dispatchEvent(new CustomEvent('workspace-reset',{detail:user?.id}));setAssistantOpen(false);setAssistantGeneration(previous=>previous+1);setAssistantCalendarId(null)
                 try { pdfs.forEach(file => sessionStorage.removeItem(`document-draft:${file._id}`)) } catch { /* Storage may be unavailable. */ }
-                setTaskSearch('');setTaskSearchAll(true);setTodos([]); setFolders([]); setPdfs([]); setPdfFolders([])
+                setTaskSearch('');setTaskSearchAll(true);setSortBy('dueDate');setSortOrder('asc');updatePreferences({taskSortBy:'dueDate',taskSortOrder:'asc'});setTodos([]); setFolders([]); setPdfs([]); setPdfFolders([])
                 setSelectedFolder(null); setSelectedPDFFolder('all'); setSelectedTask(null); setSelectedPDF(null)
                 setExpandedTodos(new Set()); setEditingTodos(new Set()); setEditData({}); editRefs.current = {}
                 setInput(''); setDueDate(''); setSortBy('createdAt'); setSortOrder('desc')
