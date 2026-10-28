@@ -3,7 +3,7 @@ import {Home,Layers,CheckSquare,CalendarDays,FolderOpen,Briefcase,FileText,Mail,
 import './AppNavigation.css'
 
 const primary=[['home','Home',Home],['workspace','Workspace',Layers],['tasks','Tasks',CheckSquare],['calendar','Calendar',CalendarDays],['documents','Documents',FolderOpen]]
-const career=[['resumes','Resumes',FileText,'Store and tailor your experience'],['cover-letters','Cover letters',Mail,'Write in your own voice'],['jobs','Saved jobs',Briefcase,'Keep opportunities in one place']]
+const career=[['prep','Prep',Briefcase,'Practice interviews and prepare application materials'],['resumes','Resumes',FileText,'Store and tailor your experience'],['cover-letters','Cover letters',Mail,'Write in your own voice'],['jobs','Saved jobs',Briefcase,'Keep opportunities in one place']]
 const tools=[['study','Study stars',Star,'Review saved questions and topics'],['assistant','AI assistant',Sparkles,'Think, write and work with your files'],['visualization','Visualization',Network,'Explore tasks and connections'],['canvas','Canvas',RefreshCw,'Manage your course integration'],['shortcuts','Keyboard shortcuts',Keyboard,'Move around a little faster']]
 const routes=[...primary,...career,...tools,['account','Account',Settings]]
 
