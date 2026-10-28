@@ -41,6 +41,7 @@ add password protected files
 add password protected folders
 add password protected notes and notebook
 add complex nlp when identifying suggested events
+make sure that everything is logged in the handbook
 
 resume and cover letter job tailor:
 check online search of company
