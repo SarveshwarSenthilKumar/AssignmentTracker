@@ -1666,7 +1666,37 @@ function App() {
           </div>
         </form>
 
-        <section className="task-page-search" aria-label="Find tasks"><label htmlFor="task-page-search">Search tasks<input id="task-page-search" ref={taskSearchRef} type="search" value={taskSearch} onChange={event=>setTaskSearch(event.target.value)} onKeyDown={event=>{if(event.key==='Escape'&&taskSearch){event.preventDefault();event.stopPropagation();setTaskSearch('')}} placeholder="Search names, descriptions, folders or IDs…"/></label><label className="task-page-search-scope">Search in<select value={taskSearchAll?'all':'current'} onChange={event=>setTaskSearchAll(event.target.value==='all')}><option value="all">All folders</option><option value="current">Selected folder</option></select></label>{taskSearch&&<button type="button" onClick={()=>{setTaskSearch('');taskSearchRef.current?.focus()}}>Clear search</button>}<p role="status">{loading?'Loading tasks…':taskSearchTerms.length?`${filteredTodos.length} matching ${filteredTodos.length===1?'task':'tasks'} · Includes completed tasks. Clear search to drag and reorder.`:'Search your tasks here. Press / to focus search.'}</p></section>
+        <section className="task-page-search" aria-label="Find tasks">
+          <label htmlFor="task-page-search">
+            Search tasks
+            <input
+              id="task-page-search"
+              ref={taskSearchRef}
+              type="search"
+              value={taskSearch}
+              onChange={event=>setTaskSearch(event.target.value)}
+              onKeyDown={event=>{
+                if(event.key==='Escape'&&taskSearch){
+                  event.preventDefault()
+                  event.stopPropagation()
+                  setTaskSearch('')
+                }
+              }}
+              placeholder="Search names, descriptions, folders or IDs…"
+            />
+          </label>
+          <label className="task-page-search-scope">
+            Search in
+            <select value={taskSearchAll?'all':'current'} onChange={event=>setTaskSearchAll(event.target.value==='all')}>
+              <option value="all">All folders</option>
+              <option value="current">Selected folder</option>
+            </select>
+          </label>
+          {taskSearch&&<button type="button" onClick={()=>{setTaskSearch('');taskSearchRef.current?.focus()}}>Clear search</button>}
+          <p role="status">
+            {loading?'Loading tasks…':taskSearchTerms.length?`${filteredTodos.length} matching ${filteredTodos.length===1?'task':'tasks'} · Includes completed tasks. Clear search to drag and reorder.`:'Search your tasks here. Press / to focus search.'}
+          </p>
+        </section>
         {/* Sort Controls */}
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <div className="flex items-center gap-2">
