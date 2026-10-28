@@ -37,6 +37,11 @@ create a landing page
 create a brochure of every feature and thing in this app
 add proper authentication for people in the future
 
+add password protected files
+add password protected folders
+add password protected notes and notebook
+add complex nlp when identifying suggested events
+
 resume and cover letter job tailor:
 check online search of company
 check skills and tailor
