@@ -1,5 +1,5 @@
 module.exports=(app,auth,mongoose)=>{
-  const collections={Todo:'Tasks & Canvas events',Folder:'Task folders',PDF:'Documents',PDFFolder:'Document folders',CalendarEntry:'Calendar entries',AssistantConversation:'AI conversations',StudyItem:'Study stars',SavedJob:'Saved jobs',EventAttendance:'Attended events',BugReport:'Bug reports',ResumeDraft:'Resume drafts',CoverLetterDraft:'Cover-letter drafts',TaskDeletionRecovery:'Task recovery',CalendarChange:'Calendar history',DocumentSearchIndex:'Search indexes'};
+  const collections={Todo:'Tasks & Canvas events',Folder:'Task folders',PDF:'Documents',PDFFolder:'Document folders',CalendarEntry:'Calendar entries',AssistantConversation:'AI conversations',StudyItem:'Study stars',SavedJob:'Saved jobs',EventAttendance:'Attended events',BugReport:'Bug reports',FeatureSuggestion:'Feature suggestions',ResumeDraft:'Resume drafts',CoverLetterDraft:'Cover-letter drafts',TaskDeletionRecovery:'Task recovery',CalendarChange:'Calendar history',DocumentSearchIndex:'Search indexes'};
   app.get('/api/account/analytics',auth,async(req,res)=>{
     res.set('Cache-Control','no-store');
     try{

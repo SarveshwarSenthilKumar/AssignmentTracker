@@ -1,5 +1,5 @@
 module.exports=(app,auth,mongoose)=>{
-  const sections=['Home','Tasks','Calendar','Documents','PDF editor','Notes','AI assistant','Study phone','Workspace','Visualization','Career prep','Resumes','Cover letters','Saved jobs','Study stars','Analytics','Account','Site roadmap','Miscellaneous'];
+  const sections=['Home','Tasks','Calendar','Documents','PDF editor','Notes','AI assistant','Study phone','Workspace','Visualization','Career prep','Resumes','Cover letters','Saved jobs','Study stars','Analytics','Account','Site roadmap','Feature suggestions','Bug reports','Miscellaneous'];
   const statuses=['open','in-review','fixed','closed'],severities=['minor','normal','major','blocking'];
   const schema=new mongoose.Schema({user:{type:mongoose.Schema.Types.ObjectId,ref:'User',required:true,index:true},submissionId:{type:String,required:true},section:{type:String,enum:sections},severity:{type:String,enum:severities},title:String,description:String,steps:String,expected:String,actual:String,diagnostics:mongoose.Schema.Types.Mixed,status:{type:String,enum:statuses,default:'open'},response:{type:String,default:''},revision:{type:Number,default:0}},{timestamps:true});
   schema.index({user:1,submissionId:1},{unique:true});schema.index({user:1,createdAt:-1});

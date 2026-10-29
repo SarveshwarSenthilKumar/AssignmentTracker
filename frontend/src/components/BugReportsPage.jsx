@@ -2,8 +2,8 @@ import {useEffect,useRef,useState} from 'react'
 import {readApiJson} from '../lib/apiResponse'
 import './BugReportsPage.css'
 
-const sections=['Home','Tasks','Calendar','Documents','PDF editor','Notes','AI assistant','Study phone','Workspace','Visualization','Career prep','Resumes','Cover letters','Saved jobs','Study stars','Analytics','Account','Site roadmap','Miscellaneous']
-const routeSections={home:'Home',tasks:'Tasks',calendar:'Calendar',documents:'Documents',assistant:'AI assistant',workspace:'Workspace',visualization:'Visualization',prep:'Career prep',resumes:'Resumes','cover-letters':'Cover letters',jobs:'Saved jobs',study:'Study stars',analytics:'Analytics',account:'Account',roadmap:'Site roadmap'}
+const sections=['Home','Tasks','Calendar','Documents','PDF editor','Notes','AI assistant','Study phone','Workspace','Visualization','Career prep','Resumes','Cover letters','Saved jobs','Study stars','Analytics','Account','Site roadmap','Feature suggestions','Bug reports','Miscellaneous']
+const routeSections={home:'Home',tasks:'Tasks',calendar:'Calendar',documents:'Documents',assistant:'AI assistant',workspace:'Workspace',visualization:'Visualization',prep:'Career prep',resumes:'Resumes','cover-letters':'Cover letters',jobs:'Saved jobs',study:'Study stars',analytics:'Analytics',account:'Account',roadmap:'Site roadmap','suggest-feature':'Feature suggestions','report-bug':'Bug reports'}
 const labels={open:'Open','in-review':'In review',fixed:'Fixed',closed:'Closed'}
 const fresh=section=>({section,severity:'normal',title:'',description:'',steps:'',expected:'',actual:'',submissionId:crypto.randomUUID()})
 export default function BugReportsPage({token,user,initialRoute}){

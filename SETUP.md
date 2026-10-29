@@ -343,3 +343,12 @@ The board starts empty. Configure an editor, click **Add feature**, or choose a 
 Signed-in users can open **Tools → Report a bug** or use the footer link to preselect the current section. Reports are account-owned, private to the reporter and authorized reviewers, and stored in MongoDB. Each report supports a section (including Miscellaneous), severity, description, reproduction steps, expected/actual behavior and optional browser diagnostics. The form does not send email or capture screenshots/page contents. Retrying an unchanged submission reuses its submission identifier to avoid duplicate records.
 
 Set `BUG_REPORT_EDITOR_EMAILS` to a comma-separated list of existing registered accounts that may review all reports. If unset, the roadmap editor list `SITE_ROADMAP_EDITOR_EMAILS` is used. Restart the backend after configuration. Reviewers can choose **All users’ reports**, filter the inbox, change status and leave a response visible to the reporter. Changing a client-side control cannot grant review access. Reporter identity is taken from the authenticated session, never a submitted user ID. Full workspace reset deletes that user’s reports; public roadmap items remain separate.
+
+
+## Feature suggestions
+
+Signed-in users can open **Tools → Suggest a feature**, the platform footer, or the link on the site roadmap. Suggestions are private to the submitter and configured reviewers. Sections include Miscellaneous; submissions capture a problem, proposed solution, benefits, workaround and priority. Users can track Submitted, Reviewing, Planned, In progress, Shipped and Not planned statuses and reviewer responses.
+
+`FEATURE_SUGGESTION_EDITOR_EMAILS` optionally grants review access to existing registered accounts. If unset, the bug-report reviewer list is used, then the roadmap editor list. Restart the backend after changing environment settings. All-user access and status updates are enforced on the server.
+
+Reviewers who also have `SITE_ROADMAP_EDITOR_EMAILS` access can prepare a separate public title and description and explicitly publish it. Private submission text and identity are not automatically copied. Publishing links the suggestion to a roadmap item and uses MongoDB transactions (Atlas or a replica set) to prevent partial publication. The public roadmap remains independent if a submitter later resets their private workspace. Private suggestions are included in account analytics and deleted by that user's full workspace reset. No email or external notification is sent by this workflow.

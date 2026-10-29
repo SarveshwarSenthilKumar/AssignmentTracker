@@ -1,6 +1,7 @@
 module.exports=(app,auth,mongoose)=>{
   const statuses=['considering','planned','in-progress','shipped'],categories=['Tasks','Calendar','Documents','AI','Career prep','Platform'];
-  const schema=new mongoose.Schema({title:{type:String,required:true,maxlength:160},description:{type:String,required:true,maxlength:5000},status:{type:String,enum:statuses,default:'considering'},category:{type:String,enum:categories,default:'Platform'},pinned:{type:Boolean,default:false},revision:{type:Number,default:0}},{timestamps:true});
+  const schema=new mongoose.Schema({sourceSuggestion:{type:mongoose.Schema.Types.ObjectId,ref:'FeatureSuggestion'},title:{type:String,required:true,maxlength:160},description:{type:String,required:true,maxlength:5000},status:{type:String,enum:statuses,default:'considering'},category:{type:String,enum:categories,default:'Platform'},pinned:{type:Boolean,default:false},revision:{type:Number,default:0}},{timestamps:true});
+  schema.index({sourceSuggestion:1},{unique:true,partialFilterExpression:{sourceSuggestion:{$type:'objectId'}}});
   const Item=mongoose.models.SiteRoadmapItem||mongoose.model('SiteRoadmapItem',schema);
   const isEditor=async userId=>{
     const allowed=(process.env.SITE_ROADMAP_EDITOR_EMAILS||'').split(',').map(value=>value.trim().toLowerCase()).filter(Boolean);
@@ -16,7 +17,7 @@ module.exports=(app,auth,mongoose)=>{
   };
   app.get('/api/site-roadmap',async(req,res)=>{
     res.set('Cache-Control','no-store');
-    try{res.json({items:await Item.find().select('-__v').sort({pinned:-1,updatedAt:-1,_id:1}).limit(500).lean(),statuses,categories})}catch{res.status(503).json({message:'The roadmap is unavailable. Please try again later.'})}
+    try{res.json({items:await Item.find().select('-__v -sourceSuggestion').sort({pinned:-1,updatedAt:-1,_id:1}).limit(500).lean(),statuses,categories})}catch{res.status(503).json({message:'The roadmap is unavailable. Please try again later.'})}
   });
   app.get('/api/site-roadmap/access',auth,async(req,res)=>{res.set('Cache-Control','no-store');try{res.json({canEdit:await isEditor(req.user.userId)})}catch{res.status(503).json({message:'Could not check roadmap access.'})}});
   app.post('/api/site-roadmap',auth,editor,async(req,res)=>{
