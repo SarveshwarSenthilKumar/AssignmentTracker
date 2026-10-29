@@ -32,8 +32,8 @@ module.exports = function createTaskDeletionRecovery({ mongoose, Todo, Folder, a
   }
   app.get('/api/todos/deletion-history', authenticateToken, async (req, res) => {
     try {
-      const records = await Recovery.find({ user: req.user.userId, expiresAt: { $gt: new Date() } }).select('_id createdAt expiresAt tasks.text').sort({ createdAt: -1, _id: -1 }).limit(20).lean();
-      res.json(records.map(record => ({ _id: record._id, count: record.tasks.length, label: record.tasks.length === 1 ? record.tasks[0].text : `${record.tasks.length} tasks`, expiresAt: record.expiresAt })));
+      const records = await Recovery.find({ user: req.user.userId, expiresAt: { $gt: new Date() } }).select('_id createdAt expiresAt tasks.text').sort({ createdAt: -1, _id: -1 }).lean();
+      res.json(records.map(record => ({ _id: record._id, count: record.tasks.length, label: record.tasks.length === 1 ? record.tasks[0].text : `${record.tasks.length} tasks`, tasks: record.tasks.map(task => ({ text: task.text })), createdAt: record.createdAt, expiresAt: record.expiresAt })));
     } catch { res.status(500).json({ message: 'Could not load deleted task history.' }); }
   });
   app.post('/api/todos/deletion-history/:id/undo', authenticateToken, async (req, res) => {

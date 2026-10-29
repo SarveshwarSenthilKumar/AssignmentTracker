@@ -133,6 +133,8 @@ function App() {
   const [dueDate, setDueDate] = useState('')
   const [dueHasTime,setDueHasTime]=useState(false)
   const [scheduledDay,setScheduledDay]=useState('')
+  const [taskView,setTaskView]=useState('active')
+  useEffect(()=>{setTaskView('active')},[page,selectedTask])
   const [taskDatePrompt,setTaskDatePrompt]=useState(null),[creatingTask,setCreatingTask]=useState(false)
   const createTaskLock=useRef(false)
   const taskDatePromptRef=useRef(null)
@@ -206,7 +208,7 @@ function App() {
     'edit-task': () => {const id=document.activeElement?.closest('[data-task-id]')?.dataset.taskId; const task=todos.find(task=>task._id===id); if(task)startEditing(task)},
     'advance-task': () => {const id=document.activeElement?.closest('[data-task-id]')?.dataset.taskId; if(id)cycleTodoStatus(id)},
     'delete-task': () => {const id=document.activeElement?.closest('[data-task-id]')?.dataset.taskId; if(id)deleteTodo(id)},
-  }, isAuthenticated && !assistantOpen && page === 'tasks' && !selectedPDF && !taskConfirmation.pending)
+  }, isAuthenticated && !assistantOpen && page === 'tasks' && taskView==='active' && !selectedPDF && !taskConfirmation.pending)
 
   useShortcuts('Canvas', {
     'calendar-file': () => document.querySelector('[data-canvas-import] input[type="file"]')?.click(),
@@ -982,7 +984,7 @@ function App() {
     if(deletingTaskIds.current.has(id))return
     const task=todos.find(task=>task._id===id)
     if(!task)return
-    if (!await taskConfirmation.ask(`Delete “${task?.text || 'this task'}”? You can restore deleted tasks with Undo.`, 'Delete task')) return
+    if (!await taskConfirmation.ask(`Delete “${task?.text || 'this task'}”? You can restore deleted tasks from Recently deleted for seven days.`, 'Delete task')) return
     if(deletingTaskIds.current.has(id))return
     deletingTaskIds.current.add(id)
     try {
@@ -1025,7 +1027,7 @@ function App() {
     if(!ids.length)return
     bulkDeleteLock.current=true
     try{
-      if(!await taskConfirmation.ask(`Delete ${ids.length} selected ${ids.length===1?'task':'tasks'}? Unselected tasks will stay. You can restore deleted tasks with Undo.`,'Delete selected tasks'))return
+      if(!await taskConfirmation.ask(`Delete ${ids.length} selected ${ids.length===1?'task':'tasks'}? Unselected tasks will stay. You can restore deleted tasks from Recently deleted for seven days.`,'Delete selected tasks'))return
       setBulkDeleting(true)
       const response=await fetch('/api/todos/bulk-delete',{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({ids})})
       const data=await readApiJson(response)
@@ -1484,10 +1486,9 @@ function App() {
         <GlobalSearch token={token} onChoose={openSearchResult}/>
         {page!=='home'&&<div className="platform-page-title"><h1>{page==='admin'?'Admin portal':page==='suggest-feature'?'Feature suggestions':page==='report-bug'?'Report a bug':page==='roadmap'?'Site roadmap':page==='analytics'?'Analytics':page==='handbook'?'Product handbook':page==='logbook'?'Update logbook':page==='prep'?'Prep':page==='study'?'Study stars':page==='workspace'?'Workspace':page==='tasks'?'Tasks':page==='calendar'?'Calendar':page==='documents'?'Document library':page==='jobs'?'Jobs':page==='cover-letters'?'Cover letters':page==='resumes'?'Resumes':page==='visualization'?'Task visualization':page==='canvas'?'Canvas integration':page==='account'?'Account':page==='assistant'?'AI assistant':'Keyboard shortcuts'}</h1><p>{page==='admin'?'Review bug reports and feature suggestions from users.':page==='suggest-feature'?'Share ideas for improving the platform and follow their progress.':page==='report-bug'?'Report section-specific issues and follow their status.':page==='roadmap'?'Explore ideas, planned improvements and features in progress.':page==='analytics'?'Storage, activity, progress and your complete account inventory.':page==='handbook'?'Feature instructions and technical reference.':page==='logbook'?'Numbered platform changes, fixes and implementation history.':page==='prep'?'Prepare your resumes, cover letters and interview answers in one place.':page==='study'?'Save questions and topics, review answers, and track what you have studied.':page==='cover-letters'?'Store cover letters for your applications and keep versions ready to edit or download.':page==='jobs'?'Save job links and details alongside your resumes.':page==='resumes'?'Upload and keep your resumes ready for your next opportunity.':page==='workspace'?'Build a personal workflow with tabs, tools, and movable windows.':page==='tasks'?'Plan your work and track progress.':page==='calendar'?'Plan deadlines, assignments, and personal events in one place.':page==='documents'?'Organize and edit your files.':page==='visualization'?'Explore relationships, deadlines, and progress across your workspace.':page==='canvas'?'Manage your course connection and imports.':page==='account'?'Review your profile and workspace activity.':page==='assistant'?'Think, write, learn, and work with your files in a dedicated conversation workspace.':'A searchable reference for navigation and actions.'}</p></div>}
         <InlineConfirmation {...taskConfirmation} reveal />
-        <TaskDeletionUndo token={token} onRestored={()=>fetchTodos(false)}/>
         {page==='home'&&<HomePage user={user} token={token} tasks={todos} documents={pdfs} folders={folders} loading={loading} canvasStatus={canvasStatus} onNavigate={navigate} onOpenTask={task=>setSelectedTask(task)} onOpenDocument={setSelectedPDF} onOpenCalendar={entry=>{setAssistantCalendarId(entry._id);navigate('calendar')}} onNewTask={()=>{setSelectedFolder('all');navigate('tasks');setTimeout(()=>inputRef.current?.focus(),0)}} onUpload={()=>{setSelectedPDFFolder('all');setShowPDFUploadModal(true)}} onRefresh={()=>Promise.all([fetchTodos(false),fetchPDFs()])}/>}
         <WorkflowWorkspace key={'workspace:'+user?.id+':'+assistantGeneration} open={page==='workspace'} token={token} userId={user?.id} tasks={todos} folders={folders} documents={pdfs} documentFolders={pdfFolders} onTasksChange={setTodos} onOpenTask={task=>setSelectedTask(task)} onStatusChange={updateTodoStatus} onOpenDocument={setSelectedPDF} onUpload={()=>{setSelectedPDFFolder('all');setShowPDFUploadModal(true)}} onNavigate={navigate} onOpenCalendarEntry={entry=>{setAssistantCalendarId(entry._id);navigate('calendar')}} onOpenAssistant={()=>setAssistantOpen(true)} keyboardEnabled={!selectedPDF&&!assistantOpen&&!selectedTask&&!showPDFUploadModal&&!showCommandMenu}/>
-        {page==='calendar' && <CalendarPage focusCategoryId={searchCategoryId} onCategoryFocused={()=>setSearchCategoryId(null)} focusEntryId={assistantCalendarId} onEntryFocused={()=>setAssistantCalendarId(null)} documents={pdfs} documentFolders={pdfFolders} onDocumentsChange={setPdfs} onOpenDocument={setSelectedPDF} tasks={todos} token={token} keyboardEnabled={!selectedPDF&&!assistantOpen} onOpenTask={task=>{pendingLibraryTask.current=task;setSelectedFolder('all');navigate('tasks')}} onRefreshTasks={fetchTodos} onSyncCanvas={syncCanvas} onCanvasSettings={()=>navigate('canvas')} canvasStatus={canvasStatus} syncing={syncing} />}
+        {page==='calendar' && <CalendarPage onTaskCreated={task=>setTodos(previous=>[...previous.filter(item=>item._id!==task._id),task])} focusCategoryId={searchCategoryId} onCategoryFocused={()=>setSearchCategoryId(null)} focusEntryId={assistantCalendarId} onEntryFocused={()=>setAssistantCalendarId(null)} documents={pdfs} documentFolders={pdfFolders} onDocumentsChange={setPdfs} onOpenDocument={setSelectedPDF} tasks={todos} token={token} keyboardEnabled={!selectedPDF&&!assistantOpen} onOpenTask={task=>{pendingLibraryTask.current=task;setSelectedFolder('all');navigate('tasks')}} onRefreshTasks={fetchTodos} onSyncCanvas={syncCanvas} onCanvasSettings={()=>navigate('canvas')} canvasStatus={canvasStatus} syncing={syncing} />}
         {canvasNotice && <div role="status" className="calendar-feedback">{canvasNotice}<button onClick={()=>setCanvasNotice('')} aria-label="Dismiss Canvas sync notice"><X size={15}/></button></div>}
         {page==='cover-letters' && <CoverLettersPage token={token} documents={pdfs} onDocumentsChange={setPdfs} onOpen={setSelectedPDF}/>}
         {page==='jobs' && <JobsPage token={token} focusJobId={searchJobId} onJobFocused={()=>setSearchJobId(null)}/>}
@@ -1534,7 +1535,12 @@ function App() {
 
         {page === 'documents' && <DocumentLibrary navigationTarget={searchLibraryTarget} onNavigationHandled={()=>setSearchLibraryTarget(null)} tasks={todos} onOpenTask={task => { setSelectedFolder('all'); if (page === 'tasks') setSelectedTask(task); else { pendingLibraryTask.current = task; navigate('tasks') } }} keyboardEnabled={!selectedPDF&&!assistantOpen} documents={pdfs} folders={pdfFolders} token={token} onOpen={setSelectedPDF} onUpload={() => setShowPDFUploadModal(true)} onDocumentsChange={setPdfs} onFoldersChange={setPdfFolders} selectedFolder={selectedPDFFolder} onSelectFolder={setSelectedPDFFolder} />}
 
-        {page === 'tasks' && <>
+        {page === 'tasks' && <div className="task-view-tabs" aria-label="Task views">
+          <button type="button" aria-pressed={taskView==='active'} onClick={()=>setTaskView('active')}>Tasks</button>
+          <button type="button" aria-pressed={taskView==='deleted'} onClick={()=>setTaskView('deleted')}>Recently deleted</button>
+        </div>}
+        {page === 'tasks' && taskView==='deleted' && <TaskDeletionUndo token={token} onRestored={()=>fetchTodos(false)}/>}
+        {page === 'tasks' && taskView==='active' && <>
         {/* Folders Section */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-3">
@@ -2435,3 +2441,4 @@ function App() {
 }
 
 export default App
+

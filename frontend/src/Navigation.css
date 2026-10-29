@@ -78,3 +78,13 @@
 .task-title-toggle{display:inline-flex;align-items:center;gap:8px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface-panel);color:var(--text-secondary);font-size:12px;cursor:pointer;white-space:nowrap;}
 .task-title-toggle input{accent-color:var(--accent-solid);width:15px;height:15px;}
 .task-title-toggle:focus-within{outline:2px solid var(--accent);outline-offset:2px;}
+
+.task-view-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:24px;border-bottom:1px solid var(--border-strong,#405366);padding-bottom:10px}
+.task-view-tabs button,.recently-deleted-tasks button{min-height:40px;padding:9px 14px;border:1px solid var(--border-strong,#405366);border-radius:8px;background:var(--surface-panel,#18232f);color:var(--text-muted,#a8b6c6);cursor:pointer}
+.task-view-tabs button[aria-pressed=true]{background:var(--surface-raised,#263749);color:var(--text-primary,#e1e8ef);border-color:var(--text-muted,#a8b6c6)}
+.task-view-tabs button:focus-visible,.recently-deleted-tasks button:focus-visible{outline:2px solid var(--accent,#96b7d3);outline-offset:3px}
+.recently-deleted-tasks{padding:clamp(16px,3vw,28px);border:1px solid var(--border-strong,#405366);border-radius:14px;background:var(--surface-panel,#18232f);color:var(--text-primary,#e1e8ef)}
+.recently-deleted-tasks h2{font-size:20px;font-weight:600}.recently-deleted-tasks header p{max-width:760px;margin-top:8px;line-height:1.6;color:var(--text-muted,#a8b6c6)}
+.deleted-task-list{display:grid;gap:12px;margin-top:22px}.deleted-task-list article{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:16px;border:1px solid var(--border-strong,#405366);border-radius:10px}
+.deleted-task-summary{flex:1;min-width:0;overflow-wrap:anywhere}.deleted-task-summary h3{font-weight:600}.deleted-task-summary p{font-size:12px;color:var(--text-muted,#a8b6c6);margin-top:6px}.deleted-task-summary details{margin-top:12px;font-size:14px}.deleted-task-summary summary{cursor:pointer}.deleted-task-summary ul{padding-left:20px;list-style:disc;margin-top:8px}
+.deleted-task-list button{display:inline-flex;align-items:center;gap:8px;color:var(--text-primary,#e1e8ef)}.recently-deleted-tasks button:disabled{opacity:.5;cursor:wait}.deleted-tasks-empty{padding:32px 0;color:var(--text-muted,#a8b6c6)}
