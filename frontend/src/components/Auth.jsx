@@ -1,3 +1,5 @@
+import SignupTermsReview from './SignupTermsReview'
+import {TERMS_VERSION} from './TermsPage'
 import {readApiJson} from '../lib/apiResponse'
 import { useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
@@ -5,6 +7,7 @@ import { Loader2 } from 'lucide-react'
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true)
+  const [termsReviewed,setTermsReviewed]=useState(false),[termsAccepted,setTermsAccepted]=useState(false)
   const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -15,6 +18,7 @@ export default function Auth() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     if(loading)return
+    if(!isLogin&&(!termsReviewed||!termsAccepted)){setError('Review the Terms and Conditions and agree before creating your account.');return}
     setError('')
     setLoading(true)
 
@@ -24,7 +28,7 @@ export default function Auth() {
       const endpoint = isLogin ? '/api/auth/login' : '/api/auth/register'
       const body = isLogin
         ? { email:email.trim().toLowerCase(), password }
-        : { username:username.trim(), email:email.trim().toLowerCase(), password }
+        : { username:username.trim(), email:email.trim().toLowerCase(), password,termsReviewed,termsAccepted,termsVersion:TERMS_VERSION }
 
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -111,9 +115,11 @@ export default function Auth() {
               />
             </div>
 
+            {!isLogin&&<SignupTermsReview reviewed={termsReviewed} accepted={termsAccepted} onReviewed={()=>setTermsReviewed(true)} onAccepted={setTermsAccepted} disabled={loading}/>}
+
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading||(!isLogin&&(!termsReviewed||!termsAccepted))}
               className="w-full px-6 py-4 bg-primary-600 hover:bg-primary-700 disabled:bg-primary-800 text-white rounded-xl font-medium transition-all   flex items-center justify-center gap-2"
             >
               {loading ? (

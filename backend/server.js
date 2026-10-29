@@ -44,7 +44,9 @@ mongoose.connect(process.env.MONGODB_URI)
   .catch(() => undefined);
 
 // User Schema
+const TERMS_VERSION='1.1';
 const userSchema = new mongoose.Schema({
+  termsAcceptance:{version:String,acceptedAt:Date,method:String},
   socialConnections: { type: mongoose.Schema.Types.Mixed, select: false, default: ()=>({}) },
   socialConnectionVersions: { type: mongoose.Schema.Types.Mixed, select: false, default: ()=>({}) },
   aiAccess: { type: mongoose.Schema.Types.Mixed, default: ()=>({}) },
@@ -347,13 +349,16 @@ app.post('/api/auth/register', async (req, res) => {
       return res.status(400).json({ message: 'All fields are required' });
     }
 
+    if(req.body.termsAccepted!==true||req.body.termsReviewed!==true)return res.status(428).json({message:'Review and agree to the Terms and Conditions before creating an account.'});
+    if(req.body.termsVersion!==TERMS_VERSION)return res.status(409).json({message:'The Terms and Conditions version has changed. Refresh the page, review the current version and agree again.'});
+
     const existingUser = await User.findOne({ $or: [{ email }, { username }] });
     if (existingUser) {
       return res.status(400).json({ message: 'User already exists' });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const user = new User({ username, email, password: hashedPassword });
+    const user = new User({ username, email, password: hashedPassword,termsAcceptance:{version:TERMS_VERSION,acceptedAt:new Date(),method:'signup-checkbox'} });
     await user.save();
 
     const token = jwt.sign(
