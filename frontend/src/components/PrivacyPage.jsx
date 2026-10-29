@@ -1,4 +1,5 @@
 import './TermsPage.css'
+import { PRIVACY_VERSION, LEGAL_UPDATED_DATE } from '../lib/legalPolicy'
 
 const sections=[
   ['scope','Who this policy covers',[
@@ -8,6 +9,7 @@ const sections=[
   ['collected','User data we collect',[
     'We collect and store user data when you create an account, enter information, upload files or use the platform’s features. This includes information you provide directly and information retrieved through integrations you authorize. The categories below describe the user data collected by the application.',
     'Account information includes your username, email address, password hash and preferences such as time zone, display options, confirmation settings and AI access choices.',
+    'When you sign up, we also store the Terms and Conditions version you accepted, the server-recorded acceptance time and the signup-checkbox acceptance method. The review interface requires reaching the end of the terms and explicitly checking the agreement box; it cannot verify that you read or understood the text. Terms agreement is distinct from optional feature controls described in this policy.',
     'Workspace records may include tasks, descriptions, deadlines, dependencies, folders, uploaded files, original file backups, annotations, notes, calendar entries, document links, saved jobs, resume and cover-letter drafts, study stars, attendance logs and saved AI conversations. Feature suggestions, bug reports and reviewer responses are linked to the reporting account. An optional contact email supplied on either form is retained with the private submission for you and authorized reviewers; it does not change your account email or automatically send email. Optional report diagnostics contain browser information, language and screen dimensions only when included by the user. Private reports and suggestions are accessible to their author and configured reviewers. Authorized reviewers can separately publish public-safe feature summaries to the roadmap; the original submission and reporter identity are not automatically published.',
     'Content you provide can contain personal information about you or other people. Include only information you are authorized to share and avoid unnecessary sensitive data.'
   ]],
@@ -37,8 +39,10 @@ const sections=[
     'This draft does not make an unverified promise that hosting providers collect no logs, that information is never disclosed, or that all processing stays in one country. Advertising, sale or sharing practices and any additional analytics tools must be assessed and disclosed by the operator before final publication.'
   ]],
   ['retention','Retention, deletion and recovery',[
+    'Deleted tasks are removed from active task views and stored as recovery snapshots in Recently deleted for seven days, including information needed to restore supported task connections. You may restore individual deletions or deletion groups before expiry. Expired snapshots are excluded from recovery; automatic database cleanup may run after the expiry time.',
     'Saved records remain available according to the relevant feature and operator’s retention configuration. Some workflows keep temporary drafts, recovery snapshots, search indexes or change history. Moving a document to Trash is different from permanently deleting it.',
-    'Full workspace reset deletes the supported account-owned records in that flow and resets specified settings. It is not the same as account closure, erasing all infrastructure backups, deleting downloads on your device, or removing information already held by an external provider. A final retention schedule and account-closure process must be provided by the operator.'
+    'Full workspace reset deletes the supported account-owned records in that flow and resets specified settings. It is not the same as account closure, erasing all infrastructure backups, deleting downloads on your device, or removing information already held by an external provider. A final retention schedule and account-closure process must be provided by the operator.',
+    'Workspace reset includes supported private bug reports and feature suggestions. Public roadmap entries are separate shared records; an already published public-safe summary remains on the roadmap after the originating account’s workspace reset.'
   ]],
   ['controls','Access, correction and other requests',[
     'Use the application’s edit, export, download, disconnect and delete controls for supported data. AI access settings control supported future AI requests. Keep separate copies of important work before a destructive action.',
@@ -52,12 +56,13 @@ const sections=[
     'The final operator must define the intended audience, age eligibility and any required consent arrangements before offering the service to children. The current application does not implement a dedicated parental-consent process. Schools and other organizations must review their own obligations before providing student accounts.'
   ]],
   ['changes','Updates and privacy contact',[
-    'This draft is version 1.1, last updated October 29, 2026. Material changes to data practices should be communicated clearly before taking effect, with any required choices or agreement handled separately.',
+    `This draft is version ${PRIVACY_VERSION}, last updated ${LEGAL_UPDATED_DATE}. Material changes to data practices should be communicated clearly before taking effect, with any required choices or agreement handled separately. The current signup agreement applies to new registrations; the platform does not currently require existing users to accept updated terms again.`,
     'Privacy contact: the person or organization that provided access to this deployment. A verified operator name and published contact address must replace this interim description before the policy is finalized.'
   ]],
 ]
 
 export default function PrivacyPage({signedIn=false}){
-  return <main className="platform-viewport terms-page"><div className="terms-wrap"><a className="terms-back" href="#/home">← {signedIn?'Back to workspace':'Back to sign in'}</a><header><p>ASSIGNMENT TRACKER</p><h1>Privacy Policy</h1><span>Draft · Version 1.1 · Last updated October 29, 2026</span></header><p className="terms-draft">Draft for review. Operator identity, privacy contact, providers, hosting locations and retention details still need to be finalized.</p><nav aria-label="Privacy policy sections">{sections.map(([id,title])=><button key={id} type="button" onClick={()=>document.getElementById(`privacy-${id}`)?.scrollIntoView({behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'})}>{title}</button>)}</nav><article>{sections.map(([id,title,paragraphs],index)=><section id={`privacy-${id}`} key={id}><h2>{index+1}. {title}</h2>{paragraphs.map((paragraph,i)=><p key={i}>{paragraph}</p>)}</section>)}</article><footer><a href="#/terms">Terms and Conditions</a><span aria-hidden="true"> · </span><a href="#/home">{signedIn?'Return to workspace':'Return to sign in'}</a></footer></div></main>
+  return <main className="platform-viewport terms-page"><div className="terms-wrap"><a className="terms-back" href="#/home">← {signedIn?'Back to workspace':'Back to sign in'}</a><header><p>ASSIGNMENT TRACKER</p><h1>Privacy Policy</h1><span>Draft · Version {PRIVACY_VERSION} · Last updated {LEGAL_UPDATED_DATE}</span></header><p className="terms-draft">Draft for review. Operator identity, privacy contact, providers, hosting locations and retention details still need to be finalized.</p><nav aria-label="Privacy policy sections">{sections.map(([id,title])=><button key={id} type="button" onClick={()=>document.getElementById(`privacy-${id}`)?.scrollIntoView({behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'})}>{title}</button>)}</nav><article>{sections.map(([id,title,paragraphs],index)=><section id={`privacy-${id}`} key={id}><h2>{index+1}. {title}</h2>{paragraphs.map((paragraph,i)=><p key={i}>{paragraph}</p>)}</section>)}</article><footer><a href="#/terms">Terms and Conditions</a><span aria-hidden="true"> · </span><a href="#/home">{signedIn?'Return to workspace':'Return to sign in'}</a></footer></div></main>
 }
+
 

@@ -1,5 +1,6 @@
 import './TermsPage.css'
-export const TERMS_VERSION='1.1'
+import { TERMS_VERSION, LEGAL_UPDATED_DATE } from '../lib/legalPolicy'
+export { TERMS_VERSION } from '../lib/legalPolicy'
 
 const sections=[
   ['service','About the platform',[
@@ -19,7 +20,8 @@ const sections=[
     'Upload only material you own or have permission to use. Creating, editing or exporting a file does not grant rights to third-party content. Template and software licenses continue to apply; source credits are available where supplied.'
   ]],
   ['data','Storage, account data and device data',[
-    'The platform stores account records such as tasks, documents, calendar entries, saved conversations and attendance logs. Some preferences and working sessions are stored on your device. Optional native website browsing may retain website cookies on that device.',
+    'We collect and store user data when you create an account, enter information, upload files or use platform features, including information retrieved through integrations you authorize. This includes account details, preferences, tasks, documents, calendar entries, saved conversations, attendance logs and private feedback submissions. Signup records include the accepted terms version and acceptance time. Some preferences and working sessions are stored on your device. Optional native website browsing may retain website cookies on that device.',
+    'The Privacy Policy describes the categories collected, purposes, recipients, storage, recovery and available controls. Agreement to these Terms is not a separate consent to every optional integration, AI request or diagnostic submission; those features have their own controls.',
     'Storage analytics describe logical account-record sizes. They are not a measurement of network traffic, provider token consumption or all infrastructure storage. This page is not a substitute for a deployment-specific privacy notice describing the operator, hosting, data uses, retention and applicable choices.'
   ]],
   ['ai','AI features and generated material',[
@@ -40,15 +42,20 @@ const sections=[
     'Recovery features are limited to the actions and retention periods described by each feature. They are not a universal backup service. Clearing browser data, destroying a live browsing tab or leaving a temporary session can remove unsaved work.'
   ]],
   ['deletion','Deletion and account reset',[
+    'Deleted tasks are removed from active task views and kept in Recently deleted for a seven-day recovery window. You can restore a deletion or a group of deleted tasks during that window. Expired deletions are no longer recoverable through the platform; database cleanup may occur after the expiry time.',
     'Removing an item, moving a document to Trash and performing a full account reset are different operations. Read the confirmation shown by each action. A full workspace reset removes the supported account records described in that flow and is not a routine troubleshooting step.',
     'A workspace reset is not necessarily account closure, deletion of third-party copies, or immediate erasure from every infrastructure backup. Retention and account-closure procedures must be specified by the operator for the particular deployment.'
+  ]],
+  ['feedback','Private feedback and public roadmap',[
+    'Bug reports and feature suggestions are linked to your account and available to you and authorized reviewers. An optional contact email and any diagnostics you choose to include are stored with the submission. Supplying an email does not change your account email or automatically send a message.',
+    'Authorized reviewers may separately publish a public-safe feature summary on the public roadmap. Private submissions and reporter identities are not automatically published. A workspace reset removes supported private feedback records, but does not remove an already published public roadmap entry.'
   ]],
   ['availability','Availability and responsibility',[
     'Features may be updated, limited or unavailable because of maintenance, errors, connectivity or external providers. Do not treat the platform as the sole record for critical deadlines or as a guarantee of uninterrupted access or error-free output.',
     'Nothing in these draft terms is intended to exclude rights or obligations that cannot lawfully be excluded. Deployment-specific service commitments, liability provisions and dispute terms require separate review before publication.'
   ]],
   ['changes','Changes and questions',[
-    'The version date identifies this draft. Material changes should be clearly communicated before they take effect; any required agreement process must be implemented separately. New accounts must complete the terms review and explicitly agree before signup. The server records the accepted version and acceptance time; reaching the end of a document does not establish that a person understood it.',
+    'The version date identifies this draft. Material changes should be clearly communicated before they take effect; any required agreement process must be implemented separately. Existing users are not currently required by the platform to accept updated terms again. New accounts must complete the terms review and explicitly agree before signup. The server records the accepted version and acceptance time; reaching the end of a document does not establish that a person understood it.',
     'For questions about this deployment, contact the person or organization that provided access. The operator’s legal identity and published support contact must be added before adopting a final version.'
   ]],
 ]
@@ -58,5 +65,6 @@ export function TermsContent(){
 }
 
 export default function TermsPage({signedIn=false}){
-  return <main className="platform-viewport terms-page"><div className="terms-wrap"><a className="terms-back" href="#/home">← {signedIn?'Back to workspace':'Back to sign in'}</a><header><p>ASSIGNMENT TRACKER</p><h1>Terms and Conditions</h1><span>Draft · Version {TERMS_VERSION} · Last updated October 29, 2026</span></header><p className="terms-draft">Draft for review. Operator identity, contact details and deployment-specific policies have not yet been finalized.</p><nav aria-label="Terms sections">{sections.map(([id,title])=><button type="button" key={id} onClick={()=>document.getElementById(`terms-${id}`)?.scrollIntoView({behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'})}>{title}</button>)}</nav><TermsContent/><footer><a href="#/privacy">Privacy Policy</a><span aria-hidden="true"> · </span><a href="#/home">{signedIn?'Return to workspace':'Return to sign in'}</a></footer></div></main>
+  return <main className="platform-viewport terms-page"><div className="terms-wrap"><a className="terms-back" href="#/home">← {signedIn?'Back to workspace':'Back to sign in'}</a><header><p>ASSIGNMENT TRACKER</p><h1>Terms and Conditions</h1><span>Draft · Version {TERMS_VERSION} · Last updated {LEGAL_UPDATED_DATE}</span></header><p className="terms-draft">Draft for review. Operator identity, contact details and deployment-specific policies have not yet been finalized.</p><nav aria-label="Terms sections">{sections.map(([id,title])=><button type="button" key={id} onClick={()=>document.getElementById(`terms-${id}`)?.scrollIntoView({behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'})}>{title}</button>)}</nav><TermsContent/><footer><a href="#/privacy">Privacy Policy</a><span aria-hidden="true"> · </span><a href="#/home">{signedIn?'Return to workspace':'Return to sign in'}</a></footer></div></main>
 }
+
