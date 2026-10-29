@@ -126,7 +126,10 @@ export default function Auth() {
               )}
             </button>
           </form>
-          <p className="auth-terms-link"><a href="#/terms">Terms and Conditions</a><span aria-hidden="true"> · </span><a href="#/privacy">Privacy Policy</a></p>
+          <nav className="auth-terms-link" aria-label="Terms and privacy">
+            <p>Review the platform’s terms and privacy information.</p>
+            <div><a href="#/terms">Terms and Conditions</a><a href="#/privacy">Privacy Policy</a></div>
+          </nav>
 
           <div className="mt-6 text-center">
             <button
