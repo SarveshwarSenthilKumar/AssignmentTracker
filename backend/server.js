@@ -1526,5 +1526,6 @@ require('./accountAnalytics')(app,authenticateToken,mongoose);
 require('./siteRoadmap')(app,authenticateToken,mongoose);
 require('./bugReports')(app,authenticateToken,mongoose);
 require('./featureSuggestions')(app,authenticateToken,mongoose);
+require('./adminPortal')(app,authenticateToken,mongoose);
 
 app.listen(PORT);

@@ -4,8 +4,8 @@ module.exports=(app,auth,mongoose)=>{
   const schema=new mongoose.Schema({user:{type:mongoose.Schema.Types.ObjectId,ref:'User',required:true,index:true},submissionId:{type:String,required:true},section:{type:String,enum:sections},priority:{type:String,enum:priorities},title:String,problem:String,solution:String,benefits:String,workaround:String,roadmapItem:{type:mongoose.Schema.Types.ObjectId,ref:'SiteRoadmapItem'},status:{type:String,enum:statuses,default:'submitted'},response:{type:String,default:''},revision:{type:Number,default:0}},{timestamps:true});
   schema.index({user:1,submissionId:1},{unique:true});schema.index({user:1,createdAt:-1});
   const Report=mongoose.models.FeatureSuggestion||mongoose.model('FeatureSuggestion',schema);
-  const reviewer=async id=>{const emails=(process.env.FEATURE_SUGGESTION_EDITOR_EMAILS||process.env.BUG_REPORT_EDITOR_EMAILS||process.env.SITE_ROADMAP_EDITOR_EMAILS||'').split(',').map(value=>value.trim().toLowerCase()).filter(Boolean);if(!emails.length)return false;const user=await mongoose.models.User.findById(id).select('email').lean();return !!user&&emails.includes(user.email.toLowerCase())};
-  const roadmapEditor=async id=>{const emails=(process.env.SITE_ROADMAP_EDITOR_EMAILS||'').split(',').map(value=>value.trim().toLowerCase()).filter(Boolean);if(!emails.length)return false;const user=await mongoose.models.User.findById(id).select('email').lean();return !!user&&emails.includes(user.email.toLowerCase())};
+  const reviewer=async id=>(await require('./adminAccess')(mongoose,id)).features;
+  const roadmapEditor=async id=>(await require('./adminAccess')(mongoose,id)).roadmap;
   const safeText=(body,key,max,required=false)=>{const value=body[key]??'';if(typeof value!=='string'||value.length>max||(required&&!value.trim()))throw new Error(`Enter valid ${key} (${required?'required, ':''}up to ${max} characters).`);return value.trim()};
   app.get('/api/feature-suggestions',auth,async(req,res)=>{
     res.set('Cache-Control','no-store');

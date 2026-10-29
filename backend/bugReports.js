@@ -4,7 +4,7 @@ module.exports=(app,auth,mongoose)=>{
   const schema=new mongoose.Schema({user:{type:mongoose.Schema.Types.ObjectId,ref:'User',required:true,index:true},submissionId:{type:String,required:true},section:{type:String,enum:sections},severity:{type:String,enum:severities},title:String,description:String,steps:String,expected:String,actual:String,diagnostics:mongoose.Schema.Types.Mixed,status:{type:String,enum:statuses,default:'open'},response:{type:String,default:''},revision:{type:Number,default:0}},{timestamps:true});
   schema.index({user:1,submissionId:1},{unique:true});schema.index({user:1,createdAt:-1});
   const Report=mongoose.models.BugReport||mongoose.model('BugReport',schema);
-  const reviewer=async id=>{const emails=(process.env.BUG_REPORT_EDITOR_EMAILS||process.env.SITE_ROADMAP_EDITOR_EMAILS||'').split(',').map(value=>value.trim().toLowerCase()).filter(Boolean);if(!emails.length)return false;const user=await mongoose.models.User.findById(id).select('email').lean();return !!user&&emails.includes(user.email.toLowerCase())};
+  const reviewer=async id=>(await require('./adminAccess')(mongoose,id)).bugs;
   const safeText=(body,key,max,required=false)=>{const value=body[key]??'';if(typeof value!=='string'||value.length>max||(required&&!value.trim()))throw new Error(`Enter valid ${key} (${required?'required, ':''}up to ${max} characters).`);return value.trim()};
   app.get('/api/bug-reports',auth,async(req,res)=>{
     res.set('Cache-Control','no-store');

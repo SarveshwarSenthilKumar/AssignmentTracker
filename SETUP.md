@@ -352,3 +352,12 @@ Signed-in users can open **Tools → Suggest a feature**, the platform footer, o
 `FEATURE_SUGGESTION_EDITOR_EMAILS` optionally grants review access to existing registered accounts. If unset, the bug-report reviewer list is used, then the roadmap editor list. Restart the backend after changing environment settings. All-user access and status updates are enforced on the server.
 
 Reviewers who also have `SITE_ROADMAP_EDITOR_EMAILS` access can prepare a separate public title and description and explicitly publish it. Private submission text and identity are not automatically copied. Publishing links the suggestion to a roadmap item and uses MongoDB transactions (Atlas or a replica set) to prevent partial publication. The public roadmap remains independent if a submitter later resets their private workspace. Private suggestions are included in account analytics and deleted by that user's full workspace reset. No email or external notification is sent by this workflow.
+
+
+## Admin feedback portal
+
+Open `/#/admin`, or press Ctrl/Cmd + Shift + K and enter `open admin`. It is unlisted in normal navigation. Sign-in and server-side review permissions are required. The portal provides bug and suggestion inboxes, status and section filters, reporter identities, submitted responses, opt-in bug diagnostics, reviewer replies and summary counts for recent and urgent submissions. Switching inboxes preserves unsaved review text; leaving the portal clears those local edits. Inbox refresh resets its local review fields. Responses are saved to the submitter’s history, not emailed.
+
+Existing bug and feature reviewer configuration grants access only to the matching inbox. Alternatively, set `ADMIN_PORTAL_EDITOR_EMAILS` to a comma-separated list of existing registered accounts to grant both review capabilities and roadmap editing/publication. Restart the backend after setting it. Authorization is checked on overview, inbox, review and publication requests; a direct URL or visible client control grants no privileges. No first-user or automatic administrator promotion is performed.
+
+The summary refreshes after a saved review or roadmap publication and can also be refreshed independently. Reviewers with both suggestion and roadmap permissions can prepare a separate public-safe roadmap entry; the private submission is not automatically published. Publishing continues to require MongoDB transactions.

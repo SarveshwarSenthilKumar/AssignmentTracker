@@ -3,12 +3,7 @@ module.exports=(app,auth,mongoose)=>{
   const schema=new mongoose.Schema({sourceSuggestion:{type:mongoose.Schema.Types.ObjectId,ref:'FeatureSuggestion'},title:{type:String,required:true,maxlength:160},description:{type:String,required:true,maxlength:5000},status:{type:String,enum:statuses,default:'considering'},category:{type:String,enum:categories,default:'Platform'},pinned:{type:Boolean,default:false},revision:{type:Number,default:0}},{timestamps:true});
   schema.index({sourceSuggestion:1},{unique:true,partialFilterExpression:{sourceSuggestion:{$type:'objectId'}}});
   const Item=mongoose.models.SiteRoadmapItem||mongoose.model('SiteRoadmapItem',schema);
-  const isEditor=async userId=>{
-    const allowed=(process.env.SITE_ROADMAP_EDITOR_EMAILS||'').split(',').map(value=>value.trim().toLowerCase()).filter(Boolean);
-    if(!allowed.length)return false;
-    const user=await mongoose.models.User.findById(userId).select('email').lean();
-    return !!user&&allowed.includes(user.email.toLowerCase());
-  };
+  const isEditor=async userId=>(await require('./adminAccess')(mongoose,userId)).roadmap;
   const editor=async(req,res,next)=>{try{if(!await isEditor(req.user.userId))return res.status(403).json({message:'Only configured roadmap editors can change this public board.'});next()}catch{res.status(503).json({message:'Could not verify roadmap editor access.'})}};
   const fields=body=>{
     if(typeof body?.title!=='string'||!body.title.trim()||body.title.length>160||typeof body.description!=='string'||!body.description.trim()||body.description.length>5000)throw new Error('Enter a title up to 160 characters and a description up to 5,000 characters.');
