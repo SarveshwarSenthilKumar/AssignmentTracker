@@ -49,6 +49,12 @@ check skills and tailor
 connect to github and linkedin
 base projects off github and linkedin
 
+no use ai
+doesnt name third parties
+uploads promised to deleter are stored
+storage bucket is public
+ai chat bot with no self harm response
+
 update terms and conditions
 update private policy
 optimize for various screens continuously
