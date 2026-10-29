@@ -1,0 +1,19 @@
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body,main,header,footer{min-width:0}
+.calendar-layout>*,.events>*,.controls>*{min-width:0}
+.event h3,.event p,#event-detail,.brand{overflow-wrap:anywhere}
+@media(max-width:600px){
+  header,main,footer{padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right))}
+  header{height:auto;min-height:72px;gap:12px;flex-wrap:wrap;padding-block:14px}
+  .controls{padding:12px;gap:10px;align-items:stretch}
+  .search{min-width:0;flex-basis:100%}
+  .controls>label{max-width:100%}
+  .date-strip{flex-wrap:wrap;gap:8px}
+  .calendar-toolbar{gap:8px}
+  .calendar-toolbar h2{min-width:0}
+  .calendar-grid,.calendar-cell{min-width:0}
+  #event-dialog{max-height:calc(100dvh - 24px);width:calc(100% - 24px);padding:18px}
+  #event-detail h2{font-size:24px}
+}
+@media(max-height:500px) and (orientation:landscape){#event-dialog{max-height:calc(100dvh - 16px);padding:16px}}
+@media(pointer:coarse){button,.event-bottom a{min-height:44px}input,select{font-size:16px}.checkbox{white-space:normal}.checkbox input{min-width:20px;min-height:20px}}

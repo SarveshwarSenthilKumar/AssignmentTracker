@@ -1464,7 +1464,7 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen py-8 px-4">
+    <div className="platform-viewport min-h-screen py-8 px-4">
       <div className="app-shell w-full max-w-[1440px] mx-auto">
         <AppNavigation page={page} user={user} onSignOut={logout}/>
         <GlobalSearch token={token} onChoose={openSearchResult}/>
@@ -1648,8 +1648,8 @@ function App() {
         </div>
 
         <FolderHierarchyControls folders={folders} selected={selectedFolder} token={token} base="/api/folders" documents={pdfs} onDocumentsChange={setPdfs} onOpenDocument={setSelectedPDF} onFoldersChange={setFolders} onSelect={setSelectedFolder} onCreate={id=>{setNewFolderParent(id);setNewFolderName('');setShowFolderModal(true)}} disabled={loading}/>
-        <form onSubmit={addTodo} className="mb-6">
-          <div className="flex gap-3">
+        <form onSubmit={addTodo} className="task-create-form mb-6">
+          <div className="task-create-fields flex gap-3">
             <input
               ref={inputRef}
               disabled={creatingTask}

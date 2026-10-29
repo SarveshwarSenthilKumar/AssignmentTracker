@@ -79,7 +79,7 @@ ipcMain.handle('phone:command',(event,payload)=>{
 ipcMain.handle('phone:destroy',(event,payload)=>{trusted(event);destroy(identity(payload));return {ok:true}});
 ipcMain.handle('phone:clear-account',async(event,owner)=>{trusted(event);if(!validId(owner))throw new Error('Invalid account.');for(const [key,value]of views)if(value.owner===owner)destroy(key);await accountSession(owner).clearStorageData();await accountSession(owner).clearCache();return {ok:true}});
 app.whenReady().then(()=>{
-  window=new BrowserWindow({width:1440,height:950,minWidth:800,minHeight:600,backgroundColor:'#161c24',title:'Assignment Tracker',webPreferences:{preload:path.join(__dirname,'preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true,webSecurity:true}});
+  window=new BrowserWindow({width:1440,height:950,minWidth:360,minHeight:320,backgroundColor:'#161c24',title:'Assignment Tracker',webPreferences:{preload:path.join(__dirname,'preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true,webSecurity:true}});
   window.setMenuBarVisibility(false);window.webContents.setWindowOpenHandler(({url})=>{try{const target=new URL(url);if(target.protocol==='https:'&&!target.username&&!target.password)require('electron').shell.openExternal(target.href).catch(()=>{})}catch{}return {action:'deny'}});
   const protect=(event,url)=>{try{if(new URL(url).origin!==appURL.origin)event.preventDefault()}catch{event.preventDefault()}};
   window.webContents.on('will-navigate',protect);window.webContents.on('will-redirect',protect);

@@ -12,6 +12,13 @@ const annotationTools=[['read','Select text',TextSelect],['pen','Pen',Pen],['hig
 
 export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,insert}){
   const [open,setOpen]=useState(null),root=useRef(null),trigger=useRef(null),id=useId()
+  const [narrowScreen,setNarrowScreen]=useState(()=>window.matchMedia('(max-width:760px), (max-height:500px) and (orientation:landscape)').matches)
+  useEffect(()=>{
+    const media=window.matchMedia('(max-width:760px), (max-height:500px) and (orientation:landscape)')
+    const changed=()=>{setNarrowScreen(media.matches);setOpen(null)}
+    media.addEventListener('change',changed)
+    return()=>media.removeEventListener('change',changed)
+  },[])
   const [compact,setCompact]=useState(()=>{try{return localStorage.getItem('pdf-toolbar-compact')==='true'}catch{return false}})
   useEffect(()=>{try{localStorage.setItem('pdf-toolbar-compact',String(compact))}catch{}},[compact])
   const close=()=>setOpen(null)
@@ -23,7 +30,8 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
   },[open])
   useEffect(()=>close(),[view.focus])
   useEffect(()=>close(),[view.toolbarPosition])
-  const toolbarEdge=view.toolbarPosition==='auto'?(view.focus?'bottom':'top'):view.toolbarPosition
+  const preferredEdge=view.toolbarPosition==='auto'?(view.focus?'bottom':'top'):view.toolbarPosition
+  const toolbarEdge=narrowScreen&&['left','right'].includes(preferredEdge)?(view.focus?'bottom':'top'):preferredEdge
   const vertical=toolbarEdge==='left'||toolbarEdge==='right'
   useEffect(()=>{
     const toolbar=root.current?.querySelector('.pc-toolbar')
@@ -38,7 +46,7 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
     const observer=new ResizeObserver(measure);observer.observe(toolbar)
     const header=root.current?.querySelector('.pc-header');if(header)observer.observe(header)
     return()=>observer.disconnect()
-  },[view.focus])
+  },[view.focus,toolbarEdge,compact])
   const run=fn=>()=>{close();fn?.()}
   const iconButton=(Icon,label,fn,disabled=false,active=false)=><button type="button" className={`pc-button pc-icon${active?' is-active':''}`} title={label} aria-label={label} disabled={disabled} onClick={fn}><Icon size={17}/></button>
   const action=(Icon,label,fn,{disabled=false,active=false,danger=false,detail}={})=><button type="button" className={`pc-menu-action${danger?' is-danger':''}${active?' is-active':''}`} onClick={run(fn)} disabled={disabled}><Icon size={16}/><span>{label}{detail&&<small>{detail}</small>}</span>{active&&<i aria-label="Enabled"/>}</button>

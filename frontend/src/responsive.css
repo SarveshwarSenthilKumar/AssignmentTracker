@@ -1,0 +1,172 @@
+/* Shared layout safeguards. Document/canvas coordinates are intentionally not
+   scaled here: only surrounding controls and application layout adapt. */
+html{min-width:0;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body,#root,.platform-viewport,.app-shell{min-width:0}
+.platform-viewport{min-height:100dvh;padding-bottom:max(24px,env(safe-area-inset-bottom));padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right))}
+.app-shell>*,.home-main-grid>*,.analytics-grid>*,.calendar-layout>*,.library-layout>*,.prep-tabs>*,.jobs-fields>*,.cover-generator-fields>*{min-width:0}
+.app-shell :is(h1,h2,h3,h4,p,dd),.document-title,.pc-file-name{overflow-wrap:anywhere}
+.app-shell :is(input,textarea,select){min-width:0;max-width:100%}
+.task-create-fields{align-items:flex-start;flex-wrap:wrap}
+.task-create-fields>input{min-width:min(100%,240px);flex:1 1 260px}
+.task-create-fields>.task-due-input{flex:0 1 240px;min-width:0}
+.task-create-fields>button{min-height:44px;flex-shrink:0;align-self:center}
+.library-table-scroll,.document-grid,.analytics-table{max-width:100%;overscroll-behavior-inline:contain}
+.document-editor,.pdf-editor,.assistant-panel{max-width:100%;min-height:0}
+.document-editor,.pdf-editor{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom);box-sizing:border-box}
+.document-editor>main,.pdf-editor-workspace,.note-panes,.assistant-workspace,.assistant-thread{min-width:0;min-height:0}
+.inline-confirmation p,.document-error,.note-notice{overflow-wrap:anywhere}
+.handbook-layout article pre,.assistant-code-block pre{max-width:100%;overflow:auto}
+.analytics-page header,.event-attendance header,.resume-heading,.jobs-heading{flex-wrap:wrap}
+.analytics-page header>div,.analytics-panel-heading>div{min-width:0}
+.account-connection-actions,.document-actions,.library-header-actions,.calendar-detail-actions{flex-wrap:wrap}
+.app-navigation [data-nav-panel]{max-height:calc(100dvh - 100px);overflow-y:auto;overscroll-behavior:contain}
+
+@media(max-width:1024px){
+  .platform-viewport{padding-top:16px}
+  .home-hero{gap:20px;padding:24px}
+  .document-editor>header{padding:12px;gap:10px}
+  .document-actions{gap:6px}
+  .pdf-settings-panel>div{padding:14px}
+  .pdf-reference-pane{max-width:none}
+  .handbook-layout{grid-template-columns:220px minmax(0,1fr);gap:16px}
+}
+
+@media(max-width:760px){
+  .platform-viewport{padding-top:10px;padding-left:max(12px,env(safe-area-inset-left));padding-right:max(12px,env(safe-area-inset-right))}
+  .platform-page-title{margin-bottom:18px}
+  .app-shell h1{font-size:clamp(21px,5vw,28px)}
+  .app-navigation.platform-header{top:max(6px,env(safe-area-inset-top));margin-bottom:20px;gap:8px}
+  .app-navigation .an-mobile-panel{max-height:calc(100dvh - 110px);overflow:auto}
+  .home-main-grid,.viz-layout{grid-template-columns:minmax(0,1fr)}
+  .home-hero{grid-template-columns:minmax(0,1fr)}
+  .home-hero-actions,.home-topline,.home-panel>header{flex-wrap:wrap}
+  .home-task-row{min-width:0}
+  .task-create-fields>input{flex-basis:100%}
+  .task-create-fields>.task-due-input{flex:1 1 180px}
+  .task-create-fields>button{align-self:flex-start;margin-top:22px}
+  .task-bulk-actions{flex-wrap:wrap;gap:10px}
+  .task-selection-actions{flex-wrap:wrap}
+  .app-inline-panel>div{padding:16px}
+  .app-inline-panel .grid-cols-2{grid-template-columns:minmax(0,1fr)}
+  .app-inline-panel .flex.gap-3{flex-wrap:wrap}
+  .inline-confirmation{padding:12px;gap:10px}
+  .inline-confirmation>div{flex-wrap:wrap}
+  .library-header-actions button{flex:1 1 auto}
+  .library-filters,.library-bulk-actions,.library-modal-footer{flex-wrap:wrap}
+  .library-table-scroll{overflow-x:auto}
+  .library-file-open{overflow-wrap:anywhere}
+  .library-row-actions{gap:4px}
+  .document-editor>header{max-height:40dvh;overflow:auto;overscroll-behavior:contain}
+  .document-title{width:100%;gap:8px}
+  .document-title>div{min-width:0}
+  .document-tools{padding:8px 12px;max-height:25dvh;overflow:auto;align-items:flex-start}
+  .document-tools select{margin-left:0;max-width:100%}
+  .document-prose{padding:20px 16px}
+  .document-text{padding:16px}
+  .pdf-editor-workspace{flex-direction:column}
+  .pdf-reference-pane{flex:0 1 42%;width:100%;min-width:0;max-width:none;min-height:120px;max-height:42%;border-left:0;border-top:1px solid var(--border-strong)}
+  .pdf-editor-workspace>.pdf-editor-canvas{min-height:120px;min-width:0}
+  .pc-file-name{min-width:0;overflow:hidden}
+  .pc-file-name strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .pc-toolbar{max-height:32dvh;overflow:auto;overscroll-behavior:contain}
+  .pc-popover{max-width:calc(100vw - 24px);max-height:60dvh;overflow:auto}
+  .pdf-chrome .pc-toolbar .pc-popover{position:fixed;left:12px!important;right:12px!important;top:min(100px,25dvh)!important;bottom:auto!important;width:auto;max-height:65dvh;z-index:100}
+  .pdf-settings-panel{max-height:60dvh}
+  .note-workspace{flex-direction:column}
+  .note-outline{width:100%;max-height:120px;flex-shrink:0;border-right:0;border-bottom:1px solid var(--border);padding:8px}
+  .note-panes{flex:1}
+  .note-find,.note-topbar,.note-formatbar,.note-status{gap:6px;padding:8px 10px}
+  .note-find label{min-width:0;flex-wrap:wrap}
+  .note-source textarea,.note-preview article{padding:16px}
+  .assistant-panel.has-history.is-page,.assistant-panel.has-history.is-page.is-expanded{height:calc(100dvh - 170px);min-height:min(420px,75dvh)}
+  .assistant-chat-toolbar,.assistant-context{flex-wrap:wrap}
+  .handbook-layout{grid-template-columns:minmax(0,1fr)}
+  .handbook-layout nav{position:static;max-height:220px}
+  .handbook-page>header,.analytics-panel-heading,.event-attendance>header{flex-wrap:wrap}
+  .resume-template-options,.prep-tabs{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .resume-file-actions{justify-content:flex-start}
+  .jobs-import label{min-width:0;flex-basis:100%}
+  .jobs-import input{width:100%}
+  .global-search-backdrop{padding:max(8px,env(safe-area-inset-top)) 8px max(8px,env(safe-area-inset-bottom))}
+  .global-search-dialog{max-height:calc(100dvh - 16px);width:100%;border-radius:10px}
+}
+
+@media(max-width:480px){
+  .platform-viewport{padding-left:max(8px,env(safe-area-inset-left));padding-right:max(8px,env(safe-area-inset-right))}
+  .auth-screen{min-height:100dvh;padding:16px}
+  .auth-screen .auth-card{padding:20px}
+  .app-navigation.platform-header{padding:8px;gap:6px}
+  .app-navigation .an-brand-copy>small{display:none}
+  .app-navigation .an-brand-copy>strong{font-size:11px}
+  .home-hero{padding:18px;gap:18px}
+  .home-next-card,.home-panel{padding:16px}
+  .home-week{gap:2px}
+  .home-task-row time{white-space:normal;text-align:right;font-size:11px}
+  .task-create-fields>.task-due-input{flex-basis:100%}
+  .task-create-fields>button{margin-top:0;width:100%;justify-content:center}
+  .task-page-search,.task-date-suggestion{padding:12px}
+  .task-date-suggestion>div{flex-direction:column}
+  .task-date-suggestion button{width:100%;min-height:44px}
+  .task-bulk-actions>label{flex-basis:100%}
+  .task-selection-actions{width:100%}
+  .calendar-heading,.calendar-filters{padding:12px}
+  .calendar-controls{flex-wrap:wrap;gap:6px}
+  .calendar-month-grid{gap:1px}
+  .calendar-day{padding:3px;min-height:86px}
+  .calendar-page .calendar-item{padding:4px 2px;gap:2px}
+  .calendar-item strong{font-size:10px}
+  .calendar-inspector{padding:12px}
+  .calendar-entry-form,.calendar-attachment-picker{max-width:100%}
+  .calendar-form-fields{grid-template-columns:minmax(0,1fr)}
+  .library-layout aside{grid-template-columns:minmax(0,1fr);max-height:190px}
+  .library-modal-backdrop{padding:0 10px 14px}
+  .library-modal-backdrop form{padding:12px}
+  .library-file-open{min-width:100px}
+  .document-actions{width:100%}
+  .document-actions>button{flex:1 1 auto}
+  .document-editor button{padding:8px;font-size:12px}
+  .insert-sections{grid-template-columns:repeat(2,minmax(0,1fr));padding-inline:10px}
+  .note-view-tools{flex-wrap:wrap}
+  .note-status{align-items:flex-start}
+  .note-template-grid,.resume-template-fields,.resume-quiz-grid,.jobs-fields,.analytics-metrics,.analytics-health,.suggested-events-grid,.attendance-fields{grid-template-columns:minmax(0,1fr)}
+  .resumes-page,.cover-letter-generator,.analytics-panel,.event-attendance{padding:12px}
+  .analytics-bars>div>div{flex-wrap:wrap;gap:4px}
+  .analytics-table td,.analytics-table th{padding:8px 5px}
+  .resume-quiz-actions>button,.attendance-actions>button{flex:1 1 auto}
+  .study-phone-home>div{gap:12px 6px;margin:16px 0}
+  .study-phone-minimized{right:max(8px,env(safe-area-inset-right));bottom:72px;max-width:calc(100vw - 16px)}
+  .assistant-launcher{right:10px;bottom:max(10px,env(safe-area-inset-bottom))}
+  .assistant-panel:not(.is-page){padding-bottom:env(safe-area-inset-bottom)}
+  .global-search-input{padding:12px;gap:8px}
+  .global-search-options{padding:8px 12px;gap:8px}
+  .workflow-inline-form,.workflow-settings{max-width:100%}
+}
+
+/* A short landscape viewport needs scrolling controls, not a taller fixed UI. */
+@media(max-height:500px) and (orientation:landscape){
+  .platform-viewport{padding-top:6px}
+  .app-navigation.platform-header{position:relative;top:0;margin-bottom:12px}
+  .global-search-dialog{max-height:calc(100dvh - 16px)}
+  .document-editor>header{max-height:28dvh}
+  .pc-toolbar{max-height:28dvh;overflow:auto}
+  .pdf-chrome .pc-toolbar .pc-popover{position:fixed;left:12px!important;right:12px!important;top:8px!important;bottom:auto!important;width:auto;max-height:calc(100dvh - 16px);z-index:100}
+  .pdf-settings-panel{max-height:70dvh}
+  .assistant-panel.has-history.is-page{min-height:260px}
+}
+
+@media(pointer:coarse){
+  .app-navigation :is(button,a),.task-page-search button,.task-create-fields>button,.resume-file-actions button,.prep-tabs button,.event-attendance button,.analytics-page>header button,.handbook-page>header button,.global-search-results [role=option]{min-height:44px}
+  .app-shell :is(input[type=search],input[type=email],input[type=password],input[type=date],input[type=datetime-local]),.global-search-input input,.resume-template-fields :is(input,textarea),.resume-quiz textarea,.jobs-fields :is(input,textarea),.attendance-fields :is(input,textarea){font-size:16px}
+  .task-select-checkbox,.calendar-check input,.task-due-time-toggle input{min-width:20px;min-height:20px}
+  .library-row-actions button{min-width:36px;min-height:40px}
+  .auth-screen input{font-size:16px}
+}
+
+@container workflow-window (max-width:480px){
+  .workflow-tool-filters{flex-wrap:wrap}
+  .workflow-tool-filters>input,.workflow-tool-filters>select{min-width:0;max-width:100%}
+  .workflow-window-content .note-workspace{flex-direction:column}
+  .workflow-window-content .note-outline{max-width:100%;width:100%;max-height:120px;flex-shrink:0}
+}
+
+@media print{.platform-viewport{padding:0}.app-navigation,.assistant-launcher,.study-phone-minimized{display:none}}
