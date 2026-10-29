@@ -1,7 +1,8 @@
+const contactEmail=require('./feedbackContactEmail');
 module.exports=(app,auth,mongoose)=>{
   const sections=['Home','Tasks','Calendar','Documents','PDF editor','Notes','AI assistant','Study phone','Workspace','Visualization','Career prep','Resumes','Cover letters','Saved jobs','Study stars','Analytics','Account','Site roadmap','Feature suggestions','Bug reports','Miscellaneous'];
   const statuses=['submitted','reviewing','planned','in-progress','shipped','not-planned'],priorities=['nice-to-have','useful','important','essential'];
-  const schema=new mongoose.Schema({user:{type:mongoose.Schema.Types.ObjectId,ref:'User',required:true,index:true},submissionId:{type:String,required:true},section:{type:String,enum:sections},priority:{type:String,enum:priorities},title:String,problem:String,solution:String,benefits:String,workaround:String,roadmapItem:{type:mongoose.Schema.Types.ObjectId,ref:'SiteRoadmapItem'},status:{type:String,enum:statuses,default:'submitted'},response:{type:String,default:''},revision:{type:Number,default:0}},{timestamps:true});
+  const schema=new mongoose.Schema({user:{type:mongoose.Schema.Types.ObjectId,ref:'User',required:true,index:true},submissionId:{type:String,required:true},contactEmail:{type:String,default:'',maxlength:254},section:{type:String,enum:sections},priority:{type:String,enum:priorities},title:String,problem:String,solution:String,benefits:String,workaround:String,roadmapItem:{type:mongoose.Schema.Types.ObjectId,ref:'SiteRoadmapItem'},status:{type:String,enum:statuses,default:'submitted'},response:{type:String,default:''},revision:{type:Number,default:0}},{timestamps:true});
   schema.index({user:1,submissionId:1},{unique:true});schema.index({user:1,createdAt:-1});
   const Report=mongoose.models.FeatureSuggestion||mongoose.model('FeatureSuggestion',schema);
   const reviewer=async id=>(await require('./adminAccess')(mongoose,id)).features;
@@ -25,7 +26,7 @@ module.exports=(app,auth,mongoose)=>{
     const body=req.body||{};let data;
     try{
       if(!sections.includes(body.section)||!priorities.includes(body.priority)||typeof body.submissionId!=='string'||!/^[a-f\d-]{36}$/i.test(body.submissionId))throw new Error('Choose a section, priority and valid submission identifier.');
-      data={user:req.user.userId,submissionId:body.submissionId,section:body.section,priority:body.priority,title:safeText(body,'title',160,true),problem:safeText(body,'problem',6000,true),solution:safeText(body,'solution',4000),benefits:safeText(body,'benefits',2000),workaround:safeText(body,'workaround',2000)};
+      data={user:req.user.userId,submissionId:body.submissionId,contactEmail:contactEmail(body.contactEmail),section:body.section,priority:body.priority,title:safeText(body,'title',160,true),problem:safeText(body,'problem',6000,true),solution:safeText(body,'solution',4000),benefits:safeText(body,'benefits',2000),workaround:safeText(body,'workaround',2000)};
 
     }catch(error){return res.status(400).json({message:error.message})}
     try{

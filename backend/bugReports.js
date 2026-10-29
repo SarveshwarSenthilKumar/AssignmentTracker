@@ -1,7 +1,8 @@
+const contactEmail=require('./feedbackContactEmail');
 module.exports=(app,auth,mongoose)=>{
   const sections=['Home','Tasks','Calendar','Documents','PDF editor','Notes','AI assistant','Study phone','Workspace','Visualization','Career prep','Resumes','Cover letters','Saved jobs','Study stars','Analytics','Account','Site roadmap','Feature suggestions','Bug reports','Miscellaneous'];
   const statuses=['open','in-review','fixed','closed'],severities=['minor','normal','major','blocking'];
-  const schema=new mongoose.Schema({user:{type:mongoose.Schema.Types.ObjectId,ref:'User',required:true,index:true},submissionId:{type:String,required:true},section:{type:String,enum:sections},severity:{type:String,enum:severities},title:String,description:String,steps:String,expected:String,actual:String,diagnostics:mongoose.Schema.Types.Mixed,status:{type:String,enum:statuses,default:'open'},response:{type:String,default:''},revision:{type:Number,default:0}},{timestamps:true});
+  const schema=new mongoose.Schema({user:{type:mongoose.Schema.Types.ObjectId,ref:'User',required:true,index:true},submissionId:{type:String,required:true},contactEmail:{type:String,default:'',maxlength:254},section:{type:String,enum:sections},severity:{type:String,enum:severities},title:String,description:String,steps:String,expected:String,actual:String,diagnostics:mongoose.Schema.Types.Mixed,status:{type:String,enum:statuses,default:'open'},response:{type:String,default:''},revision:{type:Number,default:0}},{timestamps:true});
   schema.index({user:1,submissionId:1},{unique:true});schema.index({user:1,createdAt:-1});
   const Report=mongoose.models.BugReport||mongoose.model('BugReport',schema);
   const reviewer=async id=>(await require('./adminAccess')(mongoose,id)).bugs;
@@ -24,7 +25,7 @@ module.exports=(app,auth,mongoose)=>{
     const body=req.body||{};let data;
     try{
       if(!sections.includes(body.section)||!severities.includes(body.severity)||typeof body.submissionId!=='string'||!/^[a-f\d-]{36}$/i.test(body.submissionId))throw new Error('Choose a section, severity and valid submission identifier.');
-      data={user:req.user.userId,submissionId:body.submissionId,section:body.section,severity:body.severity,title:safeText(body,'title',160,true),description:safeText(body,'description',6000,true),steps:safeText(body,'steps',4000),expected:safeText(body,'expected',2000),actual:safeText(body,'actual',2000)};
+      data={user:req.user.userId,submissionId:body.submissionId,contactEmail:contactEmail(body.contactEmail),section:body.section,severity:body.severity,title:safeText(body,'title',160,true),description:safeText(body,'description',6000,true),steps:safeText(body,'steps',4000),expected:safeText(body,'expected',2000),actual:safeText(body,'actual',2000)};
       if(body.diagnostics){const d=body.diagnostics;if(typeof d!=='object'||Array.isArray(d))throw new Error('Invalid diagnostics.');data.diagnostics={browser:safeText(d,'browser',500),language:safeText(d,'language',40),viewport:safeText(d,'viewport',40)}}
     }catch(error){return res.status(400).json({message:error.message})}
     try{
