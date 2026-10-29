@@ -325,3 +325,14 @@ If you encounter issues:
 ## 📄 License
 
 This project is open source and available for personal and commercial use.
+
+
+## Public site roadmap
+
+The feature showcase is available at `/#/roadmap` and under **Tools → Site roadmap**. Visitors can read published entries without signing in. The board is global to the deployment; it is separate from private account data and is not erased by an individual workspace reset.
+
+To manage it, set `SITE_ROADMAP_EDITOR_EMAILS` in the backend environment to a comma-separated list of registered account email addresses, then restart the backend and sign in with an allowed account. Leave it empty to disable editing. Edit access is checked on the server for every write; changing client controls does not grant access.
+
+Editors can publish a title, description, category, status and featured flag; revise items; and remove entries after an inline confirmation. Status options are Considering, Planned, In progress and Shipped. All saved text is public immediately. Do not include secrets or private user information. Starter ideas shown to editors are unpublished form suggestions, not claims of work underway. Conflicting edits are rejected so an older copy cannot silently overwrite a newer revision.
+
+The board starts empty. Configure an editor, click **Add feature**, or choose a starter suggestion and review it before publishing. The implementation does not expose `ideas.txt`, collect public submissions or promise feature delivery dates.

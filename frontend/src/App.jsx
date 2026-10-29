@@ -1,3 +1,4 @@
+import SiteRoadmapPage from './components/SiteRoadmapPage'
 import TaskSchedule from './components/TaskSchedule'
 import PrivacyPage from './components/PrivacyPage'
 import TermsPage from './components/TermsPage'
@@ -66,7 +67,7 @@ function App() {
   const deletingTaskIds=useRef(new Set())
   const readPage = () => {
     const route = window.location.hash.replace(/^#\/?/, '').split('/')[0]
-    return ['home','study','tasks','calendar','documents','visualization','canvas','account','shortcuts','assistant','workspace','prep','analytics','terms','privacy',...HIDDEN_PAGES.map(item=>item.route),'resumes','jobs','cover-letters'].includes(route) ? route : 'home'
+    return ['home','study','tasks','calendar','documents','visualization','canvas','account','shortcuts','assistant','workspace','prep','analytics','terms','privacy','roadmap',...HIDDEN_PAGES.map(item=>item.route),'resumes','jobs','cover-letters'].includes(route) ? route : 'home'
   }
   const pendingLibraryTask = useRef(null)
   const [page, setPage] = useState(readPage)
@@ -1465,6 +1466,7 @@ function App() {
     )
   }
 
+  if(page==='roadmap'&&!isAuthenticated)return <div className="platform-viewport"><div className="app-shell"><SiteRoadmapPage signedIn={false}/></div></div>
   if(page==='privacy')return <PrivacyPage signedIn={isAuthenticated}/>
   if(page==='terms')return <TermsPage signedIn={isAuthenticated}/>
 
@@ -1477,7 +1479,7 @@ function App() {
       <div className="app-shell w-full max-w-[1440px] mx-auto">
         <AppNavigation page={page} user={user} onSignOut={logout}/>
         <GlobalSearch token={token} onChoose={openSearchResult}/>
-        {page!=='home'&&<div className="platform-page-title"><h1>{page==='analytics'?'Analytics':page==='handbook'?'Product handbook':page==='logbook'?'Update logbook':page==='prep'?'Prep':page==='study'?'Study stars':page==='workspace'?'Workspace':page==='tasks'?'Tasks':page==='calendar'?'Calendar':page==='documents'?'Document library':page==='jobs'?'Jobs':page==='cover-letters'?'Cover letters':page==='resumes'?'Resumes':page==='visualization'?'Task visualization':page==='canvas'?'Canvas integration':page==='account'?'Account':page==='assistant'?'AI assistant':'Keyboard shortcuts'}</h1><p>{page==='analytics'?'Storage, activity, progress and your complete account inventory.':page==='handbook'?'Feature instructions and technical reference.':page==='logbook'?'Numbered platform changes, fixes and implementation history.':page==='prep'?'Prepare your resumes, cover letters and interview answers in one place.':page==='study'?'Save questions and topics, review answers, and track what you have studied.':page==='cover-letters'?'Store cover letters for your applications and keep versions ready to edit or download.':page==='jobs'?'Save job links and details alongside your resumes.':page==='resumes'?'Upload and keep your resumes ready for your next opportunity.':page==='workspace'?'Build a personal workflow with tabs, tools, and movable windows.':page==='tasks'?'Plan your work and track progress.':page==='calendar'?'Plan deadlines, assignments, and personal events in one place.':page==='documents'?'Organize and edit your files.':page==='visualization'?'Explore relationships, deadlines, and progress across your workspace.':page==='canvas'?'Manage your course connection and imports.':page==='account'?'Review your profile and workspace activity.':page==='assistant'?'Think, write, learn, and work with your files in a dedicated conversation workspace.':'A searchable reference for navigation and actions.'}</p></div>}
+        {page!=='home'&&<div className="platform-page-title"><h1>{page==='roadmap'?'Site roadmap':page==='analytics'?'Analytics':page==='handbook'?'Product handbook':page==='logbook'?'Update logbook':page==='prep'?'Prep':page==='study'?'Study stars':page==='workspace'?'Workspace':page==='tasks'?'Tasks':page==='calendar'?'Calendar':page==='documents'?'Document library':page==='jobs'?'Jobs':page==='cover-letters'?'Cover letters':page==='resumes'?'Resumes':page==='visualization'?'Task visualization':page==='canvas'?'Canvas integration':page==='account'?'Account':page==='assistant'?'AI assistant':'Keyboard shortcuts'}</h1><p>{page==='roadmap'?'Explore ideas, planned improvements and features in progress.':page==='analytics'?'Storage, activity, progress and your complete account inventory.':page==='handbook'?'Feature instructions and technical reference.':page==='logbook'?'Numbered platform changes, fixes and implementation history.':page==='prep'?'Prepare your resumes, cover letters and interview answers in one place.':page==='study'?'Save questions and topics, review answers, and track what you have studied.':page==='cover-letters'?'Store cover letters for your applications and keep versions ready to edit or download.':page==='jobs'?'Save job links and details alongside your resumes.':page==='resumes'?'Upload and keep your resumes ready for your next opportunity.':page==='workspace'?'Build a personal workflow with tabs, tools, and movable windows.':page==='tasks'?'Plan your work and track progress.':page==='calendar'?'Plan deadlines, assignments, and personal events in one place.':page==='documents'?'Organize and edit your files.':page==='visualization'?'Explore relationships, deadlines, and progress across your workspace.':page==='canvas'?'Manage your course connection and imports.':page==='account'?'Review your profile and workspace activity.':page==='assistant'?'Think, write, learn, and work with your files in a dedicated conversation workspace.':'A searchable reference for navigation and actions.'}</p></div>}
         <InlineConfirmation {...taskConfirmation} reveal />
         <TaskDeletionUndo token={token} onRestored={()=>fetchTodos(false)}/>
         {page==='home'&&<HomePage user={user} token={token} tasks={todos} documents={pdfs} folders={folders} loading={loading} canvasStatus={canvasStatus} onNavigate={navigate} onOpenTask={task=>setSelectedTask(task)} onOpenDocument={setSelectedPDF} onOpenCalendar={entry=>{setAssistantCalendarId(entry._id);navigate('calendar')}} onNewTask={()=>{setSelectedFolder('all');navigate('tasks');setTimeout(()=>inputRef.current?.focus(),0)}} onUpload={()=>{setSelectedPDFFolder('all');setShowPDFUploadModal(true)}} onRefresh={()=>Promise.all([fetchTodos(false),fetchPDFs()])}/>}
@@ -1486,6 +1488,7 @@ function App() {
         {canvasNotice && <div role="status" className="calendar-feedback">{canvasNotice}<button onClick={()=>setCanvasNotice('')} aria-label="Dismiss Canvas sync notice"><X size={15}/></button></div>}
         {page==='cover-letters' && <CoverLettersPage token={token} documents={pdfs} onDocumentsChange={setPdfs} onOpen={setSelectedPDF}/>}
         {page==='jobs' && <JobsPage token={token} focusJobId={searchJobId} onJobFocused={()=>setSearchJobId(null)}/>}
+        {page==='roadmap' && <SiteRoadmapPage token={token}/>}
         {page==='analytics' && <AnalyticsPage token={token} onOpenDocument={setSelectedPDF}/>}
         {page==='handbook' && <HandbookPage token={token}/>}
         {page==='logbook' && <UpdateLogbookPage token={token}/>}
