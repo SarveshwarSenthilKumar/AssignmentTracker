@@ -336,3 +336,10 @@ To manage it, set `SITE_ROADMAP_EDITOR_EMAILS` in the backend environment to a c
 Editors can publish a title, description, category, status and featured flag; revise items; and remove entries after an inline confirmation. Status options are Considering, Planned, In progress and Shipped. All saved text is public immediately. Do not include secrets or private user information. Starter ideas shown to editors are unpublished form suggestions, not claims of work underway. Conflicting edits are rejected so an older copy cannot silently overwrite a newer revision.
 
 The board starts empty. Configure an editor, click **Add feature**, or choose a starter suggestion and review it before publishing. The implementation does not expose `ideas.txt`, collect public submissions or promise feature delivery dates.
+
+
+## Bug reports
+
+Signed-in users can open **Tools → Report a bug** or use the footer link to preselect the current section. Reports are account-owned, private to the reporter and authorized reviewers, and stored in MongoDB. Each report supports a section (including Miscellaneous), severity, description, reproduction steps, expected/actual behavior and optional browser diagnostics. The form does not send email or capture screenshots/page contents. Retrying an unchanged submission reuses its submission identifier to avoid duplicate records.
+
+Set `BUG_REPORT_EDITOR_EMAILS` to a comma-separated list of existing registered accounts that may review all reports. If unset, the roadmap editor list `SITE_ROADMAP_EDITOR_EMAILS` is used. Restart the backend after configuration. Reviewers can choose **All users’ reports**, filter the inbox, change status and leave a response visible to the reporter. Changing a client-side control cannot grant review access. Reporter identity is taken from the authenticated session, never a submitted user ID. Full workspace reset deletes that user’s reports; public roadmap items remain separate.

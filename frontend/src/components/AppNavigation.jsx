@@ -1,10 +1,10 @@
 import {useEffect,useId,useRef,useState} from 'react'
-import {Home,Layers,CheckSquare,CalendarDays,FolderOpen,Briefcase,FileText,Mail,Sparkles,Network,RefreshCw,Keyboard,Settings,LogOut,ChevronDown,ArrowUpRight,Menu,X,Command,Search,Star,BarChart3} from 'lucide-react'
+import {Home,Layers,CheckSquare,CalendarDays,FolderOpen,Briefcase,FileText,Mail,Sparkles,Network,RefreshCw,Keyboard,Settings,LogOut,ChevronDown,ArrowUpRight,Menu,X,Command,Search,Star,BarChart3,Bug} from 'lucide-react'
 import './AppNavigation.css'
 
 const primary=[['home','Home',Home],['workspace','Workspace',Layers],['tasks','Tasks',CheckSquare],['calendar','Calendar',CalendarDays],['documents','Documents',FolderOpen]]
 const career=[['prep','Prep',Briefcase,'Practice interviews and prepare application materials'],['resumes','Resumes',FileText,'Store and tailor your experience'],['cover-letters','Cover letters',Mail,'Write in your own voice'],['jobs','Saved jobs',Briefcase,'Keep opportunities in one place']]
-const tools=[['roadmap','Site roadmap',Layers,'Suggestions, planned features and work in progress'],['analytics','Analytics',BarChart3,'Storage, counts, activity and task health'],['study','Study stars',Star,'Review saved questions and topics'],['assistant','AI assistant',Sparkles,'Think, write and work with your files'],['visualization','Visualization',Network,'Explore tasks and connections'],['canvas','Canvas',RefreshCw,'Manage your course integration'],['shortcuts','Keyboard shortcuts',Keyboard,'Move around a little faster']]
+const tools=[['report-bug','Report a bug',Bug,'Send a section-specific issue report'],['roadmap','Site roadmap',Layers,'Suggestions, planned features and work in progress'],['analytics','Analytics',BarChart3,'Storage, counts, activity and task health'],['study','Study stars',Star,'Review saved questions and topics'],['assistant','AI assistant',Sparkles,'Think, write and work with your files'],['visualization','Visualization',Network,'Explore tasks and connections'],['canvas','Canvas',RefreshCw,'Manage your course integration'],['shortcuts','Keyboard shortcuts',Keyboard,'Move around a little faster']]
 const routes=[...primary,...career,...tools,['account','Account',Settings]]
 
 export default function AppNavigation({page,user,onSignOut}){
@@ -24,7 +24,7 @@ export default function AppNavigation({page,user,onSignOut}){
   const focusPanel=()=>requestAnimationFrame(()=>root.current?.querySelector('[data-nav-panel] a,[data-nav-panel] button')?.focus())
   const link=(item,details=false)=>{
     const [key,label,Icon,description]=item
-    return <a className={`an-link${details?' an-detail-link':''}`} href={`#/${key}`} key={key} aria-current={page===key?'page':undefined} onClick={()=>setOpen(null)}><Icon size={16}/><span><strong>{label}</strong>{details&&description&&<small>{description}</small>}</span>{details&&<ArrowUpRight size={13} className="an-link-arrow"/>}</a>
+    return <a className={`an-link${details?' an-detail-link':''}`} href={`#/${key}${key==='report-bug'?'/'+encodeURIComponent(page):''}`} key={key} aria-current={page===key?'page':undefined} onClick={()=>setOpen(null)}><Icon size={16}/><span><strong>{label}</strong>{details&&description&&<small>{description}</small>}</span>{details&&<ArrowUpRight size={13} className="an-link-arrow"/>}</a>
   }
   const group=(name,label,Icon,items)=>{
     const selected=items.some(item=>item[0]===page)

@@ -7,7 +7,7 @@ const sections=[
   ]],
   ['collected','Information stored in your account',[
     'Account information includes your username, email address, password hash and preferences such as time zone, display options, confirmation settings and AI access choices.',
-    'Workspace records may include tasks, descriptions, deadlines, dependencies, folders, uploaded files, original file backups, annotations, notes, calendar entries, document links, saved jobs, resume and cover-letter drafts, study stars, attendance logs and saved AI conversations.',
+    'Workspace records may include tasks, descriptions, deadlines, dependencies, folders, uploaded files, original file backups, annotations, notes, calendar entries, document links, saved jobs, resume and cover-letter drafts, study stars, attendance logs and saved AI conversations. Bug reports and reviewer responses are linked to the reporting account. Optional report diagnostics contain browser information, language and screen dimensions only when included by the user. Reports are accessible to their author and configured reviewers, rather than published on the public roadmap.',
     'Content you provide can contain personal information about you or other people. Include only information you are authorized to share and avoid unnecessary sensitive data.'
   ]],
   ['purposes','How information is used',[
