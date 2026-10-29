@@ -1,5 +1,5 @@
 import { activeTimeZone, zonedLocal, localToInstant } from './timeZone.js'
-export const CALENDAR_LABELS = { tasks: 'Task deadlines', canvas: 'Canvas & imports', txst: 'TXST events', appointment: 'Appointments', sports:'Sports events', marker: 'Date markers' }
+export const CALENDAR_LABELS = { tasks: 'Task deadlines', planned:'Scheduled tasks', canvas: 'Canvas & imports', txst: 'TXST events', appointment: 'Appointments', sports:'Sports events', marker: 'Date markers' }
 export const validDay = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(`${value}T12:00:00Z`)) && new Date(`${value}T12:00:00Z`).toISOString().slice(0,10) === value
 export function calendarDay(value) {
   if (value == null) return null
@@ -25,6 +25,7 @@ export const localDateTime = value => zonedLocal(value)
 export function calendarItems(tasks, entries, campusEvents = [], colors = {}) {
   const items = []
   for (const task of tasks) {
+    if(task.canvasType!=='calendar_event'&&validDay(task.scheduledDate))items.push({id:`planned:${task._id}`,title:task.text,source:'planned',kind:'work',startDate:task.scheduledDate,endDate:task.scheduledDate,allDay:true,startAt:null,endAt:null,done:task.status==='completed',notes:task.description||'',location:'',context:'Planned work · separate from deadline',task})
     if (!task.dueDate || !Number.isFinite(Date.parse(task.dueDate))) continue
     const event = task.canvasType === 'calendar_event', allDay = !!task.calendarAllDay
     const startDate = allDay && validDay(task.calendarDate) ? task.calendarDate : calendarDay(task.dueDate)

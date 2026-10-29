@@ -1,3 +1,4 @@
+import TaskSchedule from './components/TaskSchedule'
 import PrivacyPage from './components/PrivacyPage'
 import TermsPage from './components/TermsPage'
 import AnalyticsPage from './components/AnalyticsPage'
@@ -127,6 +128,7 @@ function App() {
   const [icsFile, setIcsFile] = useState(null)
   const [dueDate, setDueDate] = useState('')
   const [dueHasTime,setDueHasTime]=useState(false)
+  const [scheduledDay,setScheduledDay]=useState('')
   const [taskDatePrompt,setTaskDatePrompt]=useState(null),[creatingTask,setCreatingTask]=useState(false)
   const createTaskLock=useRef(false)
   const taskDatePromptRef=useRef(null)
@@ -135,7 +137,7 @@ function App() {
     const frame=requestAnimationFrame(()=>taskDatePromptRef.current?.querySelector('button:not(:disabled)')?.focus({preventScroll:true}))
     return()=>cancelAnimationFrame(frame)
   },[taskDatePrompt])
-  useEffect(()=>{setTaskDatePrompt(null)},[input,dueDate,dueHasTime,selectedFolder])
+  useEffect(()=>{setTaskDatePrompt(null)},[input,dueDate,dueHasTime,selectedFolder,scheduledDay])
   const [showCommandMenu, setShowCommandMenu] = useState(false)
   const [commandInput, setCommandInput] = useState('')
   const [commandNotice,setCommandNotice]=useState('')
@@ -412,19 +414,19 @@ function App() {
     try{
       const response=await fetch('/api/todos',{
         method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},
-        body:JSON.stringify({text:snapshot.text,folder:snapshot.folder,...taskDuePayload(date,time)})
+        body:JSON.stringify({text:snapshot.text,folder:snapshot.folder,scheduledDate:snapshot.scheduledDate||null,...taskDuePayload(date,time)})
       })
       const data=await readApiJson(response)
       if(!response.ok){if(data.message==='Invalid or expired token'){logout();return}throw new Error(data.message||data.error||'Could not create task.')}
       if(!data._id)throw new Error('The server did not confirm that the task was saved. Refresh your tasks before trying again.')
-      setTodos(previous=>[...previous,data]);setInput('');setDueDate('');setDueHasTime(false);setTaskDatePrompt(null)
+      setTodos(previous=>[...previous,data]);setInput('');setDueDate('');setDueHasTime(false);setScheduledDay('');setTaskDatePrompt(null)
     }catch(err){setError(err.message);setErrorDetails(err.stack||err.toString());setShowErrorDetails(false)}
     finally{createTaskLock.current=false;setCreatingTask(false)}
   }
   const addTodo=async e=>{
     e.preventDefault()
     if(!input.trim()||createTaskLock.current)return
-    const snapshot={text:input.trim(),folder:selectedFolder==='all'?null:selectedFolder}
+    const snapshot={text:input.trim(),folder:selectedFolder==='all'?null:selectedFolder,scheduledDate:scheduledDay}
     if(!dueDate){
       const suggestions=taskDateSuggestions(snapshot.text)
       if(suggestions.length){setTaskDatePrompt({...snapshot,suggestions});return}
@@ -765,7 +767,7 @@ function App() {
     const isExpanded = expandedTodos.has(todo._id)
     const isEditing = editingTodos.has(todo._id)
     const connections = dependencySummary(todo._id, todos)
-    const hasDetails = connections.prerequisites.length || connections.following.length || todo.description || (todo.links && todo.links.length > 0) || pdfs.some(file => !file.deletedAt && documentTaskIds(file).includes(todo._id))
+    const hasDetails = todo.scheduledDate || connections.prerequisites.length || connections.following.length || todo.description || (todo.links && todo.links.length > 0) || pdfs.some(file => !file.deletedAt && documentTaskIds(file).includes(todo._id))
     const folder = todo.folder ? folders.find(f => f._id === todo.folder) : null
 
     return (
@@ -845,6 +847,7 @@ function App() {
                 </button>
               )}
             </div>
+            {todo.scheduledDate&&!isEditing&&<p className="task-plan-badge">Do on: {dayLabel(todo.scheduledDate,{weekday:'short',month:'short',day:'numeric'})}</p>}
           </div>
 
           <div className="flex items-center gap-2">
@@ -956,6 +959,7 @@ function App() {
                 )}
               </>
             )}
+            {todo.canvasType!=='calendar_event'&&<TaskSchedule task={todo} token={token} onSaved={updated=>setTodos(previous=>previous.map(task=>task._id===updated._id?updated:task))}/>}
             <TaskDependencies taskId={todo._id} tasks={todos} token={token} onTasksChange={setTodos} onOpenTask={setSelectedTask} />
             <TaskAttachments taskId={todo._id} documents={pdfs} folders={pdfFolders} token={token} onDocumentsChange={setPdfs} onOpen={setSelectedPDF} onLibrary={() => { setSelectedPDFFolder('all'); navigate('documents') }} onInsert={isEditing ? reference => {
               const field = document.getElementById(`task-description-${todo._id}`)
@@ -1664,6 +1668,7 @@ function App() {
               placeholder={`Add task to ${selectedFolder === 'all' ? 'Inbox' : selectedFolder ? folders.find(f => f._id === selectedFolder)?.name : 'Inbox'}...`}
               className="flex-1 px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all focus: text-sm"
             />
+            <div className="task-due-input"><label htmlFor="task-scheduled-day">Do on (optional)</label><input id="task-scheduled-day" type="date" disabled={creatingTask} value={scheduledDay} onChange={event=>setScheduledDay(event.target.value)} className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white text-sm"/></div>
             <TaskDueInput disabled={creatingTask} value={dueDate} hasTime={dueHasTime} onChange={setDueDate} onModeChange={(hasTime,value)=>{setDueHasTime(hasTime);setDueDate(value)}}/>
             <button
               type="submit"
@@ -2025,7 +2030,7 @@ function App() {
               <AccountReset token={token} disabled={syncing || testing || !!selectedPDF} onReset={() => {
                 window.dispatchEvent(new CustomEvent('workspace-reset',{detail:user?.id}));setAssistantOpen(false);setAssistantGeneration(previous=>previous+1);setAssistantCalendarId(null)
                 try { pdfs.forEach(file => sessionStorage.removeItem(`document-draft:${file._id}`)) } catch { /* Storage may be unavailable. */ }
-                setTaskSearch('');setTaskSearchAll(true);setSortBy('dueDate');setSortOrder('asc');updatePreferences({taskSortBy:'dueDate',taskSortOrder:'asc'});setTodos([]); setFolders([]); setPdfs([]); setPdfFolders([])
+                setScheduledDay('');setTaskSearch('');setTaskSearchAll(true);setSortBy('dueDate');setSortOrder('asc');updatePreferences({taskSortBy:'dueDate',taskSortOrder:'asc'});setTodos([]); setFolders([]); setPdfs([]); setPdfFolders([])
                 setSelectedFolder(null); setSelectedPDFFolder('all'); setSelectedTask(null); setSelectedPDF(null)
                 setExpandedTodos(new Set()); setEditingTodos(new Set()); setEditData({}); editRefs.current = {}
                 setInput(''); setDueDate(''); setSortBy('createdAt'); setSortOrder('desc')
@@ -2216,6 +2221,7 @@ function App() {
                 <TaskAttachments key={selectedTask._id} taskId={selectedTask._id} documents={pdfs} folders={pdfFolders} token={token} onDocumentsChange={setPdfs} onOpen={setSelectedPDF} onLibrary={() => { setSelectedPDFFolder('all'); navigate('documents') }} />
               </div>
 
+              {selectedTask.canvasType!=='calendar_event'&&<TaskSchedule task={selectedTask} token={token} onSaved={updated=>{setTodos(previous=>previous.map(task=>task._id===updated._id?updated:task));setSelectedTask(updated)}}/>}
               {/* Due Date */}
               <div className="mb-6">
                 <label className="block text-slate-400 text-sm mb-2">Due Date</label>

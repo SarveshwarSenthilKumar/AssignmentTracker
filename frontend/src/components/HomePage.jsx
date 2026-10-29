@@ -33,7 +33,7 @@ export default function HomePage({user,token,tasks,documents,folders,loading,onN
   const agenda=itemsOnDay(events,selectedDay),week=Array.from({length:7},(_,index)=>shiftDay(today,index))
   const overdue=activeTasks.filter(task=>task.dueDate&&(task.calendarAllDay?(task.calendarAllDay&&task.calendarDate?task.calendarDate:calendarDay(task.dueDate))<today:Date.parse(task.dueDate)<now.getTime())).length
   const dueToday=activeTasks.filter(task=>(task.calendarAllDay&&task.calendarDate?task.calendarDate:calendarDay(task.dueDate))===today).length
-  const eventCount=events.filter(item=>item.kind!=='deadline'&&item.startDate<=shiftDay(today,6)&&item.endDate>=today).length
+  const eventCount=events.filter(item=>item.kind!=='deadline'&&item.kind!=='work'&&item.startDate<=shiftDay(today,6)&&item.endDate>=today).length
   const completed=taskRecords.length-activeTasks.length,progress=taskRecords.length?Math.round(completed/taskRecords.length*100):0
   const firstName=(user?.name||user?.username||'').trim().split(/\s+/)[0]
   const hour=Number(new Intl.DateTimeFormat('en',{timeZone:zone,hour:'numeric',hourCycle:'h23'}).format(now))

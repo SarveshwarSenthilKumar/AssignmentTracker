@@ -1,3 +1,4 @@
+const taskSchedule=require('./taskSchedule');
 const taskDueDate=require('./taskDueDate');
 const {registerAIAccess,category:aiFileCategory,restrictRequest:restrictAIRequest,restrictContext:restrictAIContext}=require('./aiAccess');
 const {extractEditorActions}=require('./assistantEditor');
@@ -136,6 +137,7 @@ const Folder = mongoose.model('Folder', folderSchema);
 // Todo Schema
 const todoSchema = new mongoose.Schema({
   manualOrder: { type: Number, default: null },
+  scheduledDate:{type:String,default:null},
   text: {
     type: String,
     required: true,
@@ -517,7 +519,7 @@ app.post('/api/assistant/chat', authenticateToken, async (req, res) => {
     if (request.includeWorkspace) {
       const owner = { user: userId }, active = { user: userId, deletedAt: null };
       const results = await Promise.all([
-        Todo.find(owner).select('text description status dueDate folder dependsOn links calendarDate calendarAllDay calendarEndDate calendarLastDate calendarLocation calendarContext').sort({updatedAt:-1,createdAt:-1}).limit(250).lean(),
+        Todo.find(owner).select('text description status dueDate scheduledDate folder dependsOn links calendarDate calendarAllDay calendarEndDate calendarLastDate calendarLocation calendarContext').sort({updatedAt:-1,createdAt:-1}).limit(250).lean(),
         CalendarEntry.find(owner).sort({updatedAt:-1}).limit(250).lean(),
         PDF.find(active).select('name originalName mimeType pdfFolder taskIds todo updatedAt tags').sort({updatedAt:-1}).limit(200).lean(),
         Folder.find(owner).select('name').limit(100).lean(), PDFFolder.find(owner).select('name').limit(100).lean(),
@@ -703,7 +705,8 @@ app.post('/api/todos', authenticateToken, async (req, res) => {
     if (!text) {
       return res.status(400).json({ message: 'Text is required' });
     }
-    const todo = new Todo({ text, folder, user: req.user.userId, ...deadline });
+    let scheduledDate=null;try{if(req.body.scheduledDate!==undefined)scheduledDate=taskSchedule(req.body.scheduledDate)}catch(error){return res.status(400).json({message:error.message})}
+    const todo = new Todo({ text, folder, user: req.user.userId, ...deadline,scheduledDate });
     await todo.save();
     res.status(201).json(todo);
   } catch (error) {
@@ -745,6 +748,7 @@ app.put('/api/todos/:id', authenticateToken, async (req, res) => {
   try {
     const { status, description, links, text, dueDate } = req.body;
     const updateData = {};
+    if(req.body.scheduledDate!==undefined){try{updateData.scheduledDate=taskSchedule(req.body.scheduledDate)}catch(error){return res.status(400).json({message:error.message})}}
     if (status !== undefined) {
       updateData.status = status;
       // Set completedAt when status changes to 'completed', clear it otherwise

@@ -9,7 +9,7 @@ function registerCalendarColors(app,auth,{User,Todo,CalendarEntry,history}){
   });
   app.put('/api/calendar/colors',auth,async(req,res)=>{
     const {id,color}=req.body||{};
-    if(typeof id!=='string'||!/^(?:txst:[\w-]{1,100}|(?:task|entry):[a-f\d]{24})$/.test(id))return res.status(400).json({message:'Choose a valid calendar item.'});
+    if(typeof id!=='string'||!/^(?:txst:[\w-]{1,100}|(?:task|planned|entry):[a-f\d]{24})$/.test(id))return res.status(400).json({message:'Choose a valid calendar item.'});
     if(color!==null&&(typeof color!=='string'||!/^#[a-f\d]{6}$/i.test(color)))return res.status(400).json({message:'Choose a valid color.'});
     try{
       const [kind,recordId]=id.split(':');
