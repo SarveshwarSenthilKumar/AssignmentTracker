@@ -126,6 +126,7 @@ export default function Auth() {
               )}
             </button>
           </form>
+          <p className="auth-terms-link"><a href="#/terms">Terms and Conditions</a></p>
 
           <div className="mt-6 text-center">
             <button
