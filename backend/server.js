@@ -321,7 +321,7 @@ const authenticateToken = (req, res, next) => {
       const account=await User.findById(user.userId).select('termsAcceptance privacyAcceptance').lean();
       if(!account)return res.status(401).json({message:'Account not found. Sign in again.'});
       req.policyCurrent=account.termsAcceptance?.version===TERMS_VERSION&&account.privacyAcceptance?.version===PRIVACY_VERSION;
-      if(!req.policyCurrent&&!['/api/account/policies','/api/account/policies/accept'].includes(req.originalUrl.split('?')[0]))return res.status(428).json({code:'POLICY_ACCEPTANCE_REQUIRED',message:'Our Terms and Conditions or Privacy Policy have changed. Review and accept both before continuing.'});
+      if(!req.policyCurrent&&!['/api/account/policies','/api/account/policies/accept','/api/account/policies/contact'].includes(req.originalUrl.split('?')[0]))return res.status(428).json({code:'POLICY_ACCEPTANCE_REQUIRED',message:'Our Terms and Conditions or Privacy Policy have changed. Review and accept both before continuing.'});
     }catch{return res.status(503).json({message:'Could not verify policy acceptance. Try again shortly.'});}
     if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
       const id = String(user.userId);
@@ -345,6 +345,21 @@ const authenticateToken = (req, res, next) => {
 app.get('/api/account/policies',authenticateToken,(req,res)=>{
   res.set('Cache-Control','no-store');
   res.json({required:!req.policyCurrent,termsVersion:TERMS_VERSION,privacyVersion:PRIVACY_VERSION});
+});
+app.post('/api/account/policies/contact',authenticateToken,async(req,res)=>{
+  res.set('Cache-Control','no-store');
+  try{
+    const message=req.body.message;
+    if(typeof message!=='string'||!message.trim()||message.length>6000)return res.status(400).json({message:'Enter a message of up to 6,000 characters.'});
+    const contactEmail=require('./feedbackContactEmail')(req.body.contactEmail);
+    if(typeof req.body.submissionId!=='string'||!/^[a-f\d-]{36}$/i.test(req.body.submissionId))return res.status(400).json({message:'Invalid submission identifier. Reload and try again.'});
+    const Report=mongoose.models.BugReport;
+    const existing=await Report.findOne({user:req.user.userId,submissionId:req.body.submissionId}).select('_id');
+    if(existing)return res.json({id:existing._id});
+    if(await Report.countDocuments({user:req.user.userId,createdAt:{$gte:new Date(Date.now()-3600000)}})>=10)return res.status(429).json({message:'Please wait before sending more messages.'});
+    const record=await Report.create({user:req.user.userId,submissionId:req.body.submissionId,contactEmail,section:'Account',severity:'normal',title:'Policy review question',description:message.trim()});
+    res.status(201).json({id:record._id});
+  }catch(error){res.status(400).json({message:error.message==='Enter a valid contact email or leave it blank.'?error.message:'Could not save your message. Please retry.'});}
 });
 app.post('/api/account/policies/accept',authenticateToken,async(req,res)=>{
   res.set('Cache-Control','no-store');

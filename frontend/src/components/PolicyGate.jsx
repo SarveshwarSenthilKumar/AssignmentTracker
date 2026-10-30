@@ -6,6 +6,7 @@ import {readApiJson} from '../lib/apiResponse'
 import {ShieldCheck,FileText,ArrowUpRight,ArrowRight,LogOut,Loader2} from 'lucide-react'
 import {LEGAL_UPDATED_DATE} from '../lib/legalPolicy'
 import './TermsPage.css'
+import PolicySupport from './PolicySupport'
 
 export default function PolicyGate({token,onSignOut,children}){
   const [status,setStatus]=useState(null),[error,setError]=useState(''),[busy,setBusy]=useState(false)
@@ -50,6 +51,7 @@ export default function PolicyGate({token,onSignOut,children}){
       <a className="policy-document-card" href="#/terms"><FileText size={24}/><span><strong>Terms and Conditions</strong><small>Platform use, AI features and your responsibilities</small><em>Version {TERMS_VERSION} · Read document</em></span><ArrowUpRight size={20}/></a>
       <a className="policy-document-card" href="#/privacy"><ShieldCheck size={24}/><span><strong>Privacy Policy</strong><small>Your data, documents, AI processing and controls</small><em>Version {PRIVACY_VERSION} · Read document</em></span><ArrowUpRight size={20}/></a>
       <div className="policy-explanation"><ShieldCheck size={18}/><p>These policies cover extensive AI processing of personal data and documents, external providers, retention and your available controls.</p></div>
+      <PolicySupport token={token}/>
     </section><section className="policy-agreement" aria-labelledby="policy-agreement-heading"><span className="policy-eyebrow">REQUIRED TO CONTINUE</span><h2 id="policy-agreement-heading">Confirm your agreement</h2><p className="policy-caption">Workspace access is paused until you accept both current documents. You can sign out at any time.</p>
     {!status&&!error&&<p role="status">Checking policy versions…</p>}
     {error&&<p role="alert">{error} <button type="button" onClick={()=>setRevision(value=>value+1)}>Retry</button></p>}
