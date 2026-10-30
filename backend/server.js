@@ -2,7 +2,7 @@ const taskSchedule=require('./taskSchedule');
 const taskDueDate=require('./taskDueDate');
 const {registerAIAccess,category:aiFileCategory,restrictRequest:restrictAIRequest,restrictContext:restrictAIContext}=require('./aiAccess');
 const {extractEditorActions}=require('./assistantEditor');
-require('dotenv').config();
+require('dotenv').config({path:require('node:path').join(__dirname,'.env')});
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -1515,6 +1515,12 @@ app.use((error, req, res, next) => {
   next(error);
 });
 
+require('./accountAnalytics')(app,authenticateToken,mongoose);
+require('./siteRoadmap')(app,authenticateToken,mongoose);
+require('./bugReports')(app,authenticateToken,mongoose);
+require('./featureSuggestions')(app,authenticateToken,mongoose);
+require('./adminPortal')(app,authenticateToken,mongoose);
+
 app.use('/api', (req,res)=>res.status(404).json({message:'API endpoint not found. Restart or redeploy the backend after updating the app.'}));
 app.use((error,req,res,next)=>{
   if(res.headersSent)return next(error);
@@ -1522,10 +1528,10 @@ app.use((error,req,res,next)=>{
   res.status(status>=400&&status<=599?status:500).json({message:error.type==='entity.parse.failed'?'The request body is not valid JSON.':'The API could not complete this request. Check the backend logs and try again.'});
 });
 
-require('./accountAnalytics')(app,authenticateToken,mongoose);
-require('./siteRoadmap')(app,authenticateToken,mongoose);
-require('./bugReports')(app,authenticateToken,mongoose);
-require('./featureSuggestions')(app,authenticateToken,mongoose);
-require('./adminPortal')(app,authenticateToken,mongoose);
-
-app.listen(PORT);
+app.listen(PORT).on('error',error=>{
+  process.stderr.write(error.code==='EADDRINUSE'
+    ? `Backend port ${PORT} is already in use. Stop the other backend before restarting, or configure another PORT and matching API_PROXY_TARGET.\n`
+    : `Backend could not listen (${error.code || 'startup error'}). Check the configured PORT.\n`);
+  process.exitCode=1;
+  mongoose.disconnect().finally(()=>process.exit(1));
+});

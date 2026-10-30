@@ -22,6 +22,20 @@ A modern, full-stack todo application built with React, Express, MongoDB, and Ta
 
 ## 🛠️ Local Development Setup
 
+### Start both services together
+
+After installing dependencies in both `backend` and `frontend` and configuring
+`backend/.env`, run `npm run dev` from `frontend`. This starts the backend with
+automatic restart and the Vite frontend together. Stop any separately running
+backend first to avoid a port conflict. Ctrl+C stops both services.
+
+The API proxy uses `127.0.0.1` and the backend's configured `PORT` (5000 by
+default). An explicit `API_PROXY_TARGET` overrides that address. If you prefer
+separate terminals using the instructions below, start the backend there and
+use `npm run dev:frontend` instead of `npm run dev` in the frontend terminal.
+`ECONNREFUSED` means no backend is accepting the proxy connection; check the
+backend startup output rather than changing document or folder records.
+
 ### Step 1: Clone the Repository
 
 ```bash
@@ -95,7 +109,7 @@ npm install
 
 2. **Start Frontend Server**
    ```bash
-   npm run dev
+   npm run dev:frontend
    ```
    Frontend will run on `http://localhost:3000`
 
