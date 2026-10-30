@@ -2,7 +2,7 @@ const contactEmail=require('./feedbackContactEmail');
 module.exports=(app,auth,mongoose)=>{
   const sections=['Home','Tasks','Calendar','Documents','PDF editor','Notes','AI assistant','Study phone','Workspace','Visualization','Career prep','Resumes','Cover letters','Saved jobs','Study stars','Analytics','Account','Site roadmap','Feature suggestions','Bug reports','Miscellaneous'];
   const statuses=['open','in-review','fixed','closed'],severities=['minor','normal','major','blocking'];
-  const schema=new mongoose.Schema({user:{type:mongoose.Schema.Types.ObjectId,ref:'User',required:true,index:true},submissionId:{type:String,required:true},contactEmail:{type:String,default:'',maxlength:254},section:{type:String,enum:sections},severity:{type:String,enum:severities},title:String,description:String,steps:String,expected:String,actual:String,diagnostics:mongoose.Schema.Types.Mixed,status:{type:String,enum:statuses,default:'open'},response:{type:String,default:''},revision:{type:Number,default:0}},{timestamps:true});
+  const schema=new mongoose.Schema({user:{type:mongoose.Schema.Types.ObjectId,ref:'User',required:true,index:true},submissionId:{type:String,required:true},source:{type:String},contactEmail:{type:String,default:'',maxlength:254},section:{type:String,enum:sections},severity:{type:String,enum:severities},title:String,description:String,steps:String,expected:String,actual:String,diagnostics:mongoose.Schema.Types.Mixed,status:{type:String,enum:statuses,default:'open'},response:{type:String,default:''},revision:{type:Number,default:0}},{timestamps:true});
   schema.index({user:1,submissionId:1},{unique:true});schema.index({user:1,createdAt:-1});
   const Report=mongoose.models.BugReport||mongoose.model('BugReport',schema);
   const reviewer=async id=>(await require('./adminAccess')(mongoose,id)).bugs;
@@ -12,6 +12,7 @@ module.exports=(app,auth,mongoose)=>{
     try{
       const canReview=await reviewer(req.user.userId),all=req.query.scope==='all';if(all&&!canReview)return res.status(403).json({message:'Only configured reviewers can view other users’ reports.'});
       const filter=all?{}:{user:req.user.userId};
+      if(req.query.kind==='contact')filter.$or=[{source:'policy-contact'},{source:{$exists:false},section:'Account',title:'Policy review question'}];
       if(req.query.status){if(!statuses.includes(req.query.status))return res.status(400).json({message:'Invalid report status.'});filter.status=req.query.status}
       if(req.query.section){if(!sections.includes(req.query.section))return res.status(400).json({message:'Invalid report section.'});filter.section=req.query.section}
       const total=await Report.countDocuments(filter);
@@ -43,3 +44,4 @@ module.exports=(app,auth,mongoose)=>{
     }catch{res.status(500).json({message:'Could not update this report.'})}
   });
 };
+

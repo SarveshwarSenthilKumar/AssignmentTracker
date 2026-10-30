@@ -357,7 +357,7 @@ app.post('/api/account/policies/contact',authenticateToken,async(req,res)=>{
     const existing=await Report.findOne({user:req.user.userId,submissionId:req.body.submissionId}).select('_id');
     if(existing)return res.json({id:existing._id});
     if(await Report.countDocuments({user:req.user.userId,createdAt:{$gte:new Date(Date.now()-3600000)}})>=10)return res.status(429).json({message:'Please wait before sending more messages.'});
-    const record=await Report.create({user:req.user.userId,submissionId:req.body.submissionId,contactEmail,section:'Account',severity:'normal',title:'Policy review question',description:message.trim()});
+    const record=await Report.create({user:req.user.userId,submissionId:req.body.submissionId,contactEmail,source:'policy-contact',section:'Account',severity:'normal',title:'Policy review question',description:message.trim()});
     res.status(201).json({id:record._id});
   }catch(error){res.status(400).json({message:error.message==='Enter a valid contact email or leave it blank.'?error.message:'Could not save your message. Please retry.'});}
 });
@@ -1577,3 +1577,4 @@ app.listen(PORT,()=>{
   process.exitCode=1;
   mongoose.disconnect().finally(()=>process.exit(1));
 });
+
