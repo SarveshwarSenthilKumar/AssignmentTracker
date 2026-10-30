@@ -3,10 +3,11 @@ import ResumeQuiz from './ResumeQuiz'
 import ResumesPage from './ResumesPage'
 import CoverLettersPage from './CoverLettersPage'
 import JobsPage from './JobsPage'
+import StudyPage from './StudyPage'
 import './ResumesPage.css'
 import './PrepPage.css'
 
-const tabs=[['practice','Interview practice','Quiz yourself on a resume or project with hints and answer feedback.'],['resumes','Resumes & templates','Choose a layout, build a resume, or tailor an existing version.'],['letters','Cover letters','Prepare and refine letters using your existing documents.'],['jobs','Saved jobs','Keep target roles and job requirements ready for preparation.']]
+const tabs=[['practice','Interview practice','Quiz yourself on a resume or project with hints and answer feedback.'],['questions','Question bank','Save your own questions, answers and notes by subject.'],['resumes','Resumes & templates','Choose a layout, build a resume, or tailor an existing version.'],['letters','Cover letters','Prepare and refine letters using your existing documents.'],['jobs','Saved jobs','Keep target roles and job requirements ready for preparation.']]
 
 export default function PrepPage({token,documents,onDocumentsChange,onOpen}){
   const [active,setActive]=useState('practice'),[visited,setVisited]=useState(['practice'])
@@ -19,6 +20,7 @@ export default function PrepPage({token,documents,onDocumentsChange,onOpen}){
       {id==='resumes'&&<ResumesPage token={token} documents={documents} onDocumentsChange={onDocumentsChange} onOpen={onOpen}/>}
       {id==='letters'&&<CoverLettersPage token={token} documents={documents} onDocumentsChange={onDocumentsChange} onOpen={onOpen}/>}
       {id==='jobs'&&<JobsPage token={token}/>}
+      {id==='questions'&&<StudyPage token={token} questionsOnly/>}
     </section>)}
   </section>
 }

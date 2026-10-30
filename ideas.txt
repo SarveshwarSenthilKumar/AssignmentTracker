@@ -59,6 +59,9 @@ update terms and conditions
 update private policy
 optimize for various screens continuously
 create advanced analytics for admins
+add cold email generator with research
+add question bank and answers
+add answer questions with my answer research
 
 add favicon.ico for all pages
 add number line detection and fix
