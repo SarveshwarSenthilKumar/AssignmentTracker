@@ -45,7 +45,7 @@ mongoose.connect(process.env.MONGODB_URI)
   .catch(() => undefined);
 
 // User Schema
-const TERMS_VERSION='1.3';
+const TERMS_VERSION='1.4';
 const userSchema = new mongoose.Schema({
   termsAcceptance:{version:String,acceptedAt:Date,method:String},
   socialConnections: { type: mongoose.Schema.Types.Mixed, select: false, default: ()=>({}) },
