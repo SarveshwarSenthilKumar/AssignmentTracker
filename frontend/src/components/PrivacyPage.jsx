@@ -1,7 +1,9 @@
 import './TermsPage.css'
 import { PRIVACY_VERSION, LEGAL_UPDATED_DATE } from '../lib/legalPolicy'
+import { THIRD_PARTY_DISCLOSURES } from '../lib/legalThirdParties'
 
 const sections=[
+  ['providers','Named third parties and connections',THIRD_PARTY_DISCLOSURES],
   ['scope','Who this policy covers',[
     'This draft describes data handling implemented in Assignment Tracker, including its academic tools, career preparation features and optional desktop study phone. It applies to this platform, not to external websites or independent AI and integration providers.',
     'The operator’s legal identity, privacy contact, hosting locations, provider list and retention schedule must be finalized for the actual deployment. This is an informational draft, not a claim that every legal requirement or hosting practice has been verified.'

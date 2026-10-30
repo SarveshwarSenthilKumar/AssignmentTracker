@@ -1,8 +1,10 @@
 import './TermsPage.css'
 import { TERMS_VERSION, LEGAL_UPDATED_DATE } from '../lib/legalPolicy'
+import { THIRD_PARTY_DISCLOSURES } from '../lib/legalThirdParties'
 export { TERMS_VERSION } from '../lib/legalPolicy'
 
 const sections=[
+  ['providers','Named third parties and connections',THIRD_PARTY_DISCLOSURES],
   ['service','About the platform',[
     'Assignment Tracker provides tools for organizing tasks, documents, calendars, study material, job applications and interview preparation. Features may include AI assistance, third-party integrations and an optional desktop study-phone browser.',
     'These draft terms describe the intended conditions of use. The platform operator and deployment-specific contact details must be finalized before these terms are adopted for a public service. Reading this page alone does not record agreement. Creating an account requires the separate review and agreement controls on the signup form.'
