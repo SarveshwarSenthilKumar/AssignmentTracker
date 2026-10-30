@@ -653,6 +653,11 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     if(lineSuggestion&&!drawingPaths.some(item=>item.id===lineSuggestion.id&&item.points===lineSuggestion.snapped))setLineSuggestion(null)
   },[drawingPaths,lineSuggestion])
   useEffect(()=>setLineSuggestion(null),[pdfId,pageNumber])
+  useEffect(()=>{
+    if(!lineSuggestion)return
+    const timer=window.setTimeout(()=>setLineSuggestion(null),15000)
+    return()=>window.clearTimeout(timer)
+  },[lineSuggestion])
 
   const bumpHistory = useCallback(() => {
     setHistoryCount({ undo: undoStack.current.length, redo: redoStack.current.length })
