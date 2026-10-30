@@ -653,6 +653,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     if(lineSuggestion&&!drawingPaths.some(item=>item.id===lineSuggestion.id&&item.points===lineSuggestion.snapped))setLineSuggestion(null)
   },[drawingPaths,lineSuggestion])
   useEffect(()=>setLineSuggestion(null),[pdfId,pageNumber])
+  useEffect(()=>{if(!autoStraightLines)setLineSuggestion(null)},[autoStraightLines])
   useEffect(()=>{
     if(!lineSuggestion)return
     const timer=window.setTimeout(()=>setLineSuggestion(null),15000)
