@@ -60,4 +60,12 @@ update private policy
 optimize for various screens continuously
 create advanced analytics for admins
 
+add favicon.ico for all pages
+add number line detection and fix
+add number line generation
+add group editing for group projects
+get rid of straight line undo warning after 20 secs
+add ability to generate dotted lines
+add detect ability for dotted lines
+
 add ability to add sports events to calendar including f1
