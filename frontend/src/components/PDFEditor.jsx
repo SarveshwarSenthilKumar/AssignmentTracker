@@ -4,6 +4,7 @@ import PDFInkLayer, { PDFLiveInk } from './PDFInkLayer'
 import { serializeAnnotations } from '../lib/annotationSerializer'
 import PDFEditorChrome from './PDFEditorChrome'
 import { straightenStroke } from '../lib/pdfStraightLine'
+import { detectDottedLine } from '../lib/pdfDottedLine'
 import { existingTextRuns, makeSourceReplacement } from '../lib/pdfExistingText'
 import { registerEditor } from '../lib/editorBridge'
 import { pageFontPrograms, fontKey, standardTextFont, replacementCss, loadPageFontStyles } from '../lib/pdfTextStyle'
@@ -477,6 +478,8 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const [currentTool, setCurrentTool] = useState('text')
   const [autoStraightLines,setAutoStraightLines]=useState(()=>{try{return localStorage.getItem('pdf-auto-straight-lines')!=='false'}catch{return true}})
   const [lineSuggestion,setLineSuggestion]=useState(null)
+  const [autoDottedLines,setAutoDottedLines]=useState(()=>{try{return localStorage.getItem('pdf-auto-dotted-lines')!=='false'}catch{return true}})
+  useEffect(()=>{try{localStorage.setItem('pdf-auto-dotted-lines',String(autoDottedLines))}catch{}},[autoDottedLines])
   const [lineUndoTimer,setLineUndoTimer]=useState(()=>{try{return localStorage.getItem('pdf-line-undo-timer')!=='false'}catch{return true}})
   useEffect(()=>{try{localStorage.setItem('pdf-line-undo-timer',String(lineUndoTimer))}catch{}},[lineUndoTimer])
   useEffect(()=>{try{localStorage.setItem('pdf-auto-straight-lines',String(autoStraightLines))}catch{}},[autoStraightLines])
@@ -652,10 +655,13 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   }, [])
 
   useEffect(()=>{
-    if(lineSuggestion&&!drawingPaths.some(item=>item.id===lineSuggestion.id&&item.points===lineSuggestion.snapped))setLineSuggestion(null)
+    if(lineSuggestion?.dots){
+      if(!lineSuggestion.dots.every(({replacement})=>drawingPaths.some(item=>item.id===replacement.id&&item.points===replacement.points)))setLineSuggestion(null)
+    }else if(lineSuggestion&&!drawingPaths.some(item=>item.id===lineSuggestion.id&&item.points===lineSuggestion.snapped))setLineSuggestion(null)
   },[drawingPaths,lineSuggestion])
   useEffect(()=>setLineSuggestion(null),[pdfId,pageNumber])
   useEffect(()=>{if(!autoStraightLines)setLineSuggestion(null)},[autoStraightLines])
+  useEffect(()=>{if(!autoDottedLines)setLineSuggestion(previous=>previous?.dots?null:previous)},[autoDottedLines])
   useEffect(()=>{
     if(!lineSuggestion||!lineUndoTimer)return
     const timer=window.setTimeout(()=>setLineSuggestion(null),15000)
@@ -1305,8 +1311,15 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     setCurrentPath([])
     if(e.type==='pointercancel')return
     if (!points.length) return
-    const item={id:uid(),points,color:currentColor,strokeWidth:currentTool==='highlighter'?strokeWidth*3:strokeWidth,tool:currentTool,page:pageNumber}
+    const item={id:uid(),points,color:currentColor,strokeWidth:currentTool==='highlighter'?strokeWidth*3:strokeWidth,tool:currentTool,page:pageNumber,inkCreatedAt:Date.now()}
     pushHistory();updatePaths(previous=>[...previous,item])
+    const dots=autoDottedLines&&currentTool==='pen'?detectDottedLine(pathsRef.current,scale):null
+    if(dots){
+      const replacements=new Map(dots.map(dot=>[dot.original.id,dot.replacement]))
+      pushHistory();updatePaths(previous=>previous.map(stroke=>replacements.get(stroke.id)||stroke))
+      setLineSuggestion({dots})
+      return
+    }
     const snapped=autoStraightLines&&currentTool==='pen'?straightenStroke(points,scale):null
     if(snapped){
       // Keep the freehand version as a distinct history step: Ctrl+Z first
@@ -1319,6 +1332,12 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const revertStraightLine=()=>{
     const suggestion=lineSuggestion
     setLineSuggestion(null)
+    if(suggestion?.dots){
+      if(!suggestion.dots.every(({replacement})=>pathsRef.current.some(item=>item.id===replacement.id&&item.points===replacement.points)))return
+      const originals=new Map(suggestion.dots.map(dot=>[dot.original.id,dot.original]))
+      pushHistory();updatePaths(previous=>previous.map(item=>originals.get(item.id)||item))
+      return
+    }
     if(!suggestion||!pathsRef.current.some(item=>item.id===suggestion.id&&item.points===suggestion.snapped))return
     pushHistory();updatePaths(previous=>previous.map(item=>item.id===suggestion.id?{...item,points:suggestion.original,straightLine:false}:item))
   }
@@ -1926,7 +1945,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
 
       <PDFEditorChrome
         doc={{name:pdfData?.name,exportImage,saveStatus,history:historyCount,onUndo:undo,onRedo:redo,onSave:handleSave,onDownload:handleDownload,downloading,onCleanCopy:onCleanCopy?handleCleanCopy:null,copying:copyingClean,onClose:handleClose,copyParagraphs,onCopyParagraphs:setCopyParagraphs,onCleanup:exportImage?null:()=>{commitText();setCurrentTool('text');setShowCalculator(false);setShowGraph(false);setShowCleanup(true)}}}
-        tools={{lineUndoTimer,onLineUndoTimer:()=>setLineUndoTimer(previous=>!previous),autoStraightLines,onAutoStraightLines:()=>setAutoStraightLines(previous=>!previous),current:currentTool,onTool:tool=>{commitText();setCurrentTool(tool)},color:currentColor,onColor:handleColorChange,colors:COLORS,colorNames:COLOR_NAMES,fontSize,onFontSize:handleFontSizeChange,strokeWidth,onWidth:setStrokeWidth,usePressure,onPressure:()=>setUsePressure(previous=>!previous),eraser:{mode:eraserMode,onMode:setEraserMode,size:eraserSize,onSize:setEraserSize,shape:eraserShape,onShape:setEraserShape,target:eraserTarget,onTarget:setEraserTarget}}}
+        tools={{autoDottedLines,onAutoDottedLines:()=>setAutoDottedLines(previous=>!previous),lineUndoTimer,onLineUndoTimer:()=>setLineUndoTimer(previous=>!previous),autoStraightLines,onAutoStraightLines:()=>setAutoStraightLines(previous=>!previous),current:currentTool,onTool:tool=>{commitText();setCurrentTool(tool)},color:currentColor,onColor:handleColorChange,colors:COLORS,colorNames:COLOR_NAMES,fontSize,onFontSize:handleFontSizeChange,strokeWidth,onWidth:setStrokeWidth,usePressure,onPressure:()=>setUsePressure(previous=>!previous),eraser:{mode:eraserMode,onMode:setEraserMode,size:eraserSize,onSize:setEraserSize,shape:eraserShape,onShape:setEraserShape,target:eraserTarget,onTarget:setEraserTarget}}}
         pages={{count:numPages,current:pageNumber,showThumbnails:showPages,onToggleThumbnails:()=>{if(focusMode){exitFocusMode();setShowPages(true)}else setShowPages(previous=>!previous)},onNavigate:goToPage,onAddBlank:()=>handleAddPages({mode:'blank',placement:'after'}),onDelete:()=>handleDeletePage(),busy:deletingPage||inserting,canAdd:!!numPages&&!!pageBase&&pageBase.page===pageNumber&&!loading&&!deletingPage&&!inserting}}
         view={{toolbarPosition,onToolbarPosition:setToolbarPosition,scale,onZoomIn:handleZoomIn,onZoomOut:handleZoomOut,onFit:handleFitWidth,onRotate:handleRotate,dark:darkPages,onDark:()=>setDarkPages(previous=>!previous),continuous:continuousView,onContinuous:()=>{handleTextDragEnd();commitText();setContinuousView(previous=>!previous)},reference:showReference,onReference:toggleReference,focus:focusMode,onFocus:enterFocusMode,onExitFocus:exitFocusMode}}
         utilities={{timer:showTimer,onTimer:setShowTimer,stopwatch:showStopwatch,onStopwatch:setShowStopwatch,clock:showClock,onGraph:()=>{commitText();setCurrentTool('graph');setShowGraph(true);setShowCalculator(false)},calculator:showCalculator,onCalculator:()=>{commitText();setShowGraph(false);setShowCalculator(previous=>!previous)},onScanFunction:()=>{commitText();setCurrentTool('function');setShowCalculator(true);setShowGraph(false)},onCalculate:()=>{commitText();setCurrentTool('calculate')},recognition:calculationMode,onRecognition:setCalculationMode,snippetReady:!!snippet,copying:copyingSnippet,onCopyRegion:()=>{commitText();setCurrentTool('snippet')},onPaste:pasteSnippet,canPaste:!!snippet&&!!pageBase&&pageBase.page===pageNumber&&!inserting&&!deletingPage,onStylus:()=>setShowStylusStudio(true),onSettings:()=>setShowSettings(previous=>!previous),settingsOpen:showSettings,assistantOpen,onAssistant:onToggleAssistant}}
@@ -1934,7 +1953,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         insert={<InsertPanel onPages={exportImage?undefined:handleAddPages} pageNumber={pageNumber} onFiles={insertFiles} onInsert={insertGenerated} color={currentColor} busy={inserting||!pageBase||pageBase.page!==pageNumber||deletingPage}/>}
       />
 
-      {lineSuggestion&&<div className="pdf-line-suggestion" role="status" aria-live="polite"><span>Straight line detected</span><button type="button" onClick={()=>setLineSuggestion(null)} aria-label="Keep straight line"><Check size={15}/>Keep</button><button type="button" onClick={revertStraightLine} aria-label="Restore original freehand stroke"><Undo size={15}/>Undo</button></div>}
+      {lineSuggestion&&<div className="pdf-line-suggestion" role="status" aria-live="polite"><span>{lineSuggestion.dots?'Dotted line detected':'Straight line detected'}</span><button type="button" onClick={()=>setLineSuggestion(null)} aria-label="Keep detected line"><Check size={15}/>Keep</button><button type="button" onClick={revertStraightLine} aria-label="Restore original freehand stroke"><Undo size={15}/>Undo</button></div>}
       {currentTool==='text'&&!exportImage&&<div className="pdf-existing-text-hint" role="status">Click existing text to replace it, or click blank space to add text. Scanned images need OCR first. Replacements cover the original on a white background; they do not redact the underlying text.</div>}
       {currentTool==='read'&&!exportImage&&<div className="pdf-select-copy-bar"><span>{copyParagraphs?'Copy joins wrapped lines into paragraphs.':'Copy keeps original line breaks. Change this in View.'}</span><button type="button" disabled={copyAllBusy||!pdfFile} onClick={copyAllText}>{copyAllBusy?'Reading PDF…':'Copy all text'}</button>{copyAllStatus&&<span role="status">{copyAllStatus}</span>}</div>}
       {missingFont&&<div className="flex items-center gap-3 px-5 py-2 text-sm" role="status"><span>Font: {missingFont.replace(/^[A-Z]{6}\+/, '')}</span><label className="cursor-pointer underline">Use font file<input type="file" hidden accept=".ttf,.otf" onChange={async event=>{const file=event.target.files?.[0];event.target.value='';if(!file)return;try{if(file.size>10*1024*1024)throw new Error('Choose a font smaller than 10 MB.');const bytes=new Uint8Array(await file.arrayBuffer());const {default:fontkit}=await import('@pdf-lib/fontkit');fontkit.create(bytes);let binary='';for(let offset=0;offset<bytes.length;offset+=8192)binary+=String.fromCharCode(...bytes.subarray(offset,offset+8192));const fontData=btoa(binary),family=await replacementFontFace({fontData});updatePaths(previous=>previous.map(item=>item.textStyle?.fontName===missingFont?{...item,textStyle:{...item.textStyle,fontData,replacementFont:undefined,embedded:false,approximate:false,fontFamily:`"${family}"`}}:item));setActionError(null);setMissingFont(null)}catch(error){setActionError('Could not use this font: '+error.message)}}}/></label><button type="button" onClick={()=>setMissingFont(null)} aria-label="Hide font options"><X size={14}/></button></div>}
@@ -2115,4 +2134,5 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     </div>
   )
 }
+
 

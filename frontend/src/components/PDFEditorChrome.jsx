@@ -85,6 +85,8 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
     <label className="pc-checkbox"><input type="checkbox" checked={utilities.timer} onChange={event=>utilities.onTimer(event.target.checked)}/>Show countdown timer</label>
     <label className="pc-checkbox"><input type="checkbox" checked={utilities.stopwatch} onChange={event=>utilities.onStopwatch(event.target.checked)}/>Show stopwatch</label>
     <label className="pc-checkbox"><input type="checkbox" checked={tools.autoStraightLines} onChange={tools.onAutoStraightLines}/>Detect long straight pen lines</label>
+    <label className="pc-checkbox"><input type="checkbox" checked={tools.autoDottedLines} onChange={tools.onAutoDottedLines}/>Detect dotted pen lines</label>
+    <p className="pc-menu-note">Draw at least four separate, roughly aligned dots with similar spacing. Detection straightens and spaces them evenly.</p>
     <label className="pc-checkbox"><input type="checkbox" checked={tools.lineUndoTimer} onChange={tools.onLineUndoTimer}/>Auto-hide line undo notice after 15 seconds</label>
     <p className="pc-menu-note">Turn off to keep the notice until you choose Keep or Undo, draw another detected line, or leave the page. Saved on this device.</p><hr/>
     {action(Calculator,'Calculator',utilities.onCalculator,{active:utilities.calculator})}
@@ -107,6 +109,7 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
       <label className="pc-field">{text?'Font size':'Stroke width'}<div className="pc-size-input"><input type="range" min={text?6:1} max={text?144:40} step={text?1:.5} value={size} onChange={event=>(text?tools.onFontSize:tools.onWidth)(Number(event.target.value))}/><input type="number" aria-label={text?'Exact font size':'Exact stroke width'} min={text?6:1} max={text?144:40} step={text?1:.5} value={size} onChange={event=>{const value=Number(event.target.value);if(event.target.value&&Number.isFinite(value))(text?tools.onFontSize:tools.onWidth)(Math.max(text?6:1,Math.min(text?144:40,value)))}}/><span>pt</span></div></label>
       {!text&&<label className="pc-checkbox"><input type="checkbox" checked={tools.usePressure} onChange={tools.onPressure}/>Use pen pressure</label>}
       {!text&&<><label className="pc-checkbox"><input type="checkbox" checked={tools.autoStraightLines} onChange={tools.onAutoStraightLines}/>Straight-line detection</label><p className="pc-menu-note">Automatically straighten long pen strokes. Turn off to keep freehand strokes. Saved on this device.</p></>}
+      {!text&&<label className="pc-checkbox"><input type="checkbox" checked={tools.autoDottedLines} onChange={tools.onAutoDottedLines}/>Dotted-line detection</label>}
       {!text&&<><label className="pc-checkbox"><input type="checkbox" checked={tools.lineUndoTimer} onChange={tools.onLineUndoTimer}/>Auto-hide line undo notice after 15 seconds</label><p className="pc-menu-note">Turn off to keep the Keep/Undo notice available. This does not change regular editor undo.</p></>}
     </>}
   </>,{custom:<span className="pc-size-label">{size} <small>pt</small></span>,left:true})
