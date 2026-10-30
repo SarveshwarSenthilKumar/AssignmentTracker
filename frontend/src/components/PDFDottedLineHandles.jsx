@@ -43,10 +43,12 @@ export default function PDFDottedLineHandles({ items, width, height, scale, onSt
       })}])
       return
     }
-    onChange(dots.map((item, index) => ({ ...item, points: [{ ...item.points[0],
-      x: active.mode === 'move' ? item.points[0].x + p.x - active.origin.x : from.x + (to.x - from.x) * index / (dots.length - 1),
-      y: active.mode === 'move' ? item.points[0].y + p.y - active.origin.y : from.y + (to.y - from.y) * index / (dots.length - 1),
-    }] })))
+    const lengthSquared=(b.x-a.x)**2+(b.y-a.y)**2
+    onChange(dots.map(item=>({...item,points:item.points.map(original=>{
+      if(active.mode==='move')return {...original,x:original.x+p.x-active.origin.x,y:original.y+p.y-active.origin.y}
+      const fraction=lengthSquared?((original.x-a.x)*(b.x-a.x)+(original.y-a.y)*(b.y-a.y))/lengthSquared:0
+      return {...original,x:from.x+(to.x-from.x)*fraction,y:from.y+(to.y-from.y)*fraction}
+    })})))
   }
   const end = event => {
     if (drag.current?.pointer !== event.pointerId) return

@@ -1,6 +1,6 @@
 // Recognize a short, recent sequence of separate pen dots with human jitter.
 // Keep each dot as an ordinary stroke so saving, moving and PDF export agree.
-export function detectDottedLine(items, scale = 1) {
+export function detectDottedLine(items, scale = 1, dashed = false) {
   const dots = []
   const latest = items[items.length - 1]
   if (!latest || latest.tool !== 'pen' || !latest.inkCreatedAt) return null
@@ -10,10 +10,16 @@ export function detectDottedLine(items, scale = 1) {
     if (item.tool !== 'pen' || item.page !== latest.page || item.color !== latest.color || baseWidth(item) !== baseWidth(latest) || !item.inkCreatedAt || latest.inkCreatedAt - item.inkCreatedAt > 20000 || !points?.length) break
     const x = points.reduce((sum, p) => sum + p.x, 0) / points.length
     const y = points.reduce((sum, p) => sum + p.y, 0) / points.length
-    if (points.some(p => Math.hypot(p.x - x, p.y - y) * scale > Math.max(4, item.strokeWidth * scale))) break
+    if (dashed) {
+      const a=points[0], b=points[points.length-1], length=Math.hypot(b.x-a.x,b.y-a.y)
+      if(item.dottedLine&&!item.dashedLine || length*scale<6 || length*scale>100)break
+      let travel=0
+      for(let j=1;j<points.length;j++)travel+=Math.hypot(points[j].x-points[j-1].x,points[j].y-points[j-1].y)
+      if(!travel||length/travel<.75)break
+    } else if (points.some(p => Math.hypot(p.x - x, p.y - y) * scale > Math.max(4, item.strokeWidth * scale))) break
     dots.unshift({ item, x, y })
   }
-  if (dots.length < 4) return null
+  if (dots.length < (dashed ? 3 : 4)) return null
   // Fit the entire row instead of trusting the first and last dot, which can
   // themselves be misplaced. Principal-axis fitting works at any orientation.
   const center = dots.reduce((sum, dot) => ({ x: sum.x + dot.x / dots.length, y: sum.y + dot.y / dots.length }), { x: 0, y: 0 })
@@ -43,6 +49,17 @@ export function detectDottedLine(items, scale = 1) {
     if (Math.hypot(dots[index].x - dots[index - 1].x, dots[index].y - dots[index - 1].y) < Math.max(baseWidth(latest), 2 / scale)) return null
   }
   const origin = { x: center.x + dx * start, y: center.y + dy * start }
+  if(dashed){
+    const lengths=dots.map(dot=>{const p=dot.item.points;return Math.hypot(p[p.length-1].x-p[0].x,p[p.length-1].y-p[0].y)}).sort((a,b)=>a-b)
+    const dashLength=Math.min(spacing*.7,lengths[Math.floor(lengths.length/2)])
+    if(dashLength*scale<5)return null
+    for(const dot of dots){
+      const p=dot.item.points,a=p[0],b=p[p.length-1],len=Math.hypot(b.x-a.x,b.y-a.y)
+      if(Math.abs(((b.x-a.x)*dx+(b.y-a.y)*dy)/len)<.75)return null
+    }
+    const group=dots.find(dot=>dot.item.dashedLine)?.item.dottedGroup||`dashes:${first.item.id}`
+    return dots.map((dot,index)=>({original:dot.item,replacement:{...dot.item,straightLine:false,dottedLine:false,dashedLine:true,dottedGroup:group,points:[-.5,.5].map(offset=>({x:origin.x+dx*(spacing*index+offset*dashLength),y:origin.y+dy*(spacing*index+offset*dashLength),pressure:.5}))}}))
+  }
   // Collapsing a small pen mark to one point used to shrink its visible ink.
   // Preserve its footprint and give dots a fuller diameter in preview/export.
   const diameter = Math.max(baseWidth(latest) * 1.8, ...dots.map(dot => {
