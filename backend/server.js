@@ -45,9 +45,11 @@ mongoose.connect(process.env.MONGODB_URI)
   .catch(() => undefined);
 
 // User Schema
-const TERMS_VERSION='1.4';
+const TERMS_VERSION='1.5';
+const PRIVACY_VERSION='1.5';
 const userSchema = new mongoose.Schema({
   termsAcceptance:{version:String,acceptedAt:Date,method:String},
+  privacyAcceptance:{version:String,acceptedAt:Date,method:String},
   socialConnections: { type: mongoose.Schema.Types.Mixed, select: false, default: ()=>({}) },
   socialConnectionVersions: { type: mongoose.Schema.Types.Mixed, select: false, default: ()=>({}) },
   aiAccess: { type: mongoose.Schema.Types.Mixed, default: ()=>({}) },
@@ -309,11 +311,18 @@ const authenticateToken = (req, res, next) => {
     return res.status(401).json({ message: 'Access token required' });
   }
 
-  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+  jwt.verify(token, process.env.JWT_SECRET, async (err, user) => {
     if (err) {
       return res.status(403).json({ message: 'Invalid or expired token' });
     }
     req.user = user;
+    try {
+      if(mongoose.connection.readyState!==1)return res.status(503).json({message:'The account database is not connected yet. Try again shortly.'});
+      const account=await User.findById(user.userId).select('termsAcceptance privacyAcceptance').lean();
+      if(!account)return res.status(401).json({message:'Account not found. Sign in again.'});
+      req.policyCurrent=account.termsAcceptance?.version===TERMS_VERSION&&account.privacyAcceptance?.version===PRIVACY_VERSION;
+      if(!req.policyCurrent&&!['/api/account/policies','/api/account/policies/accept'].includes(req.originalUrl.split('?')[0]))return res.status(428).json({code:'POLICY_ACCEPTANCE_REQUIRED',message:'Our Terms and Conditions or Privacy Policy have changed. Review and accept both before continuing.'});
+    }catch{return res.status(503).json({message:'Could not verify policy acceptance. Try again shortly.'});}
     if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
       const id = String(user.userId);
       if (resettingAccounts.has(id)) return res.status(409).json({ message: 'Account reset is in progress. Try again shortly.' });
@@ -332,6 +341,21 @@ const authenticateToken = (req, res, next) => {
     next();
   });
 };
+
+app.get('/api/account/policies',authenticateToken,(req,res)=>{
+  res.set('Cache-Control','no-store');
+  res.json({required:!req.policyCurrent,termsVersion:TERMS_VERSION,privacyVersion:PRIVACY_VERSION});
+});
+app.post('/api/account/policies/accept',authenticateToken,async(req,res)=>{
+  res.set('Cache-Control','no-store');
+  if(req.body.termsVersion!==TERMS_VERSION||req.body.privacyVersion!==PRIVACY_VERSION)return res.status(409).json({message:'The policies changed again. Reload and review the latest documents.'});
+  if(req.body.termsAccepted!==true||req.body.privacyAccepted!==true)return res.status(400).json({message:'Explicitly accept both documents to continue.'});
+  try{
+    const acceptedAt=new Date();
+    await User.updateOne({_id:req.user.userId},{$set:{termsAcceptance:{version:TERMS_VERSION,acceptedAt,method:'policy-update-checkbox'},privacyAcceptance:{version:PRIVACY_VERSION,acceptedAt,method:'policy-update-checkbox'}}});
+    res.json({required:false,termsVersion:TERMS_VERSION,privacyVersion:PRIVACY_VERSION});
+  }catch{res.status(503).json({message:'Could not save your agreement. Please try again.'});}
+});
 
 // Auth Routes
 // Register

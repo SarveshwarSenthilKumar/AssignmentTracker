@@ -60,7 +60,7 @@ const sections=[
     'The final operator must define the intended audience, age eligibility and any required consent arrangements before offering the service to children. The current application does not implement a dedicated parental-consent process. Schools and other organizations must review their own obligations before providing student accounts.'
   ]],
   ['changes','Updates and privacy contact',[
-    `This draft is version ${PRIVACY_VERSION}, last updated ${LEGAL_UPDATED_DATE}. Material changes to data practices should be communicated clearly before taking effect, with any required choices or agreement handled separately. The current signup agreement applies to new registrations; the platform does not currently require existing users to accept updated terms again.`,
+    `This draft is version ${PRIVACY_VERSION}, last updated ${LEGAL_UPDATED_DATE}. Material changes to data practices should be communicated clearly before taking effect, with any required choices or agreement handled separately. If either policy version changes, existing users must review and accept the current Terms and Conditions and acknowledge the current Privacy Policy before continuing. The platform stores the accepted versions, acceptance time and acceptance method for both documents. Reading the documents and signing out remain available while workspace access is blocked.`,
     'Privacy contact: the person or organization that provided access to this deployment. A verified operator name and published contact address must replace this interim description before the policy is finalized.'
   ]],
 ]
@@ -68,5 +68,6 @@ const sections=[
 export default function PrivacyPage({signedIn=false}){
   return <main className="platform-viewport terms-page"><div className="terms-wrap"><a className="terms-back" href="#/home">← {signedIn?'Back to workspace':'Back to sign in'}</a><header><p>ASSIGNMENT TRACKER</p><h1>Privacy Policy</h1><span>Draft · Version {PRIVACY_VERSION} · Last updated {LEGAL_UPDATED_DATE}</span></header><p className="terms-draft">Draft for review. Operator identity, privacy contact, providers, hosting locations and retention details still need to be finalized.</p><nav aria-label="Privacy policy sections">{sections.map(([id,title])=><button key={id} type="button" onClick={()=>document.getElementById(`privacy-${id}`)?.scrollIntoView({behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'})}>{title}</button>)}</nav><article>{sections.map(([id,title,paragraphs],index)=><section id={`privacy-${id}`} key={id}><h2>{index+1}. {title}</h2>{paragraphs.map((paragraph,i)=><p key={i}>{paragraph}</p>)}</section>)}</article><footer><a href="#/terms">Terms and Conditions</a><span aria-hidden="true"> · </span><a href="#/home">{signedIn?'Return to workspace':'Return to sign in'}</a></footer></div></main>
 }
+
 
 

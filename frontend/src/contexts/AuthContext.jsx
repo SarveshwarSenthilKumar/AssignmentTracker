@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 import { setTimeZone } from '../lib/timeZone'
+import PolicyGate from '../components/PolicyGate'
 
 const AuthContext = createContext(null)
 
@@ -60,7 +61,7 @@ export const AuthProvider = ({ children }) => {
     loading
   }
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+  return <AuthContext.Provider value={value}>{token?<PolicyGate key={token} token={token} onSignOut={logout}>{children}</PolicyGate>:children}</AuthContext.Provider>
 }
 
 export const useAuth = () => {

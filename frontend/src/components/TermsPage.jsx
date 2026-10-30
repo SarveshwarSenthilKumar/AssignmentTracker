@@ -59,7 +59,7 @@ const sections=[
     'Nothing in these draft terms is intended to exclude rights or obligations that cannot lawfully be excluded. Deployment-specific service commitments, liability provisions and dispute terms require separate review before publication.'
   ]],
   ['changes','Changes and questions',[
-    'The version date identifies this draft. Material changes should be clearly communicated before they take effect; any required agreement process must be implemented separately. Existing users are not currently required by the platform to accept updated terms again. New accounts must complete the terms review and explicitly agree before signup. The server records the accepted version and acceptance time; reaching the end of a document does not establish that a person understood it.',
+    'The version date identifies this draft. Material changes should be clearly communicated before they take effect; any required agreement process must be implemented separately. Existing users must review and explicitly accept the current Terms and Conditions and acknowledge the current Privacy Policy before continuing whenever either accepted version is out of date. Workspace access is blocked until agreement is saved; users may read both documents or sign out instead. New accounts must complete the terms review and explicitly agree before signup. The server records the accepted version and acceptance time; reaching the end of a document does not establish that a person understood it.',
     'For questions about this deployment, contact the person or organization that provided access. The operator’s legal identity and published support contact must be added before adopting a final version.'
   ]],
 ]
@@ -71,4 +71,5 @@ export function TermsContent(){
 export default function TermsPage({signedIn=false}){
   return <main className="platform-viewport terms-page"><div className="terms-wrap"><a className="terms-back" href="#/home">← {signedIn?'Back to workspace':'Back to sign in'}</a><header><p>ASSIGNMENT TRACKER</p><h1>Terms and Conditions</h1><span>Draft · Version {TERMS_VERSION} · Last updated {LEGAL_UPDATED_DATE}</span></header><p className="terms-draft">Draft for review. Operator identity, contact details and deployment-specific policies have not yet been finalized.</p><nav aria-label="Terms sections">{sections.map(([id,title])=><button type="button" key={id} onClick={()=>document.getElementById(`terms-${id}`)?.scrollIntoView({behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'})}>{title}</button>)}</nav><TermsContent/><footer><a href="#/privacy">Privacy Policy</a><span aria-hidden="true"> · </span><a href="#/home">{signedIn?'Return to workspace':'Return to sign in'}</a></footer></div></main>
 }
+
 
