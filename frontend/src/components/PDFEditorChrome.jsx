@@ -86,7 +86,7 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
     <label className="pc-checkbox"><input type="checkbox" checked={utilities.stopwatch} onChange={event=>utilities.onStopwatch(event.target.checked)}/>Show stopwatch</label>
     <label className="pc-checkbox"><input type="checkbox" checked={tools.autoStraightLines} onChange={tools.onAutoStraightLines}/>Detect long straight pen lines</label>
     <label className="pc-checkbox"><input type="checkbox" checked={tools.autoDottedLines} onChange={tools.onAutoDottedLines}/>Detect dotted pen lines</label>
-    <p className="pc-menu-note">Draw at least four separate, roughly aligned dots with similar spacing. Detection straightens and spaces them evenly.</p>
+    <p className="pc-menu-note">Draw at least four separate dots along a rough row in any direction. Uneven spacing and small placement errors are allowed; detection aligns and spaces them evenly.</p>
     <label className="pc-checkbox"><input type="checkbox" checked={tools.lineUndoTimer} onChange={tools.onLineUndoTimer}/>Auto-hide line undo notice after 15 seconds</label>
     <p className="pc-menu-note">Turn off to keep the notice until you choose Keep or Undo, draw another detected line, or leave the page. Saved on this device.</p><hr/>
     {action(Calculator,'Calculator',utilities.onCalculator,{active:utilities.calculator})}
