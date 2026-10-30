@@ -25,8 +25,11 @@ A modern, full-stack todo application built with React, Express, MongoDB, and Ta
 ### Start both services together
 
 After installing dependencies in both `backend` and `frontend` and configuring
-`backend/.env`, run `npm run dev` from `frontend`. This starts the backend with
-automatic restart and the Vite frontend together. Stop any separately running
+`backend/.env`, run `npm run dev` from `frontend`. This starts the backend and
+waits for its listening confirmation before starting Vite. Backend startup errors
+are printed directly, and a backend exit stops the frontend. Restart this command
+after changing backend code. For backend automatic restart, use the separate-terminal
+workflow below (`backend: npm run dev`, `frontend: npm run dev:frontend`). Stop any separately running
 backend first to avoid a port conflict. Ctrl+C stops both services.
 
 The API proxy uses `127.0.0.1` and the backend's configured `PORT` (5000 by

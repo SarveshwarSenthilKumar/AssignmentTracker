@@ -1528,7 +1528,10 @@ app.use((error,req,res,next)=>{
   res.status(status>=400&&status<=599?status:500).json({message:error.type==='entity.parse.failed'?'The request body is not valid JSON.':'The API could not complete this request. Check the backend logs and try again.'});
 });
 
-app.listen(PORT).on('error',error=>{
+app.listen(PORT,()=>{
+  process.stderr.write(`Backend API listening on port ${PORT}.\n`);
+  if(process.send)process.send({type:'api-ready'});
+}).on('error',error=>{
   process.stderr.write(error.code==='EADDRINUSE'
     ? `Backend port ${PORT} is already in use. Stop the other backend before restarting, or configure another PORT and matching API_PROXY_TARGET.\n`
     : `Backend could not listen (${error.code || 'startup error'}). Check the configured PORT.\n`);
