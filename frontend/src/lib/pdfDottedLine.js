@@ -49,8 +49,9 @@ export function detectDottedLine(items, scale = 1) {
     const radius = Math.max(...dot.item.points.map(p => Math.hypot(p.x - dot.x, p.y - dot.y)))
     return Math.max(dot.item.strokeWidth || 2, Math.min(spacing * .55, radius * 2 + baseWidth(dot.item)))
   }))
+  const group = dots.find(dot => dot.item.dottedGroup)?.item.dottedGroup || `dots:${first.item.id}`
   return dots.map((dot, index) => ({ original: dot.item, replacement: {
-    ...dot.item, dottedLine: true,
+    ...dot.item, dottedLine: true, dottedGroup: group,
     dottedBaseWidth: baseWidth(dot.item), strokeWidth: diameter,
     points: [{ x: origin.x + dx * spacing * index, y: origin.y + dy * spacing * index, pressure: .5 }],
   } }))

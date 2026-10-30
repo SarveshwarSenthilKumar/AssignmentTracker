@@ -5,6 +5,7 @@ import { serializeAnnotations } from '../lib/annotationSerializer'
 import PDFEditorChrome from './PDFEditorChrome'
 import { straightenStroke } from '../lib/pdfStraightLine'
 import { detectDottedLine } from '../lib/pdfDottedLine'
+import PDFDottedLineHandles from './PDFDottedLineHandles'
 import { existingTextRuns, makeSourceReplacement } from '../lib/pdfExistingText'
 import { registerEditor } from '../lib/editorBridge'
 import { pageFontPrograms, fontKey, standardTextFont, replacementCss, loadPageFontStyles } from '../lib/pdfTextStyle'
@@ -1874,6 +1875,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
                   {currentTool==='text'&&existingRuns.page===pageNumber&&existingRuns.items.filter(run=>!pageItems.some(item=>item.sourceText?.key===run.key)).map(run=><div key={`source-${run.key}`} aria-hidden style={{position:'absolute',left:run.x*scale,top:run.y*scale,width:run.width*scale,height:run.height*scale,borderBottom:'1px dotted #718ea855',pointerEvents:'none'}}/>)}
                   <PDFInkLayer items={pageItems} width={pageBase.w} height={pageBase.h} scale={scale} usePressure={usePressure}/>
                   <PDFLiveInk ref={liveInkRef} width={pageBase.w} height={pageBase.h} scale={scale}/>
+                  {currentTool==='select'&&<PDFDottedLineHandles items={pageItems} width={pageBase.w} height={pageBase.h} scale={scale} onStart={()=>{pushHistory();setLineSuggestion(null)}} onChange={replacements=>{const byId=new Map(replacements.map(item=>[item.id,item]));updatePaths(previous=>previous.map(item=>byId.get(item.id)||item))}} onCancel={originals=>{const byId=new Map(originals.map(item=>[item.id,item]));updatePaths(previous=>previous.map(item=>byId.get(item.id)||item))}}/>}
                   <svg
                     viewBox={`0 0 ${pageBase.w} ${pageBase.h}`}
                     style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
@@ -1953,7 +1955,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         insert={<InsertPanel onPages={exportImage?undefined:handleAddPages} pageNumber={pageNumber} onFiles={insertFiles} onInsert={insertGenerated} color={currentColor} busy={inserting||!pageBase||pageBase.page!==pageNumber||deletingPage}/>}
       />
 
-      {lineSuggestion&&<div className="pdf-line-suggestion" role="status" aria-live="polite"><span>{lineSuggestion.dots?'Dotted line detected':'Straight line detected'}</span><button type="button" onClick={()=>setLineSuggestion(null)} aria-label="Keep detected line"><Check size={15}/>Keep</button><button type="button" onClick={revertStraightLine} aria-label="Restore original freehand stroke"><Undo size={15}/>Undo</button></div>}
+      {lineSuggestion&&<div className="pdf-line-suggestion" role="status" aria-live="polite"><span>{lineSuggestion.dots?'Dotted line detected':'Straight line detected'}</span>{lineSuggestion.dots&&<button type="button" onClick={()=>{setCurrentTool('select');setLineSuggestion(null)}}>Move / resize</button>}<button type="button" onClick={()=>setLineSuggestion(null)} aria-label="Keep detected line"><Check size={15}/>Keep</button><button type="button" onClick={revertStraightLine} aria-label="Restore original freehand stroke"><Undo size={15}/>Undo</button></div>}
       {currentTool==='text'&&!exportImage&&<div className="pdf-existing-text-hint" role="status">Click existing text to replace it, or click blank space to add text. Scanned images need OCR first. Replacements cover the original on a white background; they do not redact the underlying text.</div>}
       {currentTool==='read'&&!exportImage&&<div className="pdf-select-copy-bar"><span>{copyParagraphs?'Copy joins wrapped lines into paragraphs.':'Copy keeps original line breaks. Change this in View.'}</span><button type="button" disabled={copyAllBusy||!pdfFile} onClick={copyAllText}>{copyAllBusy?'Reading PDF…':'Copy all text'}</button>{copyAllStatus&&<span role="status">{copyAllStatus}</span>}</div>}
       {missingFont&&<div className="flex items-center gap-3 px-5 py-2 text-sm" role="status"><span>Font: {missingFont.replace(/^[A-Z]{6}\+/, '')}</span><label className="cursor-pointer underline">Use font file<input type="file" hidden accept=".ttf,.otf" onChange={async event=>{const file=event.target.files?.[0];event.target.value='';if(!file)return;try{if(file.size>10*1024*1024)throw new Error('Choose a font smaller than 10 MB.');const bytes=new Uint8Array(await file.arrayBuffer());const {default:fontkit}=await import('@pdf-lib/fontkit');fontkit.create(bytes);let binary='';for(let offset=0;offset<bytes.length;offset+=8192)binary+=String.fromCharCode(...bytes.subarray(offset,offset+8192));const fontData=btoa(binary),family=await replacementFontFace({fontData});updatePaths(previous=>previous.map(item=>item.textStyle?.fontName===missingFont?{...item,textStyle:{...item.textStyle,fontData,replacementFont:undefined,embedded:false,approximate:false,fontFamily:`"${family}"`}}:item));setActionError(null);setMissingFont(null)}catch(error){setActionError('Could not use this font: '+error.message)}}}/></label><button type="button" onClick={()=>setMissingFont(null)} aria-label="Hide font options"><X size={14}/></button></div>}
@@ -2134,5 +2136,6 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     </div>
   )
 }
+
 
 
