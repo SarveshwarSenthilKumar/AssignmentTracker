@@ -8,16 +8,21 @@ export function detectDottedLine(items, scale = 1, dashed = false) {
   for (let i = items.length - 1; i >= 0 && dots.length < 24; i--) {
     const item = items[i], points = item.points
     if (item.tool !== 'pen' || item.page !== latest.page || item.color !== latest.color || baseWidth(item) !== baseWidth(latest) || !item.inkCreatedAt || latest.inkCreatedAt - item.inkCreatedAt > 20000 || !points?.length) break
-    const x = points.reduce((sum, p) => sum + p.x, 0) / points.length
-    const y = points.reduce((sum, p) => sum + p.y, 0) / points.length
+    // Pointer samples can bunch up during a pause or end with a short flick.
+    // Median centers prevent that tail from pulling the inferred row sideways.
+    const median = values => { const sorted=values.sort((a,b)=>a-b), middle=Math.floor(sorted.length/2); return sorted.length%2?sorted[middle]:(sorted[middle-1]+sorted[middle])/2 }
+    const x = median(points.map(p=>p.x))
+    const y = median(points.map(p=>p.y))
+    const xs=points.map(p=>p.x),ys=points.map(p=>p.y)
+    const span=Math.hypot(Math.max(...xs)-Math.min(...xs),Math.max(...ys)-Math.min(...ys))
     if (dashed) {
       const a=points[0], b=points[points.length-1], length=Math.hypot(b.x-a.x,b.y-a.y)
       if(item.dottedLine&&!item.dashedLine || length*scale<6 || length*scale>100)break
       let travel=0
       for(let j=1;j<points.length;j++)travel+=Math.hypot(points[j].x-points[j-1].x,points[j].y-points[j-1].y)
       if(!travel||length/travel<.75)break
-    } else if (points.some(p => Math.hypot(p.x - x, p.y - y) * scale > Math.max(4, item.strokeWidth * scale))) break
-    dots.unshift({ item, x, y })
+    } else if (item.dashedLine || span > Math.max(24 / scale, baseWidth(item)*4)) break
+    dots.unshift({ item, x, y, span })
   }
   if (dots.length < (dashed ? 3 : 4)) return null
   // Fit the entire row instead of trusting the first and last dot, which can
@@ -37,6 +42,12 @@ export function detectDottedLine(items, scale = 1, dashed = false) {
   if (length * scale < 30) return null
   const spacing = length / (dots.length - 1)
   if (spacing * scale < 5 || spacing * scale > 90) return null
+  if(!dashed){
+    // A small loop, diagonal flick or shaky tap can still represent a dot.
+    // Judge its footprint relative to the row spacing, not its straightness.
+    const maxSpan=Math.min(24/scale,Math.max(10/scale,spacing*.7,baseWidth(latest)*4))
+    if(dots.some(dot=>dot.span>maxSpan))return null
+  }
   const offsets = dots.map(dot => Math.abs((dot.x - center.x) * dy - (dot.y - center.y) * dx))
   const tolerance = Math.min(18 / scale, Math.max(7 / scale, spacing * .6))
   const rms = Math.sqrt(offsets.reduce((sum, offset) => sum + offset * offset, 0) / dots.length)
@@ -51,6 +62,9 @@ export function detectDottedLine(items, scale = 1, dashed = false) {
   const origin = { x: center.x + dx * start, y: center.y + dy * start }
   if(dashed){
     const lengths=dots.map(dot=>{const p=dot.item.points;return Math.hypot(p[p.length-1].x-p[0].x,p[p.length-1].y-p[0].y)}).sort((a,b)=>a-b)
+    // Avoid claiming short accidental flicks as dashes before a fourth dot
+    // arrives. Deliberate dashes need meaningful length relative to spacing.
+    if(lengths[Math.floor(lengths.length/2)]<Math.max(12/scale,spacing*.32))return null
     const dashLength=Math.min(spacing*.7,lengths[Math.floor(lengths.length/2)])
     if(dashLength*scale<5)return null
     for(const dot of dots){
@@ -68,7 +82,7 @@ export function detectDottedLine(items, scale = 1, dashed = false) {
   }))
   const group = dots.find(dot => dot.item.dottedGroup)?.item.dottedGroup || `dots:${first.item.id}`
   return dots.map((dot, index) => ({ original: dot.item, replacement: {
-    ...dot.item, dottedLine: true, dottedGroup: group,
+    ...dot.item, straightLine:false, dashedLine:false, dottedLine: true, dottedGroup: group,
     dottedBaseWidth: baseWidth(dot.item), strokeWidth: diameter,
     points: [{ x: origin.x + dx * spacing * index, y: origin.y + dy * spacing * index, pressure: .5 }],
   } }))
