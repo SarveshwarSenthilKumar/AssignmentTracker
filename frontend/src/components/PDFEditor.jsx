@@ -477,6 +477,8 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const [currentTool, setCurrentTool] = useState('text')
   const [autoStraightLines,setAutoStraightLines]=useState(()=>{try{return localStorage.getItem('pdf-auto-straight-lines')!=='false'}catch{return true}})
   const [lineSuggestion,setLineSuggestion]=useState(null)
+  const [lineUndoTimer,setLineUndoTimer]=useState(()=>{try{return localStorage.getItem('pdf-line-undo-timer')!=='false'}catch{return true}})
+  useEffect(()=>{try{localStorage.setItem('pdf-line-undo-timer',String(lineUndoTimer))}catch{}},[lineUndoTimer])
   useEffect(()=>{try{localStorage.setItem('pdf-auto-straight-lines',String(autoStraightLines))}catch{}},[autoStraightLines])
   const [existingRuns,setExistingRuns]=useState({page:null,items:[]})
   const textLoadGeneration=useRef(0)
@@ -655,10 +657,10 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   useEffect(()=>setLineSuggestion(null),[pdfId,pageNumber])
   useEffect(()=>{if(!autoStraightLines)setLineSuggestion(null)},[autoStraightLines])
   useEffect(()=>{
-    if(!lineSuggestion)return
+    if(!lineSuggestion||!lineUndoTimer)return
     const timer=window.setTimeout(()=>setLineSuggestion(null),15000)
     return()=>window.clearTimeout(timer)
-  },[lineSuggestion])
+  },[lineSuggestion,lineUndoTimer])
 
   const bumpHistory = useCallback(() => {
     setHistoryCount({ undo: undoStack.current.length, redo: redoStack.current.length })
@@ -1924,7 +1926,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
 
       <PDFEditorChrome
         doc={{name:pdfData?.name,exportImage,saveStatus,history:historyCount,onUndo:undo,onRedo:redo,onSave:handleSave,onDownload:handleDownload,downloading,onCleanCopy:onCleanCopy?handleCleanCopy:null,copying:copyingClean,onClose:handleClose,copyParagraphs,onCopyParagraphs:setCopyParagraphs,onCleanup:exportImage?null:()=>{commitText();setCurrentTool('text');setShowCalculator(false);setShowGraph(false);setShowCleanup(true)}}}
-        tools={{autoStraightLines,onAutoStraightLines:()=>setAutoStraightLines(previous=>!previous),current:currentTool,onTool:tool=>{commitText();setCurrentTool(tool)},color:currentColor,onColor:handleColorChange,colors:COLORS,colorNames:COLOR_NAMES,fontSize,onFontSize:handleFontSizeChange,strokeWidth,onWidth:setStrokeWidth,usePressure,onPressure:()=>setUsePressure(previous=>!previous),eraser:{mode:eraserMode,onMode:setEraserMode,size:eraserSize,onSize:setEraserSize,shape:eraserShape,onShape:setEraserShape,target:eraserTarget,onTarget:setEraserTarget}}}
+        tools={{lineUndoTimer,onLineUndoTimer:()=>setLineUndoTimer(previous=>!previous),autoStraightLines,onAutoStraightLines:()=>setAutoStraightLines(previous=>!previous),current:currentTool,onTool:tool=>{commitText();setCurrentTool(tool)},color:currentColor,onColor:handleColorChange,colors:COLORS,colorNames:COLOR_NAMES,fontSize,onFontSize:handleFontSizeChange,strokeWidth,onWidth:setStrokeWidth,usePressure,onPressure:()=>setUsePressure(previous=>!previous),eraser:{mode:eraserMode,onMode:setEraserMode,size:eraserSize,onSize:setEraserSize,shape:eraserShape,onShape:setEraserShape,target:eraserTarget,onTarget:setEraserTarget}}}
         pages={{count:numPages,current:pageNumber,showThumbnails:showPages,onToggleThumbnails:()=>{if(focusMode){exitFocusMode();setShowPages(true)}else setShowPages(previous=>!previous)},onNavigate:goToPage,onAddBlank:()=>handleAddPages({mode:'blank',placement:'after'}),onDelete:()=>handleDeletePage(),busy:deletingPage||inserting,canAdd:!!numPages&&!!pageBase&&pageBase.page===pageNumber&&!loading&&!deletingPage&&!inserting}}
         view={{toolbarPosition,onToolbarPosition:setToolbarPosition,scale,onZoomIn:handleZoomIn,onZoomOut:handleZoomOut,onFit:handleFitWidth,onRotate:handleRotate,dark:darkPages,onDark:()=>setDarkPages(previous=>!previous),continuous:continuousView,onContinuous:()=>{handleTextDragEnd();commitText();setContinuousView(previous=>!previous)},reference:showReference,onReference:toggleReference,focus:focusMode,onFocus:enterFocusMode,onExitFocus:exitFocusMode}}
         utilities={{timer:showTimer,onTimer:setShowTimer,stopwatch:showStopwatch,onStopwatch:setShowStopwatch,clock:showClock,onGraph:()=>{commitText();setCurrentTool('graph');setShowGraph(true);setShowCalculator(false)},calculator:showCalculator,onCalculator:()=>{commitText();setShowGraph(false);setShowCalculator(previous=>!previous)},onScanFunction:()=>{commitText();setCurrentTool('function');setShowCalculator(true);setShowGraph(false)},onCalculate:()=>{commitText();setCurrentTool('calculate')},recognition:calculationMode,onRecognition:setCalculationMode,snippetReady:!!snippet,copying:copyingSnippet,onCopyRegion:()=>{commitText();setCurrentTool('snippet')},onPaste:pasteSnippet,canPaste:!!snippet&&!!pageBase&&pageBase.page===pageNumber&&!inserting&&!deletingPage,onStylus:()=>setShowStylusStudio(true),onSettings:()=>setShowSettings(previous=>!previous),settingsOpen:showSettings,assistantOpen,onAssistant:onToggleAssistant}}
@@ -2113,3 +2115,4 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     </div>
   )
 }
+
