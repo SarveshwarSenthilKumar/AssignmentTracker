@@ -113,7 +113,7 @@ function App() {
   const inputRef = useRef(null)
   const commandInputRef = useRef(null)
   const [sortBy, setSortBy] = useState(user?.taskSortBy||'dueDate')
-  const [completedSort, setCompletedSort] = useState(()=>{try{return localStorage.getItem('tasks-completed-sort')||'default'}catch{return 'default'}})
+  const [completedSort, setCompletedSort] = useState(()=>{try{const saved=localStorage.getItem('tasks-completed-sort');return !saved||saved==='default'?'completedAt:desc':saved}catch{return 'completedAt:desc'}})
   useEffect(()=>{try{localStorage.setItem('tasks-completed-sort',completedSort)}catch{}},[completedSort])
   const [showFullTaskTitles,setShowFullTaskTitles]=useState(()=>{try{return localStorage.getItem('tasks-show-full-titles')==='true'}catch{return false}})
   useEffect(()=>{try{localStorage.setItem('tasks-show-full-titles',String(showFullTaskTitles))}catch{}},[showFullTaskTitles])
@@ -1902,8 +1902,8 @@ function App() {
                   onChange={event=>setCompletedSort(event.target.value)}
                   className="min-w-0 max-w-full bg-white/10 border border-white/10 rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                 >
-                  <option value="default">Follow main sort</option>
-                  <option value="completedAt:desc">Recently completed</option>
+                  <option value="completedAt:desc">Recently completed · default</option>
+                  <option value="main">Follow main sort</option>
                   <option value="completedAt:asc">Oldest completed</option>
                   <option value="dueDate:asc">Due date · earliest first</option>
                   <option value="dueDate:desc">Due date · latest first</option>
@@ -1916,7 +1916,7 @@ function App() {
               </label>
               <div className="space-y-2">
                 {filteredTodos.filter(t => t.status === 'completed').length > 0 ? (
-                  getSortedTodos(filteredTodos.filter(t => t.status === 'completed'),...(completedSort==='default'?[]:completedSort.split(':'))).map((todo) =>
+                  getSortedTodos(filteredTodos.filter(t => t.status === 'completed'),...(completedSort==='main'?[]:completedSort.split(':'))).map((todo) =>
                     renderTaskCard(todo, {
                       bg: 'bg-green-500/10',
                       border: 'border border-green-500/20 hover:bg-green-500/15',
