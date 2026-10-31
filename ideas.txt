@@ -63,6 +63,8 @@ add cold email generator with research
 add question bank and answers
 add answer questions with my answer research
 
+add a separate toggle sort for the completed
+update normal sort for completed to be recent first
 add favicon.ico for all pages
 add number line detection and fix
 add number line generation
