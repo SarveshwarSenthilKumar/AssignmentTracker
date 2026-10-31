@@ -501,15 +501,19 @@ function App() {
   const reorderTasks=async(moving,target,status,position)=>{
     if(reorderLock.current||sortSaveLock.current||moving._id===target?._id)return
     reorderLock.current=true;setReordering(true)
-    const ordered=getSortedTodos(todos).filter(task=>task._id!==moving._id)
+    const visibleCompleted=getSortedTodos(todos.filter(task=>task.status==='completed'),...(completedSort==='main'?[]:completedSort.split(':')))
+    let completedIndex=0
+    const ordered=getSortedTodos(todos).map(task=>task.status==='completed'?visibleCompleted[completedIndex++]:task).filter(task=>task._id!==moving._id)
     let index=target?ordered.findIndex(task=>task._id===target._id):ordered.reduce((last,task,i)=>task.status===status?i+1:last,ordered.length)
     if(target&&position==='after')index++
     ordered.splice(Math.max(0,index),0,moving)
     const ids=ordered.map(task=>task._id)
     const previousSort=sortBy
+    const previousCompletedSort=completedSort
     const previousOrder=new Map(todos.map(task=>[task._id,{manualOrder:task.manualOrder,status:task.status,completedAt:task.completedAt}]))
     const optimisticRanks=new Map(ids.map((id,index)=>[id,index]))
     setSortBy('manual')
+    if(status==='completed')setCompletedSort('manual:asc')
     setTodos(previous=>previous.map(task=>({...task,manualOrder:optimisticRanks.get(task._id)??task.manualOrder,...(task._id===moving._id&&task.status!==status?{status,completedAt:status==='completed'?new Date().toISOString():null}:{})})))
     try{
       const response=await fetch('/api/todos/reorder',{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({ids,movedId:moving._id,status})})
@@ -521,7 +525,7 @@ function App() {
       setSortBy('manual');updatePreferences({taskSortBy:'manual'})
     }catch(error){
       setTodos(previous=>previous.map(task=>({...task,...(previousOrder.get(task._id)||{})})))
-      setSortBy(previousSort);setError(error.message)
+      setSortBy(previousSort);if(status==='completed')setCompletedSort(previousCompletedSort);setError(error.message)
     }finally{reorderLock.current=false;setReordering(false)}
   }
 
@@ -1914,6 +1918,7 @@ function App() {
                   <option value="manual:asc">Custom order</option>
                 </select>
               </label>
+              <p className="mb-3 text-xs text-slate-400">Drag tasks to arrange them. Dropping here switches completed tasks to Custom order.</p>
               <div className="space-y-2">
                 {filteredTodos.filter(t => t.status === 'completed').length > 0 ? (
                   getSortedTodos(filteredTodos.filter(t => t.status === 'completed'),...(completedSort==='main'?[]:completedSort.split(':'))).map((todo) =>
