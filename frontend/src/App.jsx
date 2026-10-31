@@ -113,6 +113,8 @@ function App() {
   const inputRef = useRef(null)
   const commandInputRef = useRef(null)
   const [sortBy, setSortBy] = useState(user?.taskSortBy||'dueDate')
+  const [completedSort, setCompletedSort] = useState(()=>{try{return localStorage.getItem('tasks-completed-sort')||'default'}catch{return 'default'}})
+  useEffect(()=>{try{localStorage.setItem('tasks-completed-sort',completedSort)}catch{}},[completedSort])
   const [showFullTaskTitles,setShowFullTaskTitles]=useState(()=>{try{return localStorage.getItem('tasks-show-full-titles')==='true'}catch{return false}})
   useEffect(()=>{try{localStorage.setItem('tasks-show-full-titles',String(showFullTaskTitles))}catch{}},[showFullTaskTitles])
   const [reordering,setReordering]=useState(false)
@@ -624,7 +626,7 @@ function App() {
     }catch(error){setSortBy(previous.by);setSortOrder(previous.order);setError(error.message)}
     finally{sortSaveLock.current=false;setSavingSort(false)}
   }
-  const getSortedTodos=todosToSort=>{
+  const getSortedTodos=(todosToSort,selectedSortBy=sortBy,selectedSortOrder=sortOrder)=>{
     const created=task=>Date.parse(task.createdAt)||0
     const due=task=>{
       if(task.calendarAllDay&&task.calendarDate){try{return Date.parse(localToInstant(task.calendarDate+'T23:59'))}catch{return Date.parse(task.calendarDate+'T23:59:00Z')}}
@@ -638,17 +640,17 @@ function App() {
       return (left===right?0:(left<right?-1:1))*(direction==='asc'?1:-1)||fallback(a,b)
     }
     return [...todosToSort].sort((a,b)=>{
-      if(sortBy==='manual'){
+      if(selectedSortBy==='manual'){
         const left=a.manualOrder??Infinity,right=b.manualOrder??Infinity
         return (left===right?0:left<right?-1:1)||dueCompare(a,b)
       }
-      if(sortBy==='dueDate')return dueCompare(a,b,sortOrder)
+      if(selectedSortBy==='dueDate')return dueCompare(a,b,selectedSortOrder)
       let comparison=0
-      if(sortBy==='createdAt')comparison=created(a)-created(b)
-      else if(sortBy==='completedAt')comparison=(Date.parse(a.completedAt)||0)-(Date.parse(b.completedAt)||0)
-      else if(sortBy==='text')comparison=String(a.text).localeCompare(String(b.text))
-      else if(sortBy==='status'){const ranks={todo:0,'in-progress':1,completed:2};comparison=(ranks[a.status]??0)-(ranks[b.status]??0)}
-      return (sortOrder==='asc'?comparison:-comparison)||fallback(a,b)
+      if(selectedSortBy==='createdAt')comparison=created(a)-created(b)
+      else if(selectedSortBy==='completedAt')comparison=(Date.parse(a.completedAt)||0)-(Date.parse(b.completedAt)||0)
+      else if(selectedSortBy==='text')comparison=String(a.text).localeCompare(String(b.text))
+      else if(selectedSortBy==='status'){const ranks={todo:0,'in-progress':1,completed:2};comparison=(ranks[a.status]??0)-(ranks[b.status]??0)}
+      return (selectedSortOrder==='asc'?comparison:-comparison)||fallback(a,b)
     })
   }
 
@@ -1893,9 +1895,28 @@ function App() {
                 <span className="w-2 h-2 bg-green-500 rounded-full "></span>
                 Completed ({filteredTodos.filter(t => t.status === 'completed').length})
               </h2>
+              <label className="mb-3 flex flex-wrap items-center gap-2 text-sm text-slate-400">
+                Sort completed:
+                <select
+                  value={completedSort}
+                  onChange={event=>setCompletedSort(event.target.value)}
+                  className="min-w-0 max-w-full bg-white/10 border border-white/10 rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                >
+                  <option value="default">Follow main sort</option>
+                  <option value="completedAt:desc">Recently completed</option>
+                  <option value="completedAt:asc">Oldest completed</option>
+                  <option value="dueDate:asc">Due date · earliest first</option>
+                  <option value="dueDate:desc">Due date · latest first</option>
+                  <option value="createdAt:desc">Newest created</option>
+                  <option value="createdAt:asc">Oldest created</option>
+                  <option value="text:asc">Name · A–Z</option>
+                  <option value="text:desc">Name · Z–A</option>
+                  <option value="manual:asc">Custom order</option>
+                </select>
+              </label>
               <div className="space-y-2">
                 {filteredTodos.filter(t => t.status === 'completed').length > 0 ? (
-                  filteredTodos.filter(t => t.status === 'completed').map((todo) =>
+                  getSortedTodos(filteredTodos.filter(t => t.status === 'completed'),...(completedSort==='default'?[]:completedSort.split(':'))).map((todo) =>
                     renderTaskCard(todo, {
                       bg: 'bg-green-500/10',
                       border: 'border border-green-500/20 hover:bg-green-500/15',
