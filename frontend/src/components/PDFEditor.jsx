@@ -22,6 +22,7 @@ import PDFSelectableLayer,{pdfSelectionContent} from './PDFSelectableLayer'
 import {copyPdfParagraphs,copyRun,paragraphText} from '../lib/pdfCopyText'
 import 'react-pdf/dist/esm/Page/TextLayer.css'
 import PDFGraph from './PDFGraph'
+import PDFNumberLine from './PDFNumberLine'
 import {graphExpression,compileGraph} from '../lib/pdfGraph'
 import { eraseAnnotations } from '../lib/pdfEraser'
 import PDFContinuousView from './PDFContinuousView'
@@ -563,6 +564,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     }
   },[])
   const [showCalculator,setShowCalculator]=useState(false)
+  const [showNumberLine,setShowNumberLine]=useState(false)
   const [showGraph,setShowGraph]=useState(false),[graphSelection,setGraphSelection]=useState(null)
   const [calculationBox,setCalculationBox]=useState(null),[calculationSelection,setCalculationSelection]=useState(null)
   const [calculationMode,setCalculationMode]=useState('auto')
@@ -1954,7 +1956,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         tools={{autoDashedLines,onAutoDashedLines:()=>setAutoDashedLines(previous=>!previous),autoDottedLines,onAutoDottedLines:()=>setAutoDottedLines(previous=>!previous),lineUndoTimer,onLineUndoTimer:()=>setLineUndoTimer(previous=>!previous),autoStraightLines,onAutoStraightLines:()=>setAutoStraightLines(previous=>!previous),current:currentTool,onTool:tool=>{commitText();setCurrentTool(tool)},color:currentColor,onColor:handleColorChange,colors:COLORS,colorNames:COLOR_NAMES,fontSize,onFontSize:handleFontSizeChange,strokeWidth,onWidth:setStrokeWidth,usePressure,onPressure:()=>setUsePressure(previous=>!previous),eraser:{mode:eraserMode,onMode:setEraserMode,size:eraserSize,onSize:setEraserSize,shape:eraserShape,onShape:setEraserShape,target:eraserTarget,onTarget:setEraserTarget}}}
         pages={{count:numPages,current:pageNumber,showThumbnails:showPages,onToggleThumbnails:()=>{if(focusMode){exitFocusMode();setShowPages(true)}else setShowPages(previous=>!previous)},onNavigate:goToPage,onAddBlank:()=>handleAddPages({mode:'blank',placement:'after'}),onDelete:()=>handleDeletePage(),busy:deletingPage||inserting,canAdd:!!numPages&&!!pageBase&&pageBase.page===pageNumber&&!loading&&!deletingPage&&!inserting}}
         view={{toolbarPosition,onToolbarPosition:setToolbarPosition,scale,onZoomIn:handleZoomIn,onZoomOut:handleZoomOut,onFit:handleFitWidth,onRotate:handleRotate,dark:darkPages,onDark:()=>setDarkPages(previous=>!previous),continuous:continuousView,onContinuous:()=>{handleTextDragEnd();commitText();setContinuousView(previous=>!previous)},reference:showReference,onReference:toggleReference,focus:focusMode,onFocus:enterFocusMode,onExitFocus:exitFocusMode}}
-        utilities={{timer:showTimer,onTimer:setShowTimer,stopwatch:showStopwatch,onStopwatch:setShowStopwatch,clock:showClock,onGraph:()=>{commitText();setCurrentTool('graph');setShowGraph(true);setShowCalculator(false)},calculator:showCalculator,onCalculator:()=>{commitText();setShowGraph(false);setShowCalculator(previous=>!previous)},onScanFunction:()=>{commitText();setCurrentTool('function');setShowCalculator(true);setShowGraph(false)},onCalculate:()=>{commitText();setCurrentTool('calculate')},recognition:calculationMode,onRecognition:setCalculationMode,snippetReady:!!snippet,copying:copyingSnippet,onCopyRegion:()=>{commitText();setCurrentTool('snippet')},onPaste:pasteSnippet,canPaste:!!snippet&&!!pageBase&&pageBase.page===pageNumber&&!inserting&&!deletingPage,onStylus:()=>setShowStylusStudio(true),onSettings:()=>setShowSettings(previous=>!previous),settingsOpen:showSettings,assistantOpen,onAssistant:onToggleAssistant}}
+        utilities={{onNumberLine:()=>{commitText();setCurrentTool('select');setShowGraph(false);setShowCalculator(false);setShowNumberLine(true)},timer:showTimer,onTimer:setShowTimer,stopwatch:showStopwatch,onStopwatch:setShowStopwatch,clock:showClock,onGraph:()=>{commitText();setCurrentTool('graph');setShowGraph(true);setShowCalculator(false)},calculator:showCalculator,onCalculator:()=>{commitText();setShowGraph(false);setShowCalculator(previous=>!previous)},onScanFunction:()=>{commitText();setCurrentTool('function');setShowCalculator(true);setShowGraph(false)},onCalculate:()=>{commitText();setCurrentTool('calculate')},recognition:calculationMode,onRecognition:setCalculationMode,snippetReady:!!snippet,copying:copyingSnippet,onCopyRegion:()=>{commitText();setCurrentTool('snippet')},onPaste:pasteSnippet,canPaste:!!snippet&&!!pageBase&&pageBase.page===pageNumber&&!inserting&&!deletingPage,onStylus:()=>setShowStylusStudio(true),onSettings:()=>setShowSettings(previous=>!previous),settingsOpen:showSettings,assistantOpen,onAssistant:onToggleAssistant}}
         input={{scroll:fingerScroll,onChange:setFingerInputMode,activity:inputActivity}}
         insert={<InsertPanel onPages={exportImage?undefined:handleAddPages} pageNumber={pageNumber} onFiles={insertFiles} onInsert={insertGenerated} color={currentColor} busy={inserting||!pageBase||pageBase.page!==pageNumber||deletingPage}/>}
       />
@@ -1967,6 +1969,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       <div className={cn('pdf-editor-workspace flex flex-1 min-h-0 relative',darkPages&&'pdf-dark-pages')}>
         {copyAllFallback&&<section className="pdf-copy-fallback" role="dialog" aria-label="All PDF text ready to copy"><header><strong>All PDF text</strong><button type="button" onClick={()=>setCopyAllFallback('')} aria-label="Close copied text"><X size={16}/></button></header><p>Press Ctrl+C to copy the selected text.</p><textarea aria-label="Complete extracted PDF text" value={copyAllFallback} readOnly autoFocus onFocus={event=>event.currentTarget.select()}/></section>}
         <PDFCleanup open={showCleanup} onClose={()=>setShowCleanup(false)} pdfId={pdfId} token={token} page={pageNumber} onPrepare={prepareCleanup} onApply={applyCleanup}/>
+        <PDFNumberLine open={showNumberLine} onClose={()=>setShowNumberLine(false)} onInsert={asset=>addImageInsert(asset)} canInsert={!!pageBase&&pageBase.page===pageNumber&&!inserting&&!deletingPage}/>
         <PDFGraph open={showGraph} onClose={()=>setShowGraph(false)} selection={graphSelection} onInsert={asset=>addImageInsert(asset)} canInsert={!!pageBase&&pageBase.page===pageNumber&&!inserting&&!deletingPage}/>
         <PDFCalculator open={showCalculator} onClose={()=>setShowCalculator(false)} selection={calculationSelection}/>
         {!focusMode && showPages && pdfFile && !pdfError && (

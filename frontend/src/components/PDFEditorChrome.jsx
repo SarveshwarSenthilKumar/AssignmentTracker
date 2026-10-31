@@ -95,6 +95,7 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
     {action(Calculator,'Calculate selected region',utilities.onCalculate,{active:tools.current==='calculate',detail:'Printed expressions or handwriting with AI'})}
     {action(Calculator,'Scan function → calculate',utilities.onScanFunction,{active:tools.current==='function',detail:'Select f(x), enter x, and calculate its value'})}
     {action(LineChart,'Graph selected region',utilities.onGraph,{active:tools.current==='graph',detail:'Plot a printed or handwritten function of x'})}
+    {action(LineChart,'Generate number line',utilities.onNumberLine,{detail:'Choose a range and tick spacing, then insert on the page'})}
     {(tools.current==='calculate'||tools.current==='function'||tools.current==='graph')&&<label className="pc-field">Recognition<select value={utilities.recognition} onChange={event=>utilities.onRecognition(event.target.value)}><option value="auto">Auto · AI fallback</option><option value="vision">Handwriting / AI</option><option value="text">Text only · local</option></select></label>}
     <hr/>{action(Copy,utilities.copying?'Copying region…':'Copy region',utilities.onCopyRegion,{active:tools.current==='snippet',disabled:utilities.copying,detail:'Drag a box around the content to copy'})}
     {action(Files,'Paste snippet',utilities.onPaste,{disabled:!utilities.canPaste,detail:utilities.snippetReady?'Copied content ready to paste':'Copy a region first'})}
