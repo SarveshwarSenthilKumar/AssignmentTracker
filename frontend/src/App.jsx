@@ -68,6 +68,8 @@ function App() {
   const showInProgressColumn=user?.showInProgressColumn!==false
   const taskConfirmation = useInlineConfirm('tasks')
   const deletingTaskIds=useRef(new Set())
+  const statusUpdateLocks=useRef(new Set())
+  const [updatingStatusIds,setUpdatingStatusIds]=useState(new Set())
   const readPage = () => {
     const route = window.location.hash.replace(/^#\/?/, '').split('/')[0]
     return ['home','study','tasks','calendar','documents','visualization','canvas','account','shortcuts','assistant','workspace','prep','analytics','terms','privacy','roadmap','report-bug','suggest-feature',...HIDDEN_PAGES.map(item=>item.route),'resumes','jobs','cover-letters'].includes(route) ? route : 'home'
@@ -441,6 +443,9 @@ function App() {
   }
 
   const updateTodoStatus = async (id, newStatus) => {
+    if(statusUpdateLocks.current.has(id)||deletingTaskIds.current.has(id))return
+    statusUpdateLocks.current.add(id)
+    setUpdatingStatusIds(previous=>new Set([...previous,id]))
     try {
       const response = await fetch(`/api/todos/${id}`, {
         method: 'PUT',
@@ -460,7 +465,8 @@ function App() {
         throw new Error(errorMessage)
       }
       const updatedTodo = await readApiJson(response)
-      setTodos(todos.map(t => t._id === id ? updatedTodo : t))
+      setTodos(previous=>previous.map(t => t._id === id ? {...t,...updatedTodo} : t))
+      setSelectedTask(previous=>previous?._id===id?{...previous,...updatedTodo}:previous)
 
     } catch (err) {
       if (err.message === 'Invalid or expired token') {
@@ -470,11 +476,15 @@ function App() {
         setErrorDetails(err.stack || err.toString())
         setShowErrorDetails(false)
       }
+    } finally {
+      statusUpdateLocks.current.delete(id)
+      setUpdatingStatusIds(previous=>{const next=new Set(previous);next.delete(id);return next})
     }
   }
 
   const cycleTodoStatus = async (id) => {
     const todo = todos.find(t => t._id === id)
+    if(!todo||statusUpdateLocks.current.has(id))return
     const statusOrder = ['todo', 'in-progress', 'completed']
     const currentIndex = statusOrder.indexOf(todo.status)
     const nextStatus = statusOrder[(currentIndex + 1) % statusOrder.length]
@@ -800,14 +810,16 @@ function App() {
         >
           <input type="checkbox" checked={selectedTaskIds.has(todo._id)} disabled={bulkDeleting} aria-label={`Select ${todo.text} for bulk deletion`} onClick={event=>event.stopPropagation()} onChange={()=>toggleTaskSelection(todo._id)} className="task-select-checkbox"/>
           <button
+            type="button"
+            disabled={updatingStatusIds.has(todo._id)||bulkDeleting||reordering}
+            aria-busy={updatingStatusIds.has(todo._id)}
+            aria-label={`${todo.text}: ${todo.status==='completed'?'mark to do':todo.status==='in-progress'?'mark completed':'mark in progress'}`}
+            onPointerDown={event=>event.stopPropagation()}
             onClick={(e) => { e.stopPropagation(); cycleTodoStatus(todo._id) }}
-            className={cn(
-              "flex-shrink-0 w-7 h-7 rounded-full border-2 flex items-center justify-center transition-all ",
-              statusColor.button
-            )}
+            className="task-status-hitbox"
             title="Click to change status"
           >
-            {statusColor.icon}
+            <span aria-hidden="true" className={cn('task-status-circle border-2 rounded-full flex items-center justify-center',statusColor.button)}>{updatingStatusIds.has(todo._id)?<Loader2 size={14} className="animate-spin"/>:statusColor.icon}</span>
           </button>
 
           <div className="flex-1 min-w-0">
