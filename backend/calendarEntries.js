@@ -29,9 +29,10 @@ function calendarEntry(body) {
     if ((body.endDate || body.startDate) < body.startDate) throw new Error('The end date must be on or after the start date.');
     Object.assign(result, { startDate: body.startDate, endDate: body.endDate || body.startDate, startAt: null, endAt: null });
   } else {
-    if (!instant(body.startAt) || !instant(body.endAt)) throw new Error('Choose valid start and end times.');
-    if (Date.parse(body.endAt) <= Date.parse(body.startAt)) throw new Error('The end time must be after the start time.');
-    Object.assign(result, { startAt: new Date(body.startAt), endAt: new Date(body.endAt), startDate: body.startAt.slice(0,10), endDate: body.endAt.slice(0,10) });
+    const noEnd=body.kind==='appointment'&&(body.endAt==null||body.endAt==='');
+    if (!instant(body.startAt) || (!noEnd&&!instant(body.endAt))) throw new Error('Choose a valid start time and, if provided, a valid end time.');
+    if (!noEnd&&Date.parse(body.endAt) <= Date.parse(body.startAt)) throw new Error('The end time must be after the start time.');
+    Object.assign(result, { startAt: new Date(body.startAt), endAt: noEnd?null:new Date(body.endAt), startDate: body.startAt.slice(0,10), endDate: noEnd?body.startAt.slice(0,10):body.endAt.slice(0,10) });
   }
   return result;
 }

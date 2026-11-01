@@ -38,7 +38,7 @@ export function calendarItems(tasks, entries, campusEvents = [], colors = {}) {
   }
   for (const entry of entries) {
     const startDate = entry.allDay ? entry.startDate : calendarDay(entry.startAt)
-    const endDate = entry.allDay ? entry.endDate || startDate : calendarDay(new Date(Date.parse(entry.endAt)-1))
+    const endDate = entry.allDay ? entry.endDate || startDate : entry.endAt ? calendarDay(new Date(Date.parse(entry.endAt)-1)) : startDate
     if (!validDay(startDate) || !validDay(endDate)) continue
     const sports=entry.kind==='sports'?entry.sports:null
     const context=sports?[sports.sport,sports.league,[sports.team,sports.opponent].filter(Boolean).join(' vs ')].filter(Boolean).join(' · '):''
@@ -62,8 +62,8 @@ export function calendarTime(item) {
   return item.kind==='deadline' ? `Due ${time(item.startAt)}` : item.endAt ? `${time(item.startAt)} – ${time(item.endAt)}` : time(item.startAt)
 }
 export function entryDraft(day, kind='appointment', entry=null) {
-  if(entry) return {...entry, startDate:entry.allDay?entry.startDate:calendarDay(entry.startAt),endDate:entry.allDay?entry.endDate:calendarDay(new Date(Date.parse(entry.endAt)-1)),startLocal:localDateTime(entry.startAt)||`${entry.startDate}T09:00`,endLocal:localDateTime(entry.endAt)||`${entry.endDate||entry.startDate}T10:00`}
-  return {title:'',kind,allDay:kind==='marker',startDate:day,endDate:day,startLocal:`${day}T09:00`,endLocal:`${day}T10:00`,notes:'',location:'',done:false}
+  if(entry) return {...entry, startDate:entry.allDay?entry.startDate:calendarDay(entry.startAt),endDate:entry.allDay?entry.endDate:entry.endAt?calendarDay(new Date(Date.parse(entry.endAt)-1)):calendarDay(entry.startAt),startLocal:localDateTime(entry.startAt)||`${entry.startDate}T09:00`,endLocal:localDateTime(entry.endAt)||''}
+  return {title:'',kind,allDay:kind==='marker',startDate:day,endDate:day,startLocal:`${day}T09:00`,endLocal:kind==='appointment'?'':`${day}T10:00`,notes:'',location:'',done:false}
 }
 export function entryPayload(draft) {
   const title=draft.title?.trim()||(draft.kind==='sports'?[draft.sports?.team,draft.sports?.opponent].filter(Boolean).join(' vs '):'')
@@ -73,8 +73,11 @@ export function entryPayload(draft) {
     if(!validDay(draft.startDate)||!validDay(draft.endDate)||draft.endDate<draft.startDate)throw new Error('Choose an end date on or after the start date.')
     return {...payload,startDate:draft.startDate,endDate:draft.endDate}
   }
-  const start = new Date(localToInstant(draft.startLocal)), end = new Date(localToInstant(draft.endLocal))
-  if(!Number.isFinite(start.getTime())||!Number.isFinite(end.getTime())||end<=start) throw new Error('Choose an end time after the start time.')
-  if(localDateTime(start)!==draft.startLocal.slice(0,16)||localDateTime(end)!==draft.endLocal.slice(0,16))throw new Error('That local time does not exist in your time zone. Choose another time.')
+  const start = new Date(localToInstant(draft.startLocal))
+  if(!Number.isFinite(start.getTime())||localDateTime(start)!==draft.startLocal.slice(0,16))throw new Error('Choose a valid start time in your time zone.')
+  if(draft.kind==='appointment'&&!draft.endLocal)return {...payload,startAt:start.toISOString(),endAt:null}
+  const end=new Date(localToInstant(draft.endLocal))
+  if(!Number.isFinite(end.getTime())||end<=start)throw new Error('Choose an end time after the start time.')
+  if(localDateTime(end)!==draft.endLocal.slice(0,16))throw new Error('That local time does not exist in your time zone. Choose another time.')
   return {...payload,startAt:start.toISOString(),endAt:end.toISOString()}
 }

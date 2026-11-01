@@ -14,25 +14,25 @@ export function recurringEntries(draft){
   const entries=[],limit=rule.end==='count'?count:501
   const until=rule.end==='until'?rule.until:null
   const startWeekday=(new Date(first+'T12:00:00Z').getUTCDay()+6)%7
-  const daySpan=base.allDay?Math.round((Date.parse(draft.endDate)-Date.parse(first))/86400000):Math.round((Date.parse(draft.endLocal.slice(0,10))-Date.parse(first))/86400000)
+  const daySpan=!base.allDay&&!base.endAt?0:base.allDay?Math.round((Date.parse(draft.endDate)-Date.parse(first))/86400000):Math.round((Date.parse(draft.endLocal.slice(0,10))-Date.parse(first))/86400000)
   const addDay=day=>{
     if(until&&day>until)return false
     if(base.allDay)entries.push({...base,startDate:day,endDate:shiftDay(day,daySpan)})
     else{
-      const startAt=localToInstant(day+draft.startLocal.slice(10)),endAt=localToInstant(shiftDay(day,daySpan)+draft.endLocal.slice(10))
-      if(Date.parse(endAt)<=Date.parse(startAt))throw new Error('A recurring meeting ends before it starts. Adjust its times.')
+      const startAt=localToInstant(day+draft.startLocal.slice(10)),endAt=base.endAt?localToInstant(shiftDay(day,daySpan)+draft.endLocal.slice(10)):null
+      if(endAt&&Date.parse(endAt)<=Date.parse(startAt))throw new Error('A recurring meeting ends before it starts. Adjust its times.')
       entries.push({...base,startAt,endAt})
     }
     return entries.length<limit
   }
   if(['minutes','hours'].includes(rule.unit)){
     if(base.allDay)throw new Error('Use a timed appointment for minute or hour intervals.')
-    const step=interval*(rule.unit==='hours'?3600000:60000),start=Date.parse(base.startAt),duration=Date.parse(base.endAt)-start
+    const step=interval*(rule.unit==='hours'?3600000:60000),start=Date.parse(base.startAt),duration=base.endAt?Date.parse(base.endAt)-start:null
     // Hour/minute intervals represent elapsed time, rather than local weekdays.
     for(let i=0;i<=500;i++){
       const at=start+i*step,day=zonedLocal(at).slice(0,10)
       if(until&&day>until)break
-      entries.push({...base,startAt:new Date(at).toISOString(),endAt:new Date(at+duration).toISOString()})
+      entries.push({...base,startAt:new Date(at).toISOString(),endAt:duration===null?null:new Date(at+duration).toISOString()})
       if(rule.end==='count'&&entries.length===count)break
     }
   }else if(rule.unit==='months'){
