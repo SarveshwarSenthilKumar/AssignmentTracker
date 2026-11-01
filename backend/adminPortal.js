@@ -1,5 +1,6 @@
 const access=require('./adminAccess');
 module.exports=(app,auth,mongoose)=>{
+  require('./adminStats')(app,auth,mongoose);
   const summary=async(name,kind)=>{
     const Model=mongoose.models[name];
     if(!Model)throw new Error('Missing model');
