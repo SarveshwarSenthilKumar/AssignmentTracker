@@ -10,6 +10,7 @@ const shiftDay=(day,count)=>{const date=new Date(`${day}T12:00:00Z`);date.setUTC
 const label=day=>new Date(`${day}T12:00:00Z`).toLocaleDateString('en-US',{timeZone:'UTC',weekday:'long',month:'long',day:'numeric',year:'numeric'});
 const eventTime=value=>new Date(value).toLocaleTimeString('en-US',{timeZone:zone,hour:'numeric',minute:'2-digit'});
 const onDay=(event,day)=>dayOf(event.start)<=day&&dayOf(event.end?event.end-1:event.start)>=day;
+const hasFood=event=>/free\s*food|freefood/i.test(event.benefits);
 $('date').value=today();
 function node(tag,content,className){const element=document.createElement(tag);element.textContent=content;if(className)element.className=className;return element;}
 function ingest(data){
@@ -30,11 +31,17 @@ function render(){
   const day=$('date').value;if(!/^\d{4}-\d{2}-\d{2}$/.test(day))return;
   const query=$('search').value.trim().toLowerCase(),category=$('category').value,now=Date.now();
   $('day-heading').textContent=new Date(`${day}T12:00:00Z`).toLocaleDateString('en-US',{timeZone:'UTC',weekday:'long',month:'long',day:'numeric',year:'numeric'});
-  const matching=events.filter(event=>(!category||event.categories.includes(category))&&(!$('food').checked||/free\s*food|freefood/i.test(event.benefits))&&`${event.name} ${event.location} ${event.organization} ${event.description}`.toLowerCase().includes(query));
+  const filtered=Boolean(query||category||$('food').checked);
+  $('clear-filters').hidden=!filtered;
+  const matching=events.filter(event=>(!category||event.categories.includes(category))&&(!$('food').checked||hasFood(event))&&`${event.name} ${event.location} ${event.organization} ${event.description}`.toLowerCase().includes(query));
   const selected=matching.filter(event=>onDay(event,day));
+  const dayEvents=events.filter(event=>onDay(event,day));
+  $('summary-total').textContent=dayEvents.length;
+  $('summary-live').textContent=dayEvents.filter(event=>event.end&&now>=event.start&&now<event.end).length;
+  $('summary-food').textContent=dayEvents.filter(hasFood).length;
   renderCalendar(matching,day);
   $('agenda-label').textContent=label(day);
-  $('agenda-empty').textContent=selected.length?'':loading?'Loading events…':'No events for this day. Select another date or choose Next event.';
+  $('agenda-empty').textContent=selected.length?`${selected.length} ${selected.length===1?'event':'events'}${filtered?' matching your filters':''} · All times Central`:loading?'Loading events…':filtered?'No events match these filters. Clear filters to see the full day.':'A little room for spontaneity. No events listed for this day; choose Next event to find another plan.';
   $('count').textContent=selected.length;$('events').replaceChildren();
   const stamp=Date.parse(metadata.scrapedAt||metadata.updatedAt);
   $('freshness').textContent=Number.isFinite(stamp)?`Updated ${new Date(stamp).toLocaleString('en-US',{timeZone:zone,month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})} CT${now-stamp>86400000?' · Data is over a day old':''}${metadata.complete===false?' · Partial collection':''}`:'No published update yet';
@@ -44,6 +51,7 @@ function render(){
     const card=node('article','','event');const heading=node('div','','event-top');
     heading.append(node('span',`${time(event.start)}${event.end?` – ${time(event.end)}`:''}`,'event-time'));
     if(dayOf(event.start)!==day||event.end&&dayOf(event.end-1)!==day)heading.append(node('span','Multi-day','badge'));
+    if(hasFood(event))heading.append(node('span','Free food','badge food-badge'));
     if(event.end&&now>=event.start&&now<event.end)heading.append(node('span','Happening now','badge live'));
     else if(event.start>now&&event.start-now<=3600000)heading.append(node('span','Starting soon','badge'));
     card.append(heading,node('h3',event.name),node('p',event.location,'location'));
@@ -68,6 +76,7 @@ function renderCalendar(items,selectedDay){
   }
 }
 function selectDay(day){$('date').value=day;month=day.slice(0,7);render();}
+function clearFilters(){$('search').value='';$('category').value='';$('food').checked=false;render();}
 function showEvent(event){
   const detail=$('event-detail');detail.replaceChildren(node('p',label(dayOf(event.start)),'eyebrow'),node('h2',event.name),node('p',`${eventTime(event.start)}${event.end?` – ${eventTime(event.end)}${dayOf(event.end-1)!==dayOf(event.start)?` (${label(dayOf(event.end-1))})`:''}`,'event-time'),node('p',event.location,'location'));
   if(event.organization)detail.append(node('p',event.organization,'organizer'));
@@ -97,6 +106,7 @@ function makeQr(){
 ['search','category','food'].forEach(id=>$(id).addEventListener('input',render));
 $('date').addEventListener('input',()=>{if($('date').value)selectDay($('date').value);});
 $('today').addEventListener('click',()=>selectDay(today()));
+$('clear-filters').addEventListener('click',clearFilters);
 ['previous-month','next-month'].forEach((id,index)=>$(id).addEventListener('click',()=>{const date=new Date(`${month}-01T12:00:00Z`);date.setUTCMonth(date.getUTCMonth()+(index===0?-1:1));selectDay(date.toISOString().slice(0,10));}));
 $('next-event').addEventListener('click',()=>{const event=events.find(event=>dayOf(event.end?event.end-1:event.start)>=$('date').value);if(event){$('search').value='';$('category').value='';$('food').checked=false;selectDay(onDay(event,$('date').value)?$('date').value:dayOf(event.start));}else $('message').textContent='No later events in this export. Reload updated event data or choose an earlier date.';});
 $('reload').addEventListener('click',load);$('close-event').addEventListener('click',()=>$('event-dialog').close());

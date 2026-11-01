@@ -4,7 +4,7 @@ A separate project idea for a frontend-only webpage that summarizes campus event
 
 Residents scan a QR code displayed at the apartment to open the webpage and quickly see what's happening.
 
-## Planned experience
+## Experience
 
 - Show today's events in America/Chicago time, ordered by start time.
 - Summarize each event with its name, time, location, organizer, and a short description.
@@ -18,6 +18,8 @@ Host the frontend at a public URL and generate a QR code pointing to that URL. P
 A frontend-only version can read a published static JSON file containing public event data. Direct browser requests to TXST may be restricted by CORS; the existing scraper could export the JSON separately if needed. Show when the data was last updated.
 
 ## Status
+
+The page includes a selected-day overview (total events, events happening now, and events listing free food), a clearer calendar and agenda layout, free-food badges, and a Clear filters action. Overview counts cover the full selected day; search and category filters narrow the calendar and agenda. Keyboard users can skip directly to the lineup, and reduced-motion preferences are respected.
 
 Dark mode is the default. Use the header's Light mode / Dark mode button to switch. Your choice is saved in browser local storage; if storage is unavailable, the toggle still works for the current visit. The QR poster remains light for scanning and printing.
 
@@ -41,7 +43,7 @@ Open http://localhost:8080 in your browser. Opening index.html directly may prev
 
 ## Publish real event data
 
-The included events.json is intentionally empty; no events have been invented. From the repository root, populate it using the existing scraper:
+The included events.json contains a previously exported snapshot, so it may be out of date. From the repository root, refresh it using the existing scraper:
 
 ```powershell
 node backend/scrapeTxstEvents.js --out daily-events/events.json
