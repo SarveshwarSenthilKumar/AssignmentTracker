@@ -7,6 +7,7 @@ const frontend = fileURLToPath(new URL('../', import.meta.url))
 const backend = fileURLToPath(new URL('../../backend/', import.meta.url))
 const requireBackend = createRequire(new URL('../../backend/package.json', import.meta.url))
 let vite, api, closing = false
+const frontendOnly=process.argv.includes('--frontend-only')
 async function close(code = 0) {
   if (closing) return
   closing = true
@@ -21,6 +22,12 @@ try {
   const { config } = requireBackend('dotenv')
   config({ path: fileURLToPath(new URL('../../backend/.env', import.meta.url)) })
   process.env.API_PROXY_TARGET ||= `http://127.0.0.1:${process.env.PORT || '5000'}`
+  if(frontendOnly){
+    process.stderr.write('Frontend-only mode: start the backend in another terminal. Use npm run dev or npm run dev:frontend to start both services.\n')
+    vite=await createServer({root:frontend})
+    if(closing)await vite.close()
+    else {await vite.listen();vite.printUrls()}
+  }else{
   // Launch the actual server directly: a watcher can stay alive after its
   // child crashes, incorrectly making startup appear successful.
   api = spawn(process.execPath, ['server.js'], { cwd: backend, env: process.env, stdio: ['inherit','inherit','inherit','ipc'], windowsHide: true })
@@ -47,6 +54,7 @@ try {
   vite = await createServer({ root: frontend })
   if (closing) await vite.close()
   else { await vite.listen(); vite.printUrls() }
+  }
 } catch (error) {
   process.stderr.write(`Development startup failed: ${error.message}\nCheck backend/.env and install dependencies in both backend and frontend.\n`)
   await close(1)

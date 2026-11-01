@@ -567,3 +567,10 @@ Only full administrators listed in the backend `ADMIN_PORTAL_EDITOR_EMAILS` envi
 - **Existing PDF/image content:** Choose More tools → Detect selected number line, then drag around one complete labeled number line, including its endpoints and labels. The selected region and its visible annotations are sent to Gemini using the existing AI recognition permission and configured API key. Review and edit the detected minimum, maximum and tick spacing in the number-line panel, then insert a clean horizontal copy or download PNG. The source is not replaced. This uses AI quota and requires Account → AI access → AI handwriting and math recognition.
 
 Image recognition requires at least two readable numeric labels and a uniform scale, with at most 101 ticks in the reconstructed range. Ambiguous, cropped, unlabeled, logarithmic or nonuniform lines, multiple axes, and lines with interval shading, inequality rays or plotted/open/closed points are rejected rather than silently losing their meaning. Enter a range manually when recognition cannot read it. Recognition may be wrong; inspect the preview before inserting. Refresh the frontend and restart the backend after updating; no new dependencies are required.
+
+
+### Local startup and refused API connections
+
+From `frontend`, run `npm run dev` or `npm run dev:frontend`. Both commands start the backend, wait for its listener confirmation, and then start Vite with the backend port from `backend/.env`. Backend errors stay visible in the terminal; if the backend exits, the combined development session stops. After updating, stop the old Vite process with Ctrl+C and rerun the command.
+
+For separate terminals, start `npm run dev` in `backend` and `npm run dev:frontend-only` in `frontend`. The frontend-only launcher reads the same backend port configuration but does not launch another API process. Do not start a combined session while a separate backend already occupies that port. `ECONNREFUSED 127.0.0.1:5000` means the proxy could not reach its API listener; if combined startup fails, resolve the backend error printed above it. No document or account reset is needed.

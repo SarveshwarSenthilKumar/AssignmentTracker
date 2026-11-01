@@ -13,7 +13,7 @@ export default defineConfig({
           proxy.on('error', (_error, _request, response) => {
             if (!response || typeof response.writeHead !== 'function' || response.headersSent || response.destroyed) return
             response.writeHead(503, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' })
-            response.end(JSON.stringify({ message: 'The API server is unavailable or restarting. Start the app with npm run dev in frontend (starts both services), or check the backend terminal for a startup error, then retry.' }))
+            response.end(JSON.stringify({ message: 'The API server is unavailable or restarting. Stop this frontend with Ctrl+C, then run npm run dev:frontend in frontend to start both services. If using dev:frontend-only, start the backend separately. Check the backend output for startup errors, then retry.' }))
           })
         },
       }

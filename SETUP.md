@@ -25,17 +25,17 @@ A modern, full-stack todo application built with React, Express, MongoDB, and Ta
 ### Start both services together
 
 After installing dependencies in both `backend` and `frontend` and configuring
-`backend/.env`, run `npm run dev` from `frontend`. This starts the backend and
+`backend/.env`, run `npm run dev` or `npm run dev:frontend` from `frontend`. This starts the backend and
 waits for its listening confirmation before starting Vite. Backend startup errors
 are printed directly, and a backend exit stops the frontend. Restart this command
 after changing backend code. For backend automatic restart, use the separate-terminal
-workflow below (`backend: npm run dev`, `frontend: npm run dev:frontend`). Stop any separately running
+workflow below (`backend: npm run dev`, `frontend: npm run dev:frontend-only`). Stop any separately running
 backend first to avoid a port conflict. Ctrl+C stops both services.
 
 The API proxy uses `127.0.0.1` and the backend's configured `PORT` (5000 by
 default). An explicit `API_PROXY_TARGET` overrides that address. If you prefer
 separate terminals using the instructions below, start the backend there and
-use `npm run dev:frontend` instead of `npm run dev` in the frontend terminal.
+use `npm run dev:frontend-only` in the frontend terminal. Both `npm run dev` and `npm run dev:frontend` start the backend; do not run either alongside a separately running backend.
 `ECONNREFUSED` means no backend is accepting the proxy connection; check the
 backend startup output rather than changing document or folder records.
 
@@ -112,7 +112,7 @@ npm install
 
 2. **Start Frontend Server**
    ```bash
-   npm run dev:frontend
+   npm run dev:frontend-only
    ```
    Frontend will run on `http://localhost:3000`
 
