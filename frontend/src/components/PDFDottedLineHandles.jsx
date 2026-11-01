@@ -4,6 +4,12 @@ export default function PDFDottedLineHandles({ items, width, height, scale, onSt
   const [selected, setSelected] = useState(null), drag = useRef(null)
   const groups = new Map()
   for (const item of items) {
+    if(item.numberLineGroup&&item.points?.length){
+      const key=`number:${item.numberLineGroup}`
+      if(!groups.has(key))groups.set(key,[])
+      groups.get(key).push(item)
+      continue
+    }
     if (item.straightLine && item.points?.length >= 2) {
       groups.set(`straight:${item.id}`, [item])
       continue
@@ -12,7 +18,10 @@ export default function PDFDottedLineHandles({ items, width, height, scale, onSt
     if (!groups.has(item.dottedGroup)) groups.set(item.dottedGroup, [])
     groups.get(item.dottedGroup).push(item)
   }
-  const endpoints = strokes => [strokes[0].points[0], strokes[strokes.length - 1].points[strokes[strokes.length - 1].points.length - 1]]
+  const endpoints = strokes => {
+    const axis=strokes.find(item=>item.numberLineAxis)
+    return axis?[axis.points[0],axis.points.at(-1)]:[strokes[0].points[0],strokes.at(-1).points.at(-1)]
+  }
   const point = event => {
     const svg = event.currentTarget.ownerSVGElement
     const p = svg.createSVGPoint(); p.x = event.clientX; p.y = event.clientY
@@ -34,6 +43,17 @@ export default function PDFDottedLineHandles({ items, width, height, scale, onSt
     if (active.mode === 'start') from = p
     else if (active.mode === 'end') to = p
     if (active.mode !== 'move' && Math.hypot(to.x - from.x, to.y - from.y) < 8 / scale) return
+    if(dots.some(item=>item.numberLineAxis)){
+      const oldLength=Math.hypot(b.x-a.x,b.y-a.y),newLength=Math.hypot(to.x-from.x,to.y-from.y)
+      if(!oldLength||!newLength)return
+      const ux=(b.x-a.x)/oldLength,uy=(b.y-a.y)/oldLength,vx=(to.x-from.x)/newLength,vy=(to.y-from.y)/newLength
+      onChange(dots.map(item=>({...item,points:item.points.map(original=>{
+        if(active.mode==='move')return {...original,x:original.x+p.x-active.origin.x,y:original.y+p.y-active.origin.y}
+        const along=((original.x-a.x)*ux+(original.y-a.y)*uy)/oldLength,across=-(original.x-a.x)*uy+(original.y-a.y)*ux
+        return {...original,x:from.x+vx*newLength*along-vy*across,y:from.y+vy*newLength*along+vx*across}
+      })})))
+      return
+    }
     if (dots.length === 1 && dots[0].straightLine) {
       const item = dots[0], lengthSquared = (b.x-a.x)**2 + (b.y-a.y)**2
       onChange([{...item, points:item.points.map(original=>{

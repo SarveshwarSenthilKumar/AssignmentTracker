@@ -4,13 +4,22 @@ import {downloadBlob} from '../lib/documentFormats'
 import './PDFCalculator.css'
 import './PDFGraph.css'
 
-export default function PDFNumberLine({open,onClose,onInsert,canInsert}) {
+export default function PDFNumberLine({open,onClose,onInsert,canInsert,selection}) {
   const [values,setValues]=useState(['-10','10','1'])
   const [error,setError]=useState(''),[valid,setValid]=useState(false)
   const canvas=useRef(null)
+  const [scan,setScan]=useState(null)
+  useEffect(()=>{
+    setScan(selection||null)
+    if(selection&&!selection.pending&&!selection.error){
+      const values=[selection.minimum,selection.maximum,selection.step]
+      if(values.every(value=>typeof value==='number'&&Number.isFinite(value)))setValues(values.map(String))
+      else setScan({error:'The detected number line is incomplete. Enter its range manually.'})
+    }
+  },[selection])
   useEffect(()=>{
     setValid(false)
-    if(!open)return
+    if(!open||scan?.pending||scan?.error)return
     try{
       const [min,max,step]=values.map(value=>value.trim()===''?NaN:Number(value))
       const range=max-min,count=Math.floor(range/step+1e-9)
@@ -36,11 +45,14 @@ export default function PDFNumberLine({open,onClose,onInsert,canInsert}) {
       }
       setError('');setValid(true)
     }catch(e){setError(e.message)}
-  },[open,values])
+  },[open,values,scan])
   return <aside hidden={!open} className="pdf-calculator pdf-graph" aria-label="Number line" data-keep-text-active>
     <header><span>Number line</span><button type="button" aria-label="Close number line" onClick={onClose}><X size={16}/></button></header>
+    {scan?.pending&&<p role="status">Reading selected number line…</p>}
+    {scan?.error&&<p className="pdf-calculator-error" role="alert">{scan.error} You can edit the fields below manually.</p>}
+    {scan&&!scan.pending&&!scan.error&&<p role="status">AI detection — review the range and tick spacing before inserting. {scan.transcription} A clean horizontal copy is generated; the source stays unchanged.</p>}
     <p>Set the range and spacing between ticks. Labels start at the minimum; crowded labels are reduced automatically.</p>
-    <div className="pdf-graph-limits">{['Minimum','Maximum','Tick spacing'].map((label,index)=><label key={label}>{label}<input type="number" step="any" value={values[index]} onChange={event=>setValues(previous=>previous.map((value,i)=>i===index?event.target.value:value))}/></label>)}</div>
+    <div className="pdf-graph-limits">{['Minimum','Maximum','Tick spacing'].map((label,index)=><label key={label}>{label}<input type="number" step="any" value={values[index]} disabled={!!scan?.pending} onChange={event=>{setScan(null);setValues(previous=>previous.map((value,i)=>i===index?event.target.value:value))}}/></label>)}</div>
     {error&&<p className="pdf-calculator-error" role="alert">{error}</p>}
     <canvas ref={canvas} width={960} height={160} hidden={!valid} role="img" aria-label={`Number line from ${values[0]} to ${values[1]}, tick spacing ${values[2]}`}/>
     <div className="pdf-graph-actions">

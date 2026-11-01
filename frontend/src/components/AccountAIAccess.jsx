@@ -25,7 +25,7 @@ const groups=[
   ]],
   ['Additional AI features',[
     ['generation','AI document generation','Generate document drafts from prompts you enter.'],
-    ['recognition','AI handwriting and math recognition','Send selected math/handwriting images to AI for recognition. Also permits job image/PDF extraction when AI mode is selected. Local OCR does not use this permission.'],
+    ['recognition','AI handwriting and math recognition','Send selected math/handwriting and number-line images to AI for recognition. Also permits job image/PDF extraction when AI mode is selected. Local OCR does not use this permission.'],
   ]],
 ]
 export default function AccountAIAccess({token}){

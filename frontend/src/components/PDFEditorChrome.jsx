@@ -51,7 +51,7 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
   const iconButton=(Icon,label,fn,disabled=false,active=false)=><button type="button" className={`pc-button pc-icon${active?' is-active':''}`} title={label} aria-label={label} disabled={disabled} onClick={fn}><Icon size={17}/></button>
   const action=(Icon,label,fn,{disabled=false,active=false,danger=false,detail}={})=><button type="button" className={`pc-menu-action${danger?' is-danger':''}${active?' is-active':''}`} onClick={run(fn)} disabled={disabled}><Icon size={16}/><span>{label}{detail&&<small>{detail}</small>}</span>{active&&<i aria-label="Enabled"/>}</button>
   const menu=(key,label,Icon,children,{left=false,custom=null}={})=><div className={`pc-menu-anchor${left?' is-left':''}`}>
-    <button type="button" className={`pc-button${open===key||key==='tools'&&['calculate','function','graph','snippet'].includes(tools.current)?' is-active':''}`} aria-expanded={open===key} aria-controls={open===key?`${id}-${key}`:undefined} onClick={event=>{trigger.current=event.currentTarget;setOpen(previous=>previous===key?null:key)}} title={label}>{custom||<><Icon size={16}/><span>{label}</span></>}<ChevronDown size={12}/></button>
+    <button type="button" className={`pc-button${open===key||key==='tools'&&['calculate','function','graph','number-line','snippet'].includes(tools.current)?' is-active':''}`} aria-expanded={open===key} aria-controls={open===key?`${id}-${key}`:undefined} onClick={event=>{trigger.current=event.currentTarget;setOpen(previous=>previous===key?null:key)}} title={label}>{custom||<><Icon size={16}/><span>{label}</span></>}<ChevronDown size={12}/></button>
     {open===key&&<section id={`${id}-${key}`} className={`pc-popover pc-popover-${key}`} aria-label={label}><div className="pc-popover-title">{label}</div>{children}</section>}
   </div>
   const documentMenu=menu('document','Document',FileText,<>
@@ -87,6 +87,8 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
     <label className="pc-checkbox"><input type="checkbox" checked={tools.autoStraightLines} onChange={tools.onAutoStraightLines}/>Detect long straight pen lines</label>
     <label className="pc-checkbox"><input type="checkbox" checked={tools.autoDottedLines} onChange={tools.onAutoDottedLines}/>Detect dotted pen lines</label>
     <label className="pc-checkbox"><input type="checkbox" checked={tools.autoDashedLines} onChange={tools.onAutoDashedLines}/>Detect dashed / broken pen lines</label>
+    <label className="pc-checkbox"><input type="checkbox" checked={tools.autoNumberLines} onChange={tools.onAutoNumberLines}/>Detect pen-drawn number lines</label>
+    <p className="pc-menu-note">For number lines, draw a long axis and at least three evenly spaced crossing ticks. Labels stay as drawn. Detection runs locally; Undo restores the original strokes.</p>
     <p className="pc-menu-note">Draw at least three short strokes along a rough row. Detection straightens and evenly spaces the dashes.</p>
     <p className="pc-menu-note">Draw at least four separate dots along a rough row in any direction. Small flicks, loops, uneven spacing and placement errors are allowed; detection turns them into evenly spaced round dots.</p>
     <label className="pc-checkbox"><input type="checkbox" checked={tools.lineUndoTimer} onChange={tools.onLineUndoTimer}/>Auto-hide line undo notice after 15 seconds</label>
@@ -95,6 +97,7 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
     {action(Calculator,'Calculate selected region',utilities.onCalculate,{active:tools.current==='calculate',detail:'Printed expressions or handwriting with AI'})}
     {action(Calculator,'Scan function → calculate',utilities.onScanFunction,{active:tools.current==='function',detail:'Select f(x), enter x, and calculate its value'})}
     {action(LineChart,'Graph selected region',utilities.onGraph,{active:tools.current==='graph',detail:'Plot a printed or handwritten function of x'})}
+    {action(LineChart,'Detect selected number line',utilities.onDetectNumberLine,{active:tools.current==='number-line',detail:'Drag around a labeled number line; AI reads its range and tick spacing for review'})}
     {action(LineChart,'Generate number line',utilities.onNumberLine,{detail:'Choose a range and tick spacing, then insert on the page'})}
     {(tools.current==='calculate'||tools.current==='function'||tools.current==='graph')&&<label className="pc-field">Recognition<select value={utilities.recognition} onChange={event=>utilities.onRecognition(event.target.value)}><option value="auto">Auto · AI fallback</option><option value="vision">Handwriting / AI</option><option value="text">Text only · local</option></select></label>}
     <hr/>{action(Copy,utilities.copying?'Copying region…':'Copy region',utilities.onCopyRegion,{active:tools.current==='snippet',disabled:utilities.copying,detail:'Drag a box around the content to copy'})}
