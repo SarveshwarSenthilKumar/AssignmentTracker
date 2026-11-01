@@ -1,3 +1,4 @@
+const {checkSafety}=require('./assistantSafety');
 const {scopePayload,scopeAllowed,OUT_OF_SCOPE_REPLY}=require('./assistantScope');
 const taskSchedule=require('./taskSchedule');
 const taskDueDate=require('./taskDueDate');
@@ -586,17 +587,26 @@ app.post('/api/assistant/chat', authenticateToken, async (req, res) => {
     if (controller.signal.aborted) { if (res.destroyed) return; throw new Error('Request timed out.'); }
     const context = restrictAIContext(workspaceContext({user,tasks,entries,documents:documents.filter(file=>req.aiAccess[aiFileCategory(file)]),folders,documentFolders,totals},request),req.aiAccess);
     const payload=await responsePayload(request,context,file,aiModel());stage='gemini';
-    const scopeResult=req.aiAccess.appOnly!==false
+    const safetyOptions={apiKey:credential.apiKey,signal:controller.signal,traceId};
+    const inputSafety=await checkSafety(payload.contents,aiModel(),safetyOptions,'input');
+    const scopeResult=inputSafety.safe&&req.aiAccess.appOnly!==false
       ? await callAssistantAPI(scopePayload(request,context,aiModel()),{apiKey:credential.apiKey,signal:controller.signal,traceId,metadata:{kind:'chat_scope'}})
       : null;
-    const allowed=scopeResult===null||scopeAllowed(scopeResult.data);
+    const allowed=inputSafety.safe&&(scopeResult===null||scopeAllowed(scopeResult.data));
     const result=allowed
       ? await callAssistantAPI(payload,{apiKey:credential.apiKey,signal:controller.signal,traceId,metadata:{kind:'chat',requestBytes:Buffer.byteLength(JSON.stringify(payload)),workspaceCharacters:JSON.stringify(context).length,screenCharacters:request.screen.length,historyMessages:request.messages.length,fileBytes:file.reduce((total,item)=>total+(item.pdfData?.length||0),0)}})
-      : {data:{candidates:[{content:{parts:[{text:OUT_OF_SCOPE_REPLY}]},finishReason:'STOP'}]},diagnostics:{...scopeResult.diagnostics,scopeBlocked:true}};
+      : {data:{candidates:[{content:{parts:[{text:inputSafety.safe?OUT_OF_SCOPE_REPLY:inputSafety.reply}]},finishReason:'STOP'}]},diagnostics:{...(scopeResult?.diagnostics||{traceId,source:'application',category:'success'}),scopeBlocked:inputSafety.safe,safetyBlocked:!inputSafety.safe}};
     providerReport=result.diagnostics;
-    stage='parse_answer';const data=result.data,parsedEditor=extractEditorActions(responseText(data),request.editor),text=parsedEditor.text;state.lastResult={...result.diagnostics,httpStatus:200,totalElapsedMs:Date.now()-started};
+    stage='parse_answer';const data=result.data;
+    let checkedText=responseText(data),outputBlocked=false;
+    if(allowed){
+      const outputSafety=await checkSafety([{role:'user',parts:[{text:checkedText}]}],aiModel(),safetyOptions,'output');
+      if(!outputSafety.safe){checkedText=outputSafety.reply;outputBlocked=true;}
+    }
+    const parsedEditor=extractEditorActions(checkedText,request.editor),text=parsedEditor.text;
+    state.lastResult={...result.diagnostics,safetyBlocked:!inputSafety.safe||outputBlocked,httpStatus:200,totalElapsedMs:Date.now()-started};
     res.set('X-Assistant-Trace-Id',traceId);
-    const answer={content:text,sources:responseSources(text,context).slice(0,40),context:{...(context.totals||{}),section:request.section,screenIncluded:request.includeScreen,workspaceIncluded:request.includeWorkspace,document:context.openDocument||null,documents:context.openDocuments||[],historyMessages:request.messages.length},partial:data.candidates?.[0]?.finishReason==='MAX_TOKENS'||text.length===12000};
+    const answer={content:text,sources:responseSources(text,context).slice(0,40),context:{...(context.totals||{}),section:request.section,screenIncluded:request.includeScreen,workspaceIncluded:request.includeWorkspace,document:context.openDocument||null,documents:context.openDocuments||[],historyMessages:request.messages.length},partial:!outputBlocked&&(data.candidates?.[0]?.finishReason==='MAX_TOKENS'||text.length===12000)};
     stage='save_conversation';const conversation=await finishConversation(turn,answer);turnFinished=true;
     res.json({text,editorActions:parsedEditor.actions,sources:answer.sources,diagnostics:state.lastResult,context:answer.context,partial:answer.partial,conversation});
   } catch (error) {

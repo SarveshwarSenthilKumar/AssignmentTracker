@@ -1,3 +1,4 @@
+const {SAFETY_INSTRUCTIONS}=require('./assistantSafety');
 const {APP_SCOPE}=require('./assistantScope');
 const {editorContext,editorInstructions}=require('./assistantEditor');
 const ID = /^[a-f\d]{24}$/i;
@@ -91,7 +92,7 @@ async function responsePayload(request, context, file, model) {
   if(contents[0]?.role==='model')contents.unshift({role:'user',parts:[{text:'Earlier conversation context follows.'}]});
   const latest=contents.at(-1);latest.parts.unshift(...reference);
   const style={concise:'Keep answers brief and direct unless the question requires detail.',balanced:'Use enough detail to answer clearly without unnecessary length.',detailed:'Give thorough explanations, useful examples and clear structure.'}[request.responseStyle||'balanced'];
-  return {model,store:false,systemInstruction:{parts:[{text:`${request.access?.appOnly===false?'General-topic questions are allowed.':APP_SCOPE} ${request.editor&&!request.editor.readOnly?INSTRUCTIONS.replace('You are the read-only assistant','You are the assistant').replace('You cannot create, edit, complete, delete, reset, upload, send messages, or make changes; never claim you did.',editorInstructions):INSTRUCTIONS}\nResponse preference: ${style}`}]},generationConfig:{maxOutputTokens:request.responseStyle==='detailed'?8192:4096},contents};
+  return {model,store:false,systemInstruction:{parts:[{text:`${SAFETY_INSTRUCTIONS} ${request.access?.appOnly===false?'General-topic questions are allowed within the safety rules.':APP_SCOPE} ${request.editor&&!request.editor.readOnly?INSTRUCTIONS.replace('You are the read-only assistant','You are the assistant').replace('You cannot create, edit, complete, delete, reset, upload, send messages, or make changes; never claim you did.',editorInstructions):INSTRUCTIONS}\nResponse preference: ${style}`}]},generationConfig:{maxOutputTokens:request.responseStyle==='detailed'?8192:4096},contents};
 }
 function responseText(data) {
   const candidate=data.candidates?.[0];

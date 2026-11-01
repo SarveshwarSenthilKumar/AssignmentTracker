@@ -4,7 +4,7 @@ import './AccountAIAccess.css'
 
 const groups=[
   ['Chat topics',[
-    ['appOnly','Keep chat focused on Assignment Tracker','On by default. Decline unrelated prompts. Turn off to allow general-topic conversations; your other AI access settings still apply.'],
+    ['appOnly','Keep chat focused on Assignment Tracker','On by default. Decline unrelated prompts. Turn off to allow general-topic conversations; your other AI access settings and always-on safety checks still apply.'],
   ]],
   ['Workspace information',[
     ['profile','Account profile','Username, email, time zone, and Canvas connection status.'],
