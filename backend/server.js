@@ -1,3 +1,4 @@
+const {scopePayload,scopeAllowed,OUT_OF_SCOPE_REPLY}=require('./assistantScope');
 const taskSchedule=require('./taskSchedule');
 const taskDueDate=require('./taskDueDate');
 const {registerAIAccess,category:aiFileCategory,restrictRequest:restrictAIRequest,restrictContext:restrictAIContext}=require('./aiAccess');
@@ -585,7 +586,11 @@ app.post('/api/assistant/chat', authenticateToken, async (req, res) => {
     if (controller.signal.aborted) { if (res.destroyed) return; throw new Error('Request timed out.'); }
     const context = restrictAIContext(workspaceContext({user,tasks,entries,documents:documents.filter(file=>req.aiAccess[aiFileCategory(file)]),folders,documentFolders,totals},request),req.aiAccess);
     const payload=await responsePayload(request,context,file,aiModel());stage='gemini';
-    const result=await callAssistantAPI(payload,{apiKey:credential.apiKey,signal:controller.signal,traceId,metadata:{kind:'chat',requestBytes:Buffer.byteLength(JSON.stringify(payload)),workspaceCharacters:JSON.stringify(context).length,screenCharacters:request.screen.length,historyMessages:request.messages.length,fileBytes:file.reduce((total,item)=>total+(item.pdfData?.length||0),0)}});
+    const scopeResult=await callAssistantAPI(scopePayload(request,context,aiModel()),{apiKey:credential.apiKey,signal:controller.signal,traceId,metadata:{kind:'chat_scope'}});
+    const allowed=scopeAllowed(scopeResult.data);
+    const result=allowed
+      ? await callAssistantAPI(payload,{apiKey:credential.apiKey,signal:controller.signal,traceId,metadata:{kind:'chat',requestBytes:Buffer.byteLength(JSON.stringify(payload)),workspaceCharacters:JSON.stringify(context).length,screenCharacters:request.screen.length,historyMessages:request.messages.length,fileBytes:file.reduce((total,item)=>total+(item.pdfData?.length||0),0)}})
+      : {data:{candidates:[{content:{parts:[{text:OUT_OF_SCOPE_REPLY}]},finishReason:'STOP'}]},diagnostics:{...scopeResult.diagnostics,scopeBlocked:true}};
     providerReport=result.diagnostics;
     stage='parse_answer';const data=result.data,parsedEditor=extractEditorActions(responseText(data),request.editor),text=parsedEditor.text;state.lastResult={...result.diagnostics,httpStatus:200,totalElapsedMs:Date.now()-started};
     res.set('X-Assistant-Trace-Id',traceId);
