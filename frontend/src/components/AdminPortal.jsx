@@ -12,10 +12,21 @@ export default function AdminPortal({token,user}){
     fetch('/api/admin/overview',{headers:{Authorization:`Bearer ${token}`},signal:controller.signal,cache:'no-store'}).then(async response=>{
       const result=await readApiJson(response);if(!response.ok){const failure=new Error(result.message||'Could not open the admin portal.');failure.status=response.status;throw failure}
       if(!result.capabilities||(!result.capabilities.bugs&&!result.capabilities.features))throw new Error('No review permissions were returned.')
-      if(!controller.signal.aborted){setData(result);setActive(previous=>(result.capabilities[previous]||(previous==='contacts'&&result.capabilities.bugs))?previous:result.capabilities.bugs?'bugs':'features')}
+      if(!controller.signal.aborted){
+        setData(result)
+        setActive(previous=>{
+          const requested=window.location.hash.match(/^#\/admin\/([a-z-]+)$/)?.[1]
+          if(requested&&result.capabilities[requested])return requested
+          return (result.capabilities[previous]||(previous==='contacts'&&result.capabilities.bugs))?previous:result.capabilities.bugs?'bugs':'features'
+        })
+      }
     }).catch(reason=>{if(!controller.signal.aborted){setError(reason.message);if(reason.status===403||reason.status===401){setData(null);setVisited([])}}}).finally(()=>{if(!controller.signal.aborted)setLoading(false)})
     return()=>controller.abort()
   },[token,revision])
+  useEffect(()=>{
+    const change=()=>{const section=window.location.hash.match(/^#\/admin\/([a-z-]+)$/)?.[1];if(section&&data?.capabilities[section])setActive(section)}
+    window.addEventListener('hashchange',change);return()=>window.removeEventListener('hashchange',change)
+  },[data])
   useEffect(()=>{if(active)setVisited(previous=>previous.includes(active)?previous:[...previous,active])},[active])
   if(!data)return <section className="admin-portal"><h2>Feedback administration</h2>{loading?<p role="status">Checking review permissions…</p>:<><p role="alert" className="admin-feedback">{error}</p><p>This portal is available to configured bug-report and feature-suggestion reviewers. Ordinary accounts can track their own submissions on the reporting pages.</p><div className="admin-actions"><button onClick={()=>setRevision(value=>value+1)}>Retry access check</button><a href="#/report-bug">My bug reports</a><a href="#/suggest-feature">My suggestions</a></div></>}</section>
   const count=(summary,...keys)=>keys.reduce((sum,key)=>sum+(summary?.statuses.find(item=>item._id===key)?.count||0),0)

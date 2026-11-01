@@ -78,7 +78,7 @@ function App() {
   const [page, setPage] = useState(readPage)
   const [editorAssistantHost,setEditorAssistantHost]=useState(null)
   const [assistantRouteId,setAssistantRouteId]=useState(()=>window.location.hash.match(/^#\/assistant\/([a-f\d]{24})$/i)?.[1]||null)
-  const navigate = next => { if(next==='assistant')setAssistantRouteId(null); window.location.hash = `/${next}`; setPage(next); setShowCommandMenu(false); window.scrollTo({top:0}) }
+  const navigate = next => { if(next==='assistant')setAssistantRouteId(null); window.location.hash = `/${next}`; setPage(next.split('/')[0]); setShowCommandMenu(false); window.scrollTo({top:0}) }
   useEffect(() => { const change = () => { setPage(readPage()); setAssistantRouteId(window.location.hash.match(/^#\/assistant\/([a-f\d]{24})$/i)?.[1]||null); setShowCommandMenu(false); setContextMenu(null); setSelectedTask(pendingLibraryTask.current); pendingLibraryTask.current = null; setShowFolderModal(false); window.scrollTo({top:0}) }; window.addEventListener('hashchange',change); return () => window.removeEventListener('hashchange',change) }, [])
   const [todos, setTodos] = useState([])
   const [taskSearch,setTaskSearch]=useState(''),[taskSearchAll,setTaskSearchAll]=useState(true)
@@ -679,6 +679,9 @@ function App() {
     const command = parts[0].toLowerCase()
     const args = parts.slice(1)
 
+    if((command==='admin'&&['stats','statistics'].includes(args[0]?.toLowerCase()))||command==='admin-stats'){
+      setCommandNotice('');setCommandInput('');navigate('admin/stats');return
+    }
     if(['search','find','task'].includes(command)){
       setCommandInput(cmd.trim());setCommandNotice(args.join(' ').trim()?'Select a matching task below to open its details.':'Type search followed by a task name, description or folder.')
       setShowCommandMenu(true);requestAnimationFrame(()=>commandInputRef.current?.focus());return
@@ -2195,6 +2198,7 @@ function App() {
                   <p className="text-slate-400 text-xs mb-2 font-medium">Available Commands:</p>
                   <ul className="text-slate-300 text-xs space-y-1">
                     <li><code className="text-slate-200">search [text]</code> - Find and open a task (also: find, task)</li>
+                    <li><code className="text-slate-200">admin stats</code> - Open advanced statistics (full administrators only; also: admin-stats)</li>
                     <li><code className="text-slate-200">help</code> - Show all commands</li>
                     <li><code className="text-slate-200">pages / hidden</code> - List hidden pages</li>
                     <li><code className="text-slate-200">open [page]</code> - Open a hidden page</li>
