@@ -3,6 +3,9 @@ import { readApiJson } from '../lib/apiResponse'
 import './AccountAIAccess.css'
 
 const groups=[
+  ['Chat topics',[
+    ['appOnly','Keep chat focused on Assignment Tracker','On by default. Decline unrelated prompts. Turn off to allow general-topic conversations; your other AI access settings still apply.'],
+  ]],
   ['Workspace information',[
     ['profile','Account profile','Username, email, time zone, and Canvas connection status.'],
     ['tasks','Tasks and task folders','Task names, descriptions, deadlines, progress, and dependencies.'],
@@ -36,7 +39,7 @@ export default function AccountAIAccess({token}){
     try{const response=await fetch('/api/account/ai-access',{method:'PUT',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify(changes)}),data=await readApiJson(response);if(!response.ok)throw new Error(data.message||'Could not save AI access.');setAccess(data);window.dispatchEvent(new CustomEvent('ai-access-changed',{detail:data}));setNotice('AI access saved to your account. Applies to new requests.')}catch(err){setError(err.message)}finally{lock.current=false;setBusy(false)}
   }
   const toggle=([key,title,description])=><label key={key} className="ai-access-option"><span><strong>{title}</strong><small>{description}</small></span><input type="checkbox" role="switch" checked={access[key]} disabled={busy||(key!=='enabled'&&!access.enabled)} onChange={event=>change({[key]:event.target.checked})}/></label>
-  return <section className="account-ai-access" aria-labelledby="ai-access-title"><header><div><h3 id="ai-access-title">AI access</h3><p>Choose what the assistant can read and change. These account rules override chat context toggles.</p></div></header>
+  return <section className="account-ai-access" aria-labelledby="ai-access-title"><header><div><h3 id="ai-access-title">AI access</h3><p>Choose what the assistant can discuss, read and change. These account rules override chat context toggles.</p></div></header>
     {!access&&!error&&<p role="status">Loading AI access…</p>}
     {access&&<>{toggle(['enabled','Enable AI features','Turn off to block assistant chat, AI document generation, and AI handwriting recognition.'])}<div className="ai-access-groups">{groups.map(([title,options])=><fieldset key={title}><legend>{title}</legend>{options.map(toggle)}</fieldset>)}</div><p className="ai-access-note">Only explicitly attached files and an included open file share their contents. Changing access does not erase saved chats or recall data already sent. Text you type or paste into your next prompt is still sent as your message.</p></>}
     {error&&<p className="ai-access-error" role="alert">{error} <button type="button" disabled={busy} onClick={load}>Retry</button></p>}{notice&&<p role="status" className="ai-access-note">{notice}</p>}

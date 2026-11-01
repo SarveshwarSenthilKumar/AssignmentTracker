@@ -586,8 +586,10 @@ app.post('/api/assistant/chat', authenticateToken, async (req, res) => {
     if (controller.signal.aborted) { if (res.destroyed) return; throw new Error('Request timed out.'); }
     const context = restrictAIContext(workspaceContext({user,tasks,entries,documents:documents.filter(file=>req.aiAccess[aiFileCategory(file)]),folders,documentFolders,totals},request),req.aiAccess);
     const payload=await responsePayload(request,context,file,aiModel());stage='gemini';
-    const scopeResult=await callAssistantAPI(scopePayload(request,context,aiModel()),{apiKey:credential.apiKey,signal:controller.signal,traceId,metadata:{kind:'chat_scope'}});
-    const allowed=scopeAllowed(scopeResult.data);
+    const scopeResult=req.aiAccess.appOnly!==false
+      ? await callAssistantAPI(scopePayload(request,context,aiModel()),{apiKey:credential.apiKey,signal:controller.signal,traceId,metadata:{kind:'chat_scope'}})
+      : null;
+    const allowed=scopeResult===null||scopeAllowed(scopeResult.data);
     const result=allowed
       ? await callAssistantAPI(payload,{apiKey:credential.apiKey,signal:controller.signal,traceId,metadata:{kind:'chat',requestBytes:Buffer.byteLength(JSON.stringify(payload)),workspaceCharacters:JSON.stringify(context).length,screenCharacters:request.screen.length,historyMessages:request.messages.length,fileBytes:file.reduce((total,item)=>total+(item.pdfData?.length||0),0)}})
       : {data:{candidates:[{content:{parts:[{text:OUT_OF_SCOPE_REPLY}]},finishReason:'STOP'}]},diagnostics:{...scopeResult.diagnostics,scopeBlocked:true}};

@@ -1,4 +1,4 @@
-const keys=['enabled','profile','tasks','calendar','documentLibrary','resumes','notes','documentFiles','screen','history','editorRead','editorWrite','generation','recognition'];
+const keys=['enabled','appOnly','profile','tasks','calendar','documentLibrary','resumes','notes','documentFiles','screen','history','editorRead','editorWrite','generation','recognition'];
 const normalize=value=>Object.fromEntries(keys.map(key=>[key,value?.[key]!==false]));
 const category=file=>(file.tags?.includes('resume')||file.tags?.includes('cover-letter'))?'resumes':file.tags?.includes('notes')?'notes':'documentFiles';
 const contentScopes=['profile','tasks','calendar','documentLibrary','resumes','notes','documentFiles'];
