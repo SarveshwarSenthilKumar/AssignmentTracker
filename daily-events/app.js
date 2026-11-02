@@ -90,7 +90,7 @@ function render(){
   $('summary-total').textContent=dayEvents.length;
   $('summary-live').textContent=dayEvents.filter(event=>event.end&&now>=event.start&&now<event.end).length;
   $('summary-food').textContent=dayEvents.filter(hasFood).length;
-  if(!myEventsPage)renderCalendar(matching,day);
+  renderCalendar(matching,day);
   $('agenda-label').textContent=myEventsPage?'All your events':label(day);
   $('agenda-empty').textContent=selected.length?`${selected.length} ${selected.length===1?'event':'events'}${filtered?' matching your filters':''} · All times Central`:loading?'Loading events…':filtered?'No events match these filters. Clear filters to see the full day.':'A little room for spontaneity. No events listed for this day; choose Next event to find another plan.';
   if(myEventsPage&&!selected.length)$('agenda-empty').textContent=filtered?'No personal events match your search. Clear filters to see all your plans.':'Your plans start here. Choose Add my event to create your first event.';
