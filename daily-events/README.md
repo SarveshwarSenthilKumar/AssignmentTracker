@@ -59,6 +59,10 @@ For static preview only, `python -m http.server 8080 --directory daily-events` s
 
 ## Publish real event data
 
+### Open on a phone over Wi-Fi
+
+From the repository root, run `node daily-events/server.js --lan`. Connect your phone to the same Wi-Fi and open the Wi-Fi / LAN URL printed in the terminal. Allow Node.js through Windows Firewall for your trusted network if prompted. Keep the computer awake and the server running. Guest, apartment, or campus networks may isolate devices; if so, use a network that allows connections between your devices. This mode exposes the event page and refresh button to devices that can reach the computer. Personal events and settings remain separate in each browser; they do not sync from the computer to the phone. Without `--lan`, the server stays local to the computer.
+
 The included events.json contains a previously exported snapshot, so it may be out of date. From the repository root, refresh it using the existing scraper:
 
 ```powershell

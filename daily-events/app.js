@@ -30,6 +30,8 @@ const eventTime=value=>new Date(value).toLocaleTimeString('en-US',{timeZone:zone
 const onDay=(event,day)=>event.startDay<=day&&event.endDay>=day;
 const hasFood=event=>/free\s*food|freefood/i.test(event.benefits);
 const personalKey='daily-events-personal-v1';
+// getRandomValues also works on plain HTTP when opened from a phone on the LAN.
+const personalId=()=>Array.from(crypto.getRandomValues(new Uint8Array(16)),value=>value.toString(16).padStart(2,'0')).join('');
 let personalEvents=[], hiddenEvents=[], sourceItems=[];
 try{
   const saved=JSON.parse(localStorage.getItem(personalKey)||'{}');
@@ -261,7 +263,7 @@ $('personal-form').addEventListener('submit',event=>{
     const startsOn=centralTime($('personal-start').value);
     const endsOn=$('personal-end').value?centralTime($('personal-end').value):null;
     if(endsOn&&Date.parse(endsOn)<=Date.parse(startsOn))throw new Error('End time must be after the start.');
-    const added={id:crypto.randomUUID(),name,startsOn,endsOn,location:$('personal-location').value.trim(),description:$('personal-description').value.trim(),categories:['Personal']};
+    const added={id:personalId(),name,startsOn,endsOn,location:$('personal-location').value.trim(),description:$('personal-description').value.trim(),categories:['Personal']};
     if(!savePersonal([...personalEvents,added],hiddenEvents)){$('personal-error').textContent='Could not save this event. Enable browser storage or free some space and try again.';return;}
     $('personal-dialog').close();rebuildPersonal();clearFilters();selectDay(dayOf(startsOn));
     $('personal-status').textContent='Personal event saved in this browser.';$('add-personal').focus();

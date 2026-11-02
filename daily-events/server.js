@@ -2,10 +2,12 @@
 const http = require('node:http');
 const fs = require('node:fs/promises');
 const path = require('node:path');
+const { networkInterfaces } = require('node:os');
 const { scrapeTxstEvents } = require('../backend/scrapeTxstEvents');
 
 const root = __dirname;
 const port = Number(process.env.PORT || 8080);
+const lan = process.argv.includes('--lan');
 let data = { events: [] }, refreshing = false, progress = '', error = '', lastAttempt = 0;
 const snapshot = () => ({ data, refreshing, progress, error });
 
@@ -74,6 +76,14 @@ async function main() {
       if (!response.headersSent) response.writeHead(500);
       response.end('The local event server could not complete the request.');
     }
-  }).listen(port, '127.0.0.1', () => console.log(`Daily events: http://localhost:${port}\nUse Reload events to fetch a fresh TXST collection. Keep this terminal open.`));
+  }).listen(port, lan ? '0.0.0.0' : '127.0.0.1', () => {
+    console.log(`Daily events: http://localhost:${port}`);
+    if(lan){
+      for(const addresses of Object.values(networkInterfaces()))for(const address of addresses||[]){
+        if(address.family==='IPv4'&&!address.internal)console.log(`Wi-Fi / LAN: http://${address.address}:${port}`);
+      }
+    }
+    console.log('Use Reload events to fetch a fresh TXST collection. Keep this terminal open.');
+  });
 }
 main().catch(failure => { console.error(failure.message); process.exitCode = 1; });
