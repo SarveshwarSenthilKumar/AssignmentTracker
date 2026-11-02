@@ -140,6 +140,9 @@ const Folder = mongoose.model('Folder', folderSchema);
 
 // Todo Schema
 const todoSchema = new mongoose.Schema({
+  progressTarget: { type: Number, default: null },
+  progressUnit: { type: String, default: '' },
+  progressLogs: { type: [new mongoose.Schema({ id: String, day: String, amount: Number, createdAt: { type: Date, default: Date.now } }, { _id: false })], default: [] },
   manualOrder: { type: Number, default: null },
   scheduledDate:{type:String,default:null},
   text: {
@@ -745,6 +748,8 @@ app.delete('/api/calendar-entries/:id', authenticateToken, async (req, res) => {
   } catch { res.status(500).json({ message: 'Could not delete the calendar entry.' }); }
 });
 
+const { validateProgressConfig } = require('./taskProgress');
+require('./taskProgress').register({ app, Todo, authenticateToken });
 app.get('/api/todos', authenticateToken, async (req, res) => {
   try {
     const todos = await Todo.find({ user: req.user.userId }).sort({ createdAt: -1 });
@@ -763,7 +768,10 @@ app.post('/api/todos', authenticateToken, async (req, res) => {
       return res.status(400).json({ message: 'Text is required' });
     }
     let scheduledDate=null;try{if(req.body.scheduledDate!==undefined)scheduledDate=taskSchedule(req.body.scheduledDate)}catch(error){return res.status(400).json({message:error.message})}
-    const todo = new Todo({ text, folder, user: req.user.userId, ...deadline,scheduledDate });
+    let progress = {};
+    try { if(req.body.progressTarget!==undefined)progress=validateProgressConfig(req.body); }
+    catch(error){return res.status(400).json({message:error.message});}
+    const todo = new Todo({ text, folder, user: req.user.userId, ...deadline,scheduledDate,...progress });
     await todo.save();
     res.status(201).json(todo);
   } catch (error) {
