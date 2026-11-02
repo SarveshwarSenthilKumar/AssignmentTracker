@@ -97,9 +97,9 @@ function render(){
   const matching=events.filter(event=>(!category||event.categories.includes(category))&&(!$('food').checked||hasFood(event))&&`${event.name} ${event.location} ${event.organization} ${event.description}`.toLowerCase().includes(query));
   const selected=liveOnly?matching.filter(isLive):myEventsPage&&!expandedDay?matching:matching.filter(event=>onDay(event,day));
   const dayEvents=myEventsPage?events:events.filter(event=>onDay(event,day));
-  $('summary-total').textContent=dayEvents.length;
+  $('summary-total').textContent=events.length;
   const upcoming=dayEvents.filter(event=>event.start>now);
-  $('summary-upcoming').textContent=upcoming.length;
+  $('summary-today').textContent=events.filter(event=>onDay(event,today())).length;
   $('summary-next-time').textContent=upcoming.length?eventTime(upcoming[0].start):'—';
   $('summary-next-name').textContent=upcoming.length?upcoming[0].name:'No later starts on this day';
   renderCalendar(matching,day);
