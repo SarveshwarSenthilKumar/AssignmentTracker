@@ -3,6 +3,7 @@ import FeatureSuggestionsPage from './components/FeatureSuggestionsPage'
 import BugReportsPage from './components/BugReportsPage'
 import SiteRoadmapPage from './components/SiteRoadmapPage'
 import TaskSchedule from './components/TaskSchedule'
+import TaskProgress, { ProgressCreateFields, ProgressSummary } from './components/TaskProgress'
 import PrivacyPage from './components/PrivacyPage'
 import TermsPage from './components/TermsPage'
 import AnalyticsPage from './components/AnalyticsPage'
@@ -91,6 +92,8 @@ function App() {
   const [selectedFolder, setSelectedFolder] = useState(null)
   useEffect(()=>{setSelectedTaskIds(new Set())},[selectedFolder,token,taskSearch,taskSearchAll])
   const [input, setInput] = useState('')
+  const [newProgress,setNewProgress]=useState({enabled:false,target:'',unit:''})
+  const saveProgressTask=updated=>{setTodos(previous=>previous.map(task=>task._id===updated._id?updated:task));setSelectedTask(previous=>previous?._id===updated._id?updated:previous)}
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [showFolderModal, setShowFolderModal] = useState(false)
@@ -424,19 +427,19 @@ function App() {
     try{
       const response=await fetch('/api/todos',{
         method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},
-        body:JSON.stringify({text:snapshot.text,folder:snapshot.folder,scheduledDate:snapshot.scheduledDate||null,...taskDuePayload(date,time)})
+        body:JSON.stringify({text:snapshot.text,folder:snapshot.folder,scheduledDate:snapshot.scheduledDate||null,...taskDuePayload(date,time),...(snapshot.progress||{})})
       })
       const data=await readApiJson(response)
       if(!response.ok){if(data.message==='Invalid or expired token'){logout();return}throw new Error(data.message||data.error||'Could not create task.')}
       if(!data._id)throw new Error('The server did not confirm that the task was saved. Refresh your tasks before trying again.')
-      setTodos(previous=>[...previous,data]);setInput('');setDueDate('');setDueHasTime(false);setScheduledDay('');setTaskDatePrompt(null)
+      setTodos(previous=>[...previous,data]);setInput('');setDueDate('');setDueHasTime(false);setScheduledDay('');setTaskDatePrompt(null);setNewProgress({enabled:false,target:'',unit:''})
     }catch(err){setError(err.message);setErrorDetails(err.stack||err.toString());setShowErrorDetails(false)}
     finally{createTaskLock.current=false;setCreatingTask(false)}
   }
   const addTodo=async e=>{
     e.preventDefault()
     if(!input.trim()||createTaskLock.current)return
-    const snapshot={text:input.trim(),folder:selectedFolder==='all'?null:selectedFolder,scheduledDate:scheduledDay}
+    const snapshot={text:input.trim(),folder:selectedFolder==='all'?null:selectedFolder,scheduledDate:scheduledDay,progress:newProgress.enabled?{progressTarget:Number(newProgress.target),progressUnit:newProgress.unit}:null}
     if(!dueDate){
       const suggestions=taskDateSuggestions(snapshot.text)
       if(suggestions.length){setTaskDatePrompt({...snapshot,suggestions});return}
@@ -916,6 +919,7 @@ function App() {
           </div>
         </div>
 
+        {!!todo.progressTarget&&<div className="ml-12 mr-3"><ProgressSummary task={todo}/></div>}
         {/* Expanded Details */}
         {(isExpanded || isEditing) && (
           <div className="mt-2 ml-12 p-3 rounded-xl bg-white/5 border border-white/10 space-y-2">
@@ -987,6 +991,7 @@ function App() {
               </>
             )}
             {todo.canvasType!=='calendar_event'&&<TaskSchedule task={todo} token={token} onSaved={updated=>setTodos(previous=>previous.map(task=>task._id===updated._id?updated:task))}/>}
+            <TaskProgress key={`progress:${todo._id}`} task={todo} token={token} onSaved={saveProgressTask}/>
             <TaskDependencies taskId={todo._id} tasks={todos} token={token} onTasksChange={setTodos} onOpenTask={setSelectedTask} />
             <TaskAttachments taskId={todo._id} documents={pdfs} folders={pdfFolders} token={token} onDocumentsChange={setPdfs} onOpen={setSelectedPDF} onLibrary={() => { setSelectedPDFFolder('all'); navigate('documents') }} onInsert={isEditing ? reference => {
               const field = document.getElementById(`task-description-${todo._id}`)
@@ -1715,6 +1720,7 @@ function App() {
               {creatingTask?'Adding…':'Add'}
             </button>
           </div>
+          <ProgressCreateFields value={newProgress} onChange={value=>{setNewProgress(value);setTaskDatePrompt(null)}} disabled={creatingTask}/>
           {taskDatePrompt&&<div
             ref={taskDatePromptRef}
             className="task-date-suggestion"
@@ -2270,6 +2276,7 @@ function App() {
                 </div>
               </div>
 
+              <TaskProgress key={`progress:${selectedTask._id}`} task={todos.find(task=>task._id===selectedTask._id)||selectedTask} token={token} onSaved={saveProgressTask}/>
               {/* Description */}
               <div className="mb-6">
                 <label className="block text-slate-400 text-sm mb-2">Description</label>
