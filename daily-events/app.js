@@ -1,16 +1,17 @@
 const zone = 'America/Chicago';
 const $ = id => document.getElementById(id);
-const dayOf = value => {const parts=new Intl.DateTimeFormat('en-US',{timeZone:zone,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date(value));const get=type=>parts.find(part=>part.type===type).value;return `${get('year')}-${get('month')}-${get('day')}`;};
+const dayFormatter=new Intl.DateTimeFormat('en-US',{timeZone:zone,year:'numeric',month:'2-digit',day:'2-digit'});
+const dayOf = value => {const parts=dayFormatter.formatToParts(new Date(value));const get=type=>parts.find(part=>part.type===type).value;return `${get('year')}-${get('month')}-${get('day')}`;};
 const today = () => dayOf(Date.now());
 const text = value => value == null ? '' : typeof value === 'string' ? value : Array.isArray(value) ? value.map(text).filter(Boolean).join(', ') : typeof value === 'object' ? text(value.name || value.title || value.label || value.address) : String(value);
 const plain = value => { const doc=new DOMParser().parseFromString(String(value||''),'text/html');doc.querySelectorAll('script,style').forEach(node=>node.remove());return (doc.body.textContent||'').replace(/\s+/g,' ').trim(); };
 const safeUrl = value => {try{const url=new URL(value);return ['https:','http:'].includes(url.protocol)?url.href:null;}catch{return null;}};
 let events=[], metadata={}, qrSvg='', lastDay=today(), month=today().slice(0,7), loading=false, localPreview=false, loadError='';
-let refreshing=false, refreshProgress='', refreshTimer=null;
+let refreshing=false, refreshProgress='', refreshTimer=null, pendingRefresh=false;
 const shiftDay=(day,count)=>{const date=new Date(`${day}T12:00:00Z`);date.setUTCDate(date.getUTCDate()+count);return date.toISOString().slice(0,10);};
 const label=day=>new Date(`${day}T12:00:00Z`).toLocaleDateString('en-US',{timeZone:'UTC',weekday:'long',month:'long',day:'numeric',year:'numeric'});
 const eventTime=value=>new Date(value).toLocaleTimeString('en-US',{timeZone:zone,hour:'numeric',minute:'2-digit'});
-const onDay=(event,day)=>dayOf(event.start)<=day&&dayOf(event.end?event.end-1:event.start)>=day;
+const onDay=(event,day)=>event.startDay<=day&&event.endDay>=day;
 const hasFood=event=>/free\s*food|freefood/i.test(event.benefits);
 $('date').value=today();
 function node(tag,content,className){const element=document.createElement(tag);element.textContent=content;if(className)element.className=className;return element;}
@@ -21,7 +22,8 @@ function ingest(data){
   events=items.filter(event=>event&&Number.isFinite(Date.parse(event.startsOn||event.startDate))).map(event=>{
     const start=Date.parse(event.startsOn||event.startDate), rawEnd=Date.parse(event.endsOn||event.endDate);
     const categories=Array.isArray(event.categories)?event.categories.map(text):text(event.categories||event.categoryNames).split(',').map(value=>value.trim()).filter(Boolean);
-    return {name:text(event.name||event.title)||'Campus event',start,end:Number.isFinite(rawEnd)&&rawEnd>start?rawEnd:null,description:plain(event.description),location:text(event.location||event.address)||'See event page for location',organization:text(event.organizations||event.organizationNames||event.organizationName),categories,benefits:text(event.benefits||event.benefitNames),url:safeUrl(event.url)||((event.id!=null)?`https://txst.campuslabs.com/engage/event/${encodeURIComponent(event.id)}`:null)};
+    const end=Number.isFinite(rawEnd)&&rawEnd>start?rawEnd:null;
+    return {name:text(event.name||event.title)||'Campus event',start,end,startDay:dayOf(start),endDay:dayOf(end?end-1:start),description:plain(event.description),location:text(event.location||event.address)||'See event page for location',organization:text(event.organizations||event.organizationNames||event.organizationName),categories,benefits:text(event.benefits||event.benefitNames),url:safeUrl(event.url)||((event.id!=null)?`https://txst.campuslabs.com/engage/event/${encodeURIComponent(event.id)}`:null)};
   }).sort((a,b)=>a.start-b.start||a.name.localeCompare(b.name));
   const previous=$('category').value;$('category').replaceChildren(node('option','All categories'));$('category').firstChild.value='';
   [...new Set(events.flatMap(event=>event.categories))].sort().forEach(category=>{const option=node('option',category);option.value=category;$('category').append(option);});
@@ -46,7 +48,7 @@ function render(){
   $('count').textContent=selected.length;$('events').replaceChildren();
   const stamp=Date.parse(metadata.scrapedAt||metadata.updatedAt);
   $('freshness').textContent=Number.isFinite(stamp)?`Updated ${new Date(stamp).toLocaleString('en-US',{timeZone:zone,month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})} CT${now-stamp>86400000?' · Data is over a day old':''}${metadata.complete===false?' · Partial collection':''}`:'No published update yet';
-  $('message').textContent=loadError||(refreshing?`Refreshing from TXST: ${refreshProgress || 'Collecting public events…'} You can keep browsing while this finishes.`:!events.length&&!loading?'No events are available in the current export. Choose Reload events to collect a fresh lineup.':`Showing ${events.length} loaded events across the calendar. Select a day to see its lineup.${localPreview?' Local file preview; automatic reload is paused.':''}`);
+  $('message').textContent=loadError||(refreshing?`Refreshing from TXST: ${refreshProgress || 'Collecting public events…'} You can keep browsing while this finishes.`:refreshProgress&&!localPreview?refreshProgress:!events.length&&!loading?'No events are available in the current export. Choose Reload events to collect a fresh lineup.':`Showing ${events.length} loaded events across the calendar. Select a day to see its lineup.${localPreview?' Local file preview; automatic reload is paused.':''}`);
   const time=value=>new Date(value).toLocaleTimeString('en-US',{timeZone:zone,hour:'numeric',minute:'2-digit'});
   selected.forEach(event=>{
     const card=node('article','','event');const heading=node('div','','event-top');
@@ -88,8 +90,14 @@ function showEvent(event){
   if(!$('event-dialog').open)$('event-dialog').showModal();
 }
 async function load({refresh=false}={}){
-  if(loading)return;
+  if(loading){
+    if(refresh){pendingRefresh=true;$('reload').textContent='Refresh queued…';$('message').textContent='Finishing the current request, then collecting fresh events from TXST…';}
+    return;
+  }
   loading=true;loadError='';$('reload').disabled=true;
+  $('reload').textContent=refresh?'Connecting to TXST…':refreshing?'Refreshing TXST…':'Loading events…';
+  $('reload').setAttribute('aria-busy','true');
+  if(refresh)$('message').textContent='Requesting a fresh TXST collection…';
   clearTimeout(refreshTimer);
   let staticOnly=false;
   try{
@@ -102,7 +110,10 @@ async function load({refresh=false}={}){
       const state=await response.json();
       if(!state.data||!Array.isArray(state.data.events))throw new Error('Event server returned an invalid response.');
       refreshing=Boolean(state.refreshing);refreshProgress=state.progress||'';loadError=state.error||'';
-      localPreview=false;ingest(state.data);
+      const stamp=state.data.scrapedAt||state.data.updatedAt;
+      const unchanged=!localPreview&&stamp&&stamp===(metadata.scrapedAt||metadata.updatedAt);
+      localPreview=false;
+      if(!unchanged)ingest(state.data);
     }
     if(staticOnly){
       refreshing=false;
@@ -114,8 +125,9 @@ async function load({refresh=false}={}){
   }
   catch(error){refreshing=false;loadError=`${error.message} ${location.protocol==='file:'?'Run node daily-events/server.js and open http://localhost:8080.':'Make sure the event server is still running, then choose Reload events to reconnect.'} ${events.length?'Previously loaded events are still shown.':'You can also import an export at the bottom of the page.'}`;}
   finally{
-    loading=false;$('reload').disabled=refreshing;$('reload').textContent=refreshing?'Refreshing TXST…':'Reload events';render();
-    if(refreshing)refreshTimer=setTimeout(()=>load(),2000);
+    loading=false;$('reload').disabled=refreshing;$('reload').textContent=refreshing?'Refreshing TXST…':'Reload events';$('reload').setAttribute('aria-busy',String(refreshing));render();
+    if(pendingRefresh){pendingRefresh=false;refreshTimer=setTimeout(()=>load({refresh:true}),0);}
+    else if(refreshing)refreshTimer=setTimeout(()=>load(),2000);
   }
 }
 function makeQr(){

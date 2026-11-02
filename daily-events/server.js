@@ -15,8 +15,9 @@ async function refresh() {
   lastAttempt = Date.now();
   error = '';
   progress = 'Connecting to TXST…';
+  console.log(progress);
   try {
-    const result = await scrapeTxstEvents({ onProgress: message => { progress = message; } });
+    const result = await scrapeTxstEvents({ onProgress: message => { progress = message; console.log(message); } });
     if (!result.complete) throw new Error(`TXST collection was incomplete. ${result.errors.map(item => item.message).slice(0, 3).join(' ')}`);
     // Only publish complete collections, and never expose a half-written JSON file.
     const temporary = path.join(root, 'events.json.tmp');
@@ -24,8 +25,10 @@ async function refresh() {
     await fs.rename(temporary, path.join(root, 'events.json'));
     data = result;
     progress = `Updated ${result.events.length} events from TXST.`;
+    console.log(progress);
   } catch (failure) {
     error = `${failure.message} Previous event data has been kept. You can retry after one minute.`;
+    console.error(error);
     progress = '';
   } finally {
     refreshing = false;
