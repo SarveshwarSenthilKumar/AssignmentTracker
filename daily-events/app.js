@@ -98,8 +98,10 @@ function render(){
   const selected=liveOnly?matching.filter(isLive):myEventsPage&&!expandedDay?matching:matching.filter(event=>onDay(event,day));
   const dayEvents=myEventsPage?events:events.filter(event=>onDay(event,day));
   $('summary-total').textContent=dayEvents.length;
-  $('summary-live').textContent=dayEvents.filter(event=>event.end&&now>=event.start&&now<event.end).length;
-  $('summary-food').textContent=dayEvents.filter(hasFood).length;
+  const upcoming=dayEvents.filter(event=>event.start>now);
+  $('summary-upcoming').textContent=upcoming.length;
+  $('summary-next-time').textContent=upcoming.length?eventTime(upcoming[0].start):'—';
+  $('summary-next-name').textContent=upcoming.length?upcoming[0].name:'No later starts on this day';
   renderCalendar(matching,day);
   $('agenda-label').textContent=myEventsPage&&!expandedDay?'All your events':label(day);
   document.body.classList.toggle('day-expanded',expandedDay);
