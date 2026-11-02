@@ -19,7 +19,7 @@ const plain = value => { const doc=new DOMParser().parseFromString(String(value|
 const safeUrl = value => {try{const url=new URL(value);return ['https:','http:'].includes(url.protocol)?url.href:null;}catch{return null;}};
 let events=[], metadata={}, qrSvg='', lastDay=today(), month=today().slice(0,7), loading=false, localPreview=false, loadError='';
 let refreshing=false, refreshProgress='', refreshTimer=null, pendingRefresh=false;
-let expandedDay=false;
+let expandedDay=false,liveOnly=false;
 const shiftDay=(day,count)=>{const date=new Date(`${day}T12:00:00Z`);date.setUTCDate(date.getUTCDate()+count);return date.toISOString().slice(0,10);};
 const label=day=>new Date(`${day}T12:00:00Z`).toLocaleDateString('en-US',{timeZone:'UTC',weekday:'long',month:'long',day:'numeric',year:'numeric'});
 const eventTime=value=>new Date(value).toLocaleTimeString('en-US',{timeZone:zone,hour:'numeric',minute:'2-digit'});
@@ -81,13 +81,17 @@ function ingest(data){
 function render(){
   const day=$('date').value;if(!/^\d{4}-\d{2}-\d{2}$/.test(day))return;
   const query=$('search').value.trim().toLowerCase(),category=$('category').value,now=Date.now();
+  const isLive=event=>event.end&&event.start<=now&&event.end>now;
+  const liveCount=events.filter(isLive).length;
+  $('now-banner-count').textContent=`${liveCount} ${myEventsPage?'personal ':''}${liveCount===1?'event':'events'} in progress`;
+  $('now-banner').setAttribute('aria-pressed',String(liveOnly));
   $('day-heading').textContent=new Date(`${day}T12:00:00Z`).toLocaleDateString('en-US',{timeZone:'UTC',weekday:'long',month:'long',day:'numeric',year:'numeric'});
   const filtered=Boolean(query||category||$('food').checked);
   $('clear-filters').hidden=!filtered;
   $('restore-hidden').hidden=myEventsPage||!hiddenEvents.length;
   $('restore-hidden').textContent=`Restore removed campus events (${hiddenEvents.length})`;
   const matching=events.filter(event=>(!category||event.categories.includes(category))&&(!$('food').checked||hasFood(event))&&`${event.name} ${event.location} ${event.organization} ${event.description}`.toLowerCase().includes(query));
-  const selected=myEventsPage&&!expandedDay?matching:matching.filter(event=>onDay(event,day));
+  const selected=liveOnly?matching.filter(isLive):myEventsPage&&!expandedDay?matching:matching.filter(event=>onDay(event,day));
   const dayEvents=myEventsPage?events:events.filter(event=>onDay(event,day));
   $('summary-total').textContent=dayEvents.length;
   $('summary-live').textContent=dayEvents.filter(event=>event.end&&now>=event.start&&now<event.end).length;
@@ -97,9 +101,13 @@ function render(){
   document.body.classList.toggle('day-expanded',expandedDay);
   $('expand-day').textContent=expandedDay?'Back to calendar':'Expand day';
   $('expand-day').setAttribute('aria-expanded',String(expandedDay));
-  $('day-navigation').hidden=!expandedDay;
+  $('day-navigation').hidden=!expandedDay||liveOnly;
   $('agenda-empty').textContent=selected.length?`${selected.length} ${selected.length===1?'event':'events'}${filtered?' matching your filters':''} · All times Central`:loading?'Loading events…':filtered?'No events match these filters. Clear filters to see the full day.':'A little room for spontaneity. No events listed for this day; choose Next event to find another plan.';
   if(myEventsPage&&!selected.length)$('agenda-empty').textContent=filtered?'No personal events match your search. Clear filters to see all your plans.':expandedDay?'No personal events on this day. Choose another date or add an event.':'Your plans start here. Choose Add my event to create your first event.';
+  if(liveOnly){
+    $('agenda-label').textContent=myEventsPage?'Your events happening now':'Happening now';
+    $('agenda-empty').textContent=selected.length?`${selected.length} ${selected.length===1?'event':'events'} in progress${filtered?' matching your filters':''} · Central time`:filtered?'No events happening now match your filters. Clear filters to see the live lineup.':loading?'Checking events in progress…':'No events are happening now in your loaded lineup. Back to calendar shows the rest of the day.';
+  }
   $('count').textContent=selected.length;$('events').replaceChildren();
   const stamp=Date.parse(metadata.scrapedAt||metadata.updatedAt);
   $('freshness').textContent=Number.isFinite(stamp)?`Updated ${new Date(stamp).toLocaleString('en-US',{timeZone:zone,month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})} CT${now-stamp>86400000?' · Data is over a day old':''}${metadata.complete===false?' · Partial collection':''}`:'No published update yet';
@@ -139,7 +147,7 @@ function renderCalendar(items,selectedDay){
     $('calendar-grid').append(cell);
   }
 }
-function selectDay(day){$('date').value=day;month=day.slice(0,7);render();}
+function selectDay(day){liveOnly=false;$('date').value=day;month=day.slice(0,7);render();}
 function expandDay(day){expandedDay=true;selectDay(day);$('expand-day').focus();document.querySelector('.calendar-toolbar').scrollIntoView({block:'start'});}
 function clearFilters(){$('search').value='';$('category').value='';$('food').checked=false;render();}
 function showEvent(event){
@@ -213,7 +221,12 @@ function makeQr(){
 ['search','category','food'].forEach(id=>$(id).addEventListener('input',render));
 $('date').addEventListener('input',()=>{if($('date').value)selectDay($('date').value);});
 $('today').addEventListener('click',()=>selectDay(today()));
-$('expand-day').addEventListener('click',()=>{if(expandedDay){expandedDay=false;render();}else expandDay($('date').value);});
+$('now-banner').addEventListener('click',()=>{
+  $('search').value='';$('category').value='';$('food').checked=false;
+  $('date').value=today();month=today().slice(0,7);liveOnly=true;expandedDay=true;render();
+  $('expand-day').focus();document.querySelector('.calendar-toolbar').scrollIntoView({block:'start'});
+});
+$('expand-day').addEventListener('click',()=>{if(expandedDay){expandedDay=false;liveOnly=false;render();}else expandDay($('date').value);});
 $('previous-day').addEventListener('click',()=>selectDay(shiftDay($('date').value,-1)));
 $('next-day').addEventListener('click',()=>selectDay(shiftDay($('date').value,1)));
 $('clear-filters').addEventListener('click',clearFilters);

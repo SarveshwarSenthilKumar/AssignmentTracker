@@ -7,6 +7,12 @@ button{transition:background .15s ease,border-color .15s ease}
 [hidden]{display:none!important}
 .skip-link{position:absolute;left:20px;top:-100px;z-index:10;background:var(--surface);padding:14px;border:2px solid var(--accent);border-radius:8px}
 .skip-link:focus{top:16px}
+.now-banner{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:10px 18px;width:100%;border:0;border-radius:0;padding:14px 24px;font-size:12px;line-height:1.6;cursor:pointer}
+.now-banner strong{font-size:13px}.now-banner-action{font-weight:700;text-decoration:underline;text-underline-offset:3px}
+.now-banner-dot{width:8px;height:8px;border-radius:50%;background:currentColor;flex-shrink:0}
+@media screen{html[data-scheme] #now-banner{background:var(--accent);color:var(--page)}html[data-scheme] #now-banner:hover{background:var(--accent);color:var(--page);filter:brightness(1.08)}}
+@media(max-width:600px){.now-banner{gap:6px 12px;padding:12px 16px}.now-banner-action{flex-basis:100%}}
+@media print{.now-banner{display:none!important}}
 header{max-width:1440px;height:86px}
 .brand{letter-spacing:-.7px;font-weight:500}
 .header-actions>a{color:var(--muted)}

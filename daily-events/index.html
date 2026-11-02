@@ -9,12 +9,13 @@
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="theme.css?v=3">
   <link rel="stylesheet" href="responsive.css">
-  <link rel="stylesheet" href="polish.css?v=10">
+  <link rel="stylesheet" href="polish.css?v=11">
   <link rel="stylesheet" href="schemes.css?v=1">
-  <script src="vendor/qrcode.js" defer></script><script src="app.js?v=11" defer></script>
+  <script src="vendor/qrcode.js" defer></script><script src="app.js?v=12" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#lineup">Skip to events</a>
+  <button id="now-banner" class="now-banner" type="button" aria-controls="events"><span class="now-banner-dot" aria-hidden="true"></span><strong>Happening now</strong><span id="now-banner-count">View events in progress</span><span class="now-banner-action">See live lineup →</span></button>
   <header><a class="brand" href="./">TODAY, <strong>BOBCATS.</strong></a><div class="header-actions"><a href="#share">Get the QR poster ↗</a><label class="scheme-picker">Color scheme<select id="color-scheme"><option value="forest">Forest</option><option value="ocean">Ocean</option><option value="plum">Plum</option><option value="sandstone">Sandstone</option></select></label><button id="theme-toggle" type="button" aria-label="Switch to light mode">Light mode</button></div></header>
   <main>
     <nav class="page-nav" aria-label="Event pages"><a id="campus-page-link" href="./">Campus events</a><a id="personal-page-link" href="./?view=my-events">My events</a></nav>
