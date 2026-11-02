@@ -27,9 +27,11 @@
   [data-theme=dark] #message{background:#19221b;color:#bccbb5;border-color:#3b493d!important}
   [data-theme=dark] .share{background:#233227}
   [data-theme=dark] .share>div:not(.poster)>p{color:#bbcbb4}
-  /* The printable QR poster stays high contrast and scanner friendly. */
-  [data-theme=dark] .poster{background:#fffef8;color:#252b26;border-color:#d0d7c6}
-  [data-theme=dark] .poster>p{color:#58624f}
+  /* Theme the preview; the QR itself and printed poster remain light. */
+  [data-theme=dark] .poster{background:#19221b;color:#e7ece5;border-color:#465447}
+  [data-theme=dark] .poster>p{color:#bbcbb4}
+  [data-theme=dark] .poster>strong{color:#e4ac9c}
+  [data-theme=dark] #qr{color:#252b26;background:#fff}
   [data-theme=dark] #event-dialog::backdrop{background:#000a}
 }
 @media(max-width:600px){header{height:auto;min-height:80px;gap:12px;flex-wrap:wrap;padding-top:16px;padding-bottom:16px}.header-actions{gap:12px;font-size:11px}}

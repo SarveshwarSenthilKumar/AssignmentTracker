@@ -21,7 +21,7 @@ A frontend-only version can read a published static JSON file containing public 
 
 The page includes a selected-day overview (total events, events happening now, and events listing free food), a clearer calendar and agenda layout, free-food badges, and a Clear filters action. Overview counts cover the full selected day; search and category filters narrow the calendar and agenda. Keyboard users can skip directly to the lineup, and reduced-motion preferences are respected.
 
-Dark mode is the default. Use the header's Light mode / Dark mode button to switch. Your choice is saved in browser local storage; if storage is unavailable, the toggle still works for the current visit. The QR poster remains light for scanning and printing.
+Dark mode is the default. Use the header's Light mode / Dark mode button to switch. Your choice is saved in browser local storage; if storage is unavailable, the toggle still works for the current visit. The “What’s happening today?” poster preview follows the selected theme. The QR code retains a white background for scanning, and the printed poster stays light.
 
 The page now opens as a month calendar with a selected-day agenda. Click a date to see its events, or click an event for full details and its source/RSVP link. On small screens, date cells show event counts; selecting a date displays readable cards below the grid. Previous/next month, Today, the date picker, and Next event help navigate beyond today's events. Filters apply to the calendar and agenda together.
 
