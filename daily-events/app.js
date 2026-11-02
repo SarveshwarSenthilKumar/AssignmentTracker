@@ -1,5 +1,15 @@
 const zone = 'America/Chicago';
 const $ = id => document.getElementById(id);
+const myEventsPage=new URLSearchParams(location.search).get('view')==='my-events';
+$(myEventsPage?'personal-page-link':'campus-page-link').setAttribute('aria-current','page');
+if(myEventsPage){
+  document.body.classList.add('my-events-page');
+  document.title='My events — Today, Bobcats';
+  document.querySelector('.hero .eyebrow').textContent='YOUR PLANS · YOUR OWN LITTLE CORNER';
+  document.querySelector('.hero h1').textContent='A little time for your plans.';
+  document.querySelector('.hero>p:not(.eyebrow)').textContent='All the events you’ve added, in one place. Search your plans, add something new, or remove what you no longer need. Saved only in this browser.';
+  document.querySelector('#lineup h2').firstChild.textContent='My events ';
+}
 const dayFormatter=new Intl.DateTimeFormat('en-US',{timeZone:zone,year:'numeric',month:'2-digit',day:'2-digit'});
 const dayOf = value => {const parts=dayFormatter.formatToParts(new Date(value));const get=type=>parts.find(part=>part.type===type).value;return `${get('year')}-${get('month')}-${get('day')}`;};
 const today = () => dayOf(Date.now());
@@ -54,7 +64,7 @@ function ingest(data){
   if(!Array.isArray(items))throw new Error('Expected an event export with an events array.');
   metadata=Array.isArray(data)?{}:data;
   sourceItems=items;
-  const combined=[...items.filter(event=>event&&!hiddenEvents.includes(sourceId(event))).map(event=>({...event,personal:false,key:sourceId(event)})),...personalEvents.map(event=>({...event,personal:true,key:`personal:${event.id}`}))];
+  const combined=[...(myEventsPage?[]:items.filter(event=>event&&!hiddenEvents.includes(sourceId(event))).map(event=>({...event,personal:false,key:sourceId(event)}))),...personalEvents.map(event=>({...event,personal:true,key:`personal:${event.id}`}))];
   events=combined.filter(event=>event&&Number.isFinite(Date.parse(event.startsOn||event.startDate))).map(event=>{
     const start=Date.parse(event.startsOn||event.startDate), rawEnd=Date.parse(event.endsOn||event.endDate);
     const categories=Array.isArray(event.categories)?event.categories.map(text):text(event.categories||event.categoryNames).split(',').map(value=>value.trim()).filter(Boolean);
@@ -72,24 +82,28 @@ function render(){
   $('day-heading').textContent=new Date(`${day}T12:00:00Z`).toLocaleDateString('en-US',{timeZone:'UTC',weekday:'long',month:'long',day:'numeric',year:'numeric'});
   const filtered=Boolean(query||category||$('food').checked);
   $('clear-filters').hidden=!filtered;
-  $('restore-hidden').hidden=!hiddenEvents.length;
+  $('restore-hidden').hidden=myEventsPage||!hiddenEvents.length;
   $('restore-hidden').textContent=`Restore removed campus events (${hiddenEvents.length})`;
   const matching=events.filter(event=>(!category||event.categories.includes(category))&&(!$('food').checked||hasFood(event))&&`${event.name} ${event.location} ${event.organization} ${event.description}`.toLowerCase().includes(query));
-  const selected=matching.filter(event=>onDay(event,day));
-  const dayEvents=events.filter(event=>onDay(event,day));
+  const selected=myEventsPage?matching:matching.filter(event=>onDay(event,day));
+  const dayEvents=myEventsPage?events:events.filter(event=>onDay(event,day));
   $('summary-total').textContent=dayEvents.length;
   $('summary-live').textContent=dayEvents.filter(event=>event.end&&now>=event.start&&now<event.end).length;
   $('summary-food').textContent=dayEvents.filter(hasFood).length;
-  renderCalendar(matching,day);
-  $('agenda-label').textContent=label(day);
+  if(!myEventsPage)renderCalendar(matching,day);
+  $('agenda-label').textContent=myEventsPage?'All your events':label(day);
   $('agenda-empty').textContent=selected.length?`${selected.length} ${selected.length===1?'event':'events'}${filtered?' matching your filters':''} · All times Central`:loading?'Loading events…':filtered?'No events match these filters. Clear filters to see the full day.':'A little room for spontaneity. No events listed for this day; choose Next event to find another plan.';
+  if(myEventsPage&&!selected.length)$('agenda-empty').textContent=filtered?'No personal events match your search. Clear filters to see all your plans.':'Your plans start here. Choose Add my event to create your first event.';
   $('count').textContent=selected.length;$('events').replaceChildren();
   const stamp=Date.parse(metadata.scrapedAt||metadata.updatedAt);
   $('freshness').textContent=Number.isFinite(stamp)?`Updated ${new Date(stamp).toLocaleString('en-US',{timeZone:zone,month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})} CT${now-stamp>86400000?' · Data is over a day old':''}${metadata.complete===false?' · Partial collection':''}`:'No published update yet';
+  if(myEventsPage)$('freshness').textContent='Saved in this browser · All dates';
   $('message').textContent=loadError||(refreshing?`Refreshing from TXST: ${refreshProgress || 'Collecting public events…'} You can keep browsing while this finishes.`:refreshProgress&&!localPreview?refreshProgress:!events.length&&!loading?'No events are available in the current export. Choose Reload events to collect a fresh lineup.':`Showing ${events.length} loaded events across the calendar. Select a day to see its lineup.${localPreview?' Local file preview; automatic reload is paused.':''}`);
+  if(myEventsPage)$('message').textContent='';
   const time=value=>new Date(value).toLocaleTimeString('en-US',{timeZone:zone,hour:'numeric',minute:'2-digit'});
   selected.forEach(event=>{
     const card=node('article','','event');const heading=node('div','','event-top');
+    if(myEventsPage)card.append(node('p',label(event.startDay),'eyebrow'));
     heading.append(node('span',`${time(event.start)}${event.end?` – ${time(event.end)}`:''}`,'event-time'));
     if(dayOf(event.start)!==day||event.end&&dayOf(event.end-1)!==day)heading.append(node('span','Multi-day','badge'));
     if(hasFood(event))heading.append(node('span','Free food','badge food-badge'));
@@ -222,7 +236,7 @@ $('restore-hidden').addEventListener('click',()=>{
 $('make-qr').addEventListener('click',makeQr);$('print').addEventListener('click',()=>window.print());
 $('download').addEventListener('click',()=>{const url=URL.createObjectURL(new Blob([qrSvg],{type:'image/svg+xml'}));const link=document.createElement('a');link.href=url;link.download='today-bobcats-qr.svg';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);});
 $('import').addEventListener('change',async event=>{try{const file=event.target.files[0];if(!file)return;if(loading)throw new Error('Wait for the current event request to finish before importing.');if(file.size>25*1024*1024)throw new Error('Choose an export smaller than 25 MB.');const data=JSON.parse(await file.text());ingest(data);localPreview=true;refreshing=false;clearTimeout(refreshTimer);$('reload').disabled=false;$('reload').textContent='Reload events';loadError='';render();}catch(error){$('message').textContent=error.message;}});
-if(['http:','https:'].includes(location.protocol)){$('share-url').value=new URL('./',location.href).href;makeQr();}
-setInterval(()=>{const next=today();if(next!==lastDay){if($('date').value===lastDay){$('date').value=next;month=next.slice(0,7);}lastDay=next;}if(localPreview||refreshing)render();else load();},60000);
+if(!myEventsPage&&['http:','https:'].includes(location.protocol)){$('share-url').value=new URL('./',location.href).href;makeQr();}
+setInterval(()=>{const next=today();if(next!==lastDay){if($('date').value===lastDay){$('date').value=next;month=next.slice(0,7);}lastDay=next;}if(myEventsPage||localPreview||refreshing)render();else load();},60000);
 rebuildPersonal();
-load();
+if(!myEventsPage)load();

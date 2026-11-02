@@ -61,6 +61,16 @@ input,select,button{border-radius:7px}
 #event-dialog{border-radius:16px;padding:32px}
 .close-dialog{border-radius:50%;width:40px;height:40px;padding:0}
 .personal-controls{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin:16px 0}
+.page-nav{display:flex;gap:6px;padding-top:24px}
+.page-nav a{padding:10px 16px;border-radius:8px;font-size:13px;text-decoration:none;color:var(--muted);border:1px solid transparent}
+.page-nav a[aria-current=page]{background:var(--soft);border-color:var(--line);color:var(--accent);font-weight:700}
+.my-events-page .day-summary,.my-events-page .date-strip,.my-events-page .calendar-toolbar,.my-events-page .month-panel,.my-events-page #share,.my-events-page .data-note,.my-events-page .header-actions>a,.my-events-page footer details{display:none}
+.my-events-page .controls>label:not(.search),.my-events-page #today{display:none}
+.my-events-page .hero{padding-bottom:24px}
+.my-events-page .calendar-layout{grid-template-columns:1fr;margin-bottom:48px}
+.my-events-page .agenda-panel{position:static;max-height:none;overflow:visible}
+.my-events-page .agenda-panel .events{grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr))}
+.my-events-page .event>.eyebrow{font-size:10px;color:var(--muted);line-height:1.6;margin:0 0 12px}
 .personal-controls p{font-size:12px;color:var(--muted);margin:0}
 #personal-status:not(:empty){flex-basis:100%}
 .personal-dialog{width:calc(100% - 32px);max-width:560px;max-height:90dvh;overflow:auto;padding:28px;border:1px solid var(--line);border-radius:16px;background:var(--surface);color:inherit}
@@ -72,7 +82,7 @@ input,select,button{border-radius:7px}
 .personal-dialog textarea:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
 #personal-error{color:var(--accent);font-size:13px}
 @media(max-width:600px){.personal-times{grid-template-columns:1fr}.personal-dialog{padding:20px}}
-@media print{.personal-controls,.personal-dialog{display:none!important}}
+@media print{.page-nav,.personal-controls,.personal-dialog{display:none!important}}
 @media(min-width:1100px){.agenda-panel{position:sticky;top:20px}}
 @media(max-width:1100px){.calendar-layout{grid-template-columns:1fr}.agenda-panel{max-height:none}.agenda-panel .events{grid-template-columns:repeat(2,minmax(0,1fr))}.day-summary>div{padding:20px}}
 @media(max-width:600px){
