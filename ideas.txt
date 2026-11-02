@@ -61,9 +61,6 @@ add favicon.ico for all pages
 add number line detection and fix
 add group editing for group projects
 
-add color scheme
-add share event feature
-add a calendar for my events feature to calendar
-add extend day and show all events view for calendar
+add a feature to have a small database which would store the ai summary for a day and would only refresh if more than 200 people selected it to report
 
 add ability to add sports events to calendar including f1
