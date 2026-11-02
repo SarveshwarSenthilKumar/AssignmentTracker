@@ -9,9 +9,8 @@
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="theme.css?v=3">
   <link rel="stylesheet" href="responsive.css">
-  <link rel="stylesheet" href="polish.css?v=7">
+  <link rel="stylesheet" href="polish.css?v=8">
   <script src="vendor/qrcode.js" defer></script><script src="app.js?v=9" defer></script>
-  <script src="progress.js?v=1" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#lineup">Skip to events</a>
@@ -19,19 +18,6 @@
   <main>
     <nav class="page-nav" aria-label="Event pages"><a id="campus-page-link" href="./">Campus events</a><a id="personal-page-link" href="./?view=my-events">My events</a></nav>
     <section class="hero"><p class="eyebrow">SAN MARCOS, TEXAS · YOUR DAILY CAMPUS EDIT</p><h1>A little less scrolling.<br><em>A little more showing up.</em></h1><p>Find your next study break, new connection, or reason to leave the apartment. Here’s what’s happening around TXST.</p><div class="date-strip"><span id="day-heading"></span><span>America/Chicago · Central time</span></div></section>
-    <section id="progress-tasks" class="progress-tasks" hidden aria-labelledby="progress-heading">
-      <p class="eyebrow">A LITTLE EACH DAY</p><h2 id="progress-heading">Chip away at a goal</h2>
-      <p>Create a target, then log what you do each day. Every little bit counts.</p>
-      <details id="new-progress-task"><summary>+ Create a progress task</summary>
-        <form id="progress-create" class="progress-form">
-          <label>Task name<input name="title" placeholder="Apply to jobs" required maxlength="160"></label>
-          <label>Target<input name="target" type="number" min="1" max="1000000000" step="1" placeholder="200" required></label>
-          <label>Unit (optional)<input name="unit" placeholder="applications" maxlength="40"></label>
-          <button type="submit">Create task</button>
-        </form>
-      </details>
-      <p id="progress-status" role="status"></p><div id="progress-list" class="progress-list"></div>
-    </section>
     <section class="day-summary" aria-label="Selected day at a glance"><div><span class="summary-label">On the lineup</span><strong id="summary-total">—</strong><span>events on your selected day</span></div><div><span class="summary-label">Happening now</span><strong id="summary-live">—</strong><span>in progress across campus</span></div><div><span class="summary-label">Food & company</span><strong id="summary-food">—</strong><span>events listing free food</span></div></section>
     <section class="controls" aria-label="Event filters"><label class="search">Search events<input id="search" type="search" placeholder="Name, place, or organization…"></label><label>Day<input id="date" type="date"></label><label>Category<select id="category"><option value="">All categories</option></select></label><label class="checkbox"><input id="food" type="checkbox">Free food</label><button id="today">Today</button><button id="clear-filters" hidden>Clear filters</button></section>
     <div class="list-heading" id="lineup" tabindex="-1"><h2>The daily lineup <span id="count">0</span></h2><p id="freshness" role="status">Loading event data…</p></div>
