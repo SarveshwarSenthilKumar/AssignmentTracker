@@ -71,6 +71,13 @@ input,select,button{border-radius:7px}
 .page-nav a{padding:10px 16px;border-radius:8px;font-size:13px;text-decoration:none;color:var(--muted);border:1px solid transparent}
 .page-nav a[aria-current=page]{background:var(--soft);border-color:var(--line);color:var(--accent);font-weight:700}
 .calendar-page-nav{padding-top:0;margin-bottom:16px;flex-wrap:wrap}
+.calendar-toolbar{flex-wrap:wrap}
+.calendar-title-toggle{display:flex;align-items:center;gap:8px;min-height:44px;font-size:12px;cursor:pointer}
+.calendar-title-toggle input{margin:0;width:18px;height:18px;flex-shrink:0}
+.full-calendar-titles .calendar-event{display:block;white-space:normal;text-overflow:clip;overflow:visible;overflow-wrap:anywhere;font-size:12px;line-height:1.6;padding:8px 6px}
+.full-calendar-titles .calendar-cell{height:auto;min-height:138px}
+.full-calendar-titles .month-panel{overflow-x:auto}
+@media(max-width:1000px){.full-calendar-titles .calendar-grid,.full-calendar-titles .weekdays{min-width:980px}}
 .day-expanded .calendar-layout{grid-template-columns:1fr}
 .day-expanded .month-panel,.day-expanded .month-navigation{display:none}
 .day-expanded .agenda-panel{position:static;max-height:none;overflow:visible}

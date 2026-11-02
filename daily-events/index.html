@@ -9,9 +9,9 @@
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="theme.css?v=3">
   <link rel="stylesheet" href="responsive.css">
-  <link rel="stylesheet" href="polish.css?v=11">
+  <link rel="stylesheet" href="polish.css?v=12">
   <link rel="stylesheet" href="schemes.css?v=1">
-  <script src="vendor/qrcode.js" defer></script><script src="app.js?v=12" defer></script>
+  <script src="vendor/qrcode.js" defer></script><script src="app.js?v=13" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#lineup">Skip to events</a>
@@ -24,7 +24,7 @@
     <section class="controls" aria-label="Event filters"><label class="search">Search events<input id="search" type="search" placeholder="Name, place, or organization…"></label><label>Day<input id="date" type="date"></label><label>Category<select id="category"><option value="">All categories</option></select></label><label class="checkbox"><input id="food" type="checkbox">Free food</label><button id="today">Today</button><button id="clear-filters" hidden>Clear filters</button></section>
     <div class="list-heading" id="lineup" tabindex="-1"><h2>The daily lineup <span id="count">0</span></h2><p id="freshness" role="status">Loading event data…</p></div>
     <nav class="page-nav calendar-page-nav" aria-label="Calendar event pages"><a href="./#lineup">Campus events</a><a href="./?view=my-events#lineup">My events</a></nav>
-    <div class="calendar-toolbar"><div class="button-row month-navigation"><button id="previous-month" aria-label="Previous month">←</button><h2 id="month-label"></h2><button id="next-month" aria-label="Next month">→</button></div><div id="day-navigation" class="button-row" hidden><button id="previous-day">← Previous day</button><button id="next-day">Next day →</button></div><div class="button-row"><button id="expand-day" aria-expanded="false" aria-controls="events">Expand day</button><button id="next-event">Next event</button><button id="reload">Reload events</button></div></div>
+    <div class="calendar-toolbar"><div class="button-row month-navigation"><button id="previous-month" aria-label="Previous month">←</button><h2 id="month-label"></h2><button id="next-month" aria-label="Next month">→</button></div><label class="calendar-title-toggle" id="calendar-title-control"><input id="full-event-titles" type="checkbox" aria-controls="calendar-grid">Show every event’s full title</label><div id="day-navigation" class="button-row" hidden><button id="previous-day">← Previous day</button><button id="next-day">Next day →</button></div><div class="button-row"><button id="expand-day" aria-expanded="false" aria-controls="events">Expand day</button><button id="next-event">Next event</button><button id="reload">Reload events</button></div></div>
     <div id="message" role="status"></div>
     <div class="personal-controls"><button id="add-personal">+ Add my event</button><button id="restore-hidden" hidden>Restore removed campus events</button><p>Personal events and removals stay in this browser only.</p><p id="personal-status" role="status"></p></div>
     <dialog id="personal-dialog" class="personal-dialog" aria-labelledby="personal-title">

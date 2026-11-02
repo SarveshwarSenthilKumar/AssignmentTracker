@@ -20,6 +20,10 @@ const safeUrl = value => {try{const url=new URL(value);return ['https:','http:']
 let events=[], metadata={}, qrSvg='', lastDay=today(), month=today().slice(0,7), loading=false, localPreview=false, loadError='';
 let refreshing=false, refreshProgress='', refreshTimer=null, pendingRefresh=false;
 let expandedDay=false,liveOnly=false;
+const fullTitlesKey='daily-events-full-titles';
+let fullTitles=false;
+try{fullTitles=localStorage.getItem(fullTitlesKey)==='true';}catch{/* Keep the preference for this visit if storage is unavailable. */}
+$('full-event-titles').checked=fullTitles;
 const shiftDay=(day,count)=>{const date=new Date(`${day}T12:00:00Z`);date.setUTCDate(date.getUTCDate()+count);return date.toISOString().slice(0,10);};
 const label=day=>new Date(`${day}T12:00:00Z`).toLocaleDateString('en-US',{timeZone:'UTC',weekday:'long',month:'long',day:'numeric',year:'numeric'});
 const eventTime=value=>new Date(value).toLocaleTimeString('en-US',{timeZone:zone,hour:'numeric',minute:'2-digit'});
@@ -99,6 +103,8 @@ function render(){
   renderCalendar(matching,day);
   $('agenda-label').textContent=myEventsPage&&!expandedDay?'All your events':label(day);
   document.body.classList.toggle('day-expanded',expandedDay);
+  document.body.classList.toggle('full-calendar-titles',fullTitles);
+  $('calendar-title-control').hidden=expandedDay;
   $('expand-day').textContent=expandedDay?'Back to calendar':'Expand day';
   $('expand-day').setAttribute('aria-expanded',String(expandedDay));
   $('day-navigation').hidden=!expandedDay||liveOnly;
@@ -141,9 +147,9 @@ function renderCalendar(items,selectedDay){
     const day=shiftDay(start,index),dayEvents=items.filter(event=>onDay(event,day));
     const cell=node('div','',`calendar-cell${day.slice(0,7)!==month?' outside':''}${day===selectedDay?' selected':''}${day===today()?' is-today':''}`);
     const select=node('button',day.slice(-2).replace(/^0/,''),'day-number');select.setAttribute('aria-label',`${label(day)}: ${dayEvents.length} events`);select.setAttribute('aria-pressed',String(day===selectedDay));select.addEventListener('click',()=>selectDay(day));cell.append(select);
-    dayEvents.slice(0,3).forEach(event=>{const button=node('button',`${eventTime(event.start)} ${event.name}`,'calendar-event');button.title=`${event.name} · ${event.location}`;button.addEventListener('click',()=>{selectDay(day);showEvent(event);});cell.append(button);});
-    if(dayEvents.length>3){const more=node('button',`+${dayEvents.length-3} more`,'more-events');more.setAttribute('aria-label',`Expand ${label(day)}: view all ${dayEvents.length} events`);more.addEventListener('click',()=>expandDay(day));cell.append(more);}
-    if(dayEvents.length){const count=node('button',String(dayEvents.length),'mobile-count');count.setAttribute('aria-label',`Expand ${label(day)}: view all ${dayEvents.length} events`);count.addEventListener('click',()=>expandDay(day));cell.append(count);}
+    (fullTitles?dayEvents:dayEvents.slice(0,3)).forEach(event=>{const button=node('button',`${eventTime(event.start)} ${event.name}`,'calendar-event');button.title=`${event.name} · ${event.location}`;button.addEventListener('click',()=>{selectDay(day);showEvent(event);});cell.append(button);});
+    if(!fullTitles&&dayEvents.length>3){const more=node('button',`+${dayEvents.length-3} more`,'more-events');more.setAttribute('aria-label',`Expand ${label(day)}: view all ${dayEvents.length} events`);more.addEventListener('click',()=>expandDay(day));cell.append(more);}
+    if(!fullTitles&&dayEvents.length){const count=node('button',String(dayEvents.length),'mobile-count');count.setAttribute('aria-label',`Expand ${label(day)}: view all ${dayEvents.length} events`);count.addEventListener('click',()=>expandDay(day));cell.append(count);}
     $('calendar-grid').append(cell);
   }
 }
@@ -221,6 +227,11 @@ function makeQr(){
 ['search','category','food'].forEach(id=>$(id).addEventListener('input',render));
 $('date').addEventListener('input',()=>{if($('date').value)selectDay($('date').value);});
 $('today').addEventListener('click',()=>selectDay(today()));
+$('full-event-titles').addEventListener('change',event=>{
+  fullTitles=event.target.checked;
+  try{localStorage.setItem(fullTitlesKey,String(fullTitles));}catch{/* Session-only preference. */}
+  render();
+});
 $('now-banner').addEventListener('click',()=>{
   $('search').value='';$('category').value='';$('food').checked=false;
   $('date').value=today();month=today().slice(0,7);liveOnly=true;expandedDay=true;render();

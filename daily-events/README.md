@@ -19,6 +19,8 @@ A frontend-only version can read a published static JSON file containing public 
 
 ## Status
 
+The calendar's **Show every event’s full title** toggle switches between compact previews and an uncapped list of event titles in each date cell. Full titles wrap instead of truncating, and calendar rows grow to fit every matching event. On smaller screens, scroll the calendar horizontally to read full-width date cells. Turn it off to return to compact previews (event counts on phones). The preference is saved in browser storage and used on Campus events and My events.
+
 The top **Happening now** banner displays a count of events currently in progress. Select it to jump to an expanded live lineup; it resets search filters and includes only events whose published start/end times contain the current time. My events uses personal events only. Counts update with the page's minute refresh, and events without an end time cannot be marked live. Back to calendar returns to the month view. Live status reflects the loaded data, so check the export update time and source details.
 
 **Expand day:** select a date and choose **Expand day** beside the calendar controls to see every matching event for that date in a full-width view, with complete exported descriptions and no inner scroll limit. **Previous day** and **Next day** move through dates; **Back to calendar** restores the month. Calendar **+ more** buttons and mobile event-count buttons also open the expanded day. Search/category/free-food filters still apply; Clear filters shows the full day's available lineup. On My events, the expanded view shows only personal events on that date, while returning to the calendar restores the full personal-event list.
