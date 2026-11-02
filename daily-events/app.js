@@ -2,6 +2,7 @@ const zone = 'America/Chicago';
 const $ = id => document.getElementById(id);
 const myEventsPage=new URLSearchParams(location.search).get('view')==='my-events';
 $(myEventsPage?'personal-page-link':'campus-page-link').setAttribute('aria-current','page');
+document.querySelector(`.calendar-page-nav a:nth-child(${myEventsPage?2:1})`).setAttribute('aria-current','page');
 if(myEventsPage){
   document.body.classList.add('my-events-page');
   document.title='My events — Today, Bobcats';
