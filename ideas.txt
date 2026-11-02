@@ -61,4 +61,7 @@ add favicon.ico for all pages
 add number line detection and fix
 add group editing for group projects
 
+add color scheme
+add share event feature
+
 add ability to add sports events to calendar including f1
