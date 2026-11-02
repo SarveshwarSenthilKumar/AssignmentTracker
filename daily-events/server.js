@@ -37,7 +37,7 @@ async function refresh() {
 
 const files = new Map([
   ['/', ['index.html', 'text/html']], ['/index.html', ['index.html', 'text/html']],
-  ...['styles.css', 'theme.css', 'responsive.css', 'polish.css'].map(file => [`/${file}`, [file, 'text/css']]),
+  ...['styles.css', 'theme.css', 'responsive.css', 'polish.css', 'schemes.css'].map(file => [`/${file}`, [file, 'text/css']]),
   ...['app.js', 'theme.js', 'vendor/qrcode.js'].map(file => [`/${file}`, [file, 'text/javascript']]),
   ['/events.json', ['events.json', 'application/json']],
 ]);

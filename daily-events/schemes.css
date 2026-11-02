@@ -1,0 +1,39 @@
+.scheme-picker{min-width:120px}
+.scheme-picker select{margin-top:4px;padding:8px 10px;font-size:12px}
+@media screen{
+  :root[data-scheme]{--page:#f5f3ec;--ink:#252b26;--surface:#fffef8;--soft:#eaece2;--line:#cfd4c6;--muted:#58624f;--accent:#793d34;--highlight:#f3e9e3;--event-bg:#dfe8d6;--event-ink:#32462d;--input:#fcfcf7;--hover:#d7dfcd}
+  :root[data-scheme][data-theme=dark]{--page:#111714;--ink:#e7ece5;--surface:#19221b;--soft:#202c24;--line:#465447;--muted:#acb9ab;--accent:#e4ac9c;--highlight:#352b26;--event-bg:#2d4031;--event-ink:#e3eddf;--input:#141d17;--hover:#354638}
+  :root[data-scheme=ocean][data-theme=light]{--page:#eef4f8;--ink:#193343;--surface:#fbfdff;--soft:#dfeaf2;--line:#b7cbd9;--muted:#4b6576;--accent:#155d82;--highlight:#d8eaf6;--event-bg:#d3e7ed;--event-ink:#164c5d;--input:#f8fcff;--hover:#c8deeb}
+  :root[data-scheme=ocean][data-theme=dark]{--page:#0e1822;--ink:#e2edf7;--surface:#152536;--soft:#1b3043;--line:#3e5d75;--muted:#a6bed1;--accent:#8dcaef;--highlight:#233f58;--event-bg:#214958;--event-ink:#dbf2f7;--input:#101f2e;--hover:#2b4b65}
+  :root[data-scheme=plum][data-theme=light]{--page:#f5eff7;--ink:#36263f;--surface:#fffaff;--soft:#eee1f1;--line:#d2bcd9;--muted:#6e5377;--accent:#793f88;--highlight:#ead4f0;--event-bg:#e7d9f3;--event-ink:#59346a;--input:#fdf8ff;--hover:#e2cce9}
+  :root[data-scheme=plum][data-theme=dark]{--page:#1a1220;--ink:#f1e6f5;--surface:#281d31;--soft:#34253f;--line:#665172;--muted:#c5aecf;--accent:#dcb0ef;--highlight:#4a3056;--event-bg:#493451;--event-ink:#f3defa;--input:#211727;--hover:#503a5c}
+  :root[data-scheme=sandstone][data-theme=light]{--page:#f8f2e9;--ink:#3d3025;--surface:#fffaf2;--soft:#efe2cf;--line:#d1bea5;--muted:#715d49;--accent:#8b4824;--highlight:#f2dcc7;--event-bg:#eddfc5;--event-ink:#654c2a;--input:#fffcf7;--hover:#e5ceb2}
+  :root[data-scheme=sandstone][data-theme=dark]{--page:#1d1813;--ink:#f1e9dc;--surface:#2b231c;--soft:#382e23;--line:#6c5945;--muted:#c9b69c;--accent:#edb884;--highlight:#4b3424;--event-bg:#4b3d29;--event-ink:#f7e4c0;--input:#211c17;--hover:#50402f}
+
+  :root[data-scheme],:root[data-scheme] body{background:var(--page);color:var(--ink)}
+  :root[data-scheme] header,:root[data-scheme] footer,:root[data-scheme] .date-strip,:root[data-scheme] .weekdays,:root[data-scheme] .calendar-cell,:root[data-scheme] .event-bottom{border-color:var(--line)}
+  :root[data-scheme] .brand strong,:root[data-scheme] h1 em,:root[data-scheme] .event-time{color:var(--accent)}
+  :root[data-scheme] .hero>p:not(.eyebrow),:root[data-scheme] label,:root[data-scheme] .description,:root[data-scheme] .date-strip span:last-child,:root[data-scheme] .list-heading p,:root[data-scheme] .data-note,:root[data-scheme] footer,:root[data-scheme] .agenda-panel>p,:root[data-scheme] .organizer,:root[data-scheme] .tags,:root[data-scheme] .share>div:not(.poster)>p{color:var(--muted)}
+  :root[data-scheme] .controls,:root[data-scheme] .weekdays,:root[data-scheme] .share{background:var(--soft)}
+  :root[data-scheme] input,:root[data-scheme] select,:root[data-scheme] textarea{background:var(--input);border-color:var(--line);color:var(--ink)}
+  :root[data-scheme] input::placeholder,:root[data-scheme] textarea::placeholder{color:var(--muted);opacity:1}
+  :root[data-scheme] button{background:var(--soft);border-color:var(--line);color:var(--ink)}
+  :root[data-scheme] button:hover:not(:disabled){background:var(--hover)}
+  :root[data-scheme] #today{background:var(--accent);color:var(--page);border-color:var(--accent)}
+  :root[data-scheme] #clear-filters{background:transparent;color:var(--accent);border-color:transparent}
+  :root[data-scheme] .month-panel,:root[data-scheme] .event,:root[data-scheme] #event-dialog,:root[data-scheme] .personal-dialog,:root[data-scheme] #poster{background:var(--surface);color:var(--ink);border-color:var(--line)}
+  :root[data-scheme] .calendar-cell.outside{background:var(--page);color:var(--muted)}
+  :root[data-scheme] .calendar-cell.selected{background:var(--highlight);box-shadow:inset 0 0 0 2px var(--accent)}
+  :root[data-scheme] .day-number,:root[data-scheme] .more-events{background:transparent}
+  :root[data-scheme] .is-today .day-number{background:var(--accent);color:var(--page)}
+  :root[data-scheme] .calendar-event{background:var(--event-bg);color:var(--event-ink);border-left-color:var(--accent)}
+  :root[data-scheme] .calendar-event:hover{background:var(--hover)}
+  :root[data-scheme] .mobile-count,:root[data-scheme] .list-heading h2 span,:root[data-scheme] .badge,:root[data-scheme] .badge.live{background:var(--event-bg);color:var(--event-ink)}
+  :root[data-scheme] #message{background:var(--surface);color:var(--muted);border-color:var(--line)!important}
+  :root[data-scheme] #poster>p{color:var(--muted)}
+  :root[data-scheme] #poster>strong{color:var(--accent)}
+  :root[data-scheme] #poster #qr{background:white;color:#252b26}
+  :root[data-scheme] input:focus,:root[data-scheme] select:focus,:root[data-scheme] textarea:focus-visible,:root[data-scheme] button:focus-visible,:root[data-scheme] a:focus-visible{outline-color:var(--accent)}
+}
+@media(max-width:900px){header{height:auto;min-height:86px;gap:16px;flex-wrap:wrap;padding-block:16px}.header-actions{flex-wrap:wrap;gap:12px}}
+@media(max-width:600px){.header-actions{width:100%}.scheme-picker{flex:1}.header-actions>a{flex-basis:100%}}

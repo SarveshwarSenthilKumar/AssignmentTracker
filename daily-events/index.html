@@ -5,16 +5,17 @@
   <meta name="description" content="Your daily guide to public TXST campus events. Find something happening today.">
   <title>Today, Bobcats — Campus events</title>
   <meta name="color-scheme" content="dark light">
-  <script src="theme.js?v=2"></script>
+  <script src="theme.js?v=3"></script>
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="theme.css?v=3">
   <link rel="stylesheet" href="responsive.css">
   <link rel="stylesheet" href="polish.css?v=8">
+  <link rel="stylesheet" href="schemes.css?v=1">
   <script src="vendor/qrcode.js" defer></script><script src="app.js?v=9" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#lineup">Skip to events</a>
-  <header><a class="brand" href="./">TODAY, <strong>BOBCATS.</strong></a><div class="header-actions"><a href="#share">Get the QR poster ↗</a><button id="theme-toggle" type="button" aria-label="Switch to light mode">Light mode</button></div></header>
+  <header><a class="brand" href="./">TODAY, <strong>BOBCATS.</strong></a><div class="header-actions"><a href="#share">Get the QR poster ↗</a><label class="scheme-picker">Color scheme<select id="color-scheme"><option value="forest">Forest</option><option value="ocean">Ocean</option><option value="plum">Plum</option><option value="sandstone">Sandstone</option></select></label><button id="theme-toggle" type="button" aria-label="Switch to light mode">Light mode</button></div></header>
   <main>
     <nav class="page-nav" aria-label="Event pages"><a id="campus-page-link" href="./">Campus events</a><a id="personal-page-link" href="./?view=my-events">My events</a></nav>
     <section class="hero"><p class="eyebrow">SAN MARCOS, TEXAS · YOUR DAILY CAMPUS EDIT</p><h1>A little less scrolling.<br><em>A little more showing up.</em></h1><p>Find your next study break, new connection, or reason to leave the apartment. Here’s what’s happening around TXST.</p><div class="date-strip"><span id="day-heading"></span><span>America/Chicago · Central time</span></div></section>
