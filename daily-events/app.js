@@ -81,7 +81,13 @@ function renderCalendar(items,selectedDay){
 function selectDay(day){$('date').value=day;month=day.slice(0,7);render();}
 function clearFilters(){$('search').value='';$('category').value='';$('food').checked=false;render();}
 function showEvent(event){
-  const detail=$('event-detail');detail.replaceChildren(node('p',label(dayOf(event.start)),'eyebrow'),node('h2',event.name),node('p',`${eventTime(event.start)}${event.end?` – ${eventTime(event.end)}${dayOf(event.end-1)!==dayOf(event.start)?` (${label(dayOf(event.end-1))})`:''}`,'event-time'),node('p',event.location,'location'));
+  const detail=$('event-detail');
+  let timeRange=eventTime(event.start);
+  if(event.end){
+    timeRange+=` – ${eventTime(event.end)}`;
+    if(event.endDay!==event.startDay)timeRange+=` (${label(event.endDay)})`;
+  }
+  detail.replaceChildren(node('p',label(event.startDay),'eyebrow'),node('h2',event.name),node('p',timeRange,'event-time'),node('p',event.location,'location'));
   if(event.organization)detail.append(node('p',event.organization,'organizer'));
   detail.append(node('p',event.description||'See the original event page for details.','full-description'));
   if(event.categories.length)detail.append(node('p',event.categories.join(' · '),'tags'));
