@@ -13,17 +13,53 @@ const label=day=>new Date(`${day}T12:00:00Z`).toLocaleDateString('en-US',{timeZo
 const eventTime=value=>new Date(value).toLocaleTimeString('en-US',{timeZone:zone,hour:'numeric',minute:'2-digit'});
 const onDay=(event,day)=>event.startDay<=day&&event.endDay>=day;
 const hasFood=event=>/free\s*food|freefood/i.test(event.benefits);
+const personalKey='daily-events-personal-v1';
+let personalEvents=[], hiddenEvents=[], sourceItems=[];
+try{
+  const saved=JSON.parse(localStorage.getItem(personalKey)||'{}');
+  if(Array.isArray(saved.events))personalEvents=saved.events.filter(event=>event&&typeof event.id==='string'&&typeof event.name==='string'&&Number.isFinite(Date.parse(event.startsOn)));
+  if(Array.isArray(saved.hidden))hiddenEvents=saved.hidden.filter(id=>typeof id==='string');
+}catch{$('personal-status').textContent='Saved personal changes could not be read. Browser storage may be unavailable.';}
+function savePersonal(nextEvents,nextHidden){
+  try{localStorage.setItem(personalKey,JSON.stringify({events:nextEvents,hidden:nextHidden}));}
+  catch{$('personal-status').textContent='Could not save changes. Browser storage may be full or disabled.';return false;}
+  personalEvents=nextEvents;hiddenEvents=nextHidden;return true;
+}
+const sourceId=event=>event.id!=null?`txst:${event.id}`:safeUrl(event.url)||`${text(event.name||event.title)}|${event.startsOn||event.startDate}`;
+function rebuildPersonal(){ingest({...metadata,events:sourceItems});}
+function removePersonalEvent(event){
+  const nextEvents=event.personal?personalEvents.filter(item=>`personal:${item.id}`!==event.key):personalEvents;
+  const nextHidden=event.personal?hiddenEvents:[...new Set([...hiddenEvents,event.key])];
+  if(!savePersonal(nextEvents,nextHidden))return;
+  $('event-dialog').close();rebuildPersonal();
+  $('personal-status').textContent=event.personal?'Your personal event was deleted.':'Campus event removed for you. Use Restore removed campus events to bring it back.';
+  $('add-personal').focus();
+}
+// Convert a Central wall-clock input independently of the device time zone.
+// During the repeated autumn hour, choose the earlier occurrence.
+function centralTime(value){
+  const wall=Date.parse(`${value}Z`);
+  if(!Number.isFinite(wall))throw new Error('Enter a valid date and time.');
+  const formatter=new Intl.DateTimeFormat('en-CA',{timeZone:zone,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
+  for(const offset of [5,6]){
+    const candidate=wall+offset*3600000,parts=formatter.formatToParts(candidate),get=type=>parts.find(part=>part.type===type).value;
+    if(`${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}`===value)return new Date(candidate).toISOString();
+  }
+  throw new Error('That Central time does not exist during the daylight-saving change. Choose another time.');
+}
 $('date').value=today();
 function node(tag,content,className){const element=document.createElement(tag);element.textContent=content;if(className)element.className=className;return element;}
 function ingest(data){
   const items=Array.isArray(data)?data:data?.events;
   if(!Array.isArray(items))throw new Error('Expected an event export with an events array.');
   metadata=Array.isArray(data)?{}:data;
-  events=items.filter(event=>event&&Number.isFinite(Date.parse(event.startsOn||event.startDate))).map(event=>{
+  sourceItems=items;
+  const combined=[...items.filter(event=>event&&!hiddenEvents.includes(sourceId(event))).map(event=>({...event,personal:false,key:sourceId(event)})),...personalEvents.map(event=>({...event,personal:true,key:`personal:${event.id}`}))];
+  events=combined.filter(event=>event&&Number.isFinite(Date.parse(event.startsOn||event.startDate))).map(event=>{
     const start=Date.parse(event.startsOn||event.startDate), rawEnd=Date.parse(event.endsOn||event.endDate);
     const categories=Array.isArray(event.categories)?event.categories.map(text):text(event.categories||event.categoryNames).split(',').map(value=>value.trim()).filter(Boolean);
     const end=Number.isFinite(rawEnd)&&rawEnd>start?rawEnd:null;
-    return {name:text(event.name||event.title)||'Campus event',start,end,startDay:dayOf(start),endDay:dayOf(end?end-1:start),description:plain(event.description),location:text(event.location||event.address)||'See event page for location',organization:text(event.organizations||event.organizationNames||event.organizationName),categories,benefits:text(event.benefits||event.benefitNames),url:safeUrl(event.url)||((event.id!=null)?`https://txst.campuslabs.com/engage/event/${encodeURIComponent(event.id)}`:null)};
+    return {key:event.key,personal:event.personal,name:text(event.name||event.title)||'Campus event',start,end,startDay:dayOf(start),endDay:dayOf(end?end-1:start),description:event.personal?text(event.description):plain(event.description),location:text(event.location||event.address)||(event.personal?'No location added':'See event page for location'),organization:text(event.organizations||event.organizationNames||event.organizationName),categories,benefits:text(event.benefits||event.benefitNames),url:event.personal?null:safeUrl(event.url)||((event.id!=null)?`https://txst.campuslabs.com/engage/event/${encodeURIComponent(event.id)}`:null)};
   }).sort((a,b)=>a.start-b.start||a.name.localeCompare(b.name));
   const previous=$('category').value;$('category').replaceChildren(node('option','All categories'));$('category').firstChild.value='';
   [...new Set(events.flatMap(event=>event.categories))].sort().forEach(category=>{const option=node('option',category);option.value=category;$('category').append(option);});
@@ -36,6 +72,8 @@ function render(){
   $('day-heading').textContent=new Date(`${day}T12:00:00Z`).toLocaleDateString('en-US',{timeZone:'UTC',weekday:'long',month:'long',day:'numeric',year:'numeric'});
   const filtered=Boolean(query||category||$('food').checked);
   $('clear-filters').hidden=!filtered;
+  $('restore-hidden').hidden=!hiddenEvents.length;
+  $('restore-hidden').textContent=`Restore removed campus events (${hiddenEvents.length})`;
   const matching=events.filter(event=>(!category||event.categories.includes(category))&&(!$('food').checked||hasFood(event))&&`${event.name} ${event.location} ${event.organization} ${event.description}`.toLowerCase().includes(query));
   const selected=matching.filter(event=>onDay(event,day));
   const dayEvents=events.filter(event=>onDay(event,day));
@@ -55,13 +93,16 @@ function render(){
     heading.append(node('span',`${time(event.start)}${event.end?` – ${time(event.end)}`:''}`,'event-time'));
     if(dayOf(event.start)!==day||event.end&&dayOf(event.end-1)!==day)heading.append(node('span','Multi-day','badge'));
     if(hasFood(event))heading.append(node('span','Free food','badge food-badge'));
+    if(event.personal)heading.append(node('span','Only you','badge'));
     if(event.end&&now>=event.start&&now<event.end)heading.append(node('span','Happening now','badge live'));
     else if(event.start>now&&event.start-now<=3600000)heading.append(node('span','Starting soon','badge'));
     card.append(heading,node('h3',event.name),node('p',event.location,'location'));
     if(event.organization)card.append(node('p',event.organization,'organizer'));
     card.append(node('p',event.description.length>230?`${event.description.slice(0,227)}…`:event.description||'Open the event page for the full details.','description'));
     const bottom=node('div','','event-bottom');const tags=node('span',event.categories.join(' · '),'tags');bottom.append(tags);
-    const details=node('button','Full details');details.addEventListener('click',()=>showEvent(event));bottom.append(details);card.append(bottom);$('events').append(card);
+    const details=node('button','Full details');details.addEventListener('click',()=>showEvent(event));bottom.append(details);
+    const remove=node('button',event.personal?'Delete':'Remove for me');remove.setAttribute('aria-label',`${event.personal?'Delete':'Remove for me'}: ${event.name}`);remove.addEventListener('click',()=>removePersonalEvent(event));bottom.append(remove);
+    card.append(bottom);$('events').append(card);
   });
 }
 function renderCalendar(items,selectedDay){
@@ -93,6 +134,7 @@ function showEvent(event){
   if(event.categories.length)detail.append(node('p',event.categories.join(' · '),'tags'));
   if(event.benefits)detail.append(node('p',`Benefits: ${event.benefits}`));
   if(event.url){const link=node('a','Open original event & RSVP ↗');link.href=event.url;link.target='_blank';link.rel='noopener noreferrer';detail.append(link);}
+  const actions=node('div','','button-row');const remove=node('button',event.personal?'Delete my event':'Remove for me');remove.addEventListener('click',()=>removePersonalEvent(event));actions.append(remove);detail.append(actions);
   if(!$('event-dialog').open)$('event-dialog').showModal();
 }
 async function load({refresh=false}={}){
@@ -154,9 +196,33 @@ $('clear-filters').addEventListener('click',clearFilters);
 ['previous-month','next-month'].forEach((id,index)=>$(id).addEventListener('click',()=>{const date=new Date(`${month}-01T12:00:00Z`);date.setUTCMonth(date.getUTCMonth()+(index===0?-1:1));selectDay(date.toISOString().slice(0,10));}));
 $('next-event').addEventListener('click',()=>{const event=events.find(event=>dayOf(event.end?event.end-1:event.start)>=$('date').value);if(event){$('search').value='';$('category').value='';$('food').checked=false;selectDay(onDay(event,$('date').value)?$('date').value:dayOf(event.start));}else $('message').textContent='No later events in this export. Reload updated event data or choose an earlier date.';});
 $('reload').addEventListener('click',()=>load({refresh:true}));$('close-event').addEventListener('click',()=>$('event-dialog').close());
+$('add-personal').addEventListener('click',()=>{
+  $('personal-form').reset();$('personal-error').textContent='';
+  $('personal-start').value=`${$('date').value||today()}T12:00`;
+  $('personal-dialog').showModal();$('personal-name').focus();
+});
+$('cancel-personal').addEventListener('click',()=>$('personal-dialog').close());
+$('personal-form').addEventListener('submit',event=>{
+  event.preventDefault();$('personal-error').textContent='';
+  try{
+    const name=$('personal-name').value.trim();if(!name)throw new Error('Enter an event name.');
+    const startsOn=centralTime($('personal-start').value);
+    const endsOn=$('personal-end').value?centralTime($('personal-end').value):null;
+    if(endsOn&&Date.parse(endsOn)<=Date.parse(startsOn))throw new Error('End time must be after the start.');
+    const added={id:crypto.randomUUID(),name,startsOn,endsOn,location:$('personal-location').value.trim(),description:$('personal-description').value.trim(),categories:['Personal']};
+    if(!savePersonal([...personalEvents,added],hiddenEvents)){$('personal-error').textContent='Could not save this event. Enable browser storage or free some space and try again.';return;}
+    $('personal-dialog').close();rebuildPersonal();clearFilters();selectDay(dayOf(startsOn));
+    $('personal-status').textContent='Personal event saved in this browser.';$('add-personal').focus();
+  }catch(error){$('personal-error').textContent=error.message;}
+});
+$('restore-hidden').addEventListener('click',()=>{
+  if(!savePersonal(personalEvents,[]))return;
+  rebuildPersonal();$('personal-status').textContent='Removed campus events restored.';$('add-personal').focus();
+});
 $('make-qr').addEventListener('click',makeQr);$('print').addEventListener('click',()=>window.print());
 $('download').addEventListener('click',()=>{const url=URL.createObjectURL(new Blob([qrSvg],{type:'image/svg+xml'}));const link=document.createElement('a');link.href=url;link.download='today-bobcats-qr.svg';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);});
 $('import').addEventListener('change',async event=>{try{const file=event.target.files[0];if(!file)return;if(loading)throw new Error('Wait for the current event request to finish before importing.');if(file.size>25*1024*1024)throw new Error('Choose an export smaller than 25 MB.');const data=JSON.parse(await file.text());ingest(data);localPreview=true;refreshing=false;clearTimeout(refreshTimer);$('reload').disabled=false;$('reload').textContent='Reload events';loadError='';render();}catch(error){$('message').textContent=error.message;}});
 if(['http:','https:'].includes(location.protocol)){$('share-url').value=new URL('./',location.href).href;makeQr();}
 setInterval(()=>{const next=today();if(next!==lastDay){if($('date').value===lastDay){$('date').value=next;month=next.slice(0,7);}lastDay=next;}if(localPreview||refreshing)render();else load();},60000);
+rebuildPersonal();
 load();

@@ -60,6 +60,19 @@ input,select,button{border-radius:7px}
 }
 #event-dialog{border-radius:16px;padding:32px}
 .close-dialog{border-radius:50%;width:40px;height:40px;padding:0}
+.personal-controls{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin:16px 0}
+.personal-controls p{font-size:12px;color:var(--muted);margin:0}
+#personal-status:not(:empty){flex-basis:100%}
+.personal-dialog{width:calc(100% - 32px);max-width:560px;max-height:90dvh;overflow:auto;padding:28px;border:1px solid var(--line);border-radius:16px;background:var(--surface);color:inherit}
+.personal-dialog::backdrop{background:#0009}
+.personal-dialog>p{font-size:13px;line-height:1.7;color:var(--muted)}
+.personal-dialog label{margin-top:16px}
+.personal-times{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.personal-dialog textarea{display:block;width:100%;margin-top:7px;padding:12px;border:1px solid var(--line);border-radius:7px;background:var(--soft);color:inherit;font:inherit;resize:vertical}
+.personal-dialog textarea:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+#personal-error{color:var(--accent);font-size:13px}
+@media(max-width:600px){.personal-times{grid-template-columns:1fr}.personal-dialog{padding:20px}}
+@media print{.personal-controls,.personal-dialog{display:none!important}}
 @media(min-width:1100px){.agenda-panel{position:sticky;top:20px}}
 @media(max-width:1100px){.calendar-layout{grid-template-columns:1fr}.agenda-panel{max-height:none}.agenda-panel .events{grid-template-columns:repeat(2,minmax(0,1fr))}.day-summary>div{padding:20px}}
 @media(max-width:600px){
