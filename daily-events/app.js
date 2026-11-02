@@ -6,6 +6,7 @@ const text = value => value == null ? '' : typeof value === 'string' ? value : A
 const plain = value => { const doc=new DOMParser().parseFromString(String(value||''),'text/html');doc.querySelectorAll('script,style').forEach(node=>node.remove());return (doc.body.textContent||'').replace(/\s+/g,' ').trim(); };
 const safeUrl = value => {try{const url=new URL(value);return ['https:','http:'].includes(url.protocol)?url.href:null;}catch{return null;}};
 let events=[], metadata={}, qrSvg='', lastDay=today(), month=today().slice(0,7), loading=false, localPreview=false, loadError='';
+let refreshing=false, refreshProgress='', refreshTimer=null;
 const shiftDay=(day,count)=>{const date=new Date(`${day}T12:00:00Z`);date.setUTCDate(date.getUTCDate()+count);return date.toISOString().slice(0,10);};
 const label=day=>new Date(`${day}T12:00:00Z`).toLocaleDateString('en-US',{timeZone:'UTC',weekday:'long',month:'long',day:'numeric',year:'numeric'});
 const eventTime=value=>new Date(value).toLocaleTimeString('en-US',{timeZone:zone,hour:'numeric',minute:'2-digit'});
@@ -45,7 +46,7 @@ function render(){
   $('count').textContent=selected.length;$('events').replaceChildren();
   const stamp=Date.parse(metadata.scrapedAt||metadata.updatedAt);
   $('freshness').textContent=Number.isFinite(stamp)?`Updated ${new Date(stamp).toLocaleString('en-US',{timeZone:zone,month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})} CT${now-stamp>86400000?' · Data is over a day old':''}${metadata.complete===false?' · Partial collection':''}`:'No published update yet';
-  $('message').textContent=loadError||(!events.length&&!loading?'No events are available in the current export. Publish an updated events.json or import an export below.':`Showing ${events.length} loaded events across the calendar. Select a day to see its lineup.${localPreview?' Local file preview; automatic reload is paused.':''}`);
+  $('message').textContent=loadError||(refreshing?`Refreshing from TXST: ${refreshProgress || 'Collecting public events…'} You can keep browsing while this finishes.`:!events.length&&!loading?'No events are available in the current export. Choose Reload events to collect a fresh lineup.':`Showing ${events.length} loaded events across the calendar. Select a day to see its lineup.${localPreview?' Local file preview; automatic reload is paused.':''}`);
   const time=value=>new Date(value).toLocaleTimeString('en-US',{timeZone:zone,hour:'numeric',minute:'2-digit'});
   selected.forEach(event=>{
     const card=node('article','','event');const heading=node('div','','event-top');
@@ -86,11 +87,36 @@ function showEvent(event){
   if(event.url){const link=node('a','Open original event & RSVP ↗');link.href=event.url;link.target='_blank';link.rel='noopener noreferrer';detail.append(link);}
   if(!$('event-dialog').open)$('event-dialog').showModal();
 }
-async function load(){
-  if(loading)return;loading=true;loadError='';$('reload').disabled=true;
-  try{const response=await fetch(new URL('events.json',location.href),{cache:'no-store',signal:AbortSignal.timeout(20000)});if(!response.ok)throw new Error(`Event data could not be loaded (HTTP ${response.status}).`);const data=await response.json();localPreview=false;ingest(data);}
-  catch(error){loadError=`${error.message} ${location.protocol==='file:'?'Start the static HTTP server instead of opening index.html directly.':'Check that events.json is in the same hosted folder as this page.'} ${events.length?'Previously loaded events are still shown.':'You can also import an export at the bottom of the page.'}`;}
-  finally{loading=false;$('reload').disabled=false;render();}
+async function load({refresh=false}={}){
+  if(loading)return;
+  loading=true;loadError='';$('reload').disabled=true;
+  clearTimeout(refreshTimer);
+  let staticOnly=false;
+  try{
+    const response=await fetch(new URL(refresh?'api/events/refresh':'api/events',location.href),{method:refresh?'POST':'GET',cache:'no-store',signal:AbortSignal.timeout(20000)});
+    // Static hosting still supports reading a published export, but cannot scrape TXST.
+    const jsonType=(response.headers.get('content-type')||'').includes('application/json');
+    if([404,405,501].includes(response.status)||(response.ok&&!jsonType))staticOnly=true;
+    else {
+      if(!response.ok)throw new Error(`Event server returned HTTP ${response.status}.`);
+      const state=await response.json();
+      if(!state.data||!Array.isArray(state.data.events))throw new Error('Event server returned an invalid response.');
+      refreshing=Boolean(state.refreshing);refreshProgress=state.progress||'';loadError=state.error||'';
+      localPreview=false;ingest(state.data);
+    }
+    if(staticOnly){
+      refreshing=false;
+      const published=await fetch(new URL('events.json',location.href),{cache:'no-store',signal:AbortSignal.timeout(20000)});
+      if(!published.ok)throw new Error(`Event export returned HTTP ${published.status}.`);
+      const data=await published.json();localPreview=false;ingest(data);
+      if(refresh)loadError='Published export reloaded. To pull new events directly from TXST, run node daily-events/server.js from the repository folder and open http://localhost:8080. A static host cannot run the collector.';
+    }
+  }
+  catch(error){refreshing=false;loadError=`${error.message} ${location.protocol==='file:'?'Run node daily-events/server.js and open http://localhost:8080.':'Make sure the event server is still running, then choose Reload events to reconnect.'} ${events.length?'Previously loaded events are still shown.':'You can also import an export at the bottom of the page.'}`;}
+  finally{
+    loading=false;$('reload').disabled=refreshing;$('reload').textContent=refreshing?'Refreshing TXST…':'Reload events';render();
+    if(refreshing)refreshTimer=setTimeout(()=>load(),2000);
+  }
 }
 function makeQr(){
   const url=safeUrl($('share-url').value.trim());
@@ -109,10 +135,10 @@ $('today').addEventListener('click',()=>selectDay(today()));
 $('clear-filters').addEventListener('click',clearFilters);
 ['previous-month','next-month'].forEach((id,index)=>$(id).addEventListener('click',()=>{const date=new Date(`${month}-01T12:00:00Z`);date.setUTCMonth(date.getUTCMonth()+(index===0?-1:1));selectDay(date.toISOString().slice(0,10));}));
 $('next-event').addEventListener('click',()=>{const event=events.find(event=>dayOf(event.end?event.end-1:event.start)>=$('date').value);if(event){$('search').value='';$('category').value='';$('food').checked=false;selectDay(onDay(event,$('date').value)?$('date').value:dayOf(event.start));}else $('message').textContent='No later events in this export. Reload updated event data or choose an earlier date.';});
-$('reload').addEventListener('click',load);$('close-event').addEventListener('click',()=>$('event-dialog').close());
+$('reload').addEventListener('click',()=>load({refresh:true}));$('close-event').addEventListener('click',()=>$('event-dialog').close());
 $('make-qr').addEventListener('click',makeQr);$('print').addEventListener('click',()=>window.print());
 $('download').addEventListener('click',()=>{const url=URL.createObjectURL(new Blob([qrSvg],{type:'image/svg+xml'}));const link=document.createElement('a');link.href=url;link.download='today-bobcats-qr.svg';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);});
-$('import').addEventListener('change',async event=>{try{const file=event.target.files[0];if(!file)return;if(file.size>25*1024*1024)throw new Error('Choose an export smaller than 25 MB.');const data=JSON.parse(await file.text());localPreview=true;loadError='';ingest(data);}catch(error){$('message').textContent=error.message;}});
+$('import').addEventListener('change',async event=>{try{const file=event.target.files[0];if(!file)return;if(loading)throw new Error('Wait for the current event request to finish before importing.');if(file.size>25*1024*1024)throw new Error('Choose an export smaller than 25 MB.');const data=JSON.parse(await file.text());ingest(data);localPreview=true;refreshing=false;clearTimeout(refreshTimer);$('reload').disabled=false;$('reload').textContent='Reload events';loadError='';render();}catch(error){$('message').textContent=error.message;}});
 if(['http:','https:'].includes(location.protocol)){$('share-url').value=new URL('./',location.href).href;makeQr();}
-setInterval(()=>{const next=today();if(next!==lastDay){if($('date').value===lastDay){$('date').value=next;month=next.slice(0,7);}lastDay=next;}if(localPreview)render();else load();},60000);
+setInterval(()=>{const next=today();if(next!==lastDay){if($('date').value===lastDay){$('date').value=next;month=next.slice(0,7);}lastDay=next;}if(localPreview||refreshing)render();else load();},60000);
 load();

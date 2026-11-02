@@ -1,6 +1,6 @@
 # Daily Events
 
-A separate project idea for a frontend-only webpage that summarizes campus events happening today.
+A standalone webpage that summarizes campus events, with an optional local server for collecting fresh TXST data.
 
 Residents scan a QR code displayed at the apartment to open the webpage and quickly see what's happening.
 
@@ -27,19 +27,23 @@ The page now opens as a month calendar with a selected-day agenda. Click a date 
 
 Calendar dates use explicit year/month/day parts in America/Chicago rather than assuming a locale formats dates as ISO strings. This avoids an empty date picker and missed date matches on browsers with different locale formatting. The current export contains real event data; the calendar uses that existing file without running a new scrape.
 
-The browser reloads events.json every minute and updates the calendar automatically. It retains previously loaded events and displays errors if a reload fails. A manually imported file pauses automatic reload until Reload events is selected. Automatic browser reload reads the static export; it does not execute the scraper. Updating the source export still requires the separate publishing step below.
+With the Node server below, **Reload events** starts a fresh TXST collection. The page polls for progress every two seconds while it runs, then updates the calendar and saves the complete result to events.json. A collection can take several minutes because individual event details are fetched sequentially with request delays. Concurrent clicks share one collection, and new collections have a one-minute cooldown. Failed or incomplete collections keep the previous export intact and display an error. A complete empty collection replaces the old data, so removed events do not linger.
 
-Implemented as standalone HTML, CSS, and JavaScript. It remains separate from the Assignment Tracker frontend and backend. No build or package installation is needed.
+The page checks the server's saved data every minute; this does not start another collection. A manually imported file pauses automatic reload until Reload events is selected. On static hosting, the page reads events.json instead; Reload events explains that collecting new TXST data requires the Node server. Static hosting still requires the separate publishing step below.
+
+Implemented as standalone HTML, CSS, and JavaScript. The optional Node server reuses the repository's TXST collector without starting the Assignment Tracker backend. No build, package installation, database, or API key is needed.
 
 ## Run locally
 
-Serve this folder with any static HTTP server. For example, from the repository root with Python installed:
+Install Node.js 18 or newer, then from the repository root run:
 
 ```powershell
-python -m http.server 8080 --directory daily-events
+node daily-events/server.js
 ```
 
-Open http://localhost:8080 in your browser. Opening index.html directly may prevent loading events.json; the file-import control can still preview an export.
+Open http://localhost:8080 in your browser and click **Reload events** to collect fresh TXST events. Keep the terminal open; Ctrl+C stops the server. If the old Python server is using port 8080, stop it first. To use another port in PowerShell, set `$env:PORT = '8081'` before running the command and open that port instead. The server binds to your computer only (127.0.0.1).
+
+For static preview only, `python -m http.server 8080 --directory daily-events` still works, but cannot run the collector. Opening index.html directly may prevent loading event data; the file-import control can still preview an export.
 
 ## Publish real event data
 
@@ -49,7 +53,7 @@ The included events.json contains a previously exported snapshot, so it may be o
 node backend/scrapeTxstEvents.js --out daily-events/events.json
 ```
 
-Scraping is a separate publishing step. It has not been run as part of this implementation. Check the export's complete flag and errors before publishing. Re-run the command and redeploy events.json whenever you want to update the public data. Importing a JSON file using the footer control only previews data locally; it does not update the hosted file. The site shows the export update time and warns about stale or partial data.
+For static hosting, scraping is a separate publishing step. Alternatively, use Reload events on the local Node server, which saves only complete collections. No live collection was run as part of this implementation. Check the export's complete flag and errors before publishing. Redeploy events.json whenever you update public data. Importing a JSON file using the footer control only previews data locally; it does not update the hosted file. The site shows the export update time and warns about stale or partial data.
 
 ## Host and print
 
