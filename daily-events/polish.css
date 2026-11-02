@@ -51,6 +51,13 @@ input,select,button{border-radius:7px}
 .data-note{margin:24px 0 48px;max-width:780px}
 .share{border-radius:16px;padding:40px;gap:50px}
 .poster{border-radius:5px;transform:rotate(1deg)}
+@media screen{
+  #poster{background:var(--surface);color:inherit;border-color:var(--line)}
+  #poster>h2{color:inherit}
+  #poster>p{color:var(--muted)}
+  #poster>strong{color:var(--accent)}
+  #poster #qr{background:#fff;color:#252b26}
+}
 #event-dialog{border-radius:16px;padding:32px}
 .close-dialog{border-radius:50%;width:40px;height:40px;padding:0}
 @media(min-width:1100px){.agenda-panel{position:sticky;top:20px}}
