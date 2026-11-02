@@ -63,5 +63,7 @@ add group editing for group projects
 
 add color scheme
 add share event feature
+add a calendar for my events feature to calendar
+add extend day and show all events view for calendar
 
 add ability to add sports events to calendar including f1
