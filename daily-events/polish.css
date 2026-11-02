@@ -65,6 +65,13 @@ input,select,button{border-radius:7px}
 .page-nav a{padding:10px 16px;border-radius:8px;font-size:13px;text-decoration:none;color:var(--muted);border:1px solid transparent}
 .page-nav a[aria-current=page]{background:var(--soft);border-color:var(--line);color:var(--accent);font-weight:700}
 .calendar-page-nav{padding-top:0;margin-bottom:16px;flex-wrap:wrap}
+.day-expanded .calendar-layout{grid-template-columns:1fr}
+.day-expanded .month-panel,.day-expanded .month-navigation{display:none}
+.day-expanded .agenda-panel{position:static;max-height:none;overflow:visible}
+.day-expanded .agenda-panel .events{grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr))}
+.day-expanded .event .description{white-space:pre-wrap}
+.day-expanded #expand-day{border-color:var(--accent);color:var(--accent)}
+button.mobile-count{padding:0;border:0;min-height:24px;min-width:24px;width:24px;height:24px;line-height:24px}
 .my-events-page .day-summary,.my-events-page .date-strip,.my-events-page #share,.my-events-page .data-note,.my-events-page .header-actions>a,.my-events-page footer details{display:none}
 .my-events-page .controls>label:not(.search):not(:has(#date)),.my-events-page #reload{display:none}
 .my-events-page .hero{padding-bottom:24px}

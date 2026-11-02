@@ -19,6 +19,7 @@ const plain = value => { const doc=new DOMParser().parseFromString(String(value|
 const safeUrl = value => {try{const url=new URL(value);return ['https:','http:'].includes(url.protocol)?url.href:null;}catch{return null;}};
 let events=[], metadata={}, qrSvg='', lastDay=today(), month=today().slice(0,7), loading=false, localPreview=false, loadError='';
 let refreshing=false, refreshProgress='', refreshTimer=null, pendingRefresh=false;
+let expandedDay=false;
 const shiftDay=(day,count)=>{const date=new Date(`${day}T12:00:00Z`);date.setUTCDate(date.getUTCDate()+count);return date.toISOString().slice(0,10);};
 const label=day=>new Date(`${day}T12:00:00Z`).toLocaleDateString('en-US',{timeZone:'UTC',weekday:'long',month:'long',day:'numeric',year:'numeric'});
 const eventTime=value=>new Date(value).toLocaleTimeString('en-US',{timeZone:zone,hour:'numeric',minute:'2-digit'});
@@ -86,15 +87,19 @@ function render(){
   $('restore-hidden').hidden=myEventsPage||!hiddenEvents.length;
   $('restore-hidden').textContent=`Restore removed campus events (${hiddenEvents.length})`;
   const matching=events.filter(event=>(!category||event.categories.includes(category))&&(!$('food').checked||hasFood(event))&&`${event.name} ${event.location} ${event.organization} ${event.description}`.toLowerCase().includes(query));
-  const selected=myEventsPage?matching:matching.filter(event=>onDay(event,day));
+  const selected=myEventsPage&&!expandedDay?matching:matching.filter(event=>onDay(event,day));
   const dayEvents=myEventsPage?events:events.filter(event=>onDay(event,day));
   $('summary-total').textContent=dayEvents.length;
   $('summary-live').textContent=dayEvents.filter(event=>event.end&&now>=event.start&&now<event.end).length;
   $('summary-food').textContent=dayEvents.filter(hasFood).length;
   renderCalendar(matching,day);
-  $('agenda-label').textContent=myEventsPage?'All your events':label(day);
+  $('agenda-label').textContent=myEventsPage&&!expandedDay?'All your events':label(day);
+  document.body.classList.toggle('day-expanded',expandedDay);
+  $('expand-day').textContent=expandedDay?'Back to calendar':'Expand day';
+  $('expand-day').setAttribute('aria-expanded',String(expandedDay));
+  $('day-navigation').hidden=!expandedDay;
   $('agenda-empty').textContent=selected.length?`${selected.length} ${selected.length===1?'event':'events'}${filtered?' matching your filters':''} · All times Central`:loading?'Loading events…':filtered?'No events match these filters. Clear filters to see the full day.':'A little room for spontaneity. No events listed for this day; choose Next event to find another plan.';
-  if(myEventsPage&&!selected.length)$('agenda-empty').textContent=filtered?'No personal events match your search. Clear filters to see all your plans.':'Your plans start here. Choose Add my event to create your first event.';
+  if(myEventsPage&&!selected.length)$('agenda-empty').textContent=filtered?'No personal events match your search. Clear filters to see all your plans.':expandedDay?'No personal events on this day. Choose another date or add an event.':'Your plans start here. Choose Add my event to create your first event.';
   $('count').textContent=selected.length;$('events').replaceChildren();
   const stamp=Date.parse(metadata.scrapedAt||metadata.updatedAt);
   $('freshness').textContent=Number.isFinite(stamp)?`Updated ${new Date(stamp).toLocaleString('en-US',{timeZone:zone,month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})} CT${now-stamp>86400000?' · Data is over a day old':''}${metadata.complete===false?' · Partial collection':''}`:'No published update yet';
@@ -113,7 +118,7 @@ function render(){
     else if(event.start>now&&event.start-now<=3600000)heading.append(node('span','Starting soon','badge'));
     card.append(heading,node('h3',event.name),node('p',event.location,'location'));
     if(event.organization)card.append(node('p',event.organization,'organizer'));
-    card.append(node('p',event.description.length>230?`${event.description.slice(0,227)}…`:event.description||'Open the event page for the full details.','description'));
+    card.append(node('p',!expandedDay&&event.description.length>230?`${event.description.slice(0,227)}…`:event.description||'Open the event page for the full details.','description'));
     const bottom=node('div','','event-bottom');const tags=node('span',event.categories.join(' · '),'tags');bottom.append(tags);
     const details=node('button','Full details');details.addEventListener('click',()=>showEvent(event));bottom.append(details);
     const remove=node('button',event.personal?'Delete':'Remove for me');remove.setAttribute('aria-label',`${event.personal?'Delete':'Remove for me'}: ${event.name}`);remove.addEventListener('click',()=>removePersonalEvent(event));bottom.append(remove);
@@ -129,12 +134,13 @@ function renderCalendar(items,selectedDay){
     const cell=node('div','',`calendar-cell${day.slice(0,7)!==month?' outside':''}${day===selectedDay?' selected':''}${day===today()?' is-today':''}`);
     const select=node('button',day.slice(-2).replace(/^0/,''),'day-number');select.setAttribute('aria-label',`${label(day)}: ${dayEvents.length} events`);select.setAttribute('aria-pressed',String(day===selectedDay));select.addEventListener('click',()=>selectDay(day));cell.append(select);
     dayEvents.slice(0,3).forEach(event=>{const button=node('button',`${eventTime(event.start)} ${event.name}`,'calendar-event');button.title=`${event.name} · ${event.location}`;button.addEventListener('click',()=>{selectDay(day);showEvent(event);});cell.append(button);});
-    if(dayEvents.length>3){const more=node('button',`+${dayEvents.length-3} more`,'more-events');more.addEventListener('click',()=>{selectDay(day);$('agenda-label').scrollIntoView({block:'nearest'});});cell.append(more);}
-    if(dayEvents.length)cell.append(node('span',String(dayEvents.length),'mobile-count'));
+    if(dayEvents.length>3){const more=node('button',`+${dayEvents.length-3} more`,'more-events');more.setAttribute('aria-label',`Expand ${label(day)}: view all ${dayEvents.length} events`);more.addEventListener('click',()=>expandDay(day));cell.append(more);}
+    if(dayEvents.length){const count=node('button',String(dayEvents.length),'mobile-count');count.setAttribute('aria-label',`Expand ${label(day)}: view all ${dayEvents.length} events`);count.addEventListener('click',()=>expandDay(day));cell.append(count);}
     $('calendar-grid').append(cell);
   }
 }
 function selectDay(day){$('date').value=day;month=day.slice(0,7);render();}
+function expandDay(day){expandedDay=true;selectDay(day);$('expand-day').focus();document.querySelector('.calendar-toolbar').scrollIntoView({block:'start'});}
 function clearFilters(){$('search').value='';$('category').value='';$('food').checked=false;render();}
 function showEvent(event){
   const detail=$('event-detail');
@@ -207,6 +213,9 @@ function makeQr(){
 ['search','category','food'].forEach(id=>$(id).addEventListener('input',render));
 $('date').addEventListener('input',()=>{if($('date').value)selectDay($('date').value);});
 $('today').addEventListener('click',()=>selectDay(today()));
+$('expand-day').addEventListener('click',()=>{if(expandedDay){expandedDay=false;render();}else expandDay($('date').value);});
+$('previous-day').addEventListener('click',()=>selectDay(shiftDay($('date').value,-1)));
+$('next-day').addEventListener('click',()=>selectDay(shiftDay($('date').value,1)));
 $('clear-filters').addEventListener('click',clearFilters);
 ['previous-month','next-month'].forEach((id,index)=>$(id).addEventListener('click',()=>{const date=new Date(`${month}-01T12:00:00Z`);date.setUTCMonth(date.getUTCMonth()+(index===0?-1:1));selectDay(date.toISOString().slice(0,10));}));
 $('next-event').addEventListener('click',()=>{const event=events.find(event=>dayOf(event.end?event.end-1:event.start)>=$('date').value);if(event){$('search').value='';$('category').value='';$('food').checked=false;selectDay(onDay(event,$('date').value)?$('date').value:dayOf(event.start));}else $('message').textContent='No later events in this export. Reload updated event data or choose an earlier date.';});
