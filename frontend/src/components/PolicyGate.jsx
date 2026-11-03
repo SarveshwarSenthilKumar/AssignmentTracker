@@ -1,4 +1,4 @@
-import {useEffect,useState} from 'react'
+import {useEffect,useRef,useState} from 'react'
 import TermsPage from './TermsPage'
 import PrivacyPage from './PrivacyPage'
 import {TERMS_VERSION,PRIVACY_VERSION} from '../lib/legalPolicy'
@@ -12,27 +12,34 @@ export default function PolicyGate({token,onSignOut,children}){
   const [status,setStatus]=useState(null),[error,setError]=useState(''),[busy,setBusy]=useState(false)
   const [terms,setTerms]=useState(false),[privacy,setPrivacy]=useState(false),[revision,setRevision]=useState(0)
   const [route,setRoute]=useState(window.location.hash)
+  const acceptanceRevision=useRef(0)
   useEffect(()=>{const change=()=>setRoute(window.location.hash);window.addEventListener('hashchange',change);return()=>window.removeEventListener('hashchange',change)},[])
   useEffect(()=>{
     let active=true,checking=false
-    const controller=new AbortController()
+    let controller=null
     const check=async()=>{
       if(checking)return
       checking=true
+      const acceptedBefore=acceptanceRevision.current
+      controller=new AbortController()
+      const timeout=setTimeout(()=>controller.abort(),10000)
       try{
         const response=await fetch('/api/account/policies',{headers:{Authorization:`Bearer ${token}`},signal:controller.signal,cache:'no-store'})
         const data=await readApiJson(response)
         if(!response.ok)throw new Error(data.message||'Could not check current policies.')
-        if(active){setStatus(data);setError('')}
-      }catch(err){if(active){setStatus(null);setError(err.message)}}finally{checking=false}
+        if(typeof data.required!=='boolean')throw new Error('Policy verification is temporarily unavailable.')
+        // Keep confirmed results on an unknown response; never turn a failed
+        // lookup into a required agreement or invent an acceptance record.
+        if(active&&acceptedBefore===acceptanceRevision.current&&data.verified!==false){setStatus(data);setError('')}
+      }catch(err){if(active&&acceptedBefore===acceptanceRevision.current)setError(err.name==='AbortError'?'Policy verification is taking longer than expected.':err.message)}finally{clearTimeout(timeout);checking=false}
     }
     check()
     const interval=setInterval(check,60000)
     window.addEventListener('focus',check)
-    return()=>{active=false;controller.abort();clearInterval(interval);window.removeEventListener('focus',check)}
+    return()=>{active=false;controller?.abort();clearInterval(interval);window.removeEventListener('focus',check)}
   },[token,revision])
-  if(['terms','privacy'].includes(route.split('/')[1]))return <><div className="policy-reading-bar"><a href="#/home">← Return to policy review</a><a href={route.split('/')[1]==='terms'?'#/privacy':'#/terms'}>{route.split('/')[1]==='terms'?'Read Privacy Policy':'Read Terms and Conditions'} ↗</a></div>{route.split('/')[1]==='terms'?<TermsPage signedIn/>:<PrivacyPage signedIn/>}</>
-  if(status?.required===false)return children
+  if(status?.required===true&&['terms','privacy'].includes(route.split('/')[1]))return <><div className="policy-reading-bar"><a href="#/home">← Return to policy review</a><a href={route.split('/')[1]==='terms'?'#/privacy':'#/terms'}>{route.split('/')[1]==='terms'?'Read Privacy Policy':'Read Terms and Conditions'} ↗</a></div>{route.split('/')[1]==='terms'?<TermsPage signedIn/>:<PrivacyPage signedIn/>}</>
+  if(status?.required!==true)return children
   const mismatch=status&&(status.termsVersion!==TERMS_VERSION||status.privacyVersion!==PRIVACY_VERSION)
   const accept=async()=>{
     if(busy||!terms||!privacy||mismatch)return
@@ -41,6 +48,8 @@ export default function PolicyGate({token,onSignOut,children}){
       const response=await fetch('/api/account/policies/accept',{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({termsVersion:TERMS_VERSION,privacyVersion:PRIVACY_VERSION,termsAccepted:terms,privacyAccepted:privacy})})
       const data=await readApiJson(response)
       if(!response.ok)throw new Error(data.message||'Could not save agreement.')
+      if(data.required!==false)throw new Error('The server did not confirm your agreement. Please try again.')
+      acceptanceRevision.current++
       setStatus(data)
     }catch(err){setError(err.message)}finally{setBusy(false)}
   }

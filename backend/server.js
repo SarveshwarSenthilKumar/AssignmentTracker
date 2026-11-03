@@ -308,6 +308,7 @@ const PDFFolder = mongoose.model('PDFFolder', pdfFolderSchema);
 // Auth Middleware
 const accountWrites = new Map();
 const resettingAccounts = new Set();
+const policyStatus=require('./policyStatus')({User,mongoose,termsVersion:TERMS_VERSION,privacyVersion:PRIVACY_VERSION});
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
@@ -321,13 +322,10 @@ const authenticateToken = (req, res, next) => {
       return res.status(403).json({ message: 'Invalid or expired token' });
     }
     req.user = user;
-    try {
-      if(mongoose.connection.readyState!==1)return res.status(503).json({message:'The account database is not connected yet. Try again shortly.'});
-      const account=await User.findById(user.userId).select('termsAcceptance privacyAcceptance').lean();
-      if(!account)return res.status(401).json({message:'Account not found. Sign in again.'});
-      req.policyCurrent=account.termsAcceptance?.version===TERMS_VERSION&&account.privacyAcceptance?.version===PRIVACY_VERSION;
-      if(!req.policyCurrent&&!['/api/account/policies','/api/account/policies/accept','/api/account/policies/contact'].includes(req.originalUrl.split('?')[0]))return res.status(428).json({code:'POLICY_ACCEPTANCE_REQUIRED',message:'Our Terms and Conditions or Privacy Policy have changed. Review and accept both before continuing.'});
-    }catch{return res.status(503).json({message:'Could not verify policy acceptance. Try again shortly.'});}
+    const policy=await policyStatus.check(user.userId);
+    if(policy?.found===false)return res.status(401).json({message:'Account not found. Sign in again.'});
+    req.policyCurrent=policy?.current;
+    if(req.policyCurrent===false&&!['/api/account/policies','/api/account/policies/accept','/api/account/policies/contact'].includes(req.originalUrl.split('?')[0]))return res.status(428).json({code:'POLICY_ACCEPTANCE_REQUIRED',message:'Our Terms and Conditions or Privacy Policy have changed. Review and accept both before continuing.'});
     if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
       const id = String(user.userId);
       if (resettingAccounts.has(id)) return res.status(409).json({ message: 'Account reset is in progress. Try again shortly.' });
@@ -349,7 +347,7 @@ const authenticateToken = (req, res, next) => {
 
 app.get('/api/account/policies',authenticateToken,(req,res)=>{
   res.set('Cache-Control','no-store');
-  res.json({required:!req.policyCurrent,termsVersion:TERMS_VERSION,privacyVersion:PRIVACY_VERSION});
+  res.json({required:req.policyCurrent===false,verified:typeof req.policyCurrent==='boolean',termsVersion:TERMS_VERSION,privacyVersion:PRIVACY_VERSION});
 });
 app.post('/api/account/policies/contact',authenticateToken,async(req,res)=>{
   res.set('Cache-Control','no-store');
@@ -372,8 +370,10 @@ app.post('/api/account/policies/accept',authenticateToken,async(req,res)=>{
   if(req.body.termsAccepted!==true||req.body.privacyAccepted!==true)return res.status(400).json({message:'Explicitly accept both documents to continue.'});
   try{
     const acceptedAt=new Date();
-    await User.updateOne({_id:req.user.userId},{$set:{termsAcceptance:{version:TERMS_VERSION,acceptedAt,method:'policy-update-checkbox'},privacyAcceptance:{version:PRIVACY_VERSION,acceptedAt,method:'policy-update-checkbox'}}});
-    res.json({required:false,termsVersion:TERMS_VERSION,privacyVersion:PRIVACY_VERSION});
+    const saved=await User.updateOne({_id:req.user.userId},{$set:{termsAcceptance:{version:TERMS_VERSION,acceptedAt,method:'policy-update-checkbox'},privacyAcceptance:{version:PRIVACY_VERSION,acceptedAt,method:'policy-update-checkbox'}}});
+    if(!saved.matchedCount)return res.status(401).json({message:'Account not found. Sign in again.'});
+    policyStatus.accepted(req.user.userId);
+    res.json({required:false,verified:true,termsVersion:TERMS_VERSION,privacyVersion:PRIVACY_VERSION});
   }catch{res.status(503).json({message:'Could not save your agreement. Please try again.'});}
 });
 
