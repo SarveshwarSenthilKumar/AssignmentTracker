@@ -1,12 +1,12 @@
 # AssignmentTracker update logbook
 
-Updated: October 28, 2026 (America/Chicago).
+Updated: November 4, 2026 (America/Chicago).
 
 ## Numbering and coverage
 
-This logbook covers all 285 commits reachable from HEAD `bd6a839`, ordered oldest to newest when assigning numbers. Each commit receives one sequential update number starting at 001. These are documentation references, not application release versions. Dates and original subjects come from Git history. Unmerged branches and work outside this checkout are not covered.
+This logbook covers all 398 commits reachable from HEAD `d9c77a4`, with committed updates numbered 001–398. Commit numbers were assigned oldest to newest and existing numbers are preserved. These are documentation references, not application release versions. Dates and original subjects come from Git history. Unmerged branches and work outside this checkout are not covered.
 
-Update 286 records the hidden update-history page correction and has no commit hash yet. Append the next unused number for future work; never renumber existing entries. Multiple changes in one commit share its update number.
+Update 399 records this documentation/UI refresh and has no commit hash yet. Append the next unused number for future work; never renumber existing entries. Multiple changes in one commit share its update number. Original subjects are historical descriptions; expanded notes explain current behavior and later reversions.
 
 ## Verification and setup
 
@@ -14,34 +14,1826 @@ No tests, builds, linters, live API probes or browser QA were run while preparin
 
 Backend routes/models require a backend restart; Vite proxy changes require a frontend restart. Gemini features require a saved API key and enabled AI scopes. Native phone browsing requires the optional desktop host. Website access and exact PDF font matching retain the limitations documented below.
 
+## Current feature breakdown
+
+This is a source-based summary of the implemented feature set as of November 4, 2026, not a claim of runtime testing. Recent behavior and setup are grouped below; the complete numbered history follows. Progress tasks are part of the main platform, not Daily Events.
+
+| Area | Current behavior | Reference | Setup or boundary |
+| --- | --- | --- | --- |
+| Tasks & progress | Targets, daily amounts, history, totals and manual task status. | [Update 374](#update-374) | Account → Tasks; restart backend for progress routes. |
+| Daily Events data | Fresh TXST collection, progress and preservation of the previous complete export. | [Update 363](#update-363) | node daily-events/server.js; static hosts only reload exports. |
+| Personal events | Add/delete personal events, hide/restore campus entries, and use My events calendars. | [Update 368](#update-368) | Saved per browser/site, not to the main account. |
+| Event discovery | Expand day, happening-now banner, full-title toggle and calendar-adjacent navigation. | [Update 379](#update-379) | Loaded data and current filters determine displayed events. |
+| Event summaries | Five counts/planning cards including all stored events and today's lineup. | [Update 383](#update-383) | Today uses America/Chicago. |
+| Event appearance | Forest/Ocean/Plum/Sandstone with separate light/dark mode. | [Update 375](#update-375) | Preference stays in this browser. |
+| Wi-Fi access | Open Daily Events on a phone using the printed LAN address. | [Update 384](#update-384) | node daily-events/server.js --lan; network access is required. |
+| Interview coach | Adaptive questions, answer evaluation and resume cross-checks. | [Update 385](#update-385) | Prep → Interview coach; Gemini key and allowed AI scopes. |
+| Cold emails | Editable outreach subject/body with copy/download and optional resume. | [Update 389](#update-389) | Prep → Cold emails; drafts are not sent automatically. |
+| Personal writing voice | Use authored samples and preferences for voice; keep factual sources distinct. | [Update 390](#update-390) | Optional selected documents require their AI category permission. |
+| GitHub connection | Encrypted per-user token and permitted repository/file browsing. | [Update 387](#update-387) | Account → Connected accounts; no GitHub app credentials on server. |
+| LinkedIn connection | Manual OAuth token links basic profile fields; token is discarded. | [Update 388](#update-388) | Token issuance still requires a LinkedIn app and scopes. |
+| Policy availability | Only confirmed outstanding acceptance triggers policy review. | [Update 386](#update-386) | Database failures do not record consent; other operations may still fail. |
+| Current policies | Terms 1.11; Privacy 1.12; current change summary. | [Update 392](#update-392) | Draft deployment/operator details still need finalization. |
+| Mobile & tablet UI | Stacked boards/windows, swipeable Prep tools and adapted forms. | [Update 393](#update-393) | Reload frontend; no new dependencies. |
+| Account appearance | Light, Dark and Match device with account persistence. | [Update 397](#update-397) | Account → Appearance; backend restart after preference changes. |
+| Checkbox design | Theme-aware checked/mixed/focus/disabled states and touch sizes. | [Update 398](#update-398) | Reload frontend; existing switches keep their own styling. |
+| Earlier platform tools | Documents/PDF editing, Canvas, study tools, recovery, search, analytics and workspace tools. | See numbered history below. | Historical subjects and file inventories are preserved. |
+
 ## Recent update index
 
 | Update | Date | Change | Commit |
 | --- | --- | --- | --- |
-| [Update 286](#update-286) | 2026-10-28 | Show actual numbered updates on hidden logbook page | `pending` |
-| [Update 285](#update-285) | 2026-10-28 | Hidden handbook page | `bd6a839` |
-| [Update 284](#update-284) | 2026-10-28 | Updated product and technical handbook | `c5020f3` |
-| [Update 283](#update-283) | 2026-10-28 | Created numbered update logbook | `bd7c154` |
-| [Update 282](#update-282) | 2026-10-28 | Updated focusing logic in calendar | `5d82697` |
-| [Update 281](#update-281) | 2026-10-28 | Added more ideas for the future of the platform | `cfef494` |
-| [Update 280](#update-280) | 2026-10-28 | Added ability to log events for attendance | `9a0c46e` |
-| [Update 279](#update-279) | 2026-10-28 | Added suggested events to calendar | `35fb92d` |
-| [Update 278](#update-278) | 2026-10-28 | Added an editable original template for resume | `b699987` |
-| [Update 277](#update-277) | 2026-10-27 | Added a career prep page | `3774376` |
-| [Update 276](#update-276) | 2026-10-27 | Added ability to get quizzed on the resume | `b5aabed` |
-| [Update 275](#update-275) | 2026-10-27 | Added multiple types of resume templates | `03a23f4` |
-| [Update 274](#update-274) | 2026-10-27 | Updating resumes to work with templates | `e99cfa0` |
-| [Update 273](#update-273) | 2026-10-27 | Fixed minor syntax error | `6e74ed5` |
-| [Update 272](#update-272) | 2026-10-26 | Improved pdf font matching for pdf editor | `f7aa291` |
-| [Update 271](#update-271) | 2026-10-26 | Fixing website inside phones | `20ec236` |
-| [Update 270](#update-270) | 2026-10-26 | Fixed phone shaking issue for emulator | `96a1064` |
-| [Update 269](#update-269) | 2026-10-26 | Updated phone with improved feature set | `5117adb` |
-| [Update 268](#update-268) | 2026-10-26 | Added more complex features to the embedded phone | `8fe7c14` |
-| [Update 267](#update-267) | 2026-10-26 | Updated rendering logic for latex and markdown | `6888758` |
+| [Update 399](#update-399) | 2026-11-04 | Refresh feature breakdown and numbered history | `pending` |
+| [Update 398](#update-398) | 2026-11-04 | Restyled checkboxes to match the design | `d9c77a4` |
+| [Update 397](#update-397) | 2026-11-03 | Implemented a match device tone toggle | `348077a` |
+| [Update 396](#update-396) | 2026-11-03 | Implemented a complete dark and light mode toggle | `c02aa33` |
+| [Update 395](#update-395) | 2026-11-03 | Added a light and dark mode toggle | `1a9c458` |
+| [Update 394](#update-394) | 2026-11-03 | Improved CSS for improved polishing of features | `546cc69` |
+| [Update 393](#update-393) | 2026-11-03 | Improving the UI for the main app for small screen | `073a751` |
+| [Update 392](#update-392) | 2026-11-03 | Updated privacy policy to fit features | `d42f268` |
+| [Update 391](#update-391) | 2026-11-03 | Updated terms of service to keep up with features | `255ad5b` |
+| [Update 390](#update-390) | 2026-11-03 | Updated cold emails to use more humanized language | `b985fe0` |
+| [Update 389](#update-389) | 2026-11-03 | Added a cold email feature to the app | `532933e` |
+| [Update 388](#update-388) | 2026-11-03 | Updated LinkedIn connection for OAuth | `dc8bb81` |
+| [Update 387](#update-387) | 2026-11-03 | Updated GitHub connection to use OAuth | `0d884f0` |
+| [Update 386](#update-386) | 2026-11-03 | Updated policy logic to work with lags | `5d439d6` |
+| [Update 385](#update-385) | 2026-11-02 | Added a dedicated interview coach | `b690d77` |
+| [Update 384](#update-384) | 2026-11-02 | Added support for same wifi hosting | `f7c18ce` |
+| [Update 383](#update-383) | 2026-11-02 | Added five total cards for metrics | `cd58dc4` |
+| [Update 382](#update-382) | 2026-11-02 | Added total events stored and other metrics | `7c5cc93` |
+| [Update 381](#update-381) | 2026-11-02 | Added a more important card for next event | `8b4a973` |
+| [Update 380](#update-380) | 2026-11-02 | Added a major idea with systems behind it | `e6cb7aa` |
+| [Update 379](#update-379) | 2026-11-02 | Added a toggle for show every full title | `6210354` |
+| [Update 378](#update-378) | 2026-11-02 | Added a happening now banner at top of daily | `10423b9` |
+| [Update 377](#update-377) | 2026-11-02 | Added a expand day next to controls for daily | `e4b14e2` |
+| [Update 376](#update-376) | 2026-11-02 | Added a my events tab closer to calendar for daily | `85a1f3c` |
+| [Update 375](#update-375) | 2026-11-02 | Added more color schemes | `210d995` |
+| [Update 374](#update-374) | 2026-11-02 | Fully implemented progress tasks for tracker | `ad3f52b` |
+
+## Update 399
+
+**Date:** 2026-11-04. **Commit:** pending (working-tree documentation and UI update).
+
+**Change:** Refresh the feature breakdown and complete the numbered update history through November 4.
+
+Added the current feature overview and all committed history after the prior October 28 cutoff, preserving existing update numbers. Resolved Update 286 to its actual commit. The logbook page displays the maintained feature breakdown above searchable history; its coverage panel retains source and verification notes. Original subjects remain unchanged, with expanded implementation notes correcting misleading GitHub/OAuth wording and recording the Daily Events progress-task revert.
+
+**Setup:** Deploy LOGBOOK.md with the backend and refresh the logbook page. The source is read on request; no new API or package is required. Reload the frontend for the feature overview panel.
+
+**Verification:** No automated tests, builds, linters, live API probes or browser QA were run, per repository instructions.
+
+**Changed files:**
+
+- `LOGBOOK.md`
+- `frontend/src/components/UpdateLogbookPage.jsx`
+- `frontend/src/components/HandbookPage.css`
+- `README.md`
+
+## Update 398
+
+**Date:** 2026-11-04. **Commit:** `d9c77a4606ee0d60edecfc0172e16cf034e137e3`.
+
+**Change:** Restyled checkboxes to match the design
+
+Checkboxes share rounded slate styling in both account themes, with clear checked/indeterminate states, keyboard focus, disabled appearance, touch sizing, reduced-motion support and a native forced-colors fallback. Pill switches remain separate controls.
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `README.md`
+- `frontend/src/checkboxes.css`
+- `frontend/src/main.jsx`
+
+## Update 397
+
+**Date:** 2026-11-03. **Commit:** `348077a16d6f9fb13ddb204c91e3f0bf31c4f16d`.
+
+**Change:** Implemented a match device tone toggle
+
+Account → Appearance offers Dark, Light and Match device. System mode follows prefers-color-scheme and changes live when the device/browser preference changes. The account saves the mode while each device resolves its own palette.
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `README.md`
+- `backend/server.js`
+- `frontend/index.html`
+- `frontend/public/appearance-init.js`
+- `frontend/src/components/AppearanceSettings.jsx`
+- `frontend/src/contexts/AuthContext.jsx`
+- `frontend/src/light-mode.css`
+
+## Update 396
+
+**Date:** 2026-11-03. **Commit:** `c02aa339293642ef530c922ef82c09feb75391d6`.
+
+**Change:** Implemented a complete dark and light mode toggle
+
+Account appearance applies to shared surfaces, task cards, native forms, Prep tools, policies and editor chrome. It restores the cached account preference before page paint. Document page colors, embedded sites and Daily Events retain separate controls.
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `README.md`
+- `frontend/src/App.jsx`
+- `frontend/src/contexts/AuthContext.jsx`
+- `frontend/src/light-mode.css`
+- `frontend/src/main.jsx`
+
+## Update 395
+
+**Date:** 2026-11-03. **Commit:** `1a9c4586f8aed73f7761130ba4013006b3fb0c59`.
+
+**Change:** Added a light and dark mode toggle
+
+Introduced account-backed light/dark appearance data and the Appearance control. The next update completed shared UI palette integration.
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `backend/server.js`
+- `frontend/index.html`
+- `frontend/public/appearance-init.js`
+- `frontend/src/App.jsx`
+- `frontend/src/components/AppearanceSettings.jsx`
+- `frontend/src/contexts/AuthContext.jsx`
+
+## Update 394
+
+**Date:** 2026-11-03. **Commit:** `546cc697e60cc0a9f3ca19ef5d71e8f903b4560f`.
+
+**Change:** Improved CSS for improved polishing of features
+
+Refined mobile control wrapping and touch targets, including Daily Events calendar controls. Device/browser verification remains the user's responsibility.
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `daily-events/polish.css`
+
+## Update 393
+
+**Date:** 2026-11-03. **Commit:** `073a751e18ba933c3fdbedd7630440fa501d9e47`.
+
+**Change:** Improving the UI for the main app for small screen
+
+Added shared phone/tablet layouts for tasks, Prep forms, account controls, dialogs and policies; worksheet/PDF/canvas coordinates are not rescaled. Tablet workspace windows stack vertically.
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `README.md`
+- `daily-events/index.html`
+- `daily-events/polish.css`
+- `frontend/src/App.jsx`
+- `frontend/src/components/WorkflowWorkspace.jsx`
+- `frontend/src/main.jsx`
+- `frontend/src/mobile.css`
+
+## Update 392
+
+**Date:** 2026-11-03. **Commit:** `d42f268ec0bb2b7ec5c698ed2655b131a201e72f`.
+
+**Change:** Updated privacy policy to fit features
+
+Expanded Privacy Policy to 1.12 while Terms remain 1.11. Covers account/browser/page-memory storage, AI context, documents/search, imports, credentials, diagnostics, recovery and reset limits. Frontend/backend privacy versions and review summary were synchronized.
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `README.md`
+- `backend/server.js`
+- `frontend/src/components/PolicySupport.jsx`
+- `frontend/src/components/PrivacyPage.jsx`
+- `frontend/src/lib/legalPolicy.js`
+
+## Update 391
+
+**Date:** 2026-11-03. **Commit:** `255ad5bd815916827e3c5a17a4aa1d2b5adc0df3`.
+
+**Change:** Updated terms of service to keep up with features
+
+Updated Terms to 1.11 with feature-specific task, document, career, integration, Daily Events and data-handling disclosures. These remain drafts with operator and deployment details to finalize.
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `README.md`
+- `backend/server.js`
+- `frontend/src/components/PolicySupport.jsx`
+- `frontend/src/components/PrivacyPage.jsx`
+- `frontend/src/components/TermsPage.jsx`
+- `frontend/src/lib/legalPolicy.js`
+- `frontend/src/lib/legalThirdParties.js`
+
+## Update 390
+
+**Date:** 2026-11-03. **Commit:** `b985fe0e3851271807d17fbb9dd1e3e5bad31270`.
+
+**Change:** Updated cold emails to use more humanized language
+
+Cold emails can use pasted writing, a selected writing document and voice preferences. Style examples guide phrasing; resumes and explicit background supply facts. Without a writing sample, voice is labeled an approximation. Selected document categories must be allowed in AI access settings.
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `README.md`
+- `backend/coldEmails.js`
+- `frontend/src/components/ColdEmailGenerator.css`
+- `frontend/src/components/ColdEmailGenerator.jsx`
+
+## Update 389
+
+**Date:** 2026-11-03. **Commit:** `532933e53d8ac041fb6c6bd4a85f9f7ec12840bc`.
+
+**Change:** Added a cold email feature to the app
+
+Prep → Cold emails creates an editable subject and message from supplied outreach details and an optional resume. Users can copy or download a text draft. The feature does not send email; drafts stay in the current Prep session.
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `README.md`
+- `backend/coldEmails.js`
+- `backend/server.js`
+- `frontend/src/components/ColdEmailGenerator.css`
+- `frontend/src/components/ColdEmailGenerator.jsx`
+- `frontend/src/components/PrepPage.jsx`
+
+## Update 388
+
+**Date:** 2026-11-03. **Commit:** `dc8bb8152aacae320841e80334fbb36da16b4f76`.
+
+**Change:** Updated LinkedIn connection for OAuth
+
+LinkedIn supports a supplied OAuth access token without storing app credentials on this server. A LinkedIn developer app and appropriate scopes are still needed to obtain the token. Only basic profile fields are linked; the token is discarded. Optional website OAuth remains available when configured.
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `README.md`
+- `backend/.env.example`
+- `backend/accountConnections.js`
+- `frontend/src/components/AccountConnections.css`
+- `frontend/src/components/AccountConnections.jsx`
+- `frontend/src/components/LinkedInConnection.jsx`
+- `frontend/src/components/PrivacyPage.jsx`
+- `frontend/src/lib/legalThirdParties.js`
+
+## Update 387
+
+**Date:** 2026-11-03. **Commit:** `0d884f092bd867d0f3d7533d48d18d4c0bb72962`.
+
+**Change:** Updated GitHub connection to use OAuth
+
+Despite the historical commit subject mentioning OAuth, the implemented GitHub flow accepts each user's personal access token without server-side GitHub app credentials. It encrypts the saved token and supports read-only permitted repository/folder/text-file browsing. Disconnect removes the saved credential.
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `README.md`
+- `backend/.env.example`
+- `backend/accountConnections.js`
+- `backend/accountReset.js`
+- `backend/githubConnection.js`
+- `backend/server.js`
+- `frontend/src/components/AccountConnections.css`
+- `frontend/src/components/AccountConnections.jsx`
+- `frontend/src/components/GitHubConnection.jsx`
+- `frontend/src/components/PrivacyPage.jsx`
+- `frontend/src/lib/legalThirdParties.js`
+
+## Update 386
+
+**Date:** 2026-11-03. **Commit:** `5d439d6ae836134fedfa13cb74b5d18ff5b4cbb9`.
+
+**Change:** Updated policy logic to work with lags
+
+Policy prompts appear only on confirmed missing or outdated acceptance. Unknown, failed or timed-out checks do not invent consent or trigger a review by themselves. The backend caches confirmed states and bounds policy lookup waits.
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `README.md`
+- `backend/policyStatus.js`
+- `backend/server.js`
+- `frontend/src/components/PolicyGate.jsx`
+
+## Update 385
+
+**Date:** 2026-11-02. **Commit:** `b690d77d4f63e3f28c8e287b584908001b7dee1a`.
+
+**Change:** Added a dedicated interview coach
+
+Prep includes an adaptive Interview coach using a selected resume, supplied interview context and answer history. It asks one question at a time and returns practice feedback, resume comparisons and follow-ups. The session is temporary page state. Uses the existing Gemini settings and AI access controls.
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `README.md`
+- `backend/resumeQuiz.js`
+- `frontend/src/components/InterviewCoach.css`
+- `frontend/src/components/InterviewCoach.jsx`
+- `frontend/src/components/PrepPage.jsx`
+
+## Update 384
+
+**Date:** 2026-11-02. **Commit:** `f7c18ce75af1504886176bdd5bee4adbe080490d`.
+
+**Change:** Added support for same wifi hosting
+
+Run node daily-events/server.js --lan to expose the event page to reachable devices on the local network. The terminal prints network URLs. Personal events remain separate in each browser; device isolation and firewalls can prevent access.
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `daily-events/README.md`
+- `daily-events/app.js`
+- `daily-events/index.html`
+- `daily-events/server.js`
+
+## Update 383
+
+**Date:** 2026-11-02. **Commit:** `cd58dc43f4feb09943d80a32d90209c41ea2271b`.
+
+**Change:** Added five total cards for metrics
+
+Daily Events shows five cards: total available events, events today in Central time, selected-day lineup count, selected-day upcoming count, and next event. Counts include local personal events and exclude local removals.
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `daily-events/app.js`
+- `daily-events/index.html`
+- `daily-events/polish.css`
+
+## Update 382
+
+**Date:** 2026-11-02. **Commit:** `7c5cc93d0124d501b12a8b34873711a890ceb3d0`.
+
+**Change:** Added total events stored and other metrics
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `daily-events/app.js`
+- `daily-events/index.html`
+
+## Update 381
+
+**Date:** 2026-11-02. **Commit:** `8b4a973dc0606d52f5a9c36b77df75dd918b41c1`.
+
+**Change:** Added a more important card for next event
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `daily-events/app.js`
+- `daily-events/index.html`
+- `daily-events/polish.css`
+
+## Update 380
+
+**Date:** 2026-11-02. **Commit:** `e6cb7aa92c9e7f821601994be2e95ce6d5e32586`.
+
+**Change:** Added a major idea with systems behind it
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `ideas.txt`
+
+## Update 379
+
+**Date:** 2026-11-02. **Commit:** `6210354d9d68742c4f801e5b92aa9407258ca74b`.
+
+**Change:** Added a toggle for show every full title
+
+Calendar users can choose compact previews or every full event title. Full titles wrap and rows grow; smaller screens can scroll the full-title calendar horizontally.
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `daily-events/README.md`
+- `daily-events/app.js`
+- `daily-events/index.html`
+- `daily-events/polish.css`
+
+## Update 378
+
+**Date:** 2026-11-02. **Commit:** `10423b9e30bc7e9758f0fc56f03a8ff21ec82b2b`.
+
+**Change:** Added a happening now banner at top of daily
+
+A top banner counts events currently in progress from the loaded data and opens a live lineup. Entries need a usable end time to be considered live.
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `daily-events/README.md`
+- `daily-events/app.js`
+- `daily-events/index.html`
+- `daily-events/polish.css`
+
+## Update 377
+
+**Date:** 2026-11-02. **Commit:** `e4b14e273a6b232787b0cecbcb045ec751af3c16`.
+
+**Change:** Added a expand day next to controls for daily
+
+Expand day shows every matching event and full descriptions, with previous/next-day controls and a return to the calendar. Filters remain active.
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `daily-events/README.md`
+- `daily-events/app.js`
+- `daily-events/index.html`
+- `daily-events/polish.css`
+
+## Update 376
+
+**Date:** 2026-11-02. **Commit:** `85a1f3c1e7908ae1d5bea9b6bc446f4ca1244bab`.
+
+**Change:** Added a my events tab closer to calendar for daily
+
+Campus events and My events links are available beside the calendar and jump directly to the lineup section.
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `daily-events/app.js`
+- `daily-events/index.html`
+- `daily-events/polish.css`
+
+## Update 375
+
+**Date:** 2026-11-02. **Commit:** `210d995fd34cdb9262c75e732db1a909221808d2`.
+
+**Change:** Added more color schemes
+
+Daily Events offers Forest, Ocean, Plum and Sandstone palettes, each with light/dark variants. Browser-local preferences are shared by the campus and personal-event views; QR codes and print output stay readable.
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `daily-events/README.md`
+- `daily-events/index.html`
+- `daily-events/schemes.css`
+- `daily-events/server.js`
+- `daily-events/theme.js`
+
+## Update 374
+
+**Date:** 2026-11-02. **Commit:** `ad3f52b609ae02c1970fc68cc191be9c7939d1ce`.
+
+**Change:** Fully implemented progress tasks for tracker
+
+Main-platform tasks can have numerical targets and units, with dated progress entries, totals, remaining amounts, progress bars and grouped history. Entries save to the signed-in account. Existing tasks can enable a target in details; reaching a target does not automatically change task status. Restart the backend and reload the frontend.
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `README.md`
+- `frontend/src/App.jsx`
+- `frontend/src/components/TaskProgress.css`
+- `frontend/src/components/TaskProgress.jsx`
+
+## Update 373
+
+**Date:** 2026-11-02. **Commit:** `fe7ce69b49d8dab9151960da7d8da6b57d39e30c`.
+
+**Change:** First iteration of progress tasks
+
+Added the account-owned backend data and authenticated endpoints for progress targets and daily entries. Entry IDs support retry deduplication. The follow-up frontend implementation appears in Update 374.
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `backend/server.js`
+- `backend/taskProgress.js`
+
+## Update 372
+
+**Date:** 2026-11-02. **Commit:** `45a5c21bb4968063ff5d62bac8ddc15a1e84efcb`.
+
+**Change:** Reverted changes for daily events page
+
+Removed progress-task UI, scripts and documentation from Daily Events while keeping personal events and calendars.
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `daily-events/README.md`
+- `daily-events/index.html`
+- `daily-events/polish.css`
+- `daily-events/progress.js`
+- `daily-events/server.js`
+
+## Update 371
+
+**Date:** 2026-11-02. **Commit:** `3cf1b916a179dd188f7d756ced78503ca236a00e`.
+
+**Change:** Added progress tasks to the daily events page
+
+Introduced progress tasks in Daily Events. This implementation was subsequently removed by Update 372; progress tasks now belong to the main Assignment Tracker.
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `daily-events/README.md`
+- `daily-events/index.html`
+- `daily-events/polish.css`
+- `daily-events/progress.js`
+- `daily-events/server.js`
+
+## Update 370
+
+**Date:** 2026-11-02. **Commit:** `96b028ada0c1de11ff1bbf0608bc88a62777b809`.
+
+**Change:** Added more ideas for calendar and daily events
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `ideas.txt`
+
+## Update 369
+
+**Date:** 2026-11-02. **Commit:** `c753d213a3a1e3fbb998d4a8c5020a154c8f8a17`.
+
+**Change:** Updating ideas for the daily events app
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `ideas.txt`
+
+## Update 368
+
+**Date:** 2026-11-02. **Commit:** `77c593c6f25b4405a5c22ab8f89a6ccb72376a32`.
+
+**Change:** Personal events now appear in my events
+
+Personal events appear on the My events calendar as well as alongside campus listings on the main calendar.
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `daily-events/README.md`
+- `daily-events/app.js`
+- `daily-events/index.html`
+- `daily-events/polish.css`
+
+## Update 367
+
+**Date:** 2026-11-02. **Commit:** `147a368a56d31c96a4a6d54b091b404237d3568d`.
+
+**Change:** Added a personal my events page
+
+My events lists personal events using the same local browser storage as the campus calendar. It does not load private account data or synchronize between devices.
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `daily-events/README.md`
+- `daily-events/app.js`
+- `daily-events/index.html`
+- `daily-events/polish.css`
+
+## Update 366
+
+**Date:** 2026-11-02. **Commit:** `ed48c30c2882001c917755e993cba99356967167`.
+
+**Change:** Added local storage for events for daily events
+
+Personal events and hidden campus-event IDs persist in browser localStorage. They survive source refreshes without changing the public export; clearing site data removes them.
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `daily-events/README.md`
+- `daily-events/app.js`
+- `daily-events/index.html`
+- `daily-events/polish.css`
+
+## Update 365
+
+**Date:** 2026-11-02. **Commit:** `4e8a13adc1f30221573ffb786dff91cacda1de77`.
+
+**Change:** Fixed a bug in JS script for daily events
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `daily-events/app.js`
+- `daily-events/index.html`
+
+## Update 364
+
+**Date:** 2026-11-02. **Commit:** `46922753b7aec7902dc869ee5d1c4fb76f68d6d2`.
+
+**Change:** Updated the reload events to provide instant
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `daily-events/app.js`
+- `daily-events/index.html`
+- `daily-events/server.js`
+
+## Update 363
+
+**Date:** 2026-11-02. **Commit:** `751e608353250bf25738df7156700c843b85f6df`.
+
+**Change:** Added a node server instead of python
+
+The standalone Node server lets Reload events collect fresh public TXST data, show progress, and publish only complete exports. Failed or incomplete collections preserve prior data. Run node daily-events/server.js; no packages or account database are required.
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `daily-events/README.md`
+- `daily-events/app.js`
+- `daily-events/index.html`
+- `daily-events/server.js`
+
+## Update 362
+
+**Date:** 2026-11-02. **Commit:** `884c5fbdf1b7a0452a821be069beaa5e6964c775`.
+
+**Change:** Updated theme for daily events to work dark mode
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `daily-events/index.html`
+- `daily-events/polish.css`
+
+## Update 361
+
+**Date:** 2026-11-02. **Commit:** `b7d097c677345e261ad1df855d4a50890691d772`.
+
+**Change:** Updating theme and Ui to fix dark mode
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `daily-events/README.md`
+- `daily-events/theme.css`
+
+## Update 360
+
+**Date:** 2026-11-01. **Commit:** `148ed088e718bc35427dac2a53016f9213162e48`.
+
+**Change:** Updated daily events for minor fixes
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `daily-events/README.md`
+- `daily-events/app.js`
+- `daily-events/index.html`
+- `daily-events/polish.css`
+
+## Update 359
+
+**Date:** 2026-11-01. **Commit:** `60138083f40640b65ce52f9826272ce6d1b625df`.
+
+**Change:** Fixed minor syntax errors in the code
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `README.md`
+- `SETUP.md`
+- `frontend/package.json`
+- `frontend/scripts/dev.mjs`
+- `frontend/vite.config.js`
+
+## Update 358
+
+**Date:** 2026-11-01. **Commit:** `70828a436185118819de42495d1f4699bc482595`.
+
+**Change:** Added ability to save appointments without ends
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `backend/calendarEntries.js`
+- `frontend/src/components/CalendarPage.jsx`
+- `frontend/src/lib/calendar.js`
+- `frontend/src/lib/calendarRecurrence.js`
+
+## Update 357
+
+**Date:** 2026-11-01. **Commit:** `4692a50f1ef3f53fd806a2af7f75dc43b4071942`.
+
+**Change:** Added proper recognition for number lines
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `README.md`
+- `backend/mathRecognition.js`
+- `backend/numberLineRecognition.js`
+- `frontend/src/components/AccountAIAccess.jsx`
+- `frontend/src/components/PDFDottedLineHandles.jsx`
+- `frontend/src/components/PDFEditor.jsx`
+- `frontend/src/components/PDFEditorChrome.jsx`
+- `frontend/src/components/PDFNumberLine.jsx`
+- `frontend/src/lib/pdfNumberLine.js`
+
+## Update 356
+
+**Date:** 2026-11-01. **Commit:** `9919b6205e493f6c5f28fd9bb773a1e4c06c13f2`.
+
+**Change:** Added admin stats to admin commands
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `README.md`
+- `frontend/src/App.jsx`
+- `frontend/src/components/AdminPortal.jsx`
+- `frontend/src/lib/hiddenPages.js`
+
+## Update 355
+
+**Date:** 2026-11-01. **Commit:** `89ab86f864bd15223c4f3ee8e48cd62b73d64df3`.
+
+**Change:** Added an advanced admin stats portal
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `README.md`
+- `SETUP.md`
+- `backend/adminAccess.js`
+- `backend/adminPortal.js`
+- `backend/adminStats.js`
+- `frontend/src/components/AdminPortal.css`
+- `frontend/src/components/AdminPortal.jsx`
+- `frontend/src/components/AdminStats.jsx`
+
+## Update 354
+
+**Date:** 2026-11-01. **Commit:** `4493d456bf88b993929f04daca7fe7415eea1ac9`.
+
+**Change:** Updated privacy policy and tos for compliance
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `backend/server.js`
+- `frontend/src/components/PrivacyPage.jsx`
+- `frontend/src/components/TermsPage.jsx`
+- `frontend/src/lib/legalPolicy.js`
+
+## Update 353
+
+**Date:** 2026-11-01. **Commit:** `7e25e62e0a716b497cae11ff9145da925f2fe607`.
+
+**Change:** Updated safety screening for prompts
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `README.md`
+- `backend/assistant.js`
+- `backend/assistantSafety.js`
+- `backend/server.js`
+- `frontend/src/components/AccountAIAccess.jsx`
+
+## Update 352
+
+**Date:** 2026-11-01. **Commit:** `3e2a87e10d979860b50789e6574e63ad29095d2b`.
+
+**Change:** Added a toggle for AI scope for users
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `README.md`
+- `backend/aiAccess.js`
+- `backend/assistant.js`
+- `backend/server.js`
+- `frontend/src/components/AccountAIAccess.jsx`
+- `frontend/src/components/AssistantChat.jsx`
+
+## Update 351
+
+**Date:** 2026-11-01. **Commit:** `08b77f3a905ccc6e93315b60b6107a846fb6bcef`.
+
+**Change:** Regulated scope for AI chat bot and assistant
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `README.md`
+- `backend/assistant.js`
+- `backend/assistantScope.js`
+- `backend/server.js`
+- `frontend/src/components/AssistantChat.jsx`
+
+## Update 350
+
+**Date:** 2026-11-01. **Commit:** `fb7aec206efeadc6fd574696a9d56e9b5eb30494`.
+
+**Change:** Updated ideas.txt with finished ideas
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `ideas.txt`
+
+## Update 349
+
+**Date:** 2026-11-01. **Commit:** `a85dee312577439e79c73b80d93d75111a607afa`.
+
+**Change:** Added ability to generate AI answers
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `backend/server.js`
+- `backend/studyAnswers.js`
+- `frontend/src/components/StudyPage.css`
+- `frontend/src/components/StudyPage.jsx`
+
+## Update 348
+
+**Date:** 2026-10-31. **Commit:** `1f9d536992a5caa7ef7b70c0324da45672a82808`.
+
+**Change:** Added ability to add multiple answers per q
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `backend/globalSearch.js`
+- `backend/study.js`
+- `frontend/src/components/StudyPage.css`
+- `frontend/src/components/StudyPage.jsx`
+
+## Update 347
+
+**Date:** 2026-10-31. **Commit:** `08e0e8260e0bc5cbffec4c757249e18e0b85794f`.
+
+**Change:** Developed custom order for completed
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `frontend/src/App.jsx`
+
+## Update 346
+
+**Date:** 2026-10-31. **Commit:** `fdba03bb0e297bb48ee459a4e1c68e9d037badc1`.
+
+**Change:** Added a generate number line feature
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `frontend/src/components/PDFEditor.jsx`
+- `frontend/src/components/PDFEditorChrome.jsx`
+- `frontend/src/components/PDFNumberLine.jsx`
+
+## Update 345
+
+**Date:** 2026-10-31. **Commit:** `e34cb2e631080f600f66107535f87ee7461214a0`.
+
+**Change:** Updated normal order to be most recent
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `frontend/src/App.jsx`
+
+## Update 344
+
+**Date:** 2026-10-31. **Commit:** `00233375b4543cf15b0c4719f99f399787eebfc7`.
+
+**Change:** Created a separate sort function for completed
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `frontend/src/App.jsx`
+
+## Update 343
+
+**Date:** 2026-10-31. **Commit:** `551d2f883a0ec24350913dc5bf7c6bd63a56412e`.
+
+**Change:** Added ideas to be implemented
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `ideas.txt`
+
+## Update 342
+
+**Date:** 2026-10-30. **Commit:** `5b263289435ee5d9870f5b65e0bbde76bf4f9c35`.
+
+**Change:** Fixed circle for complete task feature
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `frontend/src/App.jsx`
+- `frontend/src/Navigation.css`
+
+## Update 341
+
+**Date:** 2026-10-30. **Commit:** `a55eecdb386609dd98d39c8ff3ae5d5d2411af6f`.
+
+**Change:** Added a question bank feature for prep
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `frontend/src/App.jsx`
+- `frontend/src/components/AppNavigation.jsx`
+- `frontend/src/components/PrepPage.jsx`
+- `frontend/src/components/StudyPage.css`
+- `frontend/src/components/StudyPage.jsx`
+- `ideas.txt`
+
+## Update 340
+
+**Date:** 2026-10-30. **Commit:** `d7e563b3e82b53353e209499b63984ded4bb97b4`.
+
+**Change:** Added policy for effectivesness and results
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `backend/server.js`
+- `frontend/src/components/PolicySupport.jsx`
+- `frontend/src/components/PrivacyPage.jsx`
+- `frontend/src/components/TermsPage.jsx`
+- `frontend/src/lib/legalPolicy.js`
+
+## Update 339
+
+**Date:** 2026-10-30. **Commit:** `8c3b68349a33ef9605704b10e559bea9fc6f3214`.
+
+**Change:** Added breach and public storage clause
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `backend/server.js`
+- `frontend/src/components/PolicySupport.jsx`
+- `frontend/src/components/PrivacyPage.jsx`
+- `frontend/src/components/TermsPage.jsx`
+- `frontend/src/lib/legalPolicy.js`
+
+## Update 338
+
+**Date:** 2026-10-30. **Commit:** `c99899ff6ed1b4ceded4409e15c2037a785e329f`.
+
+**Change:** Added a private document clause
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `backend/server.js`
+- `frontend/src/components/PolicySupport.jsx`
+- `frontend/src/components/PrivacyPage.jsx`
+- `frontend/src/components/TermsPage.jsx`
+- `frontend/src/lib/legalPolicy.js`
+
+## Update 337
+
+**Date:** 2026-10-30. **Commit:** `e98d406822bfbdfcecfaa831faecb19baaf2614f`.
+
+**Change:** Updated docs to contain third parties and conns
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `backend/server.js`
+- `frontend/src/components/PolicySupport.jsx`
+- `frontend/src/components/PrivacyPage.jsx`
+- `frontend/src/components/TermsPage.jsx`
+- `frontend/src/lib/legalPolicy.js`
+- `frontend/src/lib/legalThirdParties.js`
+
+## Update 336
+
+**Date:** 2026-10-30. **Commit:** `771768b35c7eb7446058d2defda38381cc82bb1d`.
+
+**Change:** Updated dev contact to go to admin page
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `backend/bugReports.js`
+- `backend/server.js`
+- `frontend/src/components/AdminPortal.jsx`
+- `frontend/src/components/BugReportsPage.jsx`
+
+## Update 335
+
+**Date:** 2026-10-30. **Commit:** `54ee88e5d1e197d44f66d106283410737b3e5d4f`.
+
+**Change:** Added a contact devs and a see changes feature
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `backend/server.js`
+- `frontend/src/components/PolicyGate.jsx`
+- `frontend/src/components/PolicySupport.jsx`
+- `frontend/src/components/TermsPage.css`
+
+## Update 334
+
+**Date:** 2026-10-30. **Commit:** `615f15f96588ca3a639a1b1180962283db42857c`.
+
+**Change:** Updated the gate page with better UI
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `frontend/src/components/PolicyGate.jsx`
+- `frontend/src/components/TermsPage.css`
+
+## Update 333
+
+**Date:** 2026-10-30. **Commit:** `bd120296c91d00012b79e6338991e6c79d604590`.
+
+**Change:** Added a policy updated screen to bar unwanted
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `backend/server.js`
+- `frontend/src/components/PolicyGate.jsx`
+- `frontend/src/components/PrivacyPage.jsx`
+- `frontend/src/components/TermsPage.jsx`
+- `frontend/src/contexts/AuthContext.jsx`
+- `frontend/src/lib/legalPolicy.js`
+
+## Update 332
+
+**Date:** 2026-10-30. **Commit:** `dca6d8cc20ed76f2eaa9110bd7d7d7d3b3024cc8`.
+
+**Change:** Fixed minor syntax errors
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `SETUP.md`
+- `backend/server.js`
+- `frontend/scripts/dev.mjs`
+
+## Update 331
+
+**Date:** 2026-10-30. **Commit:** `88e47d58b9031d007ca27de4af7f7621ca923d7a`.
+
+**Change:** Updated policies to cover extensive AI usage
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `backend/server.js`
+- `frontend/src/components/PrivacyPage.jsx`
+- `frontend/src/components/SignupTermsReview.jsx`
+- `frontend/src/components/TermsPage.jsx`
+- `frontend/src/lib/legalPolicy.js`
+
+## Update 330
+
+**Date:** 2026-10-30. **Commit:** `ecced5f59596afaeb1c412356fb0382238f2bc25`.
+
+**Change:** Improved recognition for dotted lines
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `frontend/src/components/PDFEditorChrome.jsx`
+- `frontend/src/lib/pdfDottedLine.js`
+
+## Update 329
+
+**Date:** 2026-10-30. **Commit:** `515cd6fbb3bafc4338a944bf3defb6f0d757456a`.
+
+**Change:** Added recognition for dotted and broken lines
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `frontend/src/components/PDFDottedLineHandles.jsx`
+- `frontend/src/components/PDFEditor.jsx`
+- `frontend/src/components/PDFEditorChrome.jsx`
+- `frontend/src/lib/pdfDottedLine.js`
+
+## Update 328
+
+**Date:** 2026-10-30. **Commit:** `75f95fad8d68a86d509bec6f60b5c4e5d4297a17`.
+
+**Change:** Added move or resize handles for straight lines
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `frontend/src/components/PDFDottedLineHandles.jsx`
+- `frontend/src/components/PDFEditor.jsx`
+
+## Update 327
+
+**Date:** 2026-10-30. **Commit:** `70cc5976c312dbb7888127432e7aa15cec6132f2`.
+
+**Change:** Added a move or resize feature for dotted lines
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `frontend/src/components/PDFDottedLineHandles.jsx`
+- `frontend/src/components/PDFEditor.jsx`
+- `frontend/src/lib/pdfDottedLine.js`
+
+## Update 326
+
+**Date:** 2026-10-30. **Commit:** `63dbe341c3d52af4556f6e879fc840a7d9d32d9f`.
+
+**Change:** Improved detection for dotted lines for best fit
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `frontend/src/components/PDFEditorChrome.jsx`
+- `frontend/src/lib/pdfDottedLine.js`
+
+## Update 325
+
+**Date:** 2026-10-30. **Commit:** `02b51f6f020bc7a05e1cc4a67ec05ddd3924ca68`.
+
+**Change:** Made the dotted lines bolder and fuller
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `frontend/src/lib/pdfDottedLine.js`
+
+## Update 324
+
+**Date:** 2026-10-30. **Commit:** `481394486841a1b3c304a7c0d9b7cfcfa684d5ca`.
+
+**Change:** Added dotted line recognition
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `frontend/src/components/PDFEditor.jsx`
+- `frontend/src/components/PDFEditorChrome.jsx`
+- `frontend/src/lib/pdfDottedLine.js`
+
+## Update 323
+
+**Date:** 2026-10-30. **Commit:** `3afee2d66b0e7ebbff276a57e12600a8483a5917`.
+
+**Change:** Improved customizability of undo straight toggle
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `frontend/src/components/PDFEditor.jsx`
+- `frontend/src/components/PDFEditorChrome.jsx`
+
+## Update 322
+
+**Date:** 2026-10-30. **Commit:** `52d38349830c7401828b524795fa0eb554d208eb`.
+
+**Change:** Added ability to toggle straight line detection
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `frontend/src/components/PDFEditor.jsx`
+- `frontend/src/components/PDFEditorChrome.jsx`
+
+## Update 321
+
+**Date:** 2026-10-30. **Commit:** `3ce849e72f1bf4ea154681e0665e420ae83bdfae`.
+
+**Change:** Updated straight line detector warning disappear
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `frontend/src/components/PDFEditor.jsx`
+
+## Update 320
+
+**Date:** 2026-10-30. **Commit:** `9ed445f39094301e9f9fdf47719c463ebd07240a`.
+
+**Change:** Added the ability to generate dotted lines
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `frontend/src/components/PDFInsertPanel.jsx`
+
+## Update 319
+
+**Date:** 2026-10-30. **Commit:** `38ca9e0f541049d8af111b60a07265dc81aa4cf1`.
+
+**Change:** Updated ideas with ideas for today
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `ideas.txt`
+
+## Update 318
+
+**Date:** 2026-10-30. **Commit:** `5c8f2b0e56c811ff7182299c3a74146a73fce9e2`.
+
+**Change:** Fixed minor errors for api rejections
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `SETUP.md`
+- `backend/server.js`
+- `frontend/package.json`
+- `frontend/scripts/dev.mjs`
+- `frontend/vite.config.js`
+
+## Update 317
+
+**Date:** 2026-10-29. **Commit:** `25bca08b3afaa6757e35f59fd8c34d4b596b2c70`.
+
+**Change:** Both pages establish extensive AI usage with data
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `backend/server.js`
+- `frontend/src/components/PrivacyPage.jsx`
+- `frontend/src/components/TermsPage.jsx`
+- `frontend/src/lib/legalPolicy.js`
+
+## Update 316
+
+**Date:** 2026-10-29. **Commit:** `1d5e879850acedce87a73e7a66d904a4f8444a6e`.
+
+**Change:** Updated privacy policy and terms and conditions
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `backend/server.js`
+- `frontend/src/components/PrivacyPage.jsx`
+- `frontend/src/components/SignupTermsReview.jsx`
+- `frontend/src/components/TermsPage.jsx`
+- `frontend/src/lib/legalPolicy.js`
+
+## Update 315
+
+**Date:** 2026-10-29. **Commit:** `955a10f35f8a7f03e86d073bdf52af4fb827fecf`.
+
+**Change:** Updated privacy policy to say user data
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `frontend/src/components/PrivacyPage.jsx`
+
+## Update 314
+
+**Date:** 2026-10-29. **Commit:** `3386b1ccfde0677afd13775fa062f7d2dbcac6d8`.
+
+**Change:** Added a list of no lawsuit ideas to implement
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `ideas.txt`
+
+## Update 313
+
+**Date:** 2026-10-29. **Commit:** `1f112d46251c076fc51015041dd9be75b3c59fc9`.
+
+**Change:** Updated and added a recently deleted tab in tasks
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `backend/taskDeletionRecovery.js`
+- `frontend/src/App.jsx`
+- `frontend/src/Navigation.css`
+- `frontend/src/components/CalendarDayTaskInput.jsx`
+- `frontend/src/components/CalendarPage.jsx`
+- `frontend/src/components/TaskDeletionUndo.jsx`
+- `frontend/src/components/TaskSchedule.css`
+
+## Update 312
+
+**Date:** 2026-10-29. **Commit:** `9ef87cd5e4ee8b4783516428d655f02bd1cef322`.
+
+**Change:** Added an optional email field for forms
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `SETUP.md`
+- `backend/bugReports.js`
+- `backend/featureSuggestions.js`
+- `backend/feedbackContactEmail.js`
+- `frontend/src/components/BugReportsPage.css`
+- `frontend/src/components/BugReportsPage.jsx`
+- `frontend/src/components/FeatureSuggestionsPage.jsx`
+- `frontend/src/components/PrivacyPage.jsx`
+
+## Update 311
+
+**Date:** 2026-10-29. **Commit:** `2d4f1e80d0ee38cf9eb64b8f358450195234ca28`.
+
+**Change:** Setup a proper admin portal for suggestions
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `.env.example`
+- `SETUP.md`
+- `backend/adminAccess.js`
+- `backend/adminPortal.js`
+- `backend/bugReports.js`
+- `backend/featureSuggestions.js`
+- `backend/server.js`
+- `backend/siteRoadmap.js`
+- `frontend/src/App.jsx`
+- `frontend/src/components/AdminPortal.css`
+- `frontend/src/components/AdminPortal.jsx`
+- `frontend/src/components/BugReportsPage.jsx`
+- `frontend/src/components/FeatureSuggestionsPage.jsx`
+- `frontend/src/lib/hiddenPages.js`
+
+## Update 310
+
+**Date:** 2026-10-29. **Commit:** `54a3c25a3a54ebbd072b22caf71a130ea8f1bf86`.
+
+**Change:** Added suggest a feature forms
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `.env.example`
+- `SETUP.md`
+- `backend/accountAnalytics.js`
+- `backend/accountReset.js`
+- `backend/bugReports.js`
+- `backend/featureSuggestions.js`
+- `backend/server.js`
+- `backend/siteRoadmap.js`
+- `frontend/src/App.jsx`
+- `frontend/src/components/AppNavigation.jsx`
+- `frontend/src/components/BugReportsPage.jsx`
+- `frontend/src/components/FeatureSuggestionsPage.jsx`
+- `frontend/src/components/PrivacyPage.jsx`
+- `frontend/src/components/SiteRoadmapPage.jsx`
+
+## Update 309
+
+**Date:** 2026-10-29. **Commit:** `f76745d09e2f4bdfc1ab288554d0782874b3b350`.
+
+**Change:** Developed a bug report form for users
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `.env.example`
+- `SETUP.md`
+- `backend/accountAnalytics.js`
+- `backend/accountReset.js`
+- `backend/bugReports.js`
+- `backend/server.js`
+- `frontend/src/App.jsx`
+- `frontend/src/components/AppNavigation.jsx`
+- `frontend/src/components/BugReportsPage.css`
+- `frontend/src/components/BugReportsPage.jsx`
+- `frontend/src/components/PrivacyPage.jsx`
+
+## Update 308
+
+**Date:** 2026-10-29. **Commit:** `25bd060fb2f33bc871244313096cba2abaf5d46c`.
+
+**Change:** Created a site roadmap page
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `.env.example`
+- `SETUP.md`
+- `backend/server.js`
+- `backend/siteRoadmap.js`
+- `frontend/src/App.jsx`
+- `frontend/src/components/AppNavigation.jsx`
+- `frontend/src/components/SiteRoadmapPage.css`
+- `frontend/src/components/SiteRoadmapPage.jsx`
+
+## Update 307
+
+**Date:** 2026-10-29. **Commit:** `ce61d9566c94a03a357c6156e119ee704f8efabf`.
+
+**Change:** Added due date labels to calendar
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `frontend/src/components/CalendarPage.css`
+- `frontend/src/components/CalendarPage.jsx`
+- `frontend/src/lib/calendar.js`
+
+## Update 306
+
+**Date:** 2026-10-29. **Commit:** `8a666326ef2f311372c852150dad7721244811fb`.
+
+**Change:** Added ability to plan a task for a day
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `backend/calendarColors.js`
+- `backend/server.js`
+- `backend/taskSchedule.js`
+- `backend/txstCalendar.js`
+- `frontend/src/App.jsx`
+- `frontend/src/components/CalendarPage.jsx`
+- `frontend/src/components/HomePage.jsx`
+- `frontend/src/components/TaskSchedule.css`
+- `frontend/src/components/TaskSchedule.jsx`
+- `frontend/src/lib/calendar.js`
+
+## Update 305
+
+**Date:** 2026-10-29. **Commit:** `0fa997a01dbcc2bd7ffef03d34e0bf50978641ae`.
+
+**Change:** Updating ideas with finished and ongoing
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `ideas.txt`
+
+## Update 304
+
+**Date:** 2026-10-29. **Commit:** `c95f8112d5e5985fce74a5a09baff2604041475c`.
+
+**Change:** New users must now open terms and agree
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `backend/server.js`
+- `frontend/src/components/Auth.jsx`
+- `frontend/src/components/SignupTermsReview.jsx`
+- `frontend/src/components/TermsPage.css`
+- `frontend/src/components/TermsPage.jsx`
+
+## Update 303
+
+**Date:** 2026-10-29. **Commit:** `8e5ac46a566b2271d9f1a90391b499fc243e1494`.
+
+**Change:** Updated signup page to contain policies
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `frontend/src/components/Auth.jsx`
+- `frontend/src/components/TermsPage.css`
+
+## Update 302
+
+**Date:** 2026-10-29. **Commit:** `64e4e9d6890d9b29584a3047ec6e137d942d016b`.
+
+**Change:** Developed a boilerplate private policy
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `frontend/src/App.jsx`
+- `frontend/src/components/Auth.jsx`
+- `frontend/src/components/PrivacyPage.jsx`
+- `frontend/src/components/TermsPage.jsx`
+
+## Update 301
+
+**Date:** 2026-10-29. **Commit:** `c09c79f10e49b27aeb3f3a5d79e66ace6a8bbe4b`.
+
+**Change:** Created a boilerplate terms and conditions
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `frontend/src/App.jsx`
+- `frontend/src/components/Auth.jsx`
+- `frontend/src/components/TermsPage.css`
+- `frontend/src/components/TermsPage.jsx`
+
+## Update 300
+
+**Date:** 2026-10-29. **Commit:** `85456b3194746e0e5edfb3285e252d437b9ee89e`.
+
+**Change:** Improved responsiveness for smaller screens
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `daily-events/index.html`
+- `daily-events/responsive.css`
+- `desktop/main.cjs`
+- `frontend/index.html`
+- `frontend/src/App.jsx`
+- `frontend/src/components/PDFEditorChrome.jsx`
+- `frontend/src/main.jsx`
+- `frontend/src/responsive.css`
+
+## Update 299
+
+**Date:** 2026-10-28. **Commit:** `7acb03f04acf1c9bec291c43b7d712d867dab9b8`.
+
+**Change:** Final commit of initial iteration of analytics
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `backend/accountAnalytics.js`
+
+## Update 298
+
+**Date:** 2026-10-28. **Commit:** `edae653dd2294db8762863b0b2ba9c6d5db2dc2c`.
+
+**Change:** Updating account analytics page
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `backend/accountAnalytics.js`
+- `backend/server.js`
+- `frontend/src/App.jsx`
+- `frontend/src/components/AnalyticsPage.css`
+- `frontend/src/components/AnalyticsPage.jsx`
+- `frontend/src/components/AppNavigation.jsx`
+
+## Update 297
+
+**Date:** 2026-10-28. **Commit:** `ecf488b5be0d7a19ba1387cc5ed72f93da73b4a2`.
+
+**Change:** Initial version of an account analytics page
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `backend/accountAnalytics.js`
+- `ideas.txt`
+
+## Update 296
+
+**Date:** 2026-10-28. **Commit:** `7fdeedfb9e2af211359b995274fbaa84f2ffd6a8`.
+
+**Change:** Updated task ordering with proper logic
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `backend/accountReset.js`
+- `backend/server.js`
+- `frontend/src/App.jsx`
+
+## Update 295
+
+**Date:** 2026-10-28. **Commit:** `997e91ccfcdcf72b5c78295512ae09b383596541`.
+
+**Change:** Added advanced recongition for time keywords
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `frontend/src/App.jsx`
+- `frontend/src/lib/taskDateSuggestions.js`
+- `ideas.txt`
+
+## Update 294
+
+**Date:** 2026-10-28. **Commit:** `98efecc53634c5c1bc93295586e08a1d60a74fe9`.
+
+**Change:** Added easier keyboard input
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `frontend/src/App.jsx`
+- `frontend/src/components/TaskSearch.css`
+
+## Update 293
+
+**Date:** 2026-10-28. **Commit:** `0a35bb54657ed6fe29ce6f4f77c579450103999e`.
+
+**Change:** Implemented advanced date suggestions when task
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `frontend/src/App.jsx`
+- `frontend/src/components/TaskDueInput.jsx`
+- `frontend/src/components/TaskSearch.css`
+- `frontend/src/lib/taskDateSuggestions.js`
+
+## Update 292
+
+**Date:** 2026-10-28. **Commit:** `8ce4c7c6d13110c4629700cbd1d8a6fd4dc59005`.
+
+**Change:** Updated defaults of time to be 12 AM
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `frontend/src/components/TaskDueInput.jsx`
+
+## Update 291
+
+**Date:** 2026-10-28. **Commit:** `7437c3fc265faae9776b6c5cc7995f5d87428af9`.
+
+**Change:** Added proper date only due dates for tasks
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `backend/server.js`
+- `backend/taskDueDate.js`
+- `frontend/src/App.jsx`
+- `frontend/src/components/HomePage.jsx`
+- `frontend/src/components/TaskDueInput.jsx`
+- `frontend/src/components/TaskSearch.css`
+- `frontend/src/lib/calendar.js`
+
+## Update 290
+
+**Date:** 2026-10-28. **Commit:** `b2225a073b7c0e441915635d6e27ed8d0ceb6469`.
+
+**Change:** Fixed minor syntax error with search bar
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `frontend/src/App.jsx`
+
+## Update 289
+
+**Date:** 2026-10-28. **Commit:** `d6237c5d9cd3fdcf4f2d9e6392a1d5c48aba09ef`.
+
+**Change:** Added a search bar for tasks with proper matches
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `frontend/src/App.jsx`
+- `frontend/src/components/TaskSearch.css`
+
+## Update 288
+
+**Date:** 2026-10-28. **Commit:** `53d3edc01c7c290d95c841e0cc108c6f5df4079b`.
+
+**Change:** Implemented ultimate search for admins
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `frontend/src/App.jsx`
+
+## Update 287
+
+**Date:** 2026-10-28. **Commit:** `088286747b52212886d6e5e19203cc660dc7f647`.
+
+**Change:** Added view hidden pages to admin commands
+
+**Verification:** Source/history record; no runtime verification is claimed. Tests, builds, linters, live provider probes and browser QA were not run for this documentation refresh.
+
+**Changed files:**
+
+- `frontend/src/App.jsx`
+- `frontend/src/lib/hiddenPages.js`
 
 ## Update 286
 
-**Date:** 2026-10-28. **Commit:** pending (working-tree implementation).
+**Date:** 2026-10-28. **Commit:** `a985055cf51411353017e8eb475a9c24c4231f5f`.
 
 **Change:** Corrected the hidden logbook page to display the actual numbered platform update history.
 
