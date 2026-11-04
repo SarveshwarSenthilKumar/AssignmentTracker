@@ -21,7 +21,7 @@ const flingVelocity=(pan,now=performance.now())=>{
 // contact-size classifier, or capture-loss-triggered undo is used.
 export default function usePDFTouchInput({viewer,overlay,scrollWithFinger,scrollSettings,canDrawTouch,onDrawEnd,resetAnnotation,beginTouchAnnotation,endTouchAnnotation,resetKey,tool,onPinchStart,onPinchMove,onPinchEnd}){
   const [activity,setActivity]=useState('idle')
-  const state=useRef({touches:new Map(),controls:new Set(),pen:null,draw:null,pan:null,pinch:null,frame:0,momentumFrame:0,blockedUntil:0,mounted:true})
+  const state=useRef({touches:new Map(),controls:new Set(),pen:null,draw:null,pan:null,pinch:null,frame:0,momentumFrame:0,wheelFrame:0,wheelX:0,wheelY:0,blockedUntil:0,mounted:true})
   const latest=useRef(null)
   latest.current={scrollWithFinger,scrollSettings,canDrawTouch,onDrawEnd,resetAnnotation,beginTouchAnnotation,endTouchAnnotation,tool,onPinchStart,onPinchMove,onPinchEnd}
   const report=value=>{if(state.current.mounted)setActivity(previous=>previous===value?previous:value)}
@@ -29,7 +29,9 @@ export default function usePDFTouchInput({viewer,overlay,scrollWithFinger,scroll
   const accepted=()=>new Map([...state.current.touches].filter(([,contact])=>contact.kind!=='ignored'))
   const stopMomentum=()=>{
     const current=state.current
-    if(!current.momentumFrame)return
+    const running=current.momentumFrame||current.wheelFrame
+    cancelAnimationFrame(current.wheelFrame);current.wheelFrame=0;current.wheelX=0;current.wheelY=0
+    if(!running)return
     cancelAnimationFrame(current.momentumFrame);current.momentumFrame=0
     if(!accepted().size&&current.pen===null)report('idle')
   }
@@ -39,18 +41,20 @@ export default function usePDFTouchInput({viewer,overlay,scrollWithFinger,scroll
     if(!velocity||!physics.momentum||window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches)return false
     const current=state.current
     let vx=velocity.x*physics.gain,vy=velocity.y*physics.gain,last=performance.now(),started=last
-    const decayTime=physics.decayTime,maxDuration=Math.min(6500,Math.max(800,decayTime*2200/325))
+    const decayTime=physics.decayTime,maxDuration=Math.min(8500,Math.max(600,decayTime*2200/325))
+    let positionX=viewer.current?.scrollLeft||0,positionY=viewer.current?.scrollTop||0
     // Exponential friction integrates distance using elapsed time, independent
     // of refresh rate. Balanced settings retain the original 325 ms decay.
     const step=now=>{
       const element=viewer.current
       if(!current.mounted||!element||current.pen!==null||accepted().size||latest.current.scrollSettings?.momentum===false||window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches){current.momentumFrame=0;report('idle');return}
       const dt=Math.min(64,Math.max(0,now-last));last=now
-      const decay=Math.exp(-dt/decayTime),left=element.scrollLeft,top=element.scrollTop
-      element.scrollLeft+=vx*decayTime*(1-decay);element.scrollTop+=vy*decayTime*(1-decay)
+      const decay=Math.exp(-dt/decayTime),maxX=Math.max(0,element.scrollWidth-element.clientWidth),maxY=Math.max(0,element.scrollHeight-element.clientHeight)
+      positionX=Math.max(0,Math.min(maxX,positionX+vx*decayTime*(1-decay)));positionY=Math.max(0,Math.min(maxY,positionY+vy*decayTime*(1-decay)))
+      element.scrollLeft=positionX;element.scrollTop=positionY
       // A clamped edge stops only that axis, without bouncing or jitter.
-      vx=Math.abs(element.scrollLeft-left)<.01?0:vx*decay
-      vy=Math.abs(element.scrollTop-top)<.01?0:vy*decay
+      vx=positionX<=0&&vx<0||positionX>=maxX&&vx>0?0:vx*decay
+      vy=positionY<=0&&vy<0||positionY>=maxY&&vy>0?0:vy*decay
       if(Math.hypot(vx,vy)<.02||now-started>maxDuration){current.momentumFrame=0;report('idle');return}
       current.momentumFrame=requestAnimationFrame(step)
     }
@@ -219,7 +223,11 @@ export default function usePDFTouchInput({viewer,overlay,scrollWithFinger,scroll
     }
     window.addEventListener('blur',reset);document.addEventListener('visibilitychange',hidden)
     window.addEventListener('pointerdown',stopMomentum,true)
-    window.addEventListener('wheel',stopMomentum,{capture:true,passive:true})
+    const interruptWheel=event=>{
+      if(latest.current.scrollSettings?.wheelEnabled!==false&&viewer.current?.contains(event.target)&&!event.ctrlKey&&!event.metaKey&&!event.target.closest(CONTROL))return
+      stopMomentum()
+    }
+    window.addEventListener('wheel',interruptWheel,{capture:true,passive:true})
     window.addEventListener('keydown',stopMomentum,true)
     window.addEventListener('pointerup',outsideEnd);window.addEventListener('pointercancel',outsideEnd)
     return()=>{
@@ -229,11 +237,51 @@ export default function usePDFTouchInput({viewer,overlay,scrollWithFinger,scroll
       current.touches.clear();current.controls.clear();current.draw=null;current.pen=null;current.pan=null;ids.forEach(release)
       window.removeEventListener('blur',reset);document.removeEventListener('visibilitychange',hidden)
       window.removeEventListener('pointerdown',stopMomentum,true)
-      window.removeEventListener('wheel',stopMomentum,true)
+      window.removeEventListener('wheel',interruptWheel,true)
       window.removeEventListener('keydown',stopMomentum,true)
       window.removeEventListener('pointerup',outsideEnd);window.removeEventListener('pointercancel',outsideEnd)
     }
   },[])
   useEffect(()=>{reset()},[scrollWithFinger,resetKey])
+  useEffect(()=>{
+    const element=viewer.current
+    if(!element)return
+    let last=0,positionX=0,positionY=0
+    const step=now=>{
+      const current=state.current,physics=scrollPhysics(latest.current.scrollSettings)
+      if(!current.mounted||!physics.wheelEnabled||current.pen!==null||accepted().size){stopMomentum();return}
+      const reduced=window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches
+      const dt=Math.min(64,Math.max(1,now-last));last=now
+      const ratio=!physics.momentum||reduced?1:1-Math.exp(-dt/Math.max(20,Math.min(650,physics.decayTime/2)))
+      const dx=current.wheelX*ratio,dy=current.wheelY*ratio
+      current.wheelX-=dx;current.wheelY-=dy
+      const maxX=Math.max(0,element.scrollWidth-element.clientWidth),maxY=Math.max(0,element.scrollHeight-element.clientHeight)
+      positionX=Math.max(0,Math.min(maxX,positionX+dx));positionY=Math.max(0,Math.min(maxY,positionY+dy))
+      element.scrollLeft=positionX;element.scrollTop=positionY
+      if(positionX<=0&&current.wheelX<0||positionX>=maxX&&current.wheelX>0)current.wheelX=0
+      if(positionY<=0&&current.wheelY<0||positionY>=maxY&&current.wheelY>0)current.wheelY=0
+      if(Math.hypot(current.wheelX,current.wheelY)<.25){element.scrollLeft=positionX+current.wheelX;element.scrollTop=positionY+current.wheelY;current.wheelX=0;current.wheelY=0;current.wheelFrame=0;report('idle');return}
+      current.wheelFrame=requestAnimationFrame(step)
+    }
+    const wheel=event=>{
+      const current=state.current,physics=scrollPhysics(latest.current.scrollSettings)
+      if(!physics.wheelEnabled||event.ctrlKey||event.metaKey||event.defaultPrevented||current.pen!==null||accepted().size||event.target.closest(CONTROL))return
+      const unit=event.deltaMode===1?16:event.deltaMode===2?element.clientHeight:1
+      let dx=event.deltaX*unit,dy=event.deltaY*unit
+      if(event.shiftKey&&!dx){dx=dy;dy=0}
+      const canX=dx<0?element.scrollLeft>0:dx>0&&element.scrollLeft<element.scrollWidth-element.clientWidth
+      const canY=dy<0?element.scrollTop>0:dy>0&&element.scrollTop<element.scrollHeight-element.clientHeight
+      if(!canX&&!canY)return
+      if(!event.cancelable)return
+      event.preventDefault()
+      cancelAnimationFrame(current.momentumFrame);current.momentumFrame=0
+      if(!current.wheelFrame){positionX=element.scrollLeft;positionY=element.scrollTop;last=performance.now()}
+      current.wheelX+=dx*physics.gain;current.wheelY+=dy*physics.gain
+      report('scrolling')
+      if(!current.wheelFrame)current.wheelFrame=requestAnimationFrame(step)
+    }
+    element.addEventListener('wheel',wheel,{passive:false})
+    return()=>{element.removeEventListener('wheel',wheel);cancelAnimationFrame(state.current.wheelFrame);state.current.wheelFrame=0;state.current.wheelX=0;state.current.wheelY=0}
+  },[viewer,resetKey])
   return {handlers,activity}
 }

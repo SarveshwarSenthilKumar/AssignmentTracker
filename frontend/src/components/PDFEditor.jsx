@@ -1700,7 +1700,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       if(Math.abs(gesture.nextScale-scale)<.001){clearPinchPreview();anchorPinch(anchor);return}
       pendingPinchAnchor.current=anchor;setScale(gesture.nextScale)
     },
-    viewer:viewerRef,overlay:overlayRef,tool:currentTool,scrollWithFinger:fingerScroll,scrollSettings,resetKey:`${pdfId}:${pageNumber}:${currentTool}:${focusMode}`,
+    viewer:viewerRef,overlay:overlayRef,tool:currentTool,scrollWithFinger:fingerScroll,scrollSettings,resetKey:`${pdfId}:${pageNumber}:${currentTool}:${focusMode}:${loading}`,
     canDrawTouch:event=>overlayRef.current?.contains(event.target)&&['pen','highlighter','eraser','calculate','function','graph','number-line','snippet'].includes(currentTool),
     onDrawEnd:handlePointerUp,
     beginTouchAnnotation:id=>{

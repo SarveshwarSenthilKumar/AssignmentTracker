@@ -51,7 +51,7 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
   const run=fn=>()=>{close();fn?.()}
   const iconButton=(Icon,label,fn,disabled=false,active=false)=><button type="button" className={`pc-button pc-icon${active?' is-active':''}`} title={label} aria-label={label} disabled={disabled} onClick={fn}><Icon size={17}/></button>
   const action=(Icon,label,fn,{disabled=false,active=false,danger=false,detail}={})=><button type="button" className={`pc-menu-action${danger?' is-danger':''}${active?' is-active':''}`} onClick={run(fn)} disabled={disabled}><Icon size={16}/><span>{label}{detail&&<small>{detail}</small>}</span>{active&&<i aria-label="Enabled"/>}</button>
-  const menu=(key,label,Icon,children,{left=false,custom=null}={})=><div className={`pc-menu-anchor${left?' is-left':''}`}>
+  const menu=(key,label,Icon,children,{left=false,custom=null}={})=><div className={`pc-menu-anchor${left?' is-left':''}${key==='scroll'?' pc-scroll-menu':''}`}>
     <button type="button" className={`pc-button${open===key||key==='tools'&&['calculate','function','graph','number-line','snippet'].includes(tools.current)?' is-active':''}`} aria-expanded={open===key} aria-controls={open===key?`${id}-${key}`:undefined} onClick={event=>{trigger.current=event.currentTarget;setOpen(previous=>previous===key?null:key)}} title={label}>{custom||<><Icon size={16}/><span>{label}</span></>}<ChevronDown size={12}/></button>
     {open===key&&<section id={`${id}-${key}`} className={`pc-popover pc-popover-${key}`} aria-label={label}><div className="pc-popover-title">{label}</div>{children}</section>}
   </div>
@@ -139,7 +139,7 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
       <div className="pc-insert-slot">{isValidElement(insert)?cloneElement(insert,{onOpen:close,closeSignal:`${open||''}:${compact}`}):insert}</div>
       <div className="pc-tool-menus">{pagesMenu}{viewMenu}{utilityMenu}</div>
       <PDFFingerMode {...input}/>
-      {menu('scroll','Scroll feel',Move,<PDFScrollSettings value={input.scrollSettings} onChange={input.onScrollSettings}/>)}
+      {menu('scroll','Scroll & glide',SlidersHorizontal,<PDFScrollSettings value={input.scrollSettings} onChange={input.onScrollSettings} scrollMode={input.scroll} currentTool={tools.current} onEnableScroll={()=>{input.onChange(true);if(tools.current==='read')tools.onTool('select')}}/>,{custom:<span className="pdf-scroll-trigger"><SlidersHorizontal size={18}/><span><strong>Scroll &amp; glide</strong><small>Adjust speed &amp; stopping</small></span></span>})}
       {utilities.clock&&<PDFEditorClock/>}
       <PDFStopwatch visible={utilities.stopwatch} onHide={()=>utilities.onStopwatch(false)}/>
       <PDFCountdown visible={utilities.timer} onHide={()=>utilities.onTimer(false)}/>
