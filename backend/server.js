@@ -483,6 +483,7 @@ require('./jobFileImport')(app,authenticateToken,{credentials:assistantCredentia
 require('./coverLetterGeneration')(app,authenticateToken,{PDF,SavedJob,mongoose,credentials:assistantCredentials,model:aiModel,requireAIAccess});
 require('./coverLetterGeneration')(app,authenticateToken,{PDF,SavedJob,mongoose,credentials:assistantCredentials,model:aiModel,requireAIAccess,documentType:'resume'});
 require('./resumeQuiz')(app,authenticateToken,{PDF,mongoose,credentials:assistantCredentials,model:aiModel,requireAIAccess});
+require('./coldEmails')(app,authenticateToken,{PDF,mongoose,credentials:assistantCredentials,model:aiModel,requireAIAccess});
 require('./pdfCleanup')(app,authenticateToken,{PDF,mongoose,credentials:assistantCredentials,model:aiModel,requireAIAccess});
 app.use('/api/assistant/chat',authenticateToken,requireAIAccess());
 app.use('/api/assistant/test',authenticateToken,requireAIAccess());
