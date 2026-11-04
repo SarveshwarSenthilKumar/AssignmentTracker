@@ -493,17 +493,22 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const textLoadGeneration=useRef(0)
   const [currentColor, setCurrentColor] = useState('#000000')
   const [tipSizes,setTipSizes]=useState(()=>{
-    let saved={};try{saved=JSON.parse(localStorage.getItem('pdf-tool-tip-sizes-v1')||'{}')||{}}catch{}
-    const size=tool=>Number.isFinite(saved[tool])?Math.max(1,Math.min(40,saved[tool])):2
+    let saved={};try{
+      const stored=localStorage.getItem('pdf-tool-tip-sizes-v2')
+      saved=JSON.parse(stored||localStorage.getItem('pdf-tool-tip-sizes-v1')||'{}')||{}
+      // Older highlighter controls displayed one third of the actual width.
+      if(!stored&&Number.isFinite(saved.highlighter))saved.highlighter*=3
+    }catch{}
+    const size=tool=>Number.isFinite(saved[tool])?Math.max(1,Math.min(tool==='highlighter'?120:40,saved[tool])):tool==='highlighter'?12:1.5
     return {pen:size('pen'),highlighter:size('highlighter')}
   })
   const tipTool=currentTool==='highlighter'?'highlighter':'pen'
   const strokeWidth=tipSizes[tipTool]
   const setStrokeWidth=value=>{
     if(!Number.isFinite(value))return
-    setTipSizes(previous=>({...previous,[tipTool]:Math.max(1,Math.min(40,value))}))
+    setTipSizes(previous=>({...previous,[tipTool]:Math.max(1,Math.min(tipTool==='highlighter'?120:40,value))}))
   }
-  useEffect(()=>{try{localStorage.setItem('pdf-tool-tip-sizes-v1',JSON.stringify(tipSizes))}catch{}},[tipSizes])
+  useEffect(()=>{try{localStorage.setItem('pdf-tool-tip-sizes-v2',JSON.stringify(tipSizes))}catch{}},[tipSizes])
   const [eraserOptions,setEraserOptions]=useState(()=>{
     let saved={};try{saved=JSON.parse(localStorage.getItem('pdf-eraser-options')||'{}')||{}}catch{}
     return {mode:['stroke','precision','objects'].includes(saved.mode)?saved.mode:'stroke',size:Number.isFinite(saved.size)?Math.max(2,Math.min(160,saved.size)):20,shape:saved.shape==='square'?'square':'round',target:['pen','highlighter'].includes(saved.target)?saved.target:'all'}
@@ -1164,7 +1169,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
 
   const paintInkPreview=()=>{
     if(inkFrameRef.current)return
-    inkFrameRef.current=requestAnimationFrame(()=>{inkFrameRef.current=0;liveInkRef.current?.draw({points:currentPathRef.current,color:currentColor,strokeWidth:currentTool==='highlighter'?strokeWidth*3:strokeWidth,tool:currentTool},usePressure)})
+    inkFrameRef.current=requestAnimationFrame(()=>{inkFrameRef.current=0;liveInkRef.current?.draw({points:currentPathRef.current,color:currentColor,strokeWidth,tool:currentTool},usePressure)})
   }
   const stopInkPreview=()=>{cancelAnimationFrame(inkFrameRef.current);inkFrameRef.current=0;liveInkRef.current?.clear()}
 
@@ -1384,7 +1389,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       try{addImageInsert(snippet,pageNumber,pageBase,tip);setCurrentTool('arrow-copy');setActionError(null)}catch(error){setActionError(error.message)}
       return
     }
-    const item={id:uid(),points,color:currentColor,strokeWidth:currentTool==='highlighter'?strokeWidth*3:strokeWidth,tool:currentTool,page:pageNumber,inkCreatedAt:Date.now()}
+    const item={id:uid(),points,color:currentColor,strokeWidth,tool:currentTool,page:pageNumber,inkCreatedAt:Date.now()}
     pushHistory();updatePaths(previous=>[...previous,item])
     const numberLine=autoNumberLines&&currentTool==='pen'?detectNumberLine(pathsRef.current,scale):null
     if(numberLine){
