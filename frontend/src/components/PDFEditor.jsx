@@ -1059,13 +1059,13 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     if (activeTextIdRef.current !== drag.id) pushHistoryRaw(drag.snapshot)
   }
 
-  const addImageInsert = (asset, targetPage = pageNumber, base = pageBase) => {
+  const addImageInsert = (asset, targetPage = pageNumber, base = pageBase, destination = null) => {
     if (!base) throw new Error('Wait for the page to load before inserting content.')
     commitText()
-    const ratio = Math.min(1, base.w * 0.65 / asset.width, base.h * 0.65 / asset.height)
+    const ratio = destination ? Math.min(1,base.w/asset.width,base.h/asset.height) : Math.min(1, base.w * 0.65 / asset.width, base.h * 0.65 / asset.height)
     const width = asset.width * ratio
     const height = asset.height * ratio
-    const item = { ...asset, id: uid(), tool: 'image', page: targetPage, width, height, x: (base.w - width) / 2, y: (base.h - height) / 2 }
+    const item = { ...asset, id: uid(), tool: 'image', page: targetPage, width, height, x: destination?Math.max(0,Math.min(base.w-width,destination.x-width/2)):(base.w-width)/2, y: destination?Math.max(0,Math.min(base.h-height,destination.y-height/2)):(base.h-height)/2 }
     pushHistory()
     updatePaths(prev => [...prev, item])
     setSelectedInsertId(item.id)
@@ -1163,7 +1163,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     if (e.pointerType === 'mouse' && e.button !== 0) return
     if (!overlayRef.current) return
     if(annotationPointerRef.current!==null&&annotationPointerRef.current!==e.pointerId)return
-    if(currentTool==='calculate'||currentTool==='function'||currentTool==='graph'||currentTool==='number-line'||currentTool==='snippet'){
+    if(currentTool==='calculate'||currentTool==='function'||currentTool==='graph'||currentTool==='number-line'||currentTool==='snippet'||currentTool==='arrow-copy'){
       annotationPointerRef.current=e.pointerId
       viewerRef.current?.focus({preventScroll:true})
       e.preventDefault();const point=toLocal(e)
@@ -1256,7 +1256,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       setCalculationBox(box)
       if(box.width<3||box.height<3)return
       const page=calculationPage.current,generation=++calculationGeneration.current
-      if(start.tool==='snippet'){
+      if(start.tool==='snippet'||start.tool==='arrow-copy'){
         if(snippetCopyRef.current)return
         snippetCopyRef.current=true;setCopyingSnippet(true);setActionError(null)
         const annotations=pathsRef.current.filter(item=>(item.page||1)===start.page)
@@ -1268,6 +1268,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
             if(clipped.width<3||clipped.height<3)throw new Error('Select a region inside the page.')
             const dataUrl=await mathSelectionImage(page,clipped,annotations,0)
             setSnippet({dataUrl,width:clipped.width,height:clipped.height,label:`Snippet from page ${start.page}`})
+            if(start.tool==='arrow-copy'&&generation===calculationGeneration.current){setCalculationBox(null);setCurrentTool('arrow-paste')}
           }catch(error){setActionError(error.message||'Could not copy this region.')}
           finally{snippetCopyRef.current=false;setCopyingSnippet(false)}
         })()
@@ -1345,6 +1346,16 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     setCurrentPath([])
     if(e.type==='pointercancel')return
     if (!points.length) return
+    if(currentTool==='arrow-paste'){
+      if(!snippet||pageBase?.page!==pageNumber||inserting||deletingPage)return
+      const origin=points[0]
+      // The farthest point approximates the tip even when the stroke doubles
+      // back to draw an arrowhead. Curved shafts do not need shape recognition.
+      const tip=points.reduce((best,point)=>Math.hypot(point.x-origin.x,point.y-origin.y)>Math.hypot(best.x-origin.x,best.y-origin.y)?point:best,origin)
+      if(Math.hypot(tip.x-origin.x,tip.y-origin.y)*scale<20){setActionError('Draw a longer arrow toward the destination.');return}
+      try{addImageInsert(snippet,pageNumber,pageBase,tip);setActionError(null)}catch(error){setActionError(error.message)}
+      return
+    }
     const item={id:uid(),points,color:currentColor,strokeWidth:currentTool==='highlighter'?strokeWidth*3:strokeWidth,tool:currentTool,page:pageNumber,inkCreatedAt:Date.now()}
     pushHistory();updatePaths(previous=>[...previous,item])
     const numberLine=autoNumberLines&&currentTool==='pen'?detectNumberLine(pathsRef.current,scale):null
@@ -1701,7 +1712,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       pendingPinchAnchor.current=anchor;setScale(gesture.nextScale)
     },
     viewer:viewerRef,overlay:overlayRef,tool:currentTool,scrollWithFinger:fingerScroll,scrollSettings,resetKey:`${pdfId}:${pageNumber}:${currentTool}:${focusMode}:${loading}`,
-    canDrawTouch:event=>overlayRef.current?.contains(event.target)&&['pen','highlighter','eraser','calculate','function','graph','number-line','snippet'].includes(currentTool),
+    canDrawTouch:event=>overlayRef.current?.contains(event.target)&&['pen','highlighter','eraser','calculate','function','graph','number-line','snippet','arrow-copy','arrow-paste'].includes(currentTool),
     onDrawEnd:handlePointerUp,
     beginTouchAnnotation:id=>{
       commitText()
@@ -1895,7 +1906,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
                   onPointerDownCapture={e => {
                     // Own mouse region selection before any annotation child can
                     // intercept the press or start the browser's native drag.
-                    if(e.pointerType==='mouse'&&e.button===0&&['graph','calculate','function','number-line','snippet'].includes(currentTool)){
+                    if(e.pointerType==='mouse'&&e.button===0&&['graph','calculate','function','number-line','snippet','arrow-copy','arrow-paste'].includes(currentTool)){
                       handlePointerDown(e)
                       e.stopPropagation()
                     }
@@ -1922,7 +1933,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
                     style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
                   >
                     {currentTool==='eraser'&&<rect ref={eraserCursorRef} width={eraserSize} height={eraserSize} rx={eraserShape==='round'?eraserSize/2:0} fill="#8fa5b918" stroke="#526c83" strokeWidth={1.3/scale} style={{display:'none'}}/>}
-                    {(currentTool==='calculate'||currentTool==='function'||currentTool==='graph'||currentTool==='number-line'||currentTool==='snippet')&&calculationBox&&<rect x={calculationBox.x} y={calculationBox.y} width={calculationBox.width} height={calculationBox.height} fill="#8fa5b933" stroke="#8fa5b9" strokeWidth={1.5/scale} strokeDasharray={`${4/scale} ${3/scale}`}/>}
+                    {(currentTool==='calculate'||currentTool==='function'||currentTool==='graph'||currentTool==='number-line'||currentTool==='snippet'||currentTool==='arrow-copy')&&calculationBox&&<rect x={calculationBox.x} y={calculationBox.y} width={calculationBox.width} height={calculationBox.height} fill="#8fa5b933" stroke="#8fa5b9" strokeWidth={1.5/scale} strokeDasharray={`${4/scale} ${3/scale}`}/>}
 
                   </svg>
 
@@ -1991,12 +2002,13 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         tools={{autoNumberLines,onAutoNumberLines:()=>setAutoNumberLines(previous=>!previous),autoDashedLines,onAutoDashedLines:()=>setAutoDashedLines(previous=>!previous),autoDottedLines,onAutoDottedLines:()=>setAutoDottedLines(previous=>!previous),lineUndoTimer,onLineUndoTimer:()=>setLineUndoTimer(previous=>!previous),autoStraightLines,onAutoStraightLines:()=>setAutoStraightLines(previous=>!previous),current:currentTool,onTool:tool=>{commitText();setCurrentTool(tool)},color:currentColor,onColor:handleColorChange,colors:COLORS,colorNames:COLOR_NAMES,fontSize,onFontSize:handleFontSizeChange,strokeWidth,onWidth:setStrokeWidth,usePressure,onPressure:()=>setUsePressure(previous=>!previous),eraser:{mode:eraserMode,onMode:setEraserMode,size:eraserSize,onSize:setEraserSize,shape:eraserShape,onShape:setEraserShape,target:eraserTarget,onTarget:setEraserTarget}}}
         pages={{count:numPages,current:pageNumber,showThumbnails:showPages,onToggleThumbnails:()=>{if(focusMode){exitFocusMode();setShowPages(true)}else setShowPages(previous=>!previous)},onNavigate:goToPage,onAddBlank:()=>handleAddPages({mode:'blank',placement:'after'}),onDelete:()=>handleDeletePage(),busy:deletingPage||inserting,canAdd:!!numPages&&!!pageBase&&pageBase.page===pageNumber&&!loading&&!deletingPage&&!inserting}}
         view={{toolbarPosition,onToolbarPosition:setToolbarPosition,scale,onZoomIn:handleZoomIn,onZoomOut:handleZoomOut,onFit:handleFitWidth,onRotate:handleRotate,dark:darkPages,onDark:()=>setDarkPages(previous=>!previous),continuous:continuousView,onContinuous:()=>{handleTextDragEnd();commitText();setContinuousView(previous=>!previous)},reference:showReference,onReference:toggleReference,focus:focusMode,onFocus:enterFocusMode,onExitFocus:exitFocusMode}}
-        utilities={{onDetectNumberLine:()=>{commitText();setCurrentTool('number-line');setShowNumberLine(true);setShowGraph(false);setShowCalculator(false)},onNumberLine:()=>{setNumberLineSelection(null);commitText();setCurrentTool('select');setShowGraph(false);setShowCalculator(false);setShowNumberLine(true)},timer:showTimer,onTimer:setShowTimer,stopwatch:showStopwatch,onStopwatch:setShowStopwatch,clock:showClock,onGraph:()=>{commitText();setCurrentTool('graph');setShowGraph(true);setShowCalculator(false)},calculator:showCalculator,onCalculator:()=>{commitText();setShowGraph(false);setShowCalculator(previous=>!previous)},onScanFunction:()=>{commitText();setCurrentTool('function');setShowCalculator(true);setShowGraph(false)},onCalculate:()=>{commitText();setCurrentTool('calculate')},recognition:calculationMode,onRecognition:setCalculationMode,snippetReady:!!snippet,copying:copyingSnippet,onCopyRegion:()=>{commitText();setCurrentTool('snippet')},onPaste:pasteSnippet,canPaste:!!snippet&&!!pageBase&&pageBase.page===pageNumber&&!inserting&&!deletingPage,onStylus:()=>setShowStylusStudio(true),onSettings:()=>setShowSettings(previous=>!previous),settingsOpen:showSettings,assistantOpen,onAssistant:onToggleAssistant}}
+        utilities={{onDetectNumberLine:()=>{commitText();setCurrentTool('number-line');setShowNumberLine(true);setShowGraph(false);setShowCalculator(false)},onNumberLine:()=>{setNumberLineSelection(null);commitText();setCurrentTool('select');setShowGraph(false);setShowCalculator(false);setShowNumberLine(true)},timer:showTimer,onTimer:setShowTimer,stopwatch:showStopwatch,onStopwatch:setShowStopwatch,clock:showClock,onGraph:()=>{commitText();setCurrentTool('graph');setShowGraph(true);setShowCalculator(false)},calculator:showCalculator,onCalculator:()=>{commitText();setShowGraph(false);setShowCalculator(previous=>!previous)},onScanFunction:()=>{commitText();setCurrentTool('function');setShowCalculator(true);setShowGraph(false)},onCalculate:()=>{commitText();setCurrentTool('calculate')},recognition:calculationMode,onRecognition:setCalculationMode,snippetReady:!!snippet,copying:copyingSnippet,onCopyRegion:()=>{commitText();setCurrentTool('snippet')},onArrowCopy:()=>{commitText();setCurrentTool('arrow-copy')},onPaste:pasteSnippet,canPaste:!!snippet&&!!pageBase&&pageBase.page===pageNumber&&!inserting&&!deletingPage,onStylus:()=>setShowStylusStudio(true),onSettings:()=>setShowSettings(previous=>!previous),settingsOpen:showSettings,assistantOpen,onAssistant:onToggleAssistant}}
         input={{scroll:fingerScroll,onChange:setFingerInputMode,activity:inputActivity,scrollSettings,onScrollSettings:changeScrollSettings}}
         insert={<InsertPanel onPages={exportImage?undefined:handleAddPages} pageNumber={pageNumber} onFiles={insertFiles} onInsert={insertGenerated} color={currentColor} busy={inserting||!pageBase||pageBase.page!==pageNumber||deletingPage}/>}
       />
 
       {lineSuggestion&&<div className="pdf-line-suggestion" role="status" aria-live="polite"><span>{lineSuggestion.numberLine?'Number line detected':lineSuggestion.dashed?'Dashed line detected':lineSuggestion.dots?'Dotted line detected':'Straight line detected'}</span><button type="button" onClick={()=>{setCurrentTool('select');setLineSuggestion(null)}}>Move / resize</button><button type="button" onClick={()=>setLineSuggestion(null)} aria-label="Keep detected line"><Check size={15}/>Keep</button><button type="button" onClick={revertStraightLine} aria-label="Restore original freehand stroke"><Undo size={15}/>Undo</button></div>}
+      {['arrow-copy','arrow-paste'].includes(currentTool)&&!exportImage&&<div className="pdf-existing-text-hint" role="status">{currentTool==='arrow-copy'?'Arrow copy: drag a box around anything to copy.':'Draw one continuous arrow from the source toward the destination. The farthest point places the copy; the gesture is not saved. Use Move to adjust it or Undo to remove it.'}</div>}
       {currentTool==='text'&&!exportImage&&<div className="pdf-existing-text-hint" role="status">Click existing text to replace it, or click blank space to add text. Scanned images need OCR first. Replacements cover the original on a white background; they do not redact the underlying text.</div>}
       {currentTool==='read'&&!exportImage&&<div className="pdf-select-copy-bar"><span>{copyParagraphs?'Copy joins wrapped lines into paragraphs.':'Copy keeps original line breaks. Change this in View.'}</span><button type="button" disabled={copyAllBusy||!pdfFile} onClick={copyAllText}>{copyAllBusy?'Reading PDF…':'Copy all text'}</button>{copyAllStatus&&<span role="status">{copyAllStatus}</span>}</div>}
       {missingFont&&<div className="flex items-center gap-3 px-5 py-2 text-sm" role="status"><span>Font: {missingFont.replace(/^[A-Z]{6}\+/, '')}</span><label className="cursor-pointer underline">Use font file<input type="file" hidden accept=".ttf,.otf" onChange={async event=>{const file=event.target.files?.[0];event.target.value='';if(!file)return;try{if(file.size>10*1024*1024)throw new Error('Choose a font smaller than 10 MB.');const bytes=new Uint8Array(await file.arrayBuffer());const {default:fontkit}=await import('@pdf-lib/fontkit');fontkit.create(bytes);let binary='';for(let offset=0;offset<bytes.length;offset+=8192)binary+=String.fromCharCode(...bytes.subarray(offset,offset+8192));const fontData=btoa(binary),family=await replacementFontFace({fontData});updatePaths(previous=>previous.map(item=>item.textStyle?.fontName===missingFont?{...item,textStyle:{...item.textStyle,fontData,replacementFont:undefined,embedded:false,approximate:false,fontFamily:`"${family}"`}}:item));setActionError(null);setMissingFont(null)}catch(error){setActionError('Could not use this font: '+error.message)}}}/></label><button type="button" onClick={()=>setMissingFont(null)} aria-label="Hide font options"><X size={14}/></button></div>}
