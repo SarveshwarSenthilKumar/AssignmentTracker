@@ -1,4 +1,5 @@
 import {detectNumberLine} from '../lib/pdfNumberLine'
+import {detectCopyArrow} from '../lib/pdfArrowCopy'
 import {matchingFontAsset,replacementFontBytes,replacementFontFace} from '../lib/pdfReplacementFonts'
 import {downloadBlob} from '../lib/documentFormats'
 import PDFInkLayer, { PDFLiveInk } from './PDFInkLayer'
@@ -1381,11 +1382,9 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     if (!points.length) return
     if(currentTool==='arrow-paste'){
       if(!snippet||pageBase?.page!==pageNumber||inserting||deletingPage)return
-      const origin=points[0]
-      // The farthest point approximates the tip even when the stroke doubles
-      // back to draw an arrowhead. Curved shafts do not need shape recognition.
-      const tip=points.reduce((best,point)=>Math.hypot(point.x-origin.x,point.y-origin.y)>Math.hypot(best.x-origin.x,best.y-origin.y)?point:best,origin)
-      if(Math.hypot(tip.x-origin.x,tip.y-origin.y)*scale<20){setActionError('Draw a longer arrow toward the destination.');return}
+      const arrow=detectCopyArrow(points,scale)
+      if(!arrow){setActionError('Draw a longer arrow toward the destination (at least 24 pixels).');return}
+      const {tip}=arrow
       try{addImageInsert(snippet,pageNumber,pageBase,tip);setCurrentTool('arrow-copy');setActionError(null)}catch(error){setActionError(error.message)}
       return
     }
@@ -2041,7 +2040,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       />
 
       {lineSuggestion&&<div className="pdf-line-suggestion" role="status" aria-live="polite"><span>{lineSuggestion.numberLine?'Number line detected':lineSuggestion.dashed?'Dashed line detected':lineSuggestion.dots?'Dotted line detected':'Straight line detected'}</span><button type="button" onClick={()=>{setCurrentTool('select');setLineSuggestion(null)}}>Move / resize</button><button type="button" onClick={()=>setLineSuggestion(null)} aria-label="Keep detected line"><Check size={15}/>Keep</button><button type="button" onClick={revertStraightLine} aria-label="Restore original freehand stroke"><Undo size={15}/>Undo</button></div>}
-      {['arrow-copy','arrow-paste'].includes(currentTool)&&!exportImage&&<div className="pdf-existing-text-hint" role="status">{currentTool==='arrow-copy'?'Arrow copy: drag a box around anything to copy.':'Draw one continuous arrow from the source toward the destination. The farthest point places the copy; the gesture is not saved. Use Move to adjust it or Undo to remove it.'}<button type="button" onClick={toggleArrowCopy}>Turn off Arrow copy</button></div>}
+      {['arrow-copy','arrow-paste'].includes(currentTool)&&!exportImage&&<div className="pdf-existing-text-hint" role="status">{currentTool==='arrow-copy'?'Arrow copy: drag a box around anything to copy.':'Draw one continuous arrow from the source toward the destination. Arrowheads are detected even when you double back; a plain curved stroke uses its endpoint. The gesture is not saved. Use Move to adjust it or Undo to remove it.'}<button type="button" onClick={toggleArrowCopy}>Turn off Arrow copy</button></div>}
       {currentTool==='text'&&!exportImage&&<div className="pdf-existing-text-hint" role="status">Click existing text to replace it, or click blank space to add text. Scanned images need OCR first. Replacements cover the original on a white background; they do not redact the underlying text.</div>}
       {currentTool==='read'&&!exportImage&&<div className="pdf-select-copy-bar"><span>{copyParagraphs?'Copy joins wrapped lines into paragraphs.':'Copy keeps original line breaks. Change this in View.'}</span><button type="button" disabled={copyAllBusy||!pdfFile} onClick={copyAllText}>{copyAllBusy?'Reading PDF…':'Copy all text'}</button>{copyAllStatus&&<span role="status">{copyAllStatus}</span>}</div>}
       {missingFont&&<div className="flex items-center gap-3 px-5 py-2 text-sm" role="status"><span>Font: {missingFont.replace(/^[A-Z]{6}\+/, '')}</span><label className="cursor-pointer underline">Use font file<input type="file" hidden accept=".ttf,.otf" onChange={async event=>{const file=event.target.files?.[0];event.target.value='';if(!file)return;try{if(file.size>10*1024*1024)throw new Error('Choose a font smaller than 10 MB.');const bytes=new Uint8Array(await file.arrayBuffer());const {default:fontkit}=await import('@pdf-lib/fontkit');fontkit.create(bytes);let binary='';for(let offset=0;offset<bytes.length;offset+=8192)binary+=String.fromCharCode(...bytes.subarray(offset,offset+8192));const fontData=btoa(binary),family=await replacementFontFace({fontData});updatePaths(previous=>previous.map(item=>item.textStyle?.fontName===missingFont?{...item,textStyle:{...item.textStyle,fontData,replacementFont:undefined,embedded:false,approximate:false,fontFamily:`"${family}"`}}:item));setActionError(null);setMissingFont(null)}catch(error){setActionError('Could not use this font: '+error.message)}}}/></label><button type="button" onClick={()=>setMissingFont(null)} aria-label="Hide font options"><X size={14}/></button></div>}
