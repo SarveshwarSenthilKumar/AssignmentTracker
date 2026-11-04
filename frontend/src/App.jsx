@@ -3,6 +3,7 @@ import FeatureSuggestionsPage from './components/FeatureSuggestionsPage'
 import BugReportsPage from './components/BugReportsPage'
 import SiteRoadmapPage from './components/SiteRoadmapPage'
 import TaskSchedule from './components/TaskSchedule'
+import AppearanceSettings from './components/AppearanceSettings'
 import TaskProgress, { ProgressCreateFields, ProgressSummary } from './components/TaskProgress'
 import PrivacyPage from './components/PrivacyPage'
 import TermsPage from './components/TermsPage'
@@ -2083,6 +2084,7 @@ function App() {
                 </div>
               </div>
 
+              <AppearanceSettings/>
               <AccountConnections token={token}/>
               <TimeZoneSettings /><StudyPhoneSettings/>
               <TaskDisplaySettings />

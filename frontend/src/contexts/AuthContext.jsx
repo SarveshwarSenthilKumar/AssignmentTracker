@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react'
+import { createContext, useContext, useState, useEffect, useLayoutEffect } from 'react'
 import { setTimeZone } from '../lib/timeZone'
 import PolicyGate from '../components/PolicyGate'
 
@@ -8,13 +8,27 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null)
   const [token, setToken] = useState(null)
   const [loading, setLoading] = useState(true)
+  useLayoutEffect(()=>{
+    if(loading)return
+    const mode=token&&user?.themeMode==='light'?'light':'dark'
+    document.documentElement.setAttribute('data-app-theme',mode)
+    document.documentElement.style.colorScheme=mode
+  },[loading,token,user?.themeMode])
   setTimeZone(user?.timeZone)
   const updatePreferences = preferences => setUser(previous => {
     if (!previous) return previous
     const next = {...previous,...preferences}
-    localStorage.setItem('user',JSON.stringify(next))
+    try{localStorage.setItem('user',JSON.stringify(next))}catch{/* Account preferences still work for this visit. */}
     return next
   })
+  useEffect(()=>{
+    const changed=event=>{
+      if(event.key!=='user'||!event.newValue)return
+      try{const updated=JSON.parse(event.newValue);setUser(previous=>previous&&updated.id===previous.id?{...previous,themeMode:updated.themeMode==='light'?'light':'dark'}:previous)}catch{/* Ignore malformed cache updates. */}
+    }
+    window.addEventListener('storage',changed)
+    return()=>window.removeEventListener('storage',changed)
+  },[])
   useEffect(()=>{
     if(!token)return
     const controller=new AbortController()
