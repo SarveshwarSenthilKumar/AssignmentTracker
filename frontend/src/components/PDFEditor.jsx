@@ -492,7 +492,18 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const [existingRuns,setExistingRuns]=useState({page:null,items:[]})
   const textLoadGeneration=useRef(0)
   const [currentColor, setCurrentColor] = useState('#000000')
-  const [strokeWidth, setStrokeWidth] = useState(2)
+  const [tipSizes,setTipSizes]=useState(()=>{
+    let saved={};try{saved=JSON.parse(localStorage.getItem('pdf-tool-tip-sizes-v1')||'{}')||{}}catch{}
+    const size=tool=>Number.isFinite(saved[tool])?Math.max(1,Math.min(40,saved[tool])):2
+    return {pen:size('pen'),highlighter:size('highlighter')}
+  })
+  const tipTool=currentTool==='highlighter'?'highlighter':'pen'
+  const strokeWidth=tipSizes[tipTool]
+  const setStrokeWidth=value=>{
+    if(!Number.isFinite(value))return
+    setTipSizes(previous=>({...previous,[tipTool]:Math.max(1,Math.min(40,value))}))
+  }
+  useEffect(()=>{try{localStorage.setItem('pdf-tool-tip-sizes-v1',JSON.stringify(tipSizes))}catch{}},[tipSizes])
   const [eraserOptions,setEraserOptions]=useState(()=>{
     let saved={};try{saved=JSON.parse(localStorage.getItem('pdf-eraser-options')||'{}')||{}}catch{}
     return {mode:['stroke','precision','objects'].includes(saved.mode)?saved.mode:'stroke',size:Number.isFinite(saved.size)?Math.max(2,Math.min(160,saved.size)):20,shape:saved.shape==='square'?'square':'round',target:['pen','highlighter'].includes(saved.target)?saved.target:'all'}
