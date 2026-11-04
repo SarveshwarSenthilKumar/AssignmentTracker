@@ -13,6 +13,7 @@ import { pageFontPrograms, fontKey, standardTextFont, replacementCss, loadPageFo
 import PDFReferencePane from './PDFReferencePane'
 import PDFStylusSettings from './PDFStylusSettings'
 import usePDFTouchInput from '../hooks/usePDFTouchInput'
+import {readScrollSettings,normalizeScrollSettings,SCROLL_SETTINGS_KEY} from '../lib/pdfScrollSettings'
 import useShortcuts from '../hooks/useShortcuts'
 import useInlineConfirm from '../hooks/useInlineConfirm'
 import InlineConfirmation from './InlineConfirmation'
@@ -521,6 +522,8 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const editorRootRef=useRef(null),ownsFullscreenRef=useRef(false)
   const [focusMode,setFocusMode]=useState(false)
   const [fingerScroll,setFingerScroll]=useState(()=>{try{return localStorage.getItem('pdf-finger-mode')!=='draw'}catch{return true}})
+  const [scrollSettings,setScrollSettings]=useState(readScrollSettings)
+  const changeScrollSettings=value=>{const next=normalizeScrollSettings(value);setScrollSettings(next);try{localStorage.setItem(SCROLL_SETTINGS_KEY,JSON.stringify(next))}catch{/* Keep the settings for this editor session. */}}
   useEffect(()=>{try{localStorage.setItem('pdf-finger-mode',fingerScroll?'scroll':'draw')}catch{}},[fingerScroll])
   const touchAnnotationSnapshot=useRef(null)
   const [stylusBarrel,setStylusBarrel]=useState(()=>{try{const saved=localStorage.getItem('pdf-stylus-barrel');return ['eraser','pan','undo','redo','previous','next','none'].includes(saved)?saved:'eraser'}catch{return 'eraser'}})
@@ -1697,7 +1700,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       if(Math.abs(gesture.nextScale-scale)<.001){clearPinchPreview();anchorPinch(anchor);return}
       pendingPinchAnchor.current=anchor;setScale(gesture.nextScale)
     },
-    viewer:viewerRef,overlay:overlayRef,tool:currentTool,scrollWithFinger:fingerScroll,resetKey:`${pdfId}:${pageNumber}:${currentTool}:${focusMode}`,
+    viewer:viewerRef,overlay:overlayRef,tool:currentTool,scrollWithFinger:fingerScroll,scrollSettings,resetKey:`${pdfId}:${pageNumber}:${currentTool}:${focusMode}`,
     canDrawTouch:event=>overlayRef.current?.contains(event.target)&&['pen','highlighter','eraser','calculate','function','graph','number-line','snippet'].includes(currentTool),
     onDrawEnd:handlePointerUp,
     beginTouchAnnotation:id=>{
@@ -1989,7 +1992,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         pages={{count:numPages,current:pageNumber,showThumbnails:showPages,onToggleThumbnails:()=>{if(focusMode){exitFocusMode();setShowPages(true)}else setShowPages(previous=>!previous)},onNavigate:goToPage,onAddBlank:()=>handleAddPages({mode:'blank',placement:'after'}),onDelete:()=>handleDeletePage(),busy:deletingPage||inserting,canAdd:!!numPages&&!!pageBase&&pageBase.page===pageNumber&&!loading&&!deletingPage&&!inserting}}
         view={{toolbarPosition,onToolbarPosition:setToolbarPosition,scale,onZoomIn:handleZoomIn,onZoomOut:handleZoomOut,onFit:handleFitWidth,onRotate:handleRotate,dark:darkPages,onDark:()=>setDarkPages(previous=>!previous),continuous:continuousView,onContinuous:()=>{handleTextDragEnd();commitText();setContinuousView(previous=>!previous)},reference:showReference,onReference:toggleReference,focus:focusMode,onFocus:enterFocusMode,onExitFocus:exitFocusMode}}
         utilities={{onDetectNumberLine:()=>{commitText();setCurrentTool('number-line');setShowNumberLine(true);setShowGraph(false);setShowCalculator(false)},onNumberLine:()=>{setNumberLineSelection(null);commitText();setCurrentTool('select');setShowGraph(false);setShowCalculator(false);setShowNumberLine(true)},timer:showTimer,onTimer:setShowTimer,stopwatch:showStopwatch,onStopwatch:setShowStopwatch,clock:showClock,onGraph:()=>{commitText();setCurrentTool('graph');setShowGraph(true);setShowCalculator(false)},calculator:showCalculator,onCalculator:()=>{commitText();setShowGraph(false);setShowCalculator(previous=>!previous)},onScanFunction:()=>{commitText();setCurrentTool('function');setShowCalculator(true);setShowGraph(false)},onCalculate:()=>{commitText();setCurrentTool('calculate')},recognition:calculationMode,onRecognition:setCalculationMode,snippetReady:!!snippet,copying:copyingSnippet,onCopyRegion:()=>{commitText();setCurrentTool('snippet')},onPaste:pasteSnippet,canPaste:!!snippet&&!!pageBase&&pageBase.page===pageNumber&&!inserting&&!deletingPage,onStylus:()=>setShowStylusStudio(true),onSettings:()=>setShowSettings(previous=>!previous),settingsOpen:showSettings,assistantOpen,onAssistant:onToggleAssistant}}
-        input={{scroll:fingerScroll,onChange:setFingerInputMode,activity:inputActivity}}
+        input={{scroll:fingerScroll,onChange:setFingerInputMode,activity:inputActivity,scrollSettings,onScrollSettings:changeScrollSettings}}
         insert={<InsertPanel onPages={exportImage?undefined:handleAddPages} pageNumber={pageNumber} onFiles={insertFiles} onInsert={insertGenerated} color={currentColor} busy={inserting||!pageBase||pageBase.page!==pageNumber||deletingPage}/>}
       />
 

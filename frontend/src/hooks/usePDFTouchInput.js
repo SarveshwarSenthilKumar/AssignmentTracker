@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { allowOnPointerDown, getCenter, isPenInput } from '../lib/vendor/excalidraw/pointerInput'
+import {scrollPhysics} from '../lib/pdfScrollSettings'
 
 const CONTROL='button,input,textarea,select,a,[contenteditable="true"]'
 const consume=event=>{event.preventDefault();event.stopPropagation()}
@@ -18,11 +19,11 @@ const flingVelocity=(pan,now=performance.now())=>{
 // attribution/license: ../lib/vendor/excalidraw/SOURCE.md and LICENSE.
 // Real pointer events flow to the annotation tools; no delayed event replay,
 // contact-size classifier, or capture-loss-triggered undo is used.
-export default function usePDFTouchInput({viewer,overlay,scrollWithFinger,canDrawTouch,onDrawEnd,resetAnnotation,beginTouchAnnotation,endTouchAnnotation,resetKey,tool,onPinchStart,onPinchMove,onPinchEnd}){
+export default function usePDFTouchInput({viewer,overlay,scrollWithFinger,scrollSettings,canDrawTouch,onDrawEnd,resetAnnotation,beginTouchAnnotation,endTouchAnnotation,resetKey,tool,onPinchStart,onPinchMove,onPinchEnd}){
   const [activity,setActivity]=useState('idle')
   const state=useRef({touches:new Map(),controls:new Set(),pen:null,draw:null,pan:null,pinch:null,frame:0,momentumFrame:0,blockedUntil:0,mounted:true})
   const latest=useRef(null)
-  latest.current={scrollWithFinger,canDrawTouch,onDrawEnd,resetAnnotation,beginTouchAnnotation,endTouchAnnotation,tool,onPinchStart,onPinchMove,onPinchEnd}
+  latest.current={scrollWithFinger,scrollSettings,canDrawTouch,onDrawEnd,resetAnnotation,beginTouchAnnotation,endTouchAnnotation,tool,onPinchStart,onPinchMove,onPinchEnd}
   const report=value=>{if(state.current.mounted)setActivity(previous=>previous===value?previous:value)}
   const suppressClick=()=>{state.current.blockedUntil=performance.now()+350}
   const accepted=()=>new Map([...state.current.touches].filter(([,contact])=>contact.kind!=='ignored'))
@@ -34,21 +35,23 @@ export default function usePDFTouchInput({viewer,overlay,scrollWithFinger,canDra
   }
   const startMomentum=velocity=>{
     stopMomentum()
-    if(!velocity||window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches)return false
+    const physics=scrollPhysics(latest.current.scrollSettings)
+    if(!velocity||!physics.momentum||window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches)return false
     const current=state.current
-    let vx=velocity.x,vy=velocity.y,last=performance.now(),started=last
+    let vx=velocity.x*physics.gain,vy=velocity.y*physics.gain,last=performance.now(),started=last
+    const decayTime=physics.decayTime,maxDuration=Math.min(6500,Math.max(800,decayTime*2200/325))
     // Exponential friction integrates distance using elapsed time, independent
-    // of refresh rate. Units: CSS pixels / millisecond; decay time: 325 ms.
+    // of refresh rate. Balanced settings retain the original 325 ms decay.
     const step=now=>{
       const element=viewer.current
-      if(!current.mounted||!element||current.pen!==null||accepted().size){current.momentumFrame=0;report('idle');return}
+      if(!current.mounted||!element||current.pen!==null||accepted().size||latest.current.scrollSettings?.momentum===false||window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches){current.momentumFrame=0;report('idle');return}
       const dt=Math.min(64,Math.max(0,now-last));last=now
-      const decay=Math.exp(-dt/325),left=element.scrollLeft,top=element.scrollTop
-      element.scrollLeft+=vx*325*(1-decay);element.scrollTop+=vy*325*(1-decay)
+      const decay=Math.exp(-dt/decayTime),left=element.scrollLeft,top=element.scrollTop
+      element.scrollLeft+=vx*decayTime*(1-decay);element.scrollTop+=vy*decayTime*(1-decay)
       // A clamped edge stops only that axis, without bouncing or jitter.
       vx=Math.abs(element.scrollLeft-left)<.01?0:vx*decay
       vy=Math.abs(element.scrollTop-top)<.01?0:vy*decay
-      if(Math.hypot(vx,vy)<.02||now-started>2200){current.momentumFrame=0;report('idle');return}
+      if(Math.hypot(vx,vy)<.02||now-started>maxDuration){current.momentumFrame=0;report('idle');return}
       current.momentumFrame=requestAnimationFrame(step)
     }
     report('scrolling');current.momentumFrame=requestAnimationFrame(step);return true
@@ -97,7 +100,7 @@ export default function usePDFTouchInput({viewer,overlay,scrollWithFinger,canDra
       pan.lastMotion=now;pan.carry=null;pan.samples.push({...center,t:now})
       while(pan.samples.length>2&&pan.samples[1].t<now-100)pan.samples.shift()
     }
-    if(!current.pinch){pan.dx+=pan.last.x-center.x;pan.dy+=pan.last.y-center.y}pan.last=center
+    if(!current.pinch){const {gain}=scrollPhysics(latest.current.scrollSettings);pan.dx+=(pan.last.x-center.x)*gain;pan.dy+=(pan.last.y-center.y)*gain}pan.last=center
     if(!current.frame)current.frame=requestAnimationFrame(flushPan)
   }
   const reset=()=>{

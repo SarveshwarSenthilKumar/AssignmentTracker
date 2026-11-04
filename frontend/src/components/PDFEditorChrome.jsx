@@ -6,6 +6,7 @@ import PDFEditorClock from './PDFEditorClock'
 import PDFStopwatch from './PDFStopwatch'
 import PDFCountdown from './PDFCountdown'
 import PDFFingerMode from './PDFFingerMode'
+import PDFScrollSettings from './PDFScrollSettings'
 import './PDFEditorChrome.css'
 
 const annotationTools=[['read','Select text',TextSelect],['pen','Pen',Pen],['highlighter','Highlight',Highlighter],['text','Text',Type],['select','Move',Move],['eraser','Erase',Eraser]]
@@ -138,6 +139,7 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
       <div className="pc-insert-slot">{isValidElement(insert)?cloneElement(insert,{onOpen:close,closeSignal:`${open||''}:${compact}`}):insert}</div>
       <div className="pc-tool-menus">{pagesMenu}{viewMenu}{utilityMenu}</div>
       <PDFFingerMode {...input}/>
+      {menu('scroll','Scroll feel',Move,<PDFScrollSettings value={input.scrollSettings} onChange={input.onScrollSettings}/>)}
       {utilities.clock&&<PDFEditorClock/>}
       <PDFStopwatch visible={utilities.stopwatch} onHide={()=>utilities.onStopwatch(false)}/>
       <PDFCountdown visible={utilities.timer} onHide={()=>utilities.onTimer(false)}/>
