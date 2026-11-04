@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useLayoutEffect } from 'react'
+import { createContext, useContext, useState, useEffect, useLayoutEffect, useRef } from 'react'
 import { setTimeZone } from '../lib/timeZone'
 import PolicyGate from '../components/PolicyGate'
 
@@ -8,6 +8,7 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null)
   const [token, setToken] = useState(null)
   const [loading, setLoading] = useState(true)
+  const appearanceRevision=useRef(0)
   useLayoutEffect(()=>{
     if(loading)return
     const mode=token&&user?.themeMode==='light'?'light':'dark'
@@ -15,16 +16,19 @@ export const AuthProvider = ({ children }) => {
     document.documentElement.style.colorScheme=mode
   },[loading,token,user?.themeMode])
   setTimeZone(user?.timeZone)
-  const updatePreferences = preferences => setUser(previous => {
+  const updatePreferences = preferences => {
+    if(preferences.themeMode!==undefined)appearanceRevision.current++
+    setUser(previous => {
     if (!previous) return previous
     const next = {...previous,...preferences}
     try{localStorage.setItem('user',JSON.stringify(next))}catch{/* Account preferences still work for this visit. */}
     return next
-  })
+    })
+  }
   useEffect(()=>{
     const changed=event=>{
       if(event.key!=='user'||!event.newValue)return
-      try{const updated=JSON.parse(event.newValue);setUser(previous=>previous&&updated.id===previous.id?{...previous,themeMode:updated.themeMode==='light'?'light':'dark'}:previous)}catch{/* Ignore malformed cache updates. */}
+      try{const updated=JSON.parse(event.newValue);appearanceRevision.current++;setUser(previous=>previous&&updated.id===previous.id?{...previous,themeMode:updated.themeMode==='light'?'light':'dark'}:previous)}catch{/* Ignore malformed cache updates. */}
     }
     window.addEventListener('storage',changed)
     return()=>window.removeEventListener('storage',changed)
@@ -32,7 +36,8 @@ export const AuthProvider = ({ children }) => {
   useEffect(()=>{
     if(!token)return
     const controller=new AbortController()
-    fetch('/api/account/preferences',{headers:{Authorization:`Bearer ${token}`},signal:controller.signal}).then(response=>response.ok?response.json():null).then(data=>{if(data&&!controller.signal.aborted)updatePreferences(data)}).catch(()=>{})
+    const before=appearanceRevision.current
+    fetch('/api/account/preferences',{headers:{Authorization:`Bearer ${token}`},signal:controller.signal}).then(response=>response.ok?response.json():null).then(data=>{if(data&&!controller.signal.aborted){if(before!==appearanceRevision.current)delete data.themeMode;updatePreferences(data)}}).catch(()=>{})
     return()=>controller.abort()
   },[token])
 

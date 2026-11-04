@@ -1,0 +1,87 @@
+/* Account appearance: UI colors only. No filters on documents, images or canvases. */
+:root{color-scheme:dark}
+:root[data-app-theme=light]{
+  color-scheme:light;
+  --surface-base:#f3f6fa;
+  --surface-panel:#ffffff;
+  --surface-elevated:#f9fbfd;
+  --surface-raised:#e7edf4;
+  --surface-input:#f6f8fc;
+  --border:#d2dbe5;
+  --border-strong:#aebdce;
+  --text-primary:#192b3e;
+  --text-secondary:#40556b;
+  --text-muted:#596c81;
+  --accent:#3d6288;
+  --accent-solid:#466b91;
+  --accent-hover:#dce7f2;
+  --success:#286548;
+  --warning:#805b1c;
+  --danger:#a33f46;
+}
+.appearance-title{display:flex!important;align-items:center;gap:8px}
+html[data-app-theme=light],html[data-app-theme=light] body{background:var(--surface-base);color:var(--text-primary)}
+html[data-app-theme=light] :is(body,.assistant-panel,.pdf-editor,.study-phone,.platform-save-dialog){color-scheme:light}
+html[data-app-theme=light] :is(input,textarea,select){color-scheme:light}
+html[data-app-theme=light] :is(input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):not([type=button]):not([type=submit]),textarea,select){background-color:var(--surface-input);border-color:var(--border-strong);color:var(--text-primary)}
+html[data-app-theme=light] :is(input,textarea)::placeholder{color:var(--text-muted);opacity:1}
+
+/* Existing utility-based screens share the same light palette. */
+html[data-app-theme=light] :is([class~="bg-slate-900"],[class~="bg-gray-900"],[class~="bg-slate-950"]){background-color:var(--surface-base)}
+html[data-app-theme=light] :is([class~="bg-slate-800"],[class~="bg-gray-800"]){background-color:var(--surface-panel)}
+html[data-app-theme=light] :is([class~="bg-slate-700"],[class~="bg-gray-700"]){background-color:var(--surface-raised)}
+html[data-app-theme=light] :is([class~="bg-white/5"],[class~="bg-white/10"]){background-color:var(--surface-elevated)}
+html[data-app-theme=light] :is([class~="bg-white/20"],[class~="bg-white/30"]){background-color:var(--surface-raised)}
+html[data-app-theme=light] :is([class~="border-white/5"],[class~="border-white/10"],[class~="border-white/20"],[class~="border-slate-700"]){border-color:var(--border)}
+html[data-app-theme=light] :is([class~="text-white"],[class~="text-slate-100"],[class~="text-slate-200"]){color:var(--text-primary)}
+html[data-app-theme=light] :is([class~="text-slate-300"],[class~="text-gray-300"]){color:var(--text-secondary)}
+html[data-app-theme=light] :is([class~="text-slate-400"],[class~="text-slate-500"],[class~="text-gray-400"]){color:var(--text-muted)}
+html[data-app-theme=light] :is([class~="text-green-400"],[class~="text-green-300"],[class~="text-emerald-400"]){color:var(--success)}
+html[data-app-theme=light] :is([class~="text-yellow-400"],[class~="text-yellow-300"],[class~="text-amber-400"]){color:var(--warning)}
+html[data-app-theme=light] :is([class~="text-red-400"],[class~="text-red-300"],[class~="text-rose-400"]){color:var(--danger)}
+html[data-app-theme=light] :is([class~="text-primary-400"],[class~="text-blue-400"],[class~="text-purple-400"],[class~="text-indigo-400"]){color:var(--accent)}
+html[data-app-theme=light] :is([class~="hover:bg-white/5"],[class~="hover:bg-white/10"],[class~="hover:bg-white/20"]):hover{background-color:var(--surface-raised)}
+html[data-app-theme=light] [class~="hover:text-white"]:hover{color:var(--text-primary)}
+html[data-app-theme=light] :is([class~="bg-primary-600"],[class~="bg-blue-600"],[class~="bg-purple-600"],[class~="bg-primary-700"]){background-color:var(--accent-solid);color:#fff}
+html[data-app-theme=light] :is([class~="bg-primary-600"],[class~="bg-blue-600"],[class~="bg-purple-600"]):hover:not(:disabled){background-color:#345575;color:#fff}
+html[data-app-theme=light] :is([class~="bg-green-500"],[class~="bg-green-600"]){background-color:#286548;color:white}
+html[data-app-theme=light] [class~="bg-yellow-500"]{background-color:#956514;color:white}
+
+/* Older task controls use fixed slate values instead of shared tokens. */
+html[data-app-theme=light] :is(.task-dependencies,.task-progress,.task-progress-create){background:var(--surface-elevated);border-color:var(--border);color:var(--text-secondary)}
+html[data-app-theme=light] :is(.task-dependencies,.task-progress) :is(strong,h5){color:var(--text-primary)}
+html[data-app-theme=light] :is(.task-dependencies,.task-progress,.task-progress-create) :is(p,small){color:var(--text-muted)}
+html[data-app-theme=light] :is(.task-dependencies,.task-progress) button{background:var(--surface-raised);border-color:var(--border-strong);color:var(--text-primary)}
+html[data-app-theme=light] :is(.task-dependencies,.task-progress) button:hover:not(:disabled){background:var(--accent-hover)}
+html[data-app-theme=light] :is(.task-dependency-picker,.task-progress-day,.task-progress-fields input){border-color:var(--border)}
+html[data-app-theme=light] :is(.task-dependency-note,.task-progress-summary){color:var(--accent)}
+html[data-app-theme=light] :is(.task-dependency-error,.task-progress .task-progress-error){color:var(--danger)}
+html[data-app-theme=light] :is(.task-progress-summary progress,.task-dependency-progress progress){background:var(--surface-raised)}
+html[data-app-theme=light] :is(.task-progress-summary progress,.task-dependency-progress progress)::-webkit-progress-bar{background:var(--surface-raised)}
+html[data-app-theme=light] :is(.task-progress-summary progress,.task-dependency-progress progress)::-webkit-progress-value{background:#447965}
+html[data-app-theme=light] :is(.task-progress-summary progress,.task-dependency-progress progress)::-moz-progress-bar{background:#447965}
+html[data-app-theme=light] .task-bulk-actions{background:linear-gradient(110deg,#eaf0f7,#f9fbfd);border-color:var(--border)}
+html[data-app-theme=light] .task-bulk-actions.has-selection{background:#e2edf7;border-color:var(--accent)}
+html[data-app-theme=light] :is(.task-selection-count,.task-bulk-actions>label){color:var(--text-secondary)}
+html[data-app-theme=light] .task-bulk-actions button{background:var(--surface-panel);border-color:var(--border);color:var(--text-secondary)}
+html[data-app-theme=light] .task-bulk-actions .task-selection-delete{color:var(--danger)}
+html[data-app-theme=light] :is(.task-select-checkbox,.task-bulk-actions input[type=checkbox]){background:var(--surface-panel);border-color:var(--border-strong)}
+html[data-app-theme=light] :is(.task-select-checkbox,.task-bulk-actions input[type=checkbox]):is(:checked,:indeterminate){background:var(--accent-solid);border-color:var(--accent-solid)}
+html[data-app-theme=light] .app-shell .task-selectable.is-bulk-selected>div:first-child{background:#e3edf7;border-color:#809bb7}
+html[data-app-theme=light] .task-drag-preview{background:linear-gradient(125deg,#fff,#e7eff8);border-color:#809bb7;color:var(--text-primary);box-shadow:0 12px 30px #20324725}
+html[data-app-theme=light] .task-drag-preview span{color:var(--text-secondary)}
+html[data-app-theme=light] .task-selectable.is-task-dragging>div:first-child{background:#dce8f4!important}
+
+/* Surface-specific fixed colors and alerts. */
+html[data-app-theme=light] :is(.assistant-error,.assistant-diagnostic-failure,.account-connection-error,.resume-error,.document-error,.note-notice.is-error){color:var(--danger)}
+html[data-app-theme=light] :is(.inline-confirmation button,.task-deletion-undo button){color:var(--text-primary)}
+html[data-app-theme=light] .inline-confirmation .inline-confirmation-action{background:var(--accent-solid);color:white}
+html[data-app-theme=light] :is(.account-connection-heading>span.is-connected,.resume-quiz-feedback h3){color:var(--success)}
+html[data-app-theme=light] .policy-continue{background:var(--accent-solid);color:white;border-color:var(--accent-solid)}
+html[data-app-theme=light] .policy-agreement input{accent-color:var(--accent-solid)}
+html[data-app-theme=light] .platform-save-dialog .platform-save-primary{color:white}
+html[data-app-theme=light] .pdf-chrome .pc-button.pc-save{color:white}
+html[data-app-theme=light] :is(.assistant-panel,.study-phone,.workflow-workspace) button:not(:disabled):hover{filter:none}
+html[data-app-theme=light] .confirmation-settings input[role=switch]:checked::after{background:white}
+html[data-app-theme=light] .confirmation-settings input[role=switch]:not(:checked)::after{background:var(--text-muted)}
+@media print{.appearance-settings{display:none}}

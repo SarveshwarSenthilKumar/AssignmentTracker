@@ -5,6 +5,7 @@ import './index.css'
 import './responsive.css'
 import { AuthProvider } from './contexts/AuthContext'
 import './mobile.css'
+import './light-mode.css'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

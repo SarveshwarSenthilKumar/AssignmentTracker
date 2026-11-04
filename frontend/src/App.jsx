@@ -859,9 +859,9 @@ function App() {
                 <span
                   className="flex-shrink-0 px-2 py-0.5 rounded-full text-xs"
                   style={{
-                    backgroundColor: '#242c37',
-                    color: '#b1bdc9',
-                    border: '1px solid #354253'
+                    backgroundColor: 'var(--surface-raised)',
+                    color: 'var(--text-secondary)',
+                    border: '1px solid var(--border)'
                   }}
                 >
                   {folder ? folder.name : 'Inbox'}
