@@ -16,6 +16,7 @@ async function providerJSON(url,options={}){
   try{const response=await fetch(url,{...options,redirect:'error',signal:controller.signal});const text=await response.text();if(text.length>100000)throw new Error('Provider response too large.');let result;try{result=JSON.parse(text)}catch{throw new Error('Invalid provider response.');}if(!response.ok||result.error)throw new Error('Provider authorization failed.');return result;}finally{clearTimeout(timer);}
 }
 module.exports=function registerAccountConnections(app,auth,{User,mongoose}){
+  const linkingLinkedIn=new Set();
   const Pending=mongoose.model('AccountConnectionState',new mongoose.Schema({
     hash:{type:String,unique:true,required:true},user:{type:mongoose.Schema.Types.ObjectId,required:true,index:true},provider:{type:String,enum:providers,required:true},browserHash:String,verifier:String,version:Number,expiresAt:{type:Date,expires:0,required:true},
   }));
@@ -31,8 +32,33 @@ module.exports=function registerAccountConnections(app,auth,{User,mongoose}){
     res.set('Cache-Control','no-store');
     try{
       const user=await User.findById(req.user.userId).select('socialConnections +githubTokenEncrypted').lean();if(!user)return res.status(404).json({message:'Account not found.'});
-      const result={};for(const provider of providers){let configured=true;if(provider!=='github'){try{settings(provider)}catch{configured=false}}const connection=user.socialConnections?.[provider];result[provider]={configured,connected:!!connection,...(provider==='github'?{repositoryAccess:!!user.githubTokenEncrypted}:{}),...(connection?{name:connection.name,username:connection.username,profileUrl:connection.profileUrl,connectedAt:connection.connectedAt}:{})};}res.json(result);
+      const result={};for(const provider of providers){let oauthConfigured=false;if(provider==='linkedin'){try{settings(provider);oauthConfigured=true}catch{}}const connection=user.socialConnections?.[provider];result[provider]={configured:true,oauthConfigured,connected:!!connection,...(provider==='github'?{repositoryAccess:!!user.githubTokenEncrypted}:{}),...(connection?{name:connection.name,username:connection.username,profileUrl:connection.profileUrl,connectedAt:connection.connectedAt}:{})};}res.json(result);
     }catch{res.status(500).json({message:'Could not load connected accounts.'});}
+  });
+  app.put('/api/account/connections/linkedin/token',auth,async(req,res)=>{
+    res.set('Cache-Control','no-store');
+    const user=String(req.user.userId),token=typeof req.body.token==='string'?req.body.token.trim():'';
+    if(token.length<20||token.length>4096||!/^[A-Za-z0-9._~+\/=-]+$/.test(token))return res.status(400).json({message:'Enter a LinkedIn OAuth access token, not a password, cookie, client secret, or ID token.'});
+    if(linkingLinkedIn.has(user))return res.status(409).json({message:'Wait for the current LinkedIn connection attempt to finish.'});
+    linkingLinkedIn.add(user);
+    try{
+      const account=await User.findByIdAndUpdate(user,{$inc:{'socialConnectionVersions.linkedin':1}},{new:true}).select('socialConnectionVersions').lean();
+      if(!account)return res.status(404).json({message:'Account not found.'});
+      const response=await fetch('https://api.linkedin.com/v2/userinfo',{redirect:'error',signal:AbortSignal.timeout(20000),headers:{Authorization:`Bearer ${token}`,Accept:'application/json','User-Agent':'AssignmentTracker'}});
+      if(response.status===401)return res.status(400).json({message:'LinkedIn rejected this access token. Check that it is a valid, unexpired OAuth access token.'});
+      if(response.status===403)return res.status(403).json({message:'This token cannot read LinkedIn profile information. Obtain a token with openid and profile through an app with Sign In with LinkedIn using OpenID Connect enabled.'});
+      if(response.status===429)return res.status(429).json({message:'LinkedIn is limiting requests. Wait before trying again.'});
+      if(!response.ok)throw new Error('LinkedIn unavailable');
+      const text=await response.text();if(text.length>100000)throw new Error('Profile too large');
+      const profile=JSON.parse(text);
+      if(typeof profile.sub!=='string'||!profile.sub||profile.sub.length>256)throw new Error('Invalid LinkedIn profile');
+      const connection={providerId:profile.sub,username:'',name:String(profile.name||[profile.given_name,profile.family_name].filter(value=>typeof value==='string').join(' ')||'LinkedIn member').slice(0,200),profileUrl:null,connectedAt:new Date(),mode:'manual-token'};
+      // This integration links profile fields only. The supplied token is not retained.
+      const result=await User.updateOne({_id:user,'socialConnectionVersions.linkedin':account.socialConnectionVersions.linkedin},{$set:{'socialConnections.linkedin':connection}});
+      if(!result.matchedCount)return res.status(409).json({message:'The connection was changed or disconnected. Try again.'});
+      res.json({connected:true,name:connection.name,connectedAt:connection.connectedAt});
+    }catch{return res.status(502).json({message:'Could not connect LinkedIn. Check the token, its profile permissions, and try again.'});}
+    finally{linkingLinkedIn.delete(user);}
   });
   app.post('/api/account/connections/:provider/start',auth,async(req,res)=>{
     const provider=req.params.provider;if(!providers.includes(provider))return res.status(404).json({message:'Unknown account provider.'});
