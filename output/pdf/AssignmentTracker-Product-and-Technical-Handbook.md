@@ -1,6 +1,6 @@
 # How to use this handbook
 
-This is a source-based guide to Sarveshwar Senthil Kumar's AssignmentTracker, updated on October 28, 2026. It combines a complete product manual, an architecture reference, guided workflows and engineering notes. It describes the implementation without assuming that every feature has passed runtime testing or works with every external service.
+This is a source-based guide to Sarveshwar Senthil Kumar's AssignmentTracker, updated on November 4, 2026. It combines a complete product manual, an architecture reference, guided workflows and engineering notes. It describes the implementation without assuming that every feature has passed runtime testing or works with every external service. This Markdown powers the in-app handbook; the accompanying PDF is the downloadable edition.
 
 ## Three ways to read it
 - Getting started: read Product overview, Architecture and Setup, then follow the guided end-to-end workflow.
@@ -21,9 +21,113 @@ Code takes precedence over older documentation. For example, the assistant can e
 
 Sources: README.md; frontend/src/App.jsx; frontend/src/components/DocumentEditor.jsx; backend/assistantEditor.js.
 
-# October 28 edition: recent features and update numbers
+# November 4 edition: current features and setup
 
-This edition retains the complete product manual and technical chapters and adds the recent implementation changes below. Update numbers refer to the numbered project history in LOGBOOK.md, not semantic application versions. This edition covers application changes through Update 282 (commit 5d82697). Update 283 records creation of the separate history logbook. Documentation and source inspection are not evidence that a feature has passed runtime testing.
+This edition includes the current feature breakdown and application changes through Update 398 in LOGBOOK.md. Update 399 records the separate logbook refresh. Update numbers identify history entries, not product versions. The current instructions below supersede earlier descriptions where behavior has changed. No application tests, builds, provider probes, browser QA or PDF visual verification were run for this edition, per repository instructions.
+
+## Find the right workspace
+
+- Tasks, Calendar, Documents, Home and Workspace share your signed-in account's supported records.
+- Prep now includes Interview coach, Cold emails, Interview practice, Question bank, Resumes & templates, Cover letters and Saved jobs. Switching tools preserves mounted sessions; leaving Prep or reloading clears temporary interview/email work.
+- Account → Appearance offers Light, Dark and Match device. The system choice follows the browser/device setting live; fixed modes ignore device changes. Document page colors, external sites and Daily Events keep their own appearance controls.
+- Phones use a navigation menu and swipeable Prep tool cards. Task boards and tablet workspace windows stack at narrower widths; long tables, repository files and full-title event calendars scroll inside their regions.
+- Checkboxes share rounded slate styling, with checked/mixed states, keyboard focus, disabled appearance and touch sizing in both themes. Pill switches are separate controls.
+
+Sources: frontend/src/components/PrepPage.jsx; frontend/src/components/AppearanceSettings.jsx; frontend/src/mobile.css; frontend/src/light-mode.css; frontend/src/checkboxes.css.
+
+## Progress tasks - Updates 373-374
+
+In Tasks, enter Apply to jobs, enable Track progress over multiple days, set a target of 200 and unit applications, then add the task. For an existing task, expand it or open its details and choose Daily progress → Set a progress target.
+
+- Log 20 for today to see 20 / 200 and 180 remaining; log 30 on another day to see 50 / 200 and 150 remaining.
+- Multiple entries on one day add together. Daily history groups entries and shows today's amount.
+- Remove an incorrect entry to recalculate totals. Edit target changes the target/unit without deleting history.
+- Amounts and targets are positive whole numbers. Progress can exceed the target; actual totals remain visible while the bar caps at 100%.
+- Task status remains manual even when the target is reached.
+
+Progress saves with the main platform's account-owned tasks, not Daily Events. Entry dates follow the account time zone when entered and keep their calendar labels if the zone changes. Stable entry IDs prevent the same retried request from counting twice; the backend allows up to 10,000 entries per task. Restart the backend for the progress routes; no new package is needed.
+
+Sources: frontend/src/components/TaskProgress.jsx; backend/taskProgress.js; backend/server.js.
+
+## Adaptive Interview coach - Update 385
+
+Open Prep → Interview coach, choose a saved resume and describe the company, role, interview format and areas you want to practice. Paste relevant job requirements if useful, then start the chat.
+
+- Answer one question and choose Send answer & get feedback. The coach evaluates the latest answer and adapts the next question using the session history.
+- Feedback includes a 0-5 coaching score, strengths, improvements, a stronger answer structure and resume cross-checks.
+- Supported, not found and needs clarification labels are AI interpretations. Missing resume evidence does not prove a claim false; verify quotations and example answers against your experience.
+- Finish practice ends early, while Continue practice resumes when another question is available. Sessions support up to ten evaluated answers, with an average score and transcript.
+- Cancellation or a failed request preserves the draft answer. Starting a different interview explicitly clears the session.
+
+Use the existing Gemini key and allowed generation, resume and previous-message scopes in Account. Only the chosen resume with supported saved text replacements, supplied context and session question/answer history are sent. Unsaved document edits are excluded. The session stays in page memory, unlike the main assistant's saved conversations; leaving Prep or reloading clears it. Scores are practice guidance, not hiring predictions.
+
+Sources: frontend/src/components/InterviewCoach.jsx; backend/resumeQuiz.js; backend/aiAccess.js.
+
+## Cold emails and personal writing voice - Updates 389-390
+
+Open Prep → Cold emails. Describe your outreach goal, such as requesting a short conversation. Optional recipient/company details, target role, sender name, relevant background, verified personalization and a selected resume make the draft more specific. Choose Professional, Friendly or Short and direct.
+
+Under Make it sound like you, paste a short message you actually wrote, select a saved writing document, or enter voice preferences such as short sentences and contractions. Remove quoted replies and details you do not want to share. Pasted writing takes priority over a selected writing document.
+
+The resume and explicit background supply facts; writing samples guide phrasing and formality. The generator is instructed to avoid importing sample names or claims, inflating credentials and inventing metrics, relationships or research. Without usable writing evidence, voice is labeled an approximation. A conflicting fact can be flagged rather than guessed. Review all generated material yourself.
+
+- Generate cold email produces an editable subject and message plus a brief explanation of the voice evidence used.
+- Copy subject & email copies the complete draft. Download .txt keeps a local text copy.
+- Use my edited draft as a writing sample carries corrections into the next generation in this session.
+- Regeneration replaces the earlier version only after success; copy or download any version you want to retain first.
+- The feature does not send emails, attach files, contact recipients or submit applications.
+
+Supplied fields, writing samples and optional selected documents with saved text replacements are sent to Gemini. Unselected account documents, connected repositories and unsaved edits are excluded. Writing documents require their category's AI permission. Leaving Prep or reloading clears the draft and temporary form state; selected source documents retain their account storage. Restart the backend for the email endpoint.
+
+Sources: frontend/src/components/ColdEmailGenerator.jsx; backend/coldEmails.js; backend/aiAccess.js.
+
+## GitHub token connection - Update 387
+
+Open Account → Connected accounts → GitHub. Create a fine-grained personal access token in GitHub settings, select the resource owner and repositories, choose an expiration and grant Contents: Read-only. Metadata read access is used for repository listing. Organization policy or approval can limit access.
+
+Paste the token into the password field and save, then choose Browse repositories. Load additional pages as needed; open a repository to browse its default branch, folders and text files up to 256 KB. Use Open on GitHub for large/binary files, special entries or truncated directories.
+
+This flow needs no GITHUB_CLIENT_ID or GITHUB_CLIENT_SECRET. It connects access to an existing platform account; it is not GitHub sign-in. The backend validates and encrypts the saved token using the existing server secret and account binding. Tokens are not returned in responses or saved in browser storage. The repository browser performs reads, not pushes/commits, and does not automatically send repository content to AI. Replace token updates access; Disconnect removes the saved credential. Revoke the token in GitHub settings to invalidate it there. Encryption-secret rotation can require reconnecting.
+
+Sources: frontend/src/components/GitHubConnection.jsx; backend/githubConnection.js; backend/accountConnections.js.
+
+## LinkedIn manual token connection - Update 388
+
+Account → Connected accounts → LinkedIn accepts a valid OAuth access token with openid and profile access. LinkedIn still requires a developer application with its OpenID Connect product to issue the token; the Developer Portal token tools describe how to obtain one. Manual-token linking does not require that app's client ID or secret on this server.
+
+Paste the access token, not a password, browser cookie, client secret or ID token. The backend saves only the supported subject ID, name and connection date, then discards the token. Reconnect with token refreshes the profile. Disconnect removes the local link; provider-side authorization revocation is separate. This does not unlock jobs, messages, contacts, full work history or posting. If the deployment separately configures website OAuth credentials and callback URLs, Connect on LinkedIn instead can use that optional flow.
+
+Sources: frontend/src/components/LinkedInConnection.jsx; backend/accountConnections.js.
+
+## Appearance and mobile layouts - Updates 393-398
+
+Account → Appearance → Color mode supports Light, Dark and Match device. Selection applies immediately and saves to the account. A cached signed-in preference restores appearance before page paint; the server refreshes preferences at sign-in. Match device stores that choice rather than a fixed color, so each phone/tablet/computer resolves its own appearance and follows changes while open. Failed saves restore the prior setting and display an error.
+
+Shared surfaces, task controls, native forms, Prep tools, policies and editor chrome follow the palette. Document page colors, PDF ink, images and canvas coordinates are not changed by this appearance setting; no whole-page inversion filter is applied. External sites and the Daily Events companion keep their own controls.
+
+On touch devices, task actions are visible without hover and controls have larger targets. Progress/email forms, account connections and policy navigation adapt to phones. Tablets stack workspace windows rather than requiring desktop dragging. Device/browser verification remains the user's responsibility; these are source descriptions, not measured device-coverage claims.
+
+Sources: frontend/src/components/AppearanceSettings.jsx; frontend/src/contexts/AuthContext.jsx; frontend/public/appearance-init.js; frontend/src/mobile.css; frontend/src/light-mode.css; frontend/src/checkboxes.css; frontend/src/components/WorkflowWorkspace.jsx.
+
+## Policies and database connection delays - Updates 386, 391-392
+
+Current documents are Terms 1.11 and Privacy 1.12, dated November 3, 2026. They cover current task/career tools, selected-source AI processing, writing samples, credentials, temporary drafts, Daily Events storage and reset limits. Operator/contact/deployment details remain drafts requiring finalization.
+
+Policy checks distinguish unknown from confirmed missing/outdated acceptance. Loading, failed or timed-out checks do not themselves record agreement or display a missing-agreement prompt. Confirmed outstanding agreement still requires explicit acceptance; document reading and sign-out remain available. The backend caches confirmed results and bounds lookup waiting, but other database-dependent operations can still fail during an outage.
+
+Sources: frontend/src/lib/legalPolicy.js; frontend/src/components/PolicyGate.jsx; frontend/src/components/PolicySupport.jsx; backend/policyStatus.js; backend/server.js.
+
+## Documentation and deployment
+
+The hidden /#/logbook page includes the current feature/setup breakdown, numbered history, search, selection, refresh and Markdown download. The hidden /#/handbook page displays this manuscript and offers the PDF. Both read maintained documentation, not a runtime activity log.
+
+Deploy LOGBOOK.md at the repository root and both handbook files under output/pdf beside the backend. Reload the handbook page after updating files. Regenerate the PDF when the manuscript changes; its linked contents, bookmarks and source-extracted shortcut/API appendices are generated together. No live endpoints are called to produce those inventories.
+
+Sources: LOGBOOK.md; frontend/src/components/UpdateLogbookPage.jsx; frontend/src/components/HandbookPage.jsx; backend/server.js; tmp/pdfs/build_handbook.py.
+
+# Earlier features: October 28 reference
+
+This retained reference explains features introduced through Update 282 (commit 5d82697); Update 283 records creation of the history logbook. Read the November 4 chapter first for current career tools, connections, appearance, policies and setup. This chapter is not the current coverage cutoff. Update numbers refer to LOGBOOK.md, not semantic application versions.
 
 ## Quick update map
 - Update 271: optional desktop browser inside the study phone.
@@ -203,13 +307,13 @@ Sources: backend/server.js; backend/folderAttachments.js; backend/taskDeletionRe
 # Setup, configuration and deployment boundaries
 
 ## Run the main application
-From the repository root, install dependencies in backend and frontend with npm install. Copy backend/.env.example to backend/.env and configure MONGODB_URI and a strong JWT_SECRET. Start backend with npm run dev in one terminal and frontend with npm run dev in another. Open http://localhost:3000. Use Node.js 18 or newer as required by the existing backend code; choose a supported runtime for your own deployment.
+Install dependencies with npm install in backend and frontend. Copy backend/.env.example to backend/.env and configure MONGODB_URI and a strong JWT_SECRET. From frontend, npm run dev starts Vite and launches the backend through the current development helper. Open the URL printed by Vite, normally http://localhost:3000. If running npm run dev separately in backend, use npm run dev:frontend-only in frontend to avoid launching a second backend. Use a runtime supported by the current project; the existing APIs require Node.js 18 or newer. No application startup or live API request was run for this handbook update.
 
 ## Features with extra setup
 - Transactions: use MongoDB Atlas or a replica set for undo, reordering, folder operations, attachments and other transaction-backed writes.
 - AI: save a Gemini key in Account, or configure GEMINI_API_KEY on the backend. GEMINI_MODEL selects the provider model; compatible model availability and quotas must be verified in the provider account.
 - Credential encryption: configure a stable AI_KEY_ENCRYPTION_KEY, or understand the fallback derived from JWT_SECRET. Changing these secrets can invalidate stored encrypted keys.
-- OAuth: configure GitHub/LinkedIn client credentials, exact callback URLs and public application/API URLs. Production account linking expects HTTPS with a same-host /api proxy.
+- Connected accounts: GitHub uses per-user personal tokens with no server GitHub app credentials. LinkedIn accepts a supplied OAuth token; only its optional website flow needs app credentials and callback/public URLs. Use HTTPS for a deployed service carrying credentials.
 - OneNote: native preservation needs desktop OneNote on the Windows backend machine; compatibility conversion has its own Python requirements.
 
 ## Prepare the workspace
@@ -721,7 +825,7 @@ Registration/login use bcrypt password hashing and signed JWTs. The implementati
 The existing CORS and token-storage choices should not be presented as a completed production security review. localStorage tokens are exposed to successful script injection. Potential improvements include a reviewed cookie/token strategy, tighter origins, stronger upload/content policies, account abuse controls and dependency maintenance.
 
 ## Connected identities
-GitHub/LinkedIn connections link a provider profile to the current account; they do not replace application login or automatically import repositories, contacts or social activity. Authorization uses expiring single-use state tied to a browser cookie; GitHub also uses PKCE. Provider tokens fetch profile information and are discarded. Disconnect invalidates pending attempts and removes the local link; provider-side revocation is separate.
+GitHub uses an encrypted per-user personal access token for permitted repository/folder/text-file browsing; it does not require server-side GitHub app credentials and does not replace application login. LinkedIn accepts a manually supplied OAuth access token for basic profile linking, then discards it. LinkedIn token issuance still requires an appropriate developer app. An optional configured LinkedIn website flow uses expiring single-use state and a browser cookie. Disconnect invalidates pending attempts and removes the local link and supported saved credential; provider-side revocation is separate. See the current-feature chapter for setup and permission boundaries.
 
 ## Destructive account reset
 Reset requires the current password and RESET confirmation, uses a transaction, and clears application data including recovery/history while preserving login identity. It is not undoable. Per-process write guards must be coordinated before deploying multiple backend instances. Do not reset an account containing valuable data without retaining any required exports first.
@@ -753,27 +857,34 @@ Sources: frontend/src/lib/download.js; DocumentEditor.jsx; PDFEditor.jsx; TaskDe
 # Separate daily-events site and QR poster
 
 ## What it is
-The daily-events directory is a standalone frontend project, separate from the authenticated AssignmentTracker app. It summarizes campus events for residents who scan a QR code. It uses plain HTML/CSS/JavaScript and a published events.json file; no backend or build step is required to serve that directory.
+The daily-events directory is a standalone campus guide, separate from the authenticated Assignment Tracker. It uses plain HTML/CSS/JavaScript with a published events.json file. Static hosting needs no build; the optional dependency-free Node server runs fresh public-event collection from Reload events. Personal events and display preferences remain browser-local.
 
 ## Features
-- Month calendar and selected-day agenda with event details/source links.
-- Previous/next month, Today, date selection and Next event navigation.
-- Search, categories and a free-food filter based on source fields.
-- America/Chicago date boundaries, overlap handling and midnight rollover when viewing Today.
-- Dark mode by default with a remembered light-mode toggle.
-- Automatic JSON reload approximately every minute, retaining the last loaded collection if reload fails.
-- Manual file import for local preview; automatic reload resumes through Reload events.
-- Public URL entry, locally generated QR code, printable light poster and SVG QR download.
+- Month calendar, selected-day agenda, full details and source/RSVP links; Campus events/My events tabs appear near the calendar as well as at the top.
+- Add my event creates a browser-local personal event with Central dates/times, location and description. Delete removes a personal event; Remove for me hides a public entry, with Restore removed campus events to bring hidden items back.
+- My events shows only personal events in a calendar and full list. It uses the same browser storage as the campus view and does not fetch account data.
+- Expand day shows all matching events and full descriptions, with previous/next-day controls and Back to calendar. Calendar + more and mobile count buttons also open it.
+- Happening now at the top shows a count and opens a live lineup from events with an active start/end interval. It clears search filters on entry. An event without an end time cannot be marked live.
+- Show every event's full title switches between compact previews and uncapped wrapped titles. Wide full-title calendars scroll horizontally on smaller screens.
+- Five overview cards show available stored events, events today, the selected-day lineup, still-to-come events and the next selected-day start.
+- Search, categories and a free-food filter apply to the available event data. Times, day boundaries and overlap use America/Chicago.
+- Forest, Ocean, Plum and Sandstone palettes each support light/dark appearance. Choices are saved in browser storage; the main app's account mode is separate.
+- Manual JSON import previews a file locally and pauses automatic reload until Reload events. Importing does not publish the file.
+- Public URL entry, local QR generation, light printed posters and SVG QR download support sharing. No external QR service receives the URL.
 
 ## Data freshness is not automatic scraping
-The browser's minute refresh only reads events.json. The separate scraper must update/publish that file. Importing a file in one visitor's browser does not update the hosted dataset. The interface shows update time and warnings for stale/partial exports. Inspect the actual hosted file before claiming it contains current events; README passages about its included data reflect different stages of the project.
+On the Node server, Reload events starts a public TXST collection and the page polls progress. Collections can take several minutes because details are fetched sequentially. Complete collections replace the shared export, including a complete empty result; failed/incomplete collections keep the earlier export. Simultaneous requests share the running job, and new collections have a one-minute cooldown. The browser's minute check reads saved data; it does not automatically start another collection.
+
+On a static host, Reload events only rereads events.json and explains that a collector is needed for fresh source data. Refresh the export separately with node backend/scrapeTxstEvents.js --out daily-events/events.json and redeploy it. The page displays update timestamps and stale/partial warnings; loaded data and happening-now counts are not a guarantee that the upstream schedule is current.
 
 ## Running and explaining it
-From the repository root: python -m http.server 8080 --directory daily-events. Open http://localhost:8080. Use a real public URL in a printed QR code, not localhost. Host the full directory including vendor assets and events.json.
+From the repository root, use node daily-events/server.js and open http://localhost:8080. Keep the terminal open; Ctrl+C stops it. No npm install, database or API key is needed. For a phone on the same network, run node daily-events/server.js --lan and open a printed Wi-Fi/LAN address from the terminal. Firewall rules or client isolation may prevent access. Devices that can reach that server can use its public page/refresh endpoints.
 
-Design rationale: The standalone site separates public read-only event distribution from the private student workspace. Static hosting simplifies delivery, but fresh-data publishing remains a separate responsibility.
+Personal events, removals and preferences are specific to the browser profile and address/port. They do not synchronize to the main account or phone and can disappear when clearing site data or ending private browsing. A static-only preview can still use python -m http.server 8080 --directory daily-events, but cannot execute the collector. For a publicly printed QR poster, use a reachable public URL and deploy all site assets, including vendor scripts and the export. LAN addresses normally work only on that network.
 
-Sources: daily-events/README.md; daily-events/index.html; daily-events/app.js; backend/scrapeTxstEvents.js.
+Design rationale: public event distribution is separate from account-owned work, and personal modifications remain local. The optional server adds source refresh without requiring the main application's authentication or database. Progress tasks were briefly introduced here and then removed; the current implementation belongs in the main Tasks page.
+
+Sources: daily-events/README.md; daily-events/index.html; daily-events/app.js; daily-events/server.js; daily-events/schemes.css; backend/scrapeTxstEvents.js.
 
 # Guided end-to-end workflow
 

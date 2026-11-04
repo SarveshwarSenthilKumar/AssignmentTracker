@@ -4,9 +4,9 @@ Updated: November 4, 2026 (America/Chicago).
 
 ## Numbering and coverage
 
-This logbook covers all 398 commits reachable from HEAD `d9c77a4`, with committed updates numbered 001–398. Commit numbers were assigned oldest to newest and existing numbers are preserved. These are documentation references, not application release versions. Dates and original subjects come from Git history. Unmerged branches and work outside this checkout are not covered.
+This logbook covers all 399 commits reachable from HEAD `f6e5afa`, with committed updates numbered 001–399. Commit numbers were assigned oldest to newest and existing numbers are preserved. These are documentation references, not application release versions. Dates and original subjects come from Git history. Unmerged branches and work outside this checkout are not covered.
 
-Update 399 records this documentation/UI refresh and has no commit hash yet. Append the next unused number for future work; never renumber existing entries. Multiple changes in one commit share its update number. Original subjects are historical descriptions; expanded notes explain current behavior and later reversions.
+Update 400 records the handbook refresh and has no commit hash yet. Append the next unused number for future work; never renumber existing entries. Multiple changes in one commit share its update number. Original subjects are historical descriptions; expanded notes explain current behavior and later reversions.
 
 ## Verification and setup
 
@@ -43,7 +43,8 @@ This is a source-based summary of the implemented feature set as of November 4, 
 
 | Update | Date | Change | Commit |
 | --- | --- | --- | --- |
-| [Update 399](#update-399) | 2026-11-04 | Refresh feature breakdown and numbered history | `pending` |
+| [Update 400](#update-400) | 2026-11-04 | Current product/technical handbook and PDF | `pending` |
+| [Update 399](#update-399) | 2026-11-04 | Refresh feature breakdown and numbered history | `f6e5afa` |
 | [Update 398](#update-398) | 2026-11-04 | Restyled checkboxes to match the design | `d9c77a4` |
 | [Update 397](#update-397) | 2026-11-03 | Implemented a match device tone toggle | `348077a` |
 | [Update 396](#update-396) | 2026-11-03 | Implemented a complete dark and light mode toggle | `c02aa33` |
@@ -70,9 +71,30 @@ This is a source-based summary of the implemented feature set as of November 4, 
 | [Update 375](#update-375) | 2026-11-02 | Added more color schemes | `210d995` |
 | [Update 374](#update-374) | 2026-11-02 | Fully implemented progress tasks for tracker | `ad3f52b` |
 
+## Update 400
+
+**Date:** 2026-11-04. **Commit:** pending (working-tree handbook refresh).
+
+**Change:** Update the product and technical handbook and its downloadable PDF for current features.
+
+Added current walkthroughs for progress tasks, adaptive interview coaching, personalized cold emails, GitHub and LinkedIn token connections, account appearance, touch layouts and policy availability. Replaced obsolete Daily Events/static-only and GitHub OAuth setup instructions. Preserved earlier detailed product and engineering chapters as references. The PDF uses a November 4 cover/footer, linked contents/bookmarks and current source-extracted shortcut/API appendices. The authoring script no longer rewrites the maintained Markdown as a rendering side effect.
+
+**Setup:** Deploy the Markdown/PDF under output/pdf alongside the backend, then reload /#/handbook. No new route, dependency or database migration is needed.
+
+**Verification:** PDF generation completed. Visual verification, automated tests, application builds, linters, live API probes and browser QA were left to the user per repository instructions. A generated PDF is not a claim of verified layout or application behavior.
+
+**Changed files:**
+
+- `output/pdf/AssignmentTracker-Product-and-Technical-Handbook.md`
+- `output/pdf/AssignmentTracker-Product-and-Technical-Handbook.pdf`
+- `tmp/pdfs/build_handbook.py`
+- `tmp/pdfs/handbook-map.json`
+- `LOGBOOK.md`
+- `README.md`
+
 ## Update 399
 
-**Date:** 2026-11-04. **Commit:** pending (working-tree documentation and UI update).
+**Date:** 2026-11-04. **Commit:** `f6e5afa110c39cd039b5ecab124c753923c8e260`.
 
 **Change:** Refresh the feature breakdown and complete the numbered update history through November 4.
 

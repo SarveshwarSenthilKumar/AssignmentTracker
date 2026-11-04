@@ -14,6 +14,8 @@ ROOT=Path(__file__).resolve().parents[2]
 OUT=ROOT/'output/pdf'
 SOURCE=OUT/'AssignmentTracker-Product-and-Technical-Handbook.md'
 PDF=OUT/'AssignmentTracker-Product-and-Technical-Handbook.pdf'
+EDITION_DATE='November 4, 2026'
+EDITION_FOOTER='04 NOV 2026'
 NAVY=colors.HexColor('#142B45'); ACCENT=colors.HexColor('#247C86'); INK=colors.HexColor('#21364A'); MUTED=colors.HexColor('#647888'); LINE=colors.HexColor('#D9E3E8'); PALE=colors.HexColor('#EFF5F6')
 for name,file in [('Body','calibri.ttf'),('Body-Bold','calibrib.ttf'),('Body-Italic','calibrii.ttf'),('Body-BoldItalic','calibriz.ttf')]:
     pdfmetrics.registerFont(TTFont(name,str(Path('C:/Windows/Fonts')/file)))
@@ -52,7 +54,7 @@ class SystemMap(Flowable):
         c.setFillColor(NAVY);c.setFont('Body-Bold',9);c.drawString(8,49,'LOCAL UTILITIES')
         c.setFillColor(MUTED);c.setFont('Body',8.5);c.drawString(8,33,'PDFs, Markdown, OCR, calculation, graphs')
         c.setFillColor(NAVY);c.setFont('Body-Bold',9);c.drawString(258,49,'EXTERNAL BOUNDARIES')
-        c.setFillColor(MUTED);c.setFont('Body',8.5);c.drawString(258,33,'Gemini, Canvas, public events, OAuth')
+        c.setFillColor(MUTED);c.setFont('Body',8.5);c.drawString(258,33,'Gemini, Canvas, public events, account tokens')
         c.setStrokeColor(LINE);c.line(0,17,475,17)
 
 class Cover(Flowable):
@@ -64,7 +66,7 @@ class Cover(Flowable):
         c.setFont('Body',24);c.drawString(31,491,'Every feature.');c.drawString(31,455,'How it works.');c.drawString(31,419,'Technical reference.')
         c.setStrokeColor(colors.HexColor('#456075'));c.line(31,387,443,387)
         c.setFont('Body',12);c.drawString(31,358,'Prepared for Sarveshwar Senthil Kumar')
-        c.setFillColor(colors.HexColor('#BDD0DF'));c.setFont('Body',10);c.drawString(31,330,'Source-based edition | October 28, 2026')
+        c.setFillColor(colors.HexColor('#BDD0DF'));c.setFont('Body',10);c.drawString(31,330,f'Source-based edition | {EDITION_DATE}')
         c.drawString(31,308,'React / Express / MongoDB / PDF tools / Gemini')
         c.setFillColor(ACCENT);c.setFont('Body-Bold',11);c.drawString(0,190,'A COMPLETE PRODUCT AND TECHNICAL REFERENCE')
         for i,line in enumerate(['Feature-by-feature instructions, architecture and data flow,', 'guided workflows, engineering notes, design tradeoffs,', 'limitations, source references and implementation inventories.']):
@@ -83,7 +85,7 @@ class Handbook(BaseDocTemplate):
             c.setFillColor(MUTED);c.setFont('Body-Bold',8);c.drawString(60,810,'ASSIGNMENTTRACKER');c.setFont('Body',8);c.drawRightString(535,810,'FEATURES / ARCHITECTURE / TECHNICAL REFERENCE')
             c.setStrokeColor(LINE);c.line(60,798,535,798)
         c.setStrokeColor(LINE);c.line(60,43,535,43)
-        c.setFillColor(MUTED);c.setFont('Body',8);c.drawString(60,28,'Source-based edition | 26 OCT 2026');c.drawRightString(535,28,f'{doc.page:02d}')
+        c.setFillColor(MUTED);c.setFont('Body',8);c.drawString(60,28,f'Source-based edition | {EDITION_FOOTER}');c.drawRightString(535,28,f'{doc.page:02d}')
         c.restoreState()
     def afterFlowable(self,flowable):
         if isinstance(flowable,Paragraph) and flowable.style.name=='Chapter':
@@ -98,7 +100,7 @@ def table(rows,widths):
 manuscript=SOURCE.read_text(encoding='utf-8')
 manuscript=manuscript.replace('backend/oneNoteImport.js where present','backend/oneNoteImport.js').replace('backend/workflowLayout.js where present','backend/workspaceSettings.js').replace("daily-events/app.js or the directory's current script entry",'daily-events/app.js')
 manuscript=manuscript.replace('Insert controls allow supported content such as text/images and page imports.', 'Insert includes files/images, PDF pages, shapes, image tables and stamps. Tables accept cell entry or pasted spreadsheet cells up to 12 rows by 8 columns, then insert as an image. Stamps have editable text and presets such as APPROVED, DRAFT, REVIEWED and CONFIDENTIAL. Shapes and other inserts can be moved and resized. PDF merge accepts multiple files, import ranges and before/after/start/end placement.')
-SOURCE.write_text(manuscript,encoding='utf-8')
+# Normalize rendering text without silently rewriting the maintained manuscript.
 
 story=[Cover(),PageBreak(),p('CONTENTS','eyebrow'),Paragraph('Find your workflow',ParagraphStyle('ContentsTitle',parent=styles['chapter']))]
 toc=TableOfContents();toc.levelStyles=[ParagraphStyle('TOC',fontName='Body',fontSize=8.8,leading=12,textColor=INK,spaceBefore=0,leftIndent=0,rightIndent=18)];toc.dotsMinLevel=0
@@ -156,5 +158,5 @@ story.append(table(rows,[95,190,190]));story.append(Spacer(1,16));story.append(p
 
 doc=Handbook(PDF);doc.multiBuild(story)
 import json
-(ROOT/'tmp/pdfs/handbook-map.json').write_text(json.dumps({'chapters':doc.chapters,'shortcut_count':len(shortcuts),'route_declaration_count':sum(map(len,api_groups.values()))},indent=2),encoding='utf-8')
+(ROOT/'tmp/pdfs/handbook-map.json').write_text(json.dumps({'edition_date':EDITION_DATE,'verification':'PDF generated; visual verification left to user per repository instructions.','chapters':doc.chapters,'shortcut_count':len(shortcuts),'route_declaration_count':sum(map(len,api_groups.values()))},indent=2),encoding='utf-8')
 print(f'Created {PDF.name}; {len(doc.chapters)} indexed sections, {len(shortcuts)} registry shortcuts, {sum(map(len,api_groups.values()))} route declarations.')
