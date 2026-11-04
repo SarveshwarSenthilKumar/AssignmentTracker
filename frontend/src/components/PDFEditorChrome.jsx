@@ -101,7 +101,8 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
     {action(LineChart,'Detect selected number line',utilities.onDetectNumberLine,{active:tools.current==='number-line',detail:'Drag around a labeled number line; AI reads its range and tick spacing for review'})}
     {action(LineChart,'Generate number line',utilities.onNumberLine,{detail:'Choose a range and tick spacing, then insert on the page'})}
     {(tools.current==='calculate'||tools.current==='function'||tools.current==='graph')&&<label className="pc-field">Recognition<select value={utilities.recognition} onChange={event=>utilities.onRecognition(event.target.value)}><option value="auto">Auto · AI fallback</option><option value="vision">Handwriting / AI</option><option value="text">Text only · local</option></select></label>}
-    {action(Copy,'Arrow copy',utilities.onArrowCopy,{active:['arrow-copy','arrow-paste'].includes(tools.current),disabled:utilities.copying,detail:'Select any region, then draw an arrow to place a visual copy'})}
+    <label className="pc-checkbox"><input type="checkbox" checked={['arrow-copy','arrow-paste'].includes(tools.current)} onChange={utilities.onArrowCopy}/>Arrow copy</label>
+    <p className="pc-menu-note">Turn on to select a region and draw an arrow to paste it. Stays on for more copies. Turn off to return to the pen.</p>
     <hr/>{action(Copy,utilities.copying?'Copying region…':'Copy region',utilities.onCopyRegion,{active:tools.current==='snippet',disabled:utilities.copying,detail:'Drag a box around the content to copy'})}
     {action(Files,'Paste snippet',utilities.onPaste,{disabled:!utilities.canPaste,detail:utilities.snippetReady?'Copied content ready to paste':'Copy a region first'})}
     <hr/>{action(Pen,'Stylus setup',utilities.onStylus)}
