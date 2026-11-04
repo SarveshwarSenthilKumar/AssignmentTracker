@@ -2,6 +2,7 @@ import {useEffect,useRef,useState} from 'react'
 import {Github,Linkedin,ExternalLink,Loader2,Link2,Unlink} from 'lucide-react'
 import {readApiJson} from '../lib/apiResponse'
 import './AccountConnections.css'
+import GitHubConnection from './GitHubConnection'
 
 const providers=[['github','GitHub',Github],['linkedin','LinkedIn',Linkedin]]
 export default function AccountConnections({token}){
@@ -29,12 +30,12 @@ export default function AccountConnections({token}){
   }
   return <section className="account-connections" aria-labelledby="connected-accounts-title"><h3 id="connected-accounts-title">Connected accounts</h3><p>Link your GitHub and LinkedIn profiles to your account.</p>
     {!accounts&&!error&&<p role="status">Loading connections…</p>}
-    <div className="account-connection-grid">{providers.map(([id,label,Icon])=>{const account=accounts?.[id];return <article className="account-connection-card" key={id}><div className="account-connection-heading"><Icon size={24}/><h4>{label}</h4><span className={account?.connected?'is-connected':''}>{account?.connected?'Connected':'Not connected'}</span></div>
+    <div className="account-connection-grid">{providers.map(([id,label,Icon])=>{const account=accounts?.[id];if(id==='github')return <GitHubConnection key={`${token}:github`} token={token} account={account} onChanged={load}/>;return <article className="account-connection-card" key={id}><div className="account-connection-heading"><Icon size={24}/><h4>{label}</h4><span className={account?.connected?'is-connected':''}>{account?.connected?'Connected':'Not connected'}</span></div>
       {account?.connected?<div className="account-connected-profile"><strong>{account.name||account.username||`${label} member`}</strong>{account.username&&<span>@{account.username}</span>}{account.profileUrl&&<a href={account.profileUrl} target="_blank" rel="noopener noreferrer">View profile <ExternalLink size={13}/></a>}<small>Connected {new Date(account.connectedAt).toLocaleDateString()}</small></div>:<p>{id==='github'?'Connect your GitHub name and profile link.':'Connect your LinkedIn member profile. LinkedIn supplies your name through its sign-in product.'}</p>}
       {account&&!account.configured&&<p className="account-connection-setup">Server setup required: configure the {label} OAuth app. See README → Connected accounts.</p>}
       <div className="account-connection-actions"><button type="button" disabled={!account||!account.configured||!!busy} onClick={()=>run(id)}>{busy===id?<Loader2 size={15} className="animate-spin"/>:<Link2 size={15}/>} {account?.connected?'Reconnect':'Connect'} {label}</button>{account?.connected&&<button type="button" disabled={!!busy} onClick={()=>run(id,true)}><Unlink size={15}/>Disconnect</button>}</div>
     </article>})}</div>
-    <p className="account-connection-note">Connections store basic profile details. Authorizing happens on the provider’s website; profile access tokens are discarded after linking. To revoke the provider’s authorization grant as well, remove this app in that provider’s account settings.</p>
+    <p className="account-connection-note">GitHub uses your account’s encrypted personal access token for read-only repository browsing. LinkedIn connects basic profile details through OAuth and discards its access token after linking. These connections do not automatically share data with AI.</p>
     {error&&<p className="account-connection-error" role="alert">{error} <button type="button" disabled={!!busy} onClick={load}>Retry</button></p>}{notice&&<p role="status" className="account-connection-note">{notice}</p>}
   </section>
 }

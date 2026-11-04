@@ -53,6 +53,7 @@ const userSchema = new mongoose.Schema({
   termsAcceptance:{version:String,acceptedAt:Date,method:String},
   privacyAcceptance:{version:String,acceptedAt:Date,method:String},
   socialConnections: { type: mongoose.Schema.Types.Mixed, select: false, default: ()=>({}) },
+  githubTokenEncrypted: { type: String, select: false },
   socialConnectionVersions: { type: mongoose.Schema.Types.Mixed, select: false, default: ()=>({}) },
   aiAccess: { type: mongoose.Schema.Types.Mixed, default: ()=>({}) },
   calendarColors: { type: Map, of: String, default: {} },
@@ -475,6 +476,7 @@ require('./globalSearch')(app,authenticateToken,{mongoose,User,Todo,PDF,Folder,P
 const aiRequests = new Map();
 const aiModel = () => process.env.GEMINI_MODEL?.trim() || 'gemini-3.8-flash';
 require('./accountConnections')(app,authenticateToken,{User,mongoose});
+require('./githubConnection')(app,authenticateToken,{User});
 const requireAIAccess=registerAIAccess(app,authenticateToken,User);
 require('./studyAnswers')(app,authenticateToken,{StudyItem,credentials:assistantCredentials,model:aiModel,requireAIAccess});
 require('./jobFileImport')(app,authenticateToken,{credentials:assistantCredentials,model:aiModel,requireAIAccess});

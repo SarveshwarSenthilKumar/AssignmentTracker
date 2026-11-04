@@ -30,12 +30,13 @@ module.exports=function registerAccountConnections(app,auth,{User,mongoose}){
   app.get('/api/account/connections',auth,async(req,res)=>{
     res.set('Cache-Control','no-store');
     try{
-      const user=await User.findById(req.user.userId).select('socialConnections').lean();if(!user)return res.status(404).json({message:'Account not found.'});
-      const result={};for(const provider of providers){let configured=true;try{settings(provider)}catch{configured=false}const connection=user.socialConnections?.[provider];result[provider]={configured,connected:!!connection,...(connection?{name:connection.name,username:connection.username,profileUrl:connection.profileUrl,connectedAt:connection.connectedAt}:{})};}res.json(result);
+      const user=await User.findById(req.user.userId).select('socialConnections +githubTokenEncrypted').lean();if(!user)return res.status(404).json({message:'Account not found.'});
+      const result={};for(const provider of providers){let configured=true;if(provider!=='github'){try{settings(provider)}catch{configured=false}}const connection=user.socialConnections?.[provider];result[provider]={configured,connected:!!connection,...(provider==='github'?{repositoryAccess:!!user.githubTokenEncrypted}:{}),...(connection?{name:connection.name,username:connection.username,profileUrl:connection.profileUrl,connectedAt:connection.connectedAt}:{})};}res.json(result);
     }catch{res.status(500).json({message:'Could not load connected accounts.'});}
   });
   app.post('/api/account/connections/:provider/start',auth,async(req,res)=>{
     const provider=req.params.provider;if(!providers.includes(provider))return res.status(404).json({message:'Unknown account provider.'});
+    if(provider==='github')return res.status(400).json({message:'GitHub now connects with your personal access token in Account settings. No OAuth app setup is required.'});
     let config;try{config=settings(provider)}catch(error){return res.status(503).json({message:error.message});}
     try{
       const state=randomBytes(32).toString('base64url'),browser=randomBytes(32).toString('base64url'),verifier=randomBytes(48).toString('base64url');
@@ -81,7 +82,7 @@ module.exports=function registerAccountConnections(app,auth,{User,mongoose}){
   });
   app.delete('/api/account/connections/:provider',auth,async(req,res)=>{
     const provider=req.params.provider;if(!providers.includes(provider))return res.status(404).json({message:'Unknown provider.'});
-    try{const result=await User.updateOne({_id:req.user.userId},{$unset:{[`socialConnections.${provider}`]:1},$inc:{[`socialConnectionVersions.${provider}`]:1}});if(!result.matchedCount)return res.status(404).json({message:'Account not found.'});await Pending.deleteMany({user:req.user.userId,provider});res.json({disconnected:true});}catch{res.status(500).json({message:'Could not disconnect account.'});}
+    try{const result=await User.updateOne({_id:req.user.userId},{$unset:{[`socialConnections.${provider}`]:1,...(provider==='github'?{githubTokenEncrypted:1}:{})},$inc:{[`socialConnectionVersions.${provider}`]:1}});if(!result.matchedCount)return res.status(404).json({message:'Account not found.'});await Pending.deleteMany({user:req.user.userId,provider});res.json({disconnected:true});}catch{res.status(500).json({message:'Could not disconnect account.'});}
   });
 };
 function hashChallenge(value){return createHash('sha256').update(value).digest('base64url');}
