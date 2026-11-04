@@ -1,6 +1,8 @@
+import { normalizeArithmeticNotation } from './arithmeticNotation'
+
 // Parse arithmetic without executing user input as JavaScript.
 export function calculate(expression,answer=0){
-  const source=expression.replace(/×/g,'*').replace(/÷/g,'/').replace(/−/g,'-').replace(/π/g,'pi')
+  const source=normalizeArithmeticNotation(expression)
   if(source.length>500)throw new Error('Keep expressions under 500 characters.')
   const tokens=source.match(/(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?|[a-z]+|[^\s]/g)||[]
   let index=0
@@ -22,7 +24,7 @@ export function calculate(expression,answer=0){
   }
   const power=()=>{const left=primary();return peek()==='^'?(take(),finite(left**unary())):left}
   const unary=()=>peek()==='+'?(take(),unary()):peek()==='-'?(take(),-unary()):power()
-  const product=()=>{let value=unary();while(['*','/'].includes(peek())){const operator=take(),right=unary();if(operator==='/'&&right===0)throw new Error('Cannot divide by zero.');value=finite(operator==='*'?value*right:value/right)}return value}
+  const product=()=>{let value=unary();while(true){const explicit=['*','/'].includes(peek());const implicit=peek()==='('||['pi','ans','sqrt','abs'].includes(peek())||(tokens[index-1]===')'&&/^(?:\d|\.)/.test(peek()||''));if(!explicit&&!implicit)break;const operator=explicit?take():'*',right=unary();if(operator==='/'&&right===0)throw new Error('Cannot divide by zero.');value=finite(operator==='*'?value*right:value/right)}return value}
   const sum=()=>{let value=product();while(['+','-'].includes(peek())){const operator=take(),right=product();value=finite(operator==='+'?value+right:value-right)}return value}
   if(!tokens.length)throw new Error('Enter an expression first.')
   const result=sum();if(index!==tokens.length)throw new Error('Check the expression. Use × between numbers and parentheses.')

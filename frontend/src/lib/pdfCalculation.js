@@ -1,8 +1,10 @@
+import { normalizeArithmeticNotation } from './arithmeticNotation'
+
 export function selectionExpression(text){
   const expression=text.trim().replace(/\u2212/g,'-').replace(/[·⋅]/g,'*').replace(/\s*[=＝]\s*$/,'').replace(/(?<=[\d)])\s*[xX]\s*(?=[\d(])/g,'*').replace(/([⁰¹²³⁴⁵⁶⁷⁸⁹]+)/g,run=>'^'+[...run].map(char=>'⁰¹²³⁴⁵⁶⁷⁸⁹'.indexOf(char)).join('')).replace(/√\s*\(/g,'sqrt(').replace(/√\s*(\d+(?:\.\d+)?)/g,'sqrt($1)')
   if(!expression)throw new Error('No readable text found. Scanned or handwritten expressions need to be typed into the calculator.')
   if(expression.length>500)throw new Error('Select a smaller expression (up to 500 characters).')
-  return expression
+  return normalizeArithmeticNotation(expression)
 }
 
 export async function textInPdfBox(page,box,transform,annotations=[]){
