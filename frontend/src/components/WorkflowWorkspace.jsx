@@ -42,7 +42,7 @@ export default function WorkflowWorkspace({open,token,userId,keyboardEnabled=tru
   useEffect(()=>()=>calendarController.current?.abort(),[])
   useEffect(()=>{
     if(!open||!ready)return
-    const measure=()=>{if(!stage.current?.clientWidth)return;setMobile(window.innerWidth<800);setBounds({width:stage.current.clientWidth,height:layoutRef.current?.preferences.canvasHeight||1000,visibleHeight:Math.max(260,viewport.current?.clientHeight||640)})}
+    const measure=()=>{if(!stage.current?.clientWidth)return;setMobile(window.innerWidth<1025);setBounds({width:stage.current.clientWidth,height:layoutRef.current?.preferences.canvasHeight||1000,visibleHeight:Math.max(260,viewport.current?.clientHeight||640)})}
     measure();const observer=new ResizeObserver(measure);observer.observe(stage.current);if(viewport.current)observer.observe(viewport.current);window.addEventListener('resize',measure)
     return()=>{observer.disconnect();window.removeEventListener('resize',measure)}
   },[open,ready,focused,layout?.preferences.canvasHeight])

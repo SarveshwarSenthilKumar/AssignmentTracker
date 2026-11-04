@@ -1836,7 +1836,7 @@ function App() {
             </p>
           </div>
         ) : (
-          <div className={cn("grid grid-cols-1 gap-4",showInProgressColumn?"md:grid-cols-3":"md:grid-cols-2")}>
+          <div className={cn("task-board grid grid-cols-1 gap-4",showInProgressColumn?"md:grid-cols-3":"md:grid-cols-2")}>
             {/* Todo Tasks */}
             <div
               data-task-status="todo"

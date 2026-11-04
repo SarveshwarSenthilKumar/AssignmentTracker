@@ -125,3 +125,32 @@ button.mobile-count{padding:0;border:0;min-height:24px;min-width:24px;width:24px
 }
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}button{transition:none}}
 @media print{.skip-link,.day-summary{display:none!important}.poster{transform:none}.share{padding:0}html{scroll-behavior:auto}}
+/* Phones and tablets: preserve readable cells and make controls comfortable to tap. */
+@media screen and (max-width:900px){
+  .calendar-toolbar{align-items:flex-start;gap:12px}
+  .calendar-toolbar>.button-row{max-width:100%;flex-wrap:wrap}
+  .share{gap:24px}
+  .personal-controls{align-items:stretch}
+  .personal-controls>p{flex-basis:100%;line-height:1.7}
+}
+@media screen and (max-width:600px){
+  .header-actions .scheme-picker{min-width:0}
+  .header-actions .scheme-picker select{font-size:16px;min-height:44px}
+  .controls>label:not(.checkbox){min-width:0;flex:1 1 130px}
+  .controls>label.search{flex-basis:100%}
+  .calendar-toolbar>.button-row:last-child{width:100%}
+  .calendar-toolbar>.button-row:last-child>button{flex:1 1 100px;white-space:normal;line-height:1.5;min-height:44px}
+  .calendar-title-toggle{flex-basis:100%;line-height:1.7}
+  .personal-controls>button{flex:1 1 150px;white-space:normal}
+  .event-bottom .tags{flex-basis:100%}
+  .event-bottom>button{flex:1 1 100px;min-height:44px}
+  .poster h2{font-size:clamp(30px,8vw,42px)}
+  .personal-dialog{max-height:calc(100dvh - 24px);overscroll-behavior:contain}
+  .personal-dialog input,.personal-dialog textarea{font-size:16px}
+  .personal-dialog .button-row>button{flex:1;min-height:44px}
+}
+@media screen and (pointer:coarse){
+  .calendar-cell .day-number,.calendar-cell button.mobile-count{min-width:44px;min-height:44px}
+  .page-nav a{display:inline-flex;align-items:center;min-height:44px}
+  .full-calendar-titles .calendar-event{min-height:44px}
+}

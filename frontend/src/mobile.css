@@ -1,0 +1,123 @@
+/* Final application layout layer. Keep document, ink and canvas coordinates intact. */
+.app-shell :is(.prep-page,.account-connections,.interview-coach,.cold-email-generator,.task-progress,.policy-support-panel,.github-files,.github-repositories){min-width:0;max-width:100%}
+.app-shell :is(.interview-coach,.cold-email-generator,.account-connections,.task-progress) :is(fieldset,form,label,header,section,article){min-width:0}
+.app-shell :is(.interview-coach,.cold-email-generator,.account-connections,.task-progress) :is(h2,h3,h4,p,li,strong,span){overflow-wrap:anywhere}
+.app-shell :is(.github-file-preview,.assistant-code-block pre){max-width:100%;overscroll-behavior-inline:contain}
+.app-shell :is(.cold-email-grid,.personal-times,.account-connection-grid)>*{min-width:0}
+
+@media screen and (max-width:1100px){
+  .app-shell .task-board{grid-template-columns:minmax(0,1fr)}
+  .app-shell .task-board>[data-task-status]{min-width:0}
+  .app-shell .account-connection-grid{grid-template-columns:minmax(0,1fr)}
+  .app-shell .prep-tabs{grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+  .app-shell .app-navigation .an-link{padding-inline:7px}
+  .app-shell .library-content{padding:16px}
+}
+
+@media screen and (max-width:1024px){
+  .workflow-workspace .workflow-toolbar{align-items:flex-start;gap:8px;flex-wrap:wrap}
+  .workflow-workspace .workflow-toolbar>div:last-child{justify-content:flex-start;flex-wrap:wrap}
+  .workflow-workspace .workflow-stage{height:auto!important;min-height:350px;padding:10px}
+  .workflow-workspace .workflow-desktop{position:relative;display:flex;flex-direction:column;gap:12px}
+  .workflow-workspace .workflow-window{position:relative;left:auto;top:auto;width:100%;height:clamp(360px,65dvh,600px);flex-shrink:0;container-type:inline-size}
+  .workflow-workspace .workflow-window.is-maximized{height:80dvh}
+  .workflow-workspace .workflow-window-title{cursor:default;touch-action:auto}
+  .workflow-workspace .workflow-window-resize{display:none}
+  .workflow-workspace .workflow-window-content{min-height:0}
+  .workflow-workspace .workflow-canvas-viewport{max-height:none;min-height:350px}
+  .workflow-workspace.is-fullscreen{inset:max(5px,env(safe-area-inset-top)) max(5px,env(safe-area-inset-right)) max(5px,env(safe-area-inset-bottom)) max(5px,env(safe-area-inset-left))}
+  .workflow-workspace.is-fullscreen .workflow-canvas-viewport{min-height:0;max-height:none;overflow:auto}
+  .app-shell .interview-coach,.app-shell .cold-email-generator{padding:20px}
+  .app-shell .prep-tabs{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .app-shell .calendar-layout{grid-template-columns:minmax(0,1fr)}
+  .app-shell .calendar-inspector{position:static;max-width:100%}
+}
+
+@media screen and (max-width:760px){
+  .platform-viewport .app-shell{width:100%;max-width:100%}
+  .app-navigation .an-mobile-current{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;gap:6px}
+  .app-navigation .an-mobile-current>svg{flex-shrink:0}
+  .app-navigation .an-mobile-toggle,.app-navigation .an-global-search,.app-navigation .an-avatar-trigger{min-width:44px;min-height:44px;flex-shrink:0}
+  .app-navigation .an-avatar-trigger{justify-content:center}
+  .app-navigation .an-mobile-panel{max-height:calc(100dvh - 120px - env(safe-area-inset-bottom));overscroll-behavior:contain;touch-action:pan-y}
+  .app-shell .task-create-fields{gap:10px}
+  .app-shell .task-create-fields>button{margin-top:0;align-self:stretch;justify-content:center}
+  .app-shell .task-progress-fields{align-items:stretch}
+  .app-shell .task-progress-fields>button{align-self:end;min-height:44px}
+  .app-shell .task-progress-summary span{line-height:1.6}
+  .app-shell .task-progress-entry{align-items:flex-start;flex-wrap:wrap}
+  .app-shell .task-progress-entry>span{padding-top:10px}
+  .app-shell .task-detail-modal{padding:16px;max-height:none;overflow:visible}
+  .app-shell .task-detail-modal .flex.gap-2{flex-wrap:wrap}
+  .app-shell .account-connection-card{padding:16px;gap:12px}
+  .app-shell .account-connection-heading{flex-wrap:wrap}
+  .app-shell .account-connection-actions>button{flex:1 1 160px;white-space:normal;text-align:center}
+  .app-shell .github-repo{flex-wrap:wrap}
+  .app-shell .github-repo>button{flex-basis:100%}
+  .app-shell .github-file-preview{max-height:45dvh;font-size:12px}
+  .app-shell .github-file-list{max-height:45dvh}
+  .app-shell .interview-session-heading{flex-direction:column;align-items:flex-start;gap:6px}
+  .app-shell .interview-transcript :is(pre,table){max-width:100%;overflow-x:auto}
+  .app-shell .interview-feedback{padding:12px}
+  .app-shell .interview-actions>button,.app-shell .cold-email-actions>button{flex:1 1 200px;white-space:normal}
+  .app-shell .cold-email-grid{grid-template-columns:minmax(0,1fr)}
+  .app-shell .cold-email-voice{padding:12px}
+  .app-shell .cold-email-generator fieldset>button{width:100%;min-height:44px}
+  .policy-gate .policy-layout{grid-template-columns:minmax(0,1fr);gap:16px}
+  .policy-gate .policy-documents,.policy-gate .policy-agreement{padding:18px}
+  .policy-reading-bar{display:flex;flex-wrap:wrap;gap:10px;padding:12px}
+  .policy-shell :is(button,input,textarea){max-width:100%}
+  .policy-support-actions{flex-wrap:wrap}
+  .policy-support-actions>button{flex:1 1 180px;white-space:normal;min-height:44px}
+}
+
+@media screen and (max-width:600px){
+  .app-shell .prep-tabs{display:grid;grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:minmax(180px,78%);gap:10px;overflow-x:auto;scroll-snap-type:x proximity;scroll-padding-inline:2px;padding:2px 2px 10px;overscroll-behavior-inline:contain}
+  .app-shell .prep-tabs>button{scroll-snap-align:start;padding:14px;min-height:100px}
+  .app-shell .prep-page>section{margin-top:16px}
+  .app-shell .prep-tabs span{font-size:12px}
+  .app-shell .cold-email-generator,.app-shell .interview-coach,.app-shell .account-connections{padding:14px;border-radius:10px}
+  .app-shell .interview-coach h2,.app-shell .cold-email-generator h2{font-size:21px;line-height:1.35}
+  .app-shell .interview-user-answer{margin-left:0;padding:12px}
+  .app-shell .interview-coach-question{padding:12px}
+  .app-shell .interview-current textarea{min-height:150px;max-height:50dvh}
+  .app-shell .task-progress-fields{display:grid;grid-template-columns:minmax(0,1fr)}
+  .app-shell .task-progress-fields label{min-width:0}
+  .app-shell .task-progress-fields>button{width:100%}
+  .app-shell .task-progress{padding:12px}
+  .app-shell .task-progress-toggle{align-items:flex-start;line-height:1.7}
+  .app-shell .task-progress-toggle input{flex-shrink:0;margin-top:3px}
+  .app-shell .task-selectable .ml-12{margin-left:0}
+  .app-shell .task-title-toggle{white-space:normal}
+  .app-shell .calendar-search{min-width:0;max-width:none;flex-basis:100%}
+  .app-shell .calendar-toolbar>div{flex-wrap:wrap;max-width:100%}
+  .app-shell .calendar-form-fields{grid-template-columns:minmax(0,1fr)}
+  .app-shell .calendar-form-title,.app-shell .calendar-form-notes{grid-column:1/-1}
+  .app-shell .library-content{padding:12px}
+  .terms-page .terms-wrap>nav{display:flex;flex-wrap:nowrap;overflow-x:auto;gap:8px;padding:2px 2px 10px;scroll-snap-type:x proximity;overscroll-behavior-inline:contain}
+  .terms-page .terms-wrap>nav button{flex:0 0 190px;white-space:normal;scroll-snap-align:start;min-height:54px}
+  .terms-page .terms-wrap>article{padding:16px}
+  .terms-page article h2{font-size:17px}
+  .terms-page article section{scroll-margin-top:100px}
+  .policy-gate .policy-brand{flex-wrap:wrap;gap:8px;letter-spacing:.08em}
+  .policy-gate .policy-status{margin-left:0}
+  .policy-gate .policy-document-card{padding:14px 12px;gap:10px}
+  .policy-shell .policy-support-panel{padding:12px}
+  .app-shell .library-row-actions button{min-width:40px;min-height:44px}
+}
+
+@media screen and (pointer:coarse){
+  .app-shell :is(input:not([type]),input[type=text],input[type=number],input[type=url],input[type=search],input[type=email],input[type=password],input[type=date],input[type=datetime-local],textarea,select),.policy-shell :is(input:not([type=checkbox]),textarea,select){font-size:16px}
+  .app-shell :is(.prep-page,.account-connections,.task-progress,.task-progress-create,.resume-quiz,.calendar-page,.policy-support) :is(button,summary),.policy-shell :is(button,summary),.terms-page nav button{min-height:44px}
+  .app-shell .task-selectable button.opacity-0{opacity:1}
+  .app-shell .task-selectable button{min-width:40px;min-height:44px}
+  .app-shell .task-selectable input[type=checkbox]{min-width:20px;min-height:20px}
+  .app-shell :is(.interview-coach,.cold-email-generator,.github-token-form) input{min-height:44px}
+}
+
+@media screen and (max-height:500px) and (orientation:landscape){
+  .app-shell .app-navigation.platform-header{position:relative;top:auto}
+  .app-shell .an-mobile-panel{max-height:70dvh}
+  .app-shell .prep-tabs>button{min-height:80px}
+  .app-shell .interview-current textarea{min-height:100px}
+}
