@@ -1,5 +1,5 @@
 import {detectNumberLine} from '../lib/pdfNumberLine'
-import {detectCopyArrow} from '../lib/pdfArrowCopy'
+import {detectCopyArrowStrokes} from '../lib/pdfArrowCopy'
 import {matchingFontAsset,replacementFontBytes,replacementFontFace} from '../lib/pdfReplacementFonts'
 import {downloadBlob} from '../lib/documentFormats'
 import PDFInkLayer, { PDFLiveInk } from './PDFInkLayer'
@@ -535,6 +535,8 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const [darkPages,setDarkPages]=useState(()=>{try{return localStorage.getItem('pdf-editor-dark-pages')!=='false'}catch{return true}})
   useEffect(()=>{try{localStorage.setItem('pdf-editor-dark-pages',String(darkPages))}catch{}},[darkPages])
   const [snippet,setSnippet]=useState(null),[copyingSnippet,setCopyingSnippet]=useState(false)
+  const [arrowDraft,setArrowDraft]=useState({strokes:[],detection:null})
+  useEffect(()=>{setArrowDraft({strokes:[],detection:null})},[currentTool,pageNumber,pdfId])
   const snippetCopyRef=useRef(false)
   const editorRootRef=useRef(null),ownsFullscreenRef=useRef(false)
   const [focusMode,setFocusMode]=useState(false)
@@ -1190,6 +1192,15 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     setCurrentTool(active?'pen':'arrow-copy')
   }
 
+  const pasteArrowDraft=()=>{
+    if(currentTool!=='arrow-paste'||!arrowDraft.detection||isDrawingRef.current||!snippet||pageBase?.page!==pageNumber||inserting||deletingPage)return
+    try{
+      addImageInsert(snippet,pageNumber,pageBase,arrowDraft.detection.tip)
+      setCurrentTool('arrow-copy')
+      setActionError(null)
+    }catch(error){setActionError(error.message)}
+  }
+
   /* ---------- overlay pointer handlers ---------- */
   const handlePointerDown = (e) => {
     if(currentTool==='read')return
@@ -1382,10 +1393,10 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     if (!points.length) return
     if(currentTool==='arrow-paste'){
       if(!snippet||pageBase?.page!==pageNumber||inserting||deletingPage)return
-      const arrow=detectCopyArrow(points,scale)
-      if(!arrow){setActionError('Draw a longer arrow toward the destination (at least 24 pixels).');return}
-      const {tip}=arrow
-      try{addImageInsert(snippet,pageNumber,pageBase,tip);setCurrentTool('arrow-copy');setActionError(null)}catch(error){setActionError(error.message)}
+      if(arrowDraft.strokes.length>=24){setActionError('Use Clear arrow to start a new arrow, or undo an arrow stroke.');return}
+      const strokes=[...arrowDraft.strokes,points]
+      setArrowDraft({strokes,detection:detectCopyArrowStrokes(strokes,scale)})
+      setActionError(null)
       return
     }
     const item={id:uid(),points,color:currentColor,strokeWidth,tool:currentTool,page:pageNumber,inkCreatedAt:Date.now()}
@@ -1965,6 +1976,15 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
                     style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
                   >
                     {currentTool==='eraser'&&<rect ref={eraserCursorRef} width={eraserSize} height={eraserSize} rx={eraserShape==='round'?eraserSize/2:0} fill="#8fa5b918" stroke="#526c83" strokeWidth={1.3/scale} style={{display:'none'}}/>}
+                    {currentTool==='arrow-paste'&&<g>
+                      {arrowDraft.strokes.map((stroke,index)=><polyline key={index} points={stroke.map(point=>`${point.x},${point.y}`).join(' ')} fill="none" stroke="#739fc5" strokeWidth={2/scale} strokeLinecap="round" strokeLinejoin="round"/>)}
+                      {arrowDraft.detection&&snippet&&(()=>{
+                        const ratio=Math.min(1,pageBase.w/snippet.width,pageBase.h/snippet.height)
+                        const width=snippet.width*ratio,height=snippet.height*ratio,tip=arrowDraft.detection.tip
+                        const x=Math.max(0,Math.min(pageBase.w-width,tip.x-width/2)),y=Math.max(0,Math.min(pageBase.h-height,tip.y-height/2))
+                        return <g><image href={snippet.dataUrl} x={x} y={y} width={width} height={height} opacity=".5"/><rect x={x} y={y} width={width} height={height} fill="none" stroke="#739fc5" strokeWidth={1.5/scale} strokeDasharray={`${5/scale} ${4/scale}`}/><circle cx={tip.x} cy={tip.y} r={7/scale} fill="#739fc544" stroke="#739fc5" strokeWidth={2/scale}/></g>
+                      })()}
+                    </g>}
                     {(currentTool==='calculate'||currentTool==='function'||currentTool==='graph'||currentTool==='number-line'||currentTool==='snippet'||currentTool==='arrow-copy')&&calculationBox&&<rect x={calculationBox.x} y={calculationBox.y} width={calculationBox.width} height={calculationBox.height} fill="#8fa5b933" stroke="#8fa5b9" strokeWidth={1.5/scale} strokeDasharray={`${4/scale} ${3/scale}`}/>}
 
                   </svg>
@@ -2040,7 +2060,16 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       />
 
       {lineSuggestion&&<div className="pdf-line-suggestion" role="status" aria-live="polite"><span>{lineSuggestion.numberLine?'Number line detected':lineSuggestion.dashed?'Dashed line detected':lineSuggestion.dots?'Dotted line detected':'Straight line detected'}</span><button type="button" onClick={()=>{setCurrentTool('select');setLineSuggestion(null)}}>Move / resize</button><button type="button" onClick={()=>setLineSuggestion(null)} aria-label="Keep detected line"><Check size={15}/>Keep</button><button type="button" onClick={revertStraightLine} aria-label="Restore original freehand stroke"><Undo size={15}/>Undo</button></div>}
-      {['arrow-copy','arrow-paste'].includes(currentTool)&&!exportImage&&<div className="pdf-existing-text-hint" role="status">{currentTool==='arrow-copy'?'Arrow copy: drag a box around anything to copy.':'Draw one continuous arrow from the source toward the destination. Arrowheads are detected even when you double back; a plain curved stroke uses its endpoint. The gesture is not saved. Use Move to adjust it or Undo to remove it.'}<button type="button" onClick={toggleArrowCopy}>Turn off Arrow copy</button></div>}
+      {['arrow-copy','arrow-paste'].includes(currentTool)&&!exportImage&&<div className="pdf-existing-text-hint pdf-arrow-copy-bar">
+        <span>{currentTool==='arrow-copy'?'Arrow copy: drag a box around anything to copy.':'Draw the shaft and arrowhead in one or several strokes. The head can have a small gap from the shaft. Review the translucent copy, then press Paste copy.'}</span>
+        {currentTool==='arrow-paste'&&<>
+          <span role="status" aria-live="polite">{arrowDraft.detection?(arrowDraft.detection.hasHead?'Arrowhead detected · ready to paste':'Shaft detected · add an arrowhead or paste at the stroke end'):'Draw an arrow shaft at least 24 pixels long.'}</span>
+          <button type="button" disabled={!arrowDraft.detection||inserting||deletingPage} onClick={pasteArrowDraft}>Paste copy</button>
+          <button type="button" disabled={!arrowDraft.strokes.length} onClick={()=>setArrowDraft(previous=>{const strokes=previous.strokes.slice(0,-1);return {strokes,detection:detectCopyArrowStrokes(strokes,scale)}})}>Undo arrow stroke</button>
+          <button type="button" disabled={!arrowDraft.strokes.length} onClick={()=>{setArrowDraft({strokes:[],detection:null});setActionError(null)}}>Clear arrow</button>
+        </>}
+        <button type="button" onClick={toggleArrowCopy}>Turn off Arrow copy</button>
+      </div>}
       {currentTool==='text'&&!exportImage&&<div className="pdf-existing-text-hint" role="status">Click existing text to replace it, or click blank space to add text. Scanned images need OCR first. Replacements cover the original on a white background; they do not redact the underlying text.</div>}
       {currentTool==='read'&&!exportImage&&<div className="pdf-select-copy-bar"><span>{copyParagraphs?'Copy joins wrapped lines into paragraphs.':'Copy keeps original line breaks. Change this in View.'}</span><button type="button" disabled={copyAllBusy||!pdfFile} onClick={copyAllText}>{copyAllBusy?'Reading PDF…':'Copy all text'}</button>{copyAllStatus&&<span role="status">{copyAllStatus}</span>}</div>}
       {missingFont&&<div className="flex items-center gap-3 px-5 py-2 text-sm" role="status"><span>Font: {missingFont.replace(/^[A-Z]{6}\+/, '')}</span><label className="cursor-pointer underline">Use font file<input type="file" hidden accept=".ttf,.otf" onChange={async event=>{const file=event.target.files?.[0];event.target.value='';if(!file)return;try{if(file.size>10*1024*1024)throw new Error('Choose a font smaller than 10 MB.');const bytes=new Uint8Array(await file.arrayBuffer());const {default:fontkit}=await import('@pdf-lib/fontkit');fontkit.create(bytes);let binary='';for(let offset=0;offset<bytes.length;offset+=8192)binary+=String.fromCharCode(...bytes.subarray(offset,offset+8192));const fontData=btoa(binary),family=await replacementFontFace({fontData});updatePaths(previous=>previous.map(item=>item.textStyle?.fontName===missingFont?{...item,textStyle:{...item.textStyle,fontData,replacementFont:undefined,embedded:false,approximate:false,fontFamily:`"${family}"`}}:item));setActionError(null);setMissingFont(null)}catch(error){setActionError('Could not use this font: '+error.message)}}}/></label><button type="button" onClick={()=>setMissingFont(null)} aria-label="Hide font options"><X size={14}/></button></div>}
