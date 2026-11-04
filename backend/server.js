@@ -47,8 +47,8 @@ mongoose.connect(process.env.MONGODB_URI)
   .catch(() => undefined);
 
 // User Schema
-const TERMS_VERSION='1.10';
-const PRIVACY_VERSION='1.10';
+const TERMS_VERSION='1.11';
+const PRIVACY_VERSION='1.11';
 const userSchema = new mongoose.Schema({
   termsAcceptance:{version:String,acceptedAt:Date,method:String},
   privacyAcceptance:{version:String,acceptedAt:Date,method:String},
