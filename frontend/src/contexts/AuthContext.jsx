@@ -11,9 +11,17 @@ export const AuthProvider = ({ children }) => {
   const appearanceRevision=useRef(0)
   useLayoutEffect(()=>{
     if(loading)return
-    const mode=token&&user?.themeMode==='light'?'light':'dark'
-    document.documentElement.setAttribute('data-app-theme',mode)
-    document.documentElement.style.colorScheme=mode
+    const preference=token?user?.themeMode:'dark'
+    const media=typeof window.matchMedia==='function'?window.matchMedia('(prefers-color-scheme: dark)'):null
+    const apply=()=>{
+      const mode=preference==='light'?'light':preference==='system'&&media?(media.matches?'dark':'light'):'dark'
+      document.documentElement.setAttribute('data-app-theme',mode)
+      document.documentElement.style.colorScheme=mode
+    }
+    apply()
+    if(preference!=='system'||!media)return
+    if(media.addEventListener){media.addEventListener('change',apply);return()=>media.removeEventListener('change',apply)}
+    media.addListener(apply);return()=>media.removeListener(apply)
   },[loading,token,user?.themeMode])
   setTimeZone(user?.timeZone)
   const updatePreferences = preferences => {
@@ -28,7 +36,7 @@ export const AuthProvider = ({ children }) => {
   useEffect(()=>{
     const changed=event=>{
       if(event.key!=='user'||!event.newValue)return
-      try{const updated=JSON.parse(event.newValue);appearanceRevision.current++;setUser(previous=>previous&&updated.id===previous.id?{...previous,themeMode:updated.themeMode==='light'?'light':'dark'}:previous)}catch{/* Ignore malformed cache updates. */}
+      try{const updated=JSON.parse(event.newValue);appearanceRevision.current++;setUser(previous=>previous&&updated.id===previous.id?{...previous,themeMode:['light','system'].includes(updated.themeMode)?updated.themeMode:'dark'}:previous)}catch{/* Ignore malformed cache updates. */}
     }
     window.addEventListener('storage',changed)
     return()=>window.removeEventListener('storage',changed)
