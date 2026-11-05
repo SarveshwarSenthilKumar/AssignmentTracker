@@ -24,6 +24,8 @@ export default function TaskProgress({ task, token, onSaved, showSummary = true 
   const [autoComplete, setAutoComplete] = useState(task.progressAutoComplete === true)
   const [editing, setEditing] = useState(false)
   const [day, setDay] = useState(today), [amount, setAmount] = useState('')
+  const [note, setNote] = useState('')
+  const [noteDraft, setNoteDraft] = useState(null)
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState('')
   const lock = useRef(false), pending = useRef(null)
   useEffect(() => {
@@ -56,8 +58,10 @@ export default function TaskProgress({ task, token, onSaved, showSummary = true 
     const value = Number(amount)
     if (!Number.isSafeInteger(value) || value <= 0 || value > 1000000000 || !day || day > today()) { setError('Choose today or an earlier date and a positive whole-number amount.'); return }
     // Keep the ID after a network failure, so a retry cannot count the same entry twice.
-    if (!pending.current || pending.current.day !== day || pending.current.amount !== value) pending.current = { id: crypto.randomUUID(), day, amount: value }
-    save('/entries', 'POST', pending.current, `Logged ${number(value)} for ${dateLabel(day)}.`, () => { pending.current = null; setAmount('') })
+    const entry = pending.current
+    const id = entry?.day === day && entry.amount === value ? entry.id : crypto.randomUUID()
+    pending.current = { id, day, amount: value, note: note.trim() }
+    save('/entries', 'POST', pending.current, `Logged ${number(value)} for ${dateLabel(day)}.`, () => { pending.current = null; setAmount(''); setNote('') })
   }
   const days = [...new Set(logs.map(entry => entry.day))].sort().reverse()
   return <section className="task-progress" aria-label="Daily task progress" aria-busy={busy} onClick={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()}>
@@ -81,9 +85,33 @@ export default function TaskProgress({ task, token, onSaved, showSummary = true 
           <button type="button" disabled={busy} aria-pressed={day === todayLabel} onClick={() => setDay(todayLabel)}>Today</button>
           <button type="button" disabled={busy} aria-pressed={day === yesterday} onClick={() => setDay(yesterday)}>Yesterday</button>
         </div>
+        <label className="task-progress-note">Note (optional)<textarea rows={2} maxLength={1000} value={note} disabled={busy} onChange={event => setNote(event.target.value)} placeholder="What did you work on?"/></label>
         <button className="task-progress-submit" disabled={busy || !amount || !day}>{busy ? 'Saving…' : 'Save progress'}</button>
       </form>
-      <details><summary>Daily history ({logs.length} {logs.length === 1 ? 'entry' : 'entries'})</summary>{!logs.length && <p>No progress logged yet.</p>}{days.map(date => <div className="task-progress-day" key={date}><strong>{dateLabel(date)} · {number(logs.filter(entry => entry.day === date).reduce((sum, entry) => sum + entry.amount, 0))} {task.progressUnit || 'units'}</strong>{logs.filter(entry => entry.day === date).map(entry => <div className="task-progress-entry" key={entry.id}><span>+{number(entry.amount)}</span><button type="button" disabled={busy} aria-label={`Remove ${entry.amount} from ${dateLabel(date)}`} onClick={() => save(`/entries/${entry.id}`, 'DELETE', null, 'Entry removed; totals updated.')}>Remove entry</button></div>)}</div>)}</details>
+      <details>
+        <summary>Daily history ({logs.length} {logs.length === 1 ? 'entry' : 'entries'})</summary>
+        {!logs.length && <p>No progress logged yet.</p>}
+        {days.map(date => {
+          const entries = logs.filter(entry => entry.day === date)
+          return <div className="task-progress-day" key={date}>
+            <strong>{dateLabel(date)} · {number(entries.reduce((sum, entry) => sum + entry.amount, 0))} {task.progressUnit || 'units'}</strong>
+            {entries.map(entry => <div key={entry.id}>
+              <div className="task-progress-entry">
+                <span>+{number(entry.amount)}</span>
+                <button type="button" disabled={busy} onClick={() => setNoteDraft({ id: entry.id, text: entry.note || '' })}>{entry.note ? 'Edit note' : 'Add note'}</button>
+                <button type="button" disabled={busy} aria-label={`Remove ${entry.amount} from ${dateLabel(date)}`} onClick={() => save(`/entries/${entry.id}`, 'DELETE', null, 'Entry removed. Totals updated.', () => { if (noteDraft?.id === entry.id) setNoteDraft(null) })}>Remove entry</button>
+              </div>
+              {noteDraft?.id === entry.id ? <form onSubmit={event => {
+                event.preventDefault()
+                save(`/entries/${entry.id}`, 'PATCH', { note: noteDraft.text }, 'Note saved.', () => setNoteDraft(null))
+              }}>
+                <label className="task-progress-note">Entry note<textarea rows={2} maxLength={1000} value={noteDraft.text} disabled={busy} onChange={event => setNoteDraft({ id: entry.id, text: event.target.value })}/></label>
+                <div className="task-progress-presets"><button disabled={busy}>Save note</button><button type="button" disabled={busy} onClick={() => setNoteDraft(null)}>Cancel</button></div>
+              </form> : entry.note && <p className="task-progress-note-text">{entry.note}</p>}
+            </div>)}
+          </div>
+        })}
+      </details>
     </>}
     {error && <p role="alert" className="task-progress-error">{error}</p>}{notice && <p role="status">{notice}</p>}
   </section>
