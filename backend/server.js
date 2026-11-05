@@ -144,6 +144,7 @@ const Folder = mongoose.model('Folder', folderSchema);
 const todoSchema = new mongoose.Schema({
   progressTarget: { type: Number, default: null },
   progressUnit: { type: String, default: '' },
+  progressAutoComplete: { type: Boolean, default: false },
   progressLogs: { type: [new mongoose.Schema({ id: String, day: String, amount: Number, createdAt: { type: Date, default: Date.now } }, { _id: false })], default: [] },
   manualOrder: { type: Number, default: null },
   scheduledDate:{type:String,default:null},

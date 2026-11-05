@@ -15,17 +15,22 @@ export function ProgressSummary({ task }) {
 }
 
 export function ProgressCreateFields({ value, onChange, disabled }) {
-  return <div className="task-progress-create"><label className="task-progress-toggle"><input type="checkbox" checked={value.enabled} disabled={disabled} onChange={event => onChange({ ...value, enabled: event.target.checked })}/>Track progress over multiple days</label>{value.enabled && <div className="task-progress-fields"><label>Target<input type="number" min="1" max="1000000000" step="1" required disabled={disabled} value={value.target} onChange={event => onChange({ ...value, target: event.target.value })} placeholder="200"/></label><label>Unit (optional)<input maxLength="40" disabled={disabled} value={value.unit} onChange={event => onChange({ ...value, unit: event.target.value })} placeholder="applications"/></label><p>Log a little each day, such as 20 applications toward a target of 200.</p></div>}</div>
+  return <div className="task-progress-create"><label className="task-progress-toggle"><input type="checkbox" checked={value.enabled} disabled={disabled} onChange={event => onChange({ ...value, enabled: event.target.checked })}/>Track progress over multiple days</label>{value.enabled && <div className="task-progress-fields"><label>Target<input type="number" min="1" max="1000000000" step="1" required disabled={disabled} value={value.target} onChange={event => onChange({ ...value, target: event.target.value })} placeholder="200"/></label><label>Unit (optional)<input maxLength="40" disabled={disabled} value={value.unit} onChange={event => onChange({ ...value, unit: event.target.value })} placeholder="applications"/></label><label className="task-progress-toggle"><input type="checkbox" checked={!!value.autoComplete} disabled={disabled} onChange={event => onChange({ ...value, autoComplete: event.target.checked })}/>Mark complete when the goal is reached</label><p>Log a little each day, such as 20 applications toward a target of 200.</p></div>}</div>
 }
 
 export default function TaskProgress({ task, token, onSaved, showSummary = true }) {
   const [target, setTarget] = useState(String(task.progressTarget || ''))
   const [unit, setUnit] = useState(task.progressUnit || '')
+  const [autoComplete, setAutoComplete] = useState(task.progressAutoComplete === true)
   const [editing, setEditing] = useState(false)
   const [day, setDay] = useState(today), [amount, setAmount] = useState('')
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState('')
   const lock = useRef(false), pending = useRef(null)
-  useEffect(() => { setTarget(String(task.progressTarget || '')); setUnit(task.progressUnit || '') }, [task._id, task.progressTarget, task.progressUnit])
+  useEffect(() => {
+    setTarget(String(task.progressTarget || ''))
+    setUnit(task.progressUnit || '')
+    setAutoComplete(task.progressAutoComplete === true)
+  }, [task._id, task.progressTarget, task.progressUnit, task.progressAutoComplete])
   const total = totalFor(task), logs = task.progressLogs || []
   const todayLabel = today()
   const yesterday = new Date(Date.parse(`${todayLabel}T00:00:00Z`) - 86400000).toISOString().slice(0, 10)
@@ -38,13 +43,13 @@ export default function TaskProgress({ task, token, onSaved, showSummary = true 
       const data = await readApiJson(response)
       if (!response.ok) throw new Error(data.message || 'Could not save progress.')
       if (!data._id) throw new Error('The server did not confirm the save. Retry the entry to check it.')
-      onSaved(data); setNotice(message); after?.()
+      onSaved(data); setNotice(task.status !== 'completed' && data.status === 'completed' ? `${message} Task marked complete.` : message); after?.()
     } catch (failure) { setError(failure.message) }
     finally { lock.current = false; setBusy(false) }
   }
   const configure = event => {
     event.preventDefault()
-    save('', 'PUT', { progressTarget: Number(target), progressUnit: unit }, 'Progress target saved.', () => setEditing(false))
+    save('', 'PUT', { progressTarget: Number(target), progressUnit: unit, progressAutoComplete: autoComplete }, 'Progress target saved.', () => setEditing(false))
   }
   const logProgress = event => {
     event.preventDefault()
@@ -58,9 +63,10 @@ export default function TaskProgress({ task, token, onSaved, showSummary = true 
   return <section className="task-progress" aria-label="Daily task progress" aria-busy={busy} onClick={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()}>
     <header><strong>Daily progress</strong>{!!task.progressTarget && <button type="button" disabled={busy} onClick={() => setEditing(!editing)}>{editing ? 'Close target settings' : 'Edit target'}</button>}</header>
     {!task.progressTarget && !editing && <><p>Chip away at a larger goal, such as 200 job applications.</p><button type="button" onClick={() => setEditing(true)}>Set a progress target</button></>}
-    {editing && <form onSubmit={configure} className="task-progress-fields"><label>Target<input type="number" min="1" max="1000000000" step="1" required value={target} disabled={busy} onChange={event => setTarget(event.target.value)}/></label><label>Unit (optional)<input value={unit} maxLength="40" disabled={busy} onChange={event => setUnit(event.target.value)} placeholder="applications"/></label><button disabled={busy}>Save target</button>{!task.progressTarget && <button type="button" disabled={busy} onClick={() => setEditing(false)}>Cancel</button>}</form>}
+    {editing && <form onSubmit={configure} className="task-progress-fields"><label>Target<input type="number" min="1" max="1000000000" step="1" required value={target} disabled={busy} onChange={event => setTarget(event.target.value)}/></label><label>Unit (optional)<input value={unit} maxLength="40" disabled={busy} onChange={event => setUnit(event.target.value)} placeholder="applications"/></label><label className="task-progress-toggle"><input type="checkbox" checked={autoComplete} disabled={busy} onChange={event => setAutoComplete(event.target.checked)}/>Mark complete when the goal is reached</label><button disabled={busy}>Save target</button>{!task.progressTarget && <button type="button" disabled={busy} onClick={() => setEditing(false)}>Cancel</button>}</form>}
     {!!task.progressTarget && <>
       {showSummary && <ProgressSummary task={task}/>}
+      <p>{task.progressAutoComplete ? 'Completes automatically when the goal is reached.' : 'You mark this task complete manually.'}</p>
       <p>{total >= task.progressTarget ? 'Goal reached!' : `${number(task.progressTarget - total)} remaining`} · Today: {number(logs.filter(entry => entry.day === today()).reduce((sum, entry) => sum + entry.amount, 0))} {task.progressUnit || 'units'}</p>
       <form onSubmit={logProgress} className="task-progress-log">
         <div className="task-progress-fields">

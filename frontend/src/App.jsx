@@ -94,7 +94,7 @@ function App() {
   const [selectedFolder, setSelectedFolder] = useState(null)
   useEffect(()=>{setSelectedTaskIds(new Set())},[selectedFolder,token,taskSearch,taskSearchAll])
   const [input, setInput] = useState('')
-  const [newProgress,setNewProgress]=useState({enabled:false,target:'',unit:''})
+  const [newProgress,setNewProgress]=useState({enabled:false,target:'',unit:'',autoComplete:false})
   const saveProgressTask=updated=>{setTodos(previous=>previous.map(task=>task._id===updated._id?updated:task));setSelectedTask(previous=>previous?._id===updated._id?updated:previous)}
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -434,14 +434,14 @@ function App() {
       const data=await readApiJson(response)
       if(!response.ok){if(data.message==='Invalid or expired token'){logout();return}throw new Error(data.message||data.error||'Could not create task.')}
       if(!data._id)throw new Error('The server did not confirm that the task was saved. Refresh your tasks before trying again.')
-      setTodos(previous=>[...previous,data]);setInput('');setDueDate('');setDueHasTime(false);setScheduledDay('');setTaskDatePrompt(null);setNewProgress({enabled:false,target:'',unit:''})
+      setTodos(previous=>[...previous,data]);setInput('');setDueDate('');setDueHasTime(false);setScheduledDay('');setTaskDatePrompt(null);setNewProgress({enabled:false,target:'',unit:'',autoComplete:false})
     }catch(err){setError(err.message);setErrorDetails(err.stack||err.toString());setShowErrorDetails(false)}
     finally{createTaskLock.current=false;setCreatingTask(false)}
   }
   const addTodo=async e=>{
     e.preventDefault()
     if(!input.trim()||createTaskLock.current)return
-    const snapshot={text:input.trim(),folder:selectedFolder==='all'?null:selectedFolder,scheduledDate:scheduledDay,progress:newProgress.enabled?{progressTarget:Number(newProgress.target),progressUnit:newProgress.unit}:null}
+    const snapshot={text:input.trim(),folder:selectedFolder==='all'?null:selectedFolder,scheduledDate:scheduledDay,progress:newProgress.enabled?{progressTarget:Number(newProgress.target),progressUnit:newProgress.unit,progressAutoComplete:newProgress.autoComplete}:null}
     if(!dueDate){
       const suggestions=taskDateSuggestions(snapshot.text)
       if(suggestions.length){setTaskDatePrompt({...snapshot,suggestions});return}

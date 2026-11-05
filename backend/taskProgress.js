@@ -4,7 +4,25 @@ const validDay = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.tes
 function validateProgressConfig(body) {
   if (!positive(body.progressTarget)) throw new Error('Choose a whole-number target from 1 to 1,000,000,000.');
   if (body.progressUnit !== undefined && (typeof body.progressUnit !== 'string' || body.progressUnit.trim().length > 40)) throw new Error('Use a unit name of up to 40 characters.');
-  return { progressTarget: body.progressTarget, progressUnit: (body.progressUnit || '').trim() };
+  if (body.progressAutoComplete !== undefined && typeof body.progressAutoComplete !== 'boolean') throw new Error('Choose whether to complete the task automatically.');
+  return {
+    progressTarget: body.progressTarget,
+    progressUnit: (body.progressUnit || '').trim(),
+    ...(body.progressAutoComplete !== undefined ? { progressAutoComplete: body.progressAutoComplete } : {})
+  };
+}
+
+function completeReachedGoal() {
+  const reached = { $and: [
+    { $eq: ['$progressAutoComplete', true] },
+    { $ne: ['$status', 'completed'] },
+    { $gt: ['$progressTarget', 0] },
+    { $gte: [{ $sum: '$progressLogs.amount' }, '$progressTarget'] }
+  ] };
+  return { $set: {
+    status: { $cond: [reached, 'completed', '$status'] },
+    completedAt: { $cond: [reached, '$$NOW', '$completedAt'] }
+  } };
 }
 
 function register({ app, Todo, authenticateToken }) {
@@ -14,7 +32,12 @@ function register({ app, Todo, authenticateToken }) {
     try { config = validateProgressConfig(req.body); }
     catch (error) { return res.status(400).json({ message: error.message }); }
     try {
-      const task = await Todo.findOneAndUpdate({ _id: req.params.id, user: req.user.userId }, { $set: config }, { new: true });
+      const settings = Object.fromEntries(Object.entries(config).map(([key, value]) => [key, { $literal: value }]));
+      const task = await Todo.findOneAndUpdate(
+        { _id: req.params.id, user: req.user.userId },
+        [{ $set: settings }, completeReachedGoal()],
+        { new: true, updatePipeline: true }
+      );
       if (!task) return res.status(404).json({ message: 'Task not found.' });
       res.json(task);
     } catch { res.status(500).json({ message: 'Could not save the progress target.' }); }
@@ -26,7 +49,13 @@ function register({ app, Todo, authenticateToken }) {
     if (day > new Date(Date.now() + 14 * 3600000).toISOString().slice(0, 10)) return res.status(400).json({ message: 'Progress cannot be recorded for a future day.' });
     try {
       const owner = { _id: req.params.id, user: req.user.userId };
-      const task = await Todo.findOneAndUpdate({ ...owner, progressTarget: { $gt: 0 }, 'progressLogs.id': { $ne: id }, $expr: { $lt: [{ $size: { $ifNull: ['$progressLogs', []] } }, 10000] } }, { $push: { progressLogs: { id, day, amount, createdAt: new Date() } } }, { new: true });
+      const logs = { $ifNull: ['$progressLogs', []] };
+      const entry = { id, day, amount, createdAt: new Date() };
+      const task = await Todo.findOneAndUpdate(
+        { ...owner, progressTarget: { $gt: 0 }, 'progressLogs.id': { $ne: id }, $expr: { $lt: [{ $size: logs }, 10000] } },
+        [{ $set: { progressLogs: { $concatArrays: [logs, { $literal: [entry] }] } } }, completeReachedGoal()],
+        { new: true, updatePipeline: true }
+      );
       if (task) return res.json(task);
       const current = await Todo.findOne(owner);
       if (!current) return res.status(404).json({ message: 'Task not found.' });
