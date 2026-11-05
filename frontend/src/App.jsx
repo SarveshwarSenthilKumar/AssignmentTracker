@@ -921,7 +921,10 @@ function App() {
           </div>
         </div>
 
-        {!!todo.progressTarget&&<div className="ml-12 mr-3"><ProgressSummary task={todo}/></div>}
+        {!!todo.progressTarget && <details className="task-progress-quick" onClick={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()}>
+          <summary><ProgressSummary task={todo}/><span>Log progress</span></summary>
+          <TaskProgress key={todo._id} task={todo} token={token} onSaved={saveProgressTask} showSummary={false}/>
+        </details>}
         {/* Expanded Details */}
         {(isExpanded || isEditing) && (
           <div className="mt-2 ml-12 p-3 rounded-xl bg-white/5 border border-white/10 space-y-2">
@@ -993,7 +996,7 @@ function App() {
               </>
             )}
             {todo.canvasType!=='calendar_event'&&<TaskSchedule task={todo} token={token} onSaved={updated=>setTodos(previous=>previous.map(task=>task._id===updated._id?updated:task))}/>}
-            <TaskProgress key={`progress:${todo._id}`} task={todo} token={token} onSaved={saveProgressTask}/>
+            {!todo.progressTarget && <TaskProgress key={`progress:${todo._id}`} task={todo} token={token} onSaved={saveProgressTask}/>}
             <TaskDependencies taskId={todo._id} tasks={todos} token={token} onTasksChange={setTodos} onOpenTask={setSelectedTask} />
             <TaskAttachments taskId={todo._id} documents={pdfs} folders={pdfFolders} token={token} onDocumentsChange={setPdfs} onOpen={setSelectedPDF} onLibrary={() => { setSelectedPDFFolder('all'); navigate('documents') }} onInsert={isEditing ? reference => {
               const field = document.getElementById(`task-description-${todo._id}`)

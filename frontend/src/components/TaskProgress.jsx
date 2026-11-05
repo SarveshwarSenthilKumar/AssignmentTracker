@@ -11,14 +11,14 @@ const dateLabel = day => new Date(`${day}T12:00:00Z`).toLocaleDateString(undefin
 export function ProgressSummary({ task }) {
   if (!task.progressTarget) return null
   const total = totalFor(task)
-  return <div className="task-progress-summary"><span>{number(total)} / {number(task.progressTarget)} {task.progressUnit || 'units'}{total >= task.progressTarget ? ' · Goal reached' : ''}</span><progress max={task.progressTarget} value={Math.min(total, task.progressTarget)} aria-label={`${task.text}: ${total} of ${task.progressTarget}`}/></div>
+  return <span className="task-progress-summary"><span>{number(total)} / {number(task.progressTarget)} {task.progressUnit || 'units'}{total >= task.progressTarget ? ' · Goal reached' : ''}</span><progress max={task.progressTarget} value={Math.min(total, task.progressTarget)} aria-label={`${task.text}: ${total} of ${task.progressTarget}`}/></span>
 }
 
 export function ProgressCreateFields({ value, onChange, disabled }) {
   return <div className="task-progress-create"><label className="task-progress-toggle"><input type="checkbox" checked={value.enabled} disabled={disabled} onChange={event => onChange({ ...value, enabled: event.target.checked })}/>Track progress over multiple days</label>{value.enabled && <div className="task-progress-fields"><label>Target<input type="number" min="1" max="1000000000" step="1" required disabled={disabled} value={value.target} onChange={event => onChange({ ...value, target: event.target.value })} placeholder="200"/></label><label>Unit (optional)<input maxLength="40" disabled={disabled} value={value.unit} onChange={event => onChange({ ...value, unit: event.target.value })} placeholder="applications"/></label><p>Log a little each day, such as 20 applications toward a target of 200.</p></div>}</div>
 }
 
-export default function TaskProgress({ task, token, onSaved }) {
+export default function TaskProgress({ task, token, onSaved, showSummary = true }) {
   const [target, setTarget] = useState(String(task.progressTarget || ''))
   const [unit, setUnit] = useState(task.progressUnit || '')
   const [editing, setEditing] = useState(false)
@@ -27,6 +27,9 @@ export default function TaskProgress({ task, token, onSaved }) {
   const lock = useRef(false), pending = useRef(null)
   useEffect(() => { setTarget(String(task.progressTarget || '')); setUnit(task.progressUnit || '') }, [task._id, task.progressTarget, task.progressUnit])
   const total = totalFor(task), logs = task.progressLogs || []
+  const todayLabel = today()
+  const yesterday = new Date(Date.parse(`${todayLabel}T00:00:00Z`) - 86400000).toISOString().slice(0, 10)
+  const remaining = Math.max(0, (task.progressTarget || 0) - total)
   const save = async (suffix, method, body, message, after) => {
     if (lock.current) return
     lock.current = true; setBusy(true); setError(''); setNotice('')
@@ -57,10 +60,23 @@ export default function TaskProgress({ task, token, onSaved }) {
     {!task.progressTarget && !editing && <><p>Chip away at a larger goal, such as 200 job applications.</p><button type="button" onClick={() => setEditing(true)}>Set a progress target</button></>}
     {editing && <form onSubmit={configure} className="task-progress-fields"><label>Target<input type="number" min="1" max="1000000000" step="1" required value={target} disabled={busy} onChange={event => setTarget(event.target.value)}/></label><label>Unit (optional)<input value={unit} maxLength="40" disabled={busy} onChange={event => setUnit(event.target.value)} placeholder="applications"/></label><button disabled={busy}>Save target</button>{!task.progressTarget && <button type="button" disabled={busy} onClick={() => setEditing(false)}>Cancel</button>}</form>}
     {!!task.progressTarget && <>
-      <ProgressSummary task={task}/>
+      {showSummary && <ProgressSummary task={task}/>}
       <p>{total >= task.progressTarget ? 'Goal reached!' : `${number(task.progressTarget - total)} remaining`} · Today: {number(logs.filter(entry => entry.day === today()).reduce((sum, entry) => sum + entry.amount, 0))} {task.progressUnit || 'units'}</p>
-      <p>Log dates follow your account time zone. Task status stays under your control.</p>
-      <form onSubmit={logProgress} className="task-progress-fields"><label>Day<input type="date" required value={day} max={today()} disabled={busy} onChange={event => setDay(event.target.value)}/></label><label>Add {task.progressUnit || 'progress'}<input type="number" min="1" max="1000000000" step="1" required value={amount} disabled={busy} onChange={event => setAmount(event.target.value)} placeholder="20"/></label><button disabled={busy}>{busy ? 'Saving…' : 'Log progress'}</button></form>
+      <form onSubmit={logProgress} className="task-progress-log">
+        <div className="task-progress-fields">
+          <label>Add {task.progressUnit || 'units'}<input type="number" inputMode="numeric" min="1" max="1000000000" step="1" required value={amount} disabled={busy} onChange={event => setAmount(event.target.value)} placeholder="Enter amount"/></label>
+          <label>Date<input type="date" required value={day} max={todayLabel} disabled={busy} onChange={event => setDay(event.target.value)}/></label>
+        </div>
+        <div className="task-progress-presets" role="group" aria-label="Choose amount">
+          {[1, 5, 10].map(value => <button key={value} type="button" disabled={busy} aria-pressed={Number(amount) === value} onClick={() => setAmount(String(value))}>{value}</button>)}
+          {remaining > 0 && <button type="button" disabled={busy} aria-pressed={Number(amount) === remaining} onClick={() => setAmount(String(remaining))}>Remaining ({number(remaining)})</button>}
+        </div>
+        <div className="task-progress-presets" role="group" aria-label="Choose date">
+          <button type="button" disabled={busy} aria-pressed={day === todayLabel} onClick={() => setDay(todayLabel)}>Today</button>
+          <button type="button" disabled={busy} aria-pressed={day === yesterday} onClick={() => setDay(yesterday)}>Yesterday</button>
+        </div>
+        <button className="task-progress-submit" disabled={busy || !amount || !day}>{busy ? 'Saving…' : 'Save progress'}</button>
+      </form>
       <details><summary>Daily history ({logs.length} {logs.length === 1 ? 'entry' : 'entries'})</summary>{!logs.length && <p>No progress logged yet.</p>}{days.map(date => <div className="task-progress-day" key={date}><strong>{dateLabel(date)} · {number(logs.filter(entry => entry.day === date).reduce((sum, entry) => sum + entry.amount, 0))} {task.progressUnit || 'units'}</strong>{logs.filter(entry => entry.day === date).map(entry => <div className="task-progress-entry" key={entry.id}><span>+{number(entry.amount)}</span><button type="button" disabled={busy} aria-label={`Remove ${entry.amount} from ${dateLabel(date)}`} onClick={() => save(`/entries/${entry.id}`, 'DELETE', null, 'Entry removed; totals updated.')}>Remove entry</button></div>)}</div>)}</details>
     </>}
     {error && <p role="alert" className="task-progress-error">{error}</p>}{notice && <p role="status">{notice}</p>}
