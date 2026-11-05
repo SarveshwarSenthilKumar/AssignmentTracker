@@ -480,7 +480,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const [pageBase, setPageBase] = useState(null) // { page, w, h } in page units
   const [scale, setScale] = useState(1.0)
   const [rotation, setRotation] = useState(0)
-  const [currentTool, setCurrentTool] = useState('text')
+  const [currentTool, setCurrentTool] = useState('read')
   const [autoStraightLines,setAutoStraightLines]=useState(()=>{try{return localStorage.getItem('pdf-auto-straight-lines')!=='false'}catch{return true}})
   const [lineSuggestion,setLineSuggestion]=useState(null)
   const [autoDashedLines,setAutoDashedLines]=useState(()=>{try{return localStorage.getItem('pdf-auto-dashed-lines')!=='false'}catch{return true}})
