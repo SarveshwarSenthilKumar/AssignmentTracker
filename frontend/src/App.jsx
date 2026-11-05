@@ -5,6 +5,7 @@ import SiteRoadmapPage from './components/SiteRoadmapPage'
 import TaskSchedule from './components/TaskSchedule'
 import AppearanceSettings from './components/AppearanceSettings'
 import TaskProgress, { ProgressCreateFields, ProgressSummary } from './components/TaskProgress'
+import TaskStreaks from './components/TaskStreaks'
 import PrivacyPage from './components/PrivacyPage'
 import TermsPage from './components/TermsPage'
 import AnalyticsPage from './components/AnalyticsPage'
@@ -1837,6 +1838,7 @@ function App() {
             </p>
           </div>
         ) : (
+          <TaskStreaks tasks={todos}/>
           <div className={cn("task-board grid grid-cols-1 gap-4",showInProgressColumn?"md:grid-cols-3":"md:grid-cols-2")}>
             {/* Todo Tasks */}
             <div
