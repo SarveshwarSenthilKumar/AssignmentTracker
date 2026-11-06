@@ -94,4 +94,3 @@
 
 .deleted-task-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 
-.task-recreate-button{margin:8px 12px 0 48px;padding:6px 10px;border:1px solid var(--border-strong);border-radius:8px;background:var(--surface-input);color:var(--text-primary);font-size:.8rem}.task-recreate-button:disabled{opacity:.5}

@@ -61,7 +61,7 @@ import useShortcuts from './hooks/useShortcuts'
 import ShortcutsPage from './components/ShortcutsPage'
 import './Navigation.css'
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Trash2, Check, X, Loader2, FolderPlus, Folder, LogOut, Sparkles, Link2, ChevronDown, ChevronUp, Edit2, Save, User, Trophy, Target, Calendar, ArrowUpDown, RefreshCw, Terminal, ChevronRight, FileText, Keyboard } from 'lucide-react'
+import { Plus, Trash2, Check, X, Loader2, FolderPlus, Folder, LogOut, Sparkles, Link2, ChevronDown, ChevronUp, Edit2, Copy, Save, User, Trophy, Target, Calendar, ArrowUpDown, RefreshCw, Terminal, ChevronRight, FileText, Keyboard } from 'lucide-react'
 import { cn } from './lib/utils'
 import { useAuth } from './contexts/AuthContext'
 import Auth from './components/Auth'
@@ -914,6 +914,11 @@ function App() {
                 >
                   <Edit2 size={18} />
                 </button>
+                {todo.status === 'completed' && (
+                  <button type="button" className="p-2 text-slate-400 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-all disabled:opacity-50" disabled={!!recreatingTask} title="Recreate task" aria-label="Recreate task" onPointerDown={event=>event.stopPropagation()} onClick={event=>{event.stopPropagation();recreateTask(todo._id)}}>
+                    {recreatingTask === todo._id ? <Loader2 size={18} className="animate-spin"/> : <Copy size={18}/>}
+                  </button>
+                )}
                 <button
                   onClick={(e) => { e.stopPropagation(); deleteTodo(todo._id) }}
                   className="opacity-0 group-hover:opacity-100 p-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all "
@@ -926,7 +931,6 @@ function App() {
           </div>
         </div>
 
-        {todo.status === 'completed' && <button type="button" className="task-recreate-button" disabled={!!recreatingTask} onPointerDown={event=>event.stopPropagation()} onClick={event=>{event.stopPropagation();recreateTask(todo._id)}}>{recreatingTask === todo._id ? 'Recreating…' : 'Recreate task'}</button>}
         {!!todo.progressTarget && <details className="task-progress-quick" onClick={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()}>
           <summary><ProgressSummary task={todo}/><span>Log progress</span></summary>
           <TaskProgress key={todo._id} task={todo} token={token} onSaved={saveProgressTask} showSummary={false}/>
@@ -2284,11 +2288,6 @@ function App() {
               <div className="mb-6">
                 <label className="block text-slate-400 text-sm mb-2">Task Name</label>
                 <p className="text-xl text-white font-medium">{selectedTask.text}</p>
-                {selectedTask.status === 'completed' && selectedTask.canvasType !== 'calendar_event' && (
-                  <button type="button" className="mt-3 rounded-lg border border-white/10 px-3 py-2 text-sm hover:bg-white/10 disabled:opacity-50" disabled={!!recreatingTask} onClick={() => recreateTask(selectedTask._id)}>
-                    {recreatingTask === selectedTask._id ? 'Recreating…' : 'Recreate task'}
-                  </button>
-                )}
               </div>
 
               {/* Status */}
