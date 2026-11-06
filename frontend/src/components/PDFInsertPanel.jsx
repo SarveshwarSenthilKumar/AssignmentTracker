@@ -65,7 +65,7 @@ export function makeInsert(kind, color, options = {}) {
       }
     })
   }
-  return { dataUrl: canvas.toDataURL('image/png'), width: canvas.width, height: canvas.height, label: kind === 'stamp' ? options.label : kind }
+  return { dataUrl: canvas.toDataURL('image/png'), width: canvas.width, height: canvas.height, insertKind: kind, label: kind === 'stamp' ? options.label : kind }
 }
 
 const SHAPES = [

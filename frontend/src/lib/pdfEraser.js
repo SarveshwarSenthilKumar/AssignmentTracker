@@ -1,5 +1,8 @@
 const point=(a,b,t)=>({...a,x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t,pressure:(a.pressure??.5)+((b.pressure??.5)-(a.pressure??.5))*t})
 const strokeBounds=new WeakMap()
+const shapeKinds=new Set(['rectangle','ellipse','line','arrow'])
+// Earlier inserts stored the shape kind as their label.
+const isInsertedShape=item=>item.tool==='image'&&shapeKinds.has(item.insertKind??item.label)
 function bounds(points){
   let value=strokeBounds.get(points)
   if(!value){value={left:Infinity,top:Infinity,right:-Infinity,bottom:-Infinity};for(const point of points){value.left=Math.min(value.left,point.x);value.top=Math.min(value.top,point.y);value.right=Math.max(value.right,point.x);value.bottom=Math.max(value.bottom,point.y)}strokeBounds.set(points,value)}
@@ -52,7 +55,7 @@ export function eraseAnnotations(items,from,to,{size,shape,mode,target,page,meas
         if(mode==='precision'){next.push(...cut(item,c,radius,shape,id));continue}
         const points=item.points,r=radius+(item.strokeWidth||1)/2
         if(!(points.length===1?clip(points[0],points[0],c,r,shape):points.some((p,i)=>i>0&&clip(points[i-1],p,c,r,shape))))next.push(item)
-      }else if(mode==='objects'){
+      }else if(mode==='objects'||(target==='all'&&isInsertedShape(item))){
         const bounds=measure(item),x=Math.max(item.x,Math.min(c.x,item.x+bounds.width)),y=Math.max(item.y,Math.min(c.y,item.y+bounds.height))
         if(shape==='square'?Math.abs(c.x-x)>radius||Math.abs(c.y-y)>radius:Math.hypot(c.x-x,c.y-y)>radius)next.push(item)
       }else next.push(item)
