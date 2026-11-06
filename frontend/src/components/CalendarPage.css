@@ -26,3 +26,10 @@
 .calendar-selected{scroll-margin-top:100px;scroll-margin-bottom:16px}.calendar-selected:focus-visible{outline:2px solid var(--accent,#96b7d3);outline-offset:4px;border-radius:4px}
 
 .calendar-page .calendar-item.is-deadline{border-left:3px solid var(--event-color,#a3b3c2)}.calendar-page .calendar-item.is-deadline strong{font-weight:600}.calendar-page .calendar-check.source-tasks{font-weight:600}
+
+.calendar-day-note{margin:10px 0;padding:12px;border:1px solid var(--border-strong);border-radius:10px;background:var(--surface-input);color:var(--text-primary)}
+.calendar-day-note header{display:flex;align-items:center;gap:7px;margin-bottom:8px}.calendar-day-note h4{font-size:.9rem;font-weight:650}
+.calendar-day-note p{margin:6px 0 10px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:.85rem}
+.calendar-day-note label{display:grid;gap:5px;font-size:.8rem}.calendar-day-note textarea{width:100%;padding:8px;border:1px solid var(--border-strong);border-radius:8px;background:var(--surface-input);color:var(--text-primary);resize:vertical}
+.calendar-day-note small{color:var(--text-secondary)}.calendar-day-note button{padding:6px 10px;border:1px solid var(--border-strong);border-radius:7px;font-size:.8rem}.calendar-day-note button:disabled{opacity:.5}
+.calendar-day-note-dot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-inline-start:4px;vertical-align:middle;background:var(--accent,#9abbda)}

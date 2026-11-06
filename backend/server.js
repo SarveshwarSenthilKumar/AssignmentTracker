@@ -16,7 +16,7 @@ const { documentAction } = require('./documentActions');
 const { deletePDFPage, insertPDFPages } = require('./pdfPages');
 const { resetAccountWorkspace } = require('./accountReset');
 const { dependencyChange } = require('./taskDependencies');
-const { calendarEntry } = require('./calendarEntries');
+const { calendarEntry, validDay: validCalendarDay } = require('./calendarEntries');
 const { registerTxstCalendar } = require('./txstCalendar');
 const { createCalendarHistory } = require('./calendarHistory');
 const { registerMathRecognition } = require('./mathRecognition');
@@ -60,6 +60,7 @@ const userSchema = new mongoose.Schema({
   calendarCategories:{type:[new mongoose.Schema({id:String,name:String,color:String},{_id:false})],default:[]},
   hiddenCalendarIds: { type: [String], default: [] },
   interestedCalendarIds: { type: [String], default: [], select: false },
+  calendarDayNotes: { type: Map, of: String, select: false },
   calendarHistoryRevision: { type: Number, default: 0 },
   folderHierarchyRevision:{type:Number,default:0},
   searchIndexRevision:{type:Number,default:0},
@@ -713,6 +714,32 @@ for(const [route,filename,type]of [
 app.get('/api/calendar-entries', authenticateToken, async (req, res) => {
   try { res.json(await CalendarEntry.find({ user: req.user.userId }).sort({ startDate: 1, startAt: 1 })); }
   catch { res.status(500).json({ message: 'Could not load your calendar entries.' }); }
+});
+app.get('/api/calendar-day-notes', authenticateToken, async (req, res) => {
+  try {
+    const account = await User.findById(req.user.userId).select('+calendarDayNotes').lean();
+    if (!account) return res.status(404).json({ message: 'Account not found.' });
+    res.json(account.calendarDayNotes || {});
+  } catch { res.status(503).json({ message: 'Could not load calendar day notes.' }); }
+});
+app.put('/api/calendar-day-notes/:day', authenticateToken, async (req, res) => {
+  const { day } = req.params;
+  const { note } = req.body || {};
+  if (!validCalendarDay(day) || typeof note !== 'string' || note.length > 2000) {
+    return res.status(400).json({ message: 'Choose a valid date and enter up to 2,000 characters.' });
+  }
+  const path = `calendarDayNotes.${day}`;
+  const text = note.trim();
+  try {
+    const filter = { _id: req.user.userId };
+    if (text) filter.$or = [
+      { [path]: { $exists: true } },
+      { $expr: { $lt: [{ $size: { $objectToArray: { $ifNull: ['$calendarDayNotes', {}] } } }, 1000] } }
+    ];
+    const result = await User.updateOne(filter, text ? { $set: { [path]: text } } : { $unset: { [path]: 1 } });
+    if (!result.matchedCount) return res.status(409).json({ message: 'Could not save this day note. Your account may have reached its 1,000-note limit.' });
+    res.json({ note: text });
+  } catch { res.status(503).json({ message: 'Could not save the calendar day note.' }); }
 });
 app.get('/api/calendar-interests', authenticateToken, async (req, res) => {
   try {
