@@ -1728,7 +1728,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     setFingerScroll(scroll)
   }
 
-  const {handlers:touchInput,activity:inputActivity}=usePDFTouchInput({
+  const pinchHandlers={
     onPinchStart:center=>{
       const viewer=viewerRef.current,content=pinchContentRef.current
       if(!viewer||!content)return
@@ -1754,6 +1754,67 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       if(Math.abs(gesture.nextScale-scale)<.001){clearPinchPreview();anchorPinch(anchor);return}
       pendingPinchAnchor.current=anchor;setScale(gesture.nextScale)
     },
+  }
+  const readPinch=useRef(pinchHandlers)
+  readPinch.current=pinchHandlers
+  useEffect(()=>{
+    const viewer=viewerRef.current
+    if(currentTool!=='read'||!viewer||loading)return
+    let gesture=null,wheelTimer
+    const finish=canceled=>{
+      clearTimeout(wheelTimer)
+      if(!gesture)return
+      gesture=null
+      readPinch.current.onPinchEnd(canceled)
+    }
+    const touch=event=>{
+      if(event.touches.length!==2){
+        if(gesture?.type==='touch')finish(event.touches.length>2)
+        return
+      }
+      if(!event.cancelable)return
+      const a=event.touches[0],b=event.touches[1]
+      const distance=Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY)
+      if(distance<4)return
+      const center={x:(a.clientX+b.clientX)/2,y:(a.clientY+b.clientY)/2}
+      event.preventDefault()
+      if(gesture?.type!=='touch'){
+        finish(true)
+        gesture={type:'touch',distance}
+        readPinch.current.onPinchStart(center)
+      }
+      readPinch.current.onPinchMove(distance/gesture.distance,center)
+    }
+    const endTouch=()=>{if(gesture?.type==='touch')finish(false)}
+    const cancelTouch=()=>{if(gesture?.type==='touch')finish(true)}
+    const wheel=event=>{
+      if(!(event.ctrlKey||event.metaKey)||!event.cancelable||gesture?.type==='touch')return
+      event.preventDefault()
+      const center={x:event.clientX,y:event.clientY}
+      if(!gesture){gesture={type:'wheel',ratio:1};readPinch.current.onPinchStart(center)}
+      const delta=event.deltaY*(event.deltaMode===1?16:event.deltaMode===2?viewer.clientHeight:1)
+      gesture.ratio=Math.max(.0625,Math.min(16,gesture.ratio*Math.exp(-delta*.01)))
+      readPinch.current.onPinchMove(gesture.ratio,center)
+      clearTimeout(wheelTimer)
+      wheelTimer=setTimeout(()=>finish(false),120)
+    }
+    viewer.addEventListener('touchstart',touch,{passive:false})
+    viewer.addEventListener('touchmove',touch,{passive:false})
+    viewer.addEventListener('touchend',endTouch)
+    viewer.addEventListener('touchcancel',cancelTouch)
+    viewer.addEventListener('wheel',wheel,{passive:false})
+    return ()=>{
+      finish(true)
+      viewer.removeEventListener('touchstart',touch)
+      viewer.removeEventListener('touchmove',touch)
+      viewer.removeEventListener('touchend',endTouch)
+      viewer.removeEventListener('touchcancel',cancelTouch)
+      viewer.removeEventListener('wheel',wheel)
+    }
+  },[currentTool,loading,pdfId,pageNumber,continuousView])
+
+  const {handlers:touchInput,activity:inputActivity}=usePDFTouchInput({
+    ...pinchHandlers,
     viewer:viewerRef,overlay:overlayRef,tool:currentTool,scrollWithFinger:fingerScroll,scrollSettings,resetKey:`${pdfId}:${pageNumber}:${currentTool}:${focusMode}:${loading}`,
     canDrawTouch:event=>overlayRef.current?.contains(event.target)&&['pen','highlighter','eraser','calculate','function','graph','number-line','snippet','arrow-copy','arrow-paste'].includes(currentTool),
     onDrawEnd:handlePointerUp,
@@ -2120,7 +2181,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         onPointerCancelCapture={event=>{if(currentTool==='read')return;touchInput.onPointerCancelCapture(event);if(!event.isPropagationStopped())handleStylusButton(event,'end')}}
         onLostPointerCaptureCapture={event=>{if(currentTool==='read')return;touchInput.onLostPointerCaptureCapture(event);if(event.target===viewerRef.current&&stylusGesture.current?.id===event.pointerId){stylusGesture.current=null;isErasingRef.current=false;eraserLast.current=null}}}
         onContextMenuCapture={event=>{if(currentTool==='read')return;if(stylusGesture.current||event.nativeEvent.pointerType==='pen'){event.preventDefault();event.stopPropagation()}else touchInput.onContextMenuCapture(event)}}
-        aria-label={currentTool==='read'?'PDF view; select text and copy':'PDF canvas; paste or drop images here'} onDragOver={e => { e.preventDefault() }} onDrop={e => { e.preventDefault();if(currentTool!=='read')insertFiles(Array.from(e.dataTransfer.files)) }} onPaste={e => { if(currentTool==='read'||e.target.closest('textarea, input'))return; const files = Array.from(e.clipboardData.files); if (files.length) { e.preventDefault(); insertFiles(files) } else if(snippet){e.preventDefault();if(pageBase?.page===pageNumber&&!inserting&&!deletingPage){try{addImageInsert(snippet)}catch(error){setActionError(error.message)}}} }} ref={viewerRef} style={{touchAction:currentTool==='read'?'auto':'none',overscrollBehavior:'contain'}} className="pdf-editor-canvas flex-1 min-w-0 overflow-auto bg-slate-950">
+        aria-label={currentTool==='read'?'PDF view; select text and copy':'PDF canvas; paste or drop images here'} onDragOver={e => { e.preventDefault() }} onDrop={e => { e.preventDefault();if(currentTool!=='read')insertFiles(Array.from(e.dataTransfer.files)) }} onPaste={e => { if(currentTool==='read'||e.target.closest('textarea, input'))return; const files = Array.from(e.clipboardData.files); if (files.length) { e.preventDefault(); insertFiles(files) } else if(snippet){e.preventDefault();if(pageBase?.page===pageNumber&&!inserting&&!deletingPage){try{addImageInsert(snippet)}catch(error){setActionError(error.message)}}} }} ref={viewerRef} style={{touchAction:currentTool==='read'?'auto':'none',overscrollBehavior:'contain'}} className="pdf-editor-canvas flex-1 min-h-0 min-w-0 overflow-auto bg-slate-950">
         <div ref={pinchContentRef} className="flex min-h-full w-fit min-w-full items-start justify-center p-8">
           {pdfError ? (
             <div className="text-center py-12">
@@ -2141,7 +2202,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       <div ref={onAssistantHost} className="pdf-assistant-dock" hidden={!assistantOpen} aria-label="Notes AI assistant"/>
       </div>
       {!exportImage&&<footer className="pdf-workspace-footer">
-        <span className="pdf-footer-hint">{currentTool==='read'?'Select text with the cursor · Ctrl+C or right-click to copy · Scanned pages need OCR':currentTool==='number-line'?'Drag around one complete labeled number line · AI recognition':currentTool==='function'?'Drag around a function, then enter x in the calculator':currentTool==='graph'?'Drag around an equation to graph':currentTool==='calculate'?'Drag around an expression to calculate':currentTool==='snippet'?copyingSnippet?'Copying region…':snippet?'Snippet ready · More tools → Paste snippet':'Drag a region to copy':currentTool==='select'?'Drag to move · corners to resize':continuousView?'Continuous scrolling':'Single page view'}</span>
+        <span className="pdf-footer-hint">{currentTool==='read'?'Scroll or pinch to zoom · Ctrl/⌘ + wheel to zoom · Select text and copy':currentTool==='number-line'?'Drag around one complete labeled number line · AI recognition':currentTool==='function'?'Drag around a function, then enter x in the calculator':currentTool==='graph'?'Drag around an equation to graph':currentTool==='calculate'?'Drag around an expression to calculate':currentTool==='snippet'?copyingSnippet?'Copying region…':snippet?'Snippet ready · More tools → Paste snippet':'Drag a region to copy':currentTool==='select'?'Drag to move · corners to resize':continuousView?'Continuous scrolling':'Single page view'}</span>
         <nav aria-label="Page navigation"><button type="button" title="Previous page" aria-label="Previous page" disabled={pageNumber<=1||deletingPage||inserting} onClick={()=>goToPage(pageNumber-1)}><ChevronLeft size={16}/></button><label>Page <input aria-label="Page number" key={pageNumber} type="number" min="1" max={numPages||1} defaultValue={pageNumber} disabled={deletingPage||inserting} onBlur={event=>{const target=Math.max(1,Math.min(numPages||1,Number(event.target.value)||1));goToPage(target);event.target.value=String(target)}} onKeyDown={event=>{if(event.key==='Enter')event.currentTarget.blur()}}/> <span>/ {numPages||'…'}</span></label><button type="button" title="Next page" aria-label="Next page" disabled={pageNumber>=(numPages||1)||deletingPage||inserting} onClick={()=>goToPage(pageNumber+1)}><ChevronRight size={16}/></button></nav>
         <div className="pdf-footer-zoom"><button type="button" onClick={handleZoomOut} aria-label="Zoom out"><ZoomOut size={14}/></button><button type="button" onClick={handleFitWidth} title="Fit page width">{Math.round(scale*100)}%</button><button type="button" onClick={handleZoomIn} aria-label="Zoom in"><ZoomIn size={14}/></button></div>
       </footer>}
