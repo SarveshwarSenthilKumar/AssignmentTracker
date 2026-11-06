@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useState } from 'react'
 import { Check, Flame, Target, Trophy } from 'lucide-react'
 import './TaskStreaks.css'
 
@@ -14,6 +14,8 @@ function localDay(value) {
 
 export default function TaskStreaks({ tasks }) {
   const [today, setToday] = useState(() => localDay(Date.now()))
+  const [pinnedDay, setPinnedDay] = useState(null)
+  const detailsId = useId()
   useEffect(() => {
     const update = () => setToday(localDay(Date.now()))
     const timer = setInterval(update, 30000)
@@ -26,13 +28,16 @@ export default function TaskStreaks({ tasks }) {
 
   const { current, longest, days } = useMemo(() => {
     const days = new Map()
-    const add = day => {
-      if (Number.isFinite(day) && day <= today) days.set(day, (days.get(day) || 0) + 1)
+    const add = (day, type, title) => {
+      if (!Number.isFinite(day) || day > today) return
+      if (!days.has(day)) days.set(day, { completed: [], progress: [] })
+      days.get(day)[type].push(title)
     }
     for (const task of tasks) {
       if (task.canvasType === 'calendar_event') continue
-      if (task.status === 'completed' && task.completedAt) add(localDay(task.completedAt))
-      for (const log of task.progressLogs || []) add(Date.parse(`${log.day}T00:00:00Z`) / DAY_MS)
+      if (task.status === 'completed' && task.completedAt) add(localDay(task.completedAt), 'completed', task.text)
+      const loggedDays = new Set((task.progressLogs || []).map(log => Date.parse(`${log.day}T00:00:00Z`) / DAY_MS))
+      for (const day of loggedDays) add(day, 'progress', task.text)
     }
     let run = 0, longest = 0, previous = -Infinity
     for (const day of [...days.keys()].sort((a, b) => a - b)) {
@@ -63,13 +68,22 @@ export default function TaskStreaks({ tasks }) {
     </div>
     <div className="task-streak-week">
       <div className="task-streak-label"><h3>Last 7 days</h3><span>{activeThisWeek} active</span></div>
-      <ol>{week.map(day => {
+      <ol onKeyDown={event => { if (event.key === 'Escape') { setPinnedDay(null); event.target.blur() } }}>{week.map(day => {
         const date = new Date(day * DAY_MS)
-        const count = days.get(day) || 0
-        const label = `${fullDate.format(date)}${day === today ? ', today' : ''}. ${count ? `${count} ${count === 1 ? 'activity' : 'activities'} logged` : 'No activity'}.`
-        return <li key={day} aria-label={label} title={label} data-active={count > 0} aria-current={day === today ? 'date' : undefined}>
-          <span>{day === today ? 'Today' : weekday.format(date)}</span>
-          <div>{count > 0 ? <Check size={18} aria-hidden="true"/> : <span aria-hidden="true">·</span>}</div>
+        const activity = days.get(day)
+        const id = `${detailsId}-${day}`
+        return <li key={day} data-active={!!activity} data-pinned={pinnedDay === day}>
+          <button type="button" className="task-streak-day" aria-label={fullDate.format(date)} aria-current={day === today ? 'date' : undefined} aria-describedby={id} aria-pressed={pinnedDay === day} onClick={() => setPinnedDay(previous => previous === day ? null : day)}>
+            <span>{day === today ? 'Today' : weekday.format(date)}</span>
+            <span className="task-streak-day-mark">{activity ? <Check size={18} aria-hidden="true"/> : <span aria-hidden="true">·</span>}</span>
+          </button>
+          <div className="task-streak-day-detail" id={id}>
+            <strong>{fullDate.format(date)}</strong>
+            {activity ? <>
+              {activity.completed.length > 0 && <><p>Completed tasks</p><ul>{activity.completed.map((title, index) => <li key={index}>{title}</li>)}</ul></>}
+              {activity.progress.length > 0 && <><p>Progress logged</p><ul>{activity.progress.map((title, index) => <li key={index}>{title}</li>)}</ul></>}
+            </> : <p>No activity logged.</p>}
+          </div>
         </li>
       })}</ol>
     </div>

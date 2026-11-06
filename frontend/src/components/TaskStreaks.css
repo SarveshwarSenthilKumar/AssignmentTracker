@@ -22,14 +22,23 @@
 .task-streak-status { grid-area: status; display: flex; align-items: center; align-self: center; gap: 8px; font-size: .85rem; color: var(--text-secondary); }
 .task-streak-status svg { flex: none; }
 .task-streak-status[data-active=true] { color: var(--text-primary); }
-.task-streak-week { grid-area: week; min-width: 0; }
+.task-streak-week { grid-area: week; min-width: 0; position: relative; }
 .task-streak-label { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 8px; }
 .task-streak-label > span { color: var(--text-secondary); font-size: .75rem; }
 .task-streak-week ol { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; list-style: none; padding: 0; margin: 0; }
-.task-streak-week li { text-align: center; font-size: .67rem; color: var(--text-secondary); }
-.task-streak-week li > div { display: grid; place-items: center; min-height: 32px; margin-top: 4px; border: 1px solid var(--border-strong); border-radius: 8px; }
-.task-streak-week li[data-active=true] > div { background: #b5dbc6; color: #174132; border-color: transparent; }
-.task-streak-week li[aria-current=date] > div { outline: 2px solid var(--streak-amber); outline-offset: -2px; }
+.task-streak-day { display: block; width: 100%; text-align: center; font-size: .67rem; color: var(--text-secondary); cursor: pointer; }
+.task-streak-day-mark { display: grid; place-items: center; min-height: 32px; margin-top: 4px; border: 1px solid var(--border-strong); border-radius: 8px; }
+.task-streak-week li[data-active=true] .task-streak-day-mark { background: #b5dbc6; color: #174132; border-color: transparent; }
+.task-streak-day[aria-current=date] .task-streak-day-mark { outline: 2px solid var(--streak-amber); outline-offset: -2px; }
+.task-streak-day:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+.task-streak-day-detail { display: none; position: absolute; z-index: 2; inset: 100% 0 auto; max-height: 240px; overflow: auto; padding: 12px; border: 1px solid var(--border-strong); border-radius: 10px; background: var(--surface-input); color: var(--text-primary); box-shadow: 0 8px 24px #0004; font-size: .8rem; overflow-wrap: anywhere; }
+.task-streak-day-detail p { margin: 6px 0 2px; color: var(--text-secondary); }
+.task-streak-day-detail ul { padding-inline-start: 18px; list-style: disc; }
+.task-streak-week li[data-pinned=true] > .task-streak-day-detail { display: block; }
+.task-streak-day:focus-visible + .task-streak-day-detail { display: block; z-index: 3; }
+@media (hover: hover) {
+  .task-streak-week ol > li:hover > .task-streak-day-detail { display: block; z-index: 4; }
+}
 .task-streak-milestone { grid-area: milestone; }
 .task-streak-milestone progress { display: block; width: 100%; height: 7px; overflow: hidden; border: 0; border-radius: 8px; background: color-mix(in srgb, var(--text-primary) 13%, transparent); accent-color: var(--streak-amber); }
 .task-streak-milestone progress::-webkit-progress-bar { background: transparent; }
