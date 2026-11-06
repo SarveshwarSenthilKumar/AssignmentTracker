@@ -46,9 +46,14 @@ export default function TaskDeletionUndo({ token, onRestored, onRecreate, recrea
     } catch (err) { setError(err.message) }
     finally { lock.current = false; setBusy(null) }
   }
-  const recreateButton = (record, task) => task?.id && task.canRecreate && <button type="button" disabled={!!busy || loading || !!pendingDelete || !!recreatingTask} onClick={() => onRecreate(record._id, task.id)}>{recreatingTask === task.id ? 'Recreating…' : 'Recreate task'}</button>
+  const recreate = async (recordId, taskId) => {
+    setError('')
+    try { await onRecreate(recordId, taskId) }
+    catch (error) { setError(error.message) }
+  }
+  const recreateButton = (record, task) => task?.id && task.canRecreate && <button type="button" disabled={!!busy || loading || !!pendingDelete || !!recreatingTask} onClick={() => recreate(record._id, task.id)}>{recreatingTask === task.id ? 'Recreating…' : 'Recreate task'}</button>
   return <section className="recently-deleted-tasks" aria-labelledby="deleted-tasks-heading">
-    <header><h2 id="deleted-tasks-heading">Recently deleted</h2><p>Restore tasks before the date shown or choose Permanently delete to remove them now. Set the recovery period for new deletions in Account.</p></header>
+    <header><h2 id="deleted-tasks-heading">Recently deleted</h2><p>Use Recreate task to start a fresh copy from a deleted task. Expand a group to recreate a specific task. You can also restore or permanently delete a recovery record.</p></header>
     {error && <div role="alert">{error} <button type="button" disabled={!!busy || loading} onClick={refresh}>Retry</button></div>}
     {notice && <p role="status">{notice}</p>}
     {loading && <p role="status">Loading deleted tasks…</p>}

@@ -1034,8 +1034,10 @@ function App() {
       setTaskView('active')
       setSelectedFolder('all')
       setSelectedTask(task)
-    } catch (error) { setError(error.message) }
-    finally { recreateLock.current = false; setRecreatingTask(null) }
+    } catch (error) {
+      if (recordId) throw error
+      setError(error.message)
+    } finally { recreateLock.current = false; setRecreatingTask(null) }
   }
 
   const deleteTodo = async (id) => {
