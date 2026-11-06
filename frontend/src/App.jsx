@@ -4,6 +4,7 @@ import BugReportsPage from './components/BugReportsPage'
 import SiteRoadmapPage from './components/SiteRoadmapPage'
 import TaskSchedule from './components/TaskSchedule'
 import AppearanceSettings from './components/AppearanceSettings'
+import BirthdaySettings from './components/BirthdaySettings'
 import TaskProgress, { ProgressCreateFields, ProgressSummary } from './components/TaskProgress'
 import TaskStreaks from './components/TaskStreaks'
 import PrivacyPage from './components/PrivacyPage'
@@ -2091,6 +2092,7 @@ function App() {
               </div>
 
               <AppearanceSettings/>
+              <BirthdaySettings/>
               <AccountConnections token={token}/>
               <TimeZoneSettings /><StudyPhoneSettings/>
               <TaskDisplaySettings />

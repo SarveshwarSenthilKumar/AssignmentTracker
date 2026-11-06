@@ -1,6 +1,15 @@
 import { activeTimeZone, zonedLocal, localToInstant } from './timeZone.js'
-export const CALENDAR_LABELS = { tasks: 'Due dates', planned:'Scheduled tasks', canvas: 'Canvas & imports', txst: 'TXST events', appointment: 'Appointments', sports:'Sports events', marker: 'Date markers' }
+export const CALENDAR_LABELS = { tasks: 'Due dates', planned:'Scheduled tasks', canvas: 'Canvas & imports', txst: 'TXST events', appointment: 'Appointments', sports:'Sports events', marker: 'Date markers', birthday: 'Birthday' }
 export const validDay = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(`${value}T12:00:00Z`)) && new Date(`${value}T12:00:00Z`).toISOString().slice(0,10) === value
+
+export function birthdayItems(birthday, year) {
+  if (!validDay(`2000-${birthday}`)) return []
+  return [year - 1, year, year + 1].map(value => {
+    const date = `${String(value).padStart(4, '0')}-${birthday}`
+    const day = birthday === '02-29' && !validDay(date) ? `${String(value).padStart(4, '0')}-02-28` : date
+    return { id: `birthday:${day}`, title: 'Your birthday', kind: 'birthday', source: 'birthday', startDate: day, endDate: day, allDay: true, done: false, color: '#c891d9' }
+  })
+}
 export function calendarDay(value) {
   if (value == null) return null
   const date = new Date(value)

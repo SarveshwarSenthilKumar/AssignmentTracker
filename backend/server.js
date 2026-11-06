@@ -60,6 +60,7 @@ const userSchema = new mongoose.Schema({
   calendarCategories:{type:[new mongoose.Schema({id:String,name:String,color:String},{_id:false})],default:[]},
   hiddenCalendarIds: { type: [String], default: [] },
   interestedCalendarIds: { type: [String], default: [], select: false },
+  birthday: { type: String, default: '', select: false },
   calendarDayNotes: { type: Map, of: String, select: false },
   calendarHistoryRevision: { type: Number, default: 0 },
   folderHierarchyRevision:{type:Number,default:0},
@@ -634,14 +635,18 @@ app.post('/api/assistant/chat', authenticateToken, async (req, res) => {
 });
 app.get('/api/account/preferences', authenticateToken, async (req, res) => {
   try {
-    const user = await User.findById(req.user.userId).select('themeMode timeZone confirmTaskDeletion confirmOtherActions showInProgressColumn studyPhoneEnabled taskSortBy taskSortOrder');
+    const user = await User.findById(req.user.userId).select('themeMode timeZone confirmTaskDeletion confirmOtherActions showInProgressColumn studyPhoneEnabled taskSortBy taskSortOrder +birthday');
     if (!user) return res.status(404).json({ message: 'Account not found.' });
-    res.json({ themeMode:['light','system'].includes(user.themeMode)?user.themeMode:'dark',timeZone: user.timeZone || '', confirmTaskDeletion:user.confirmTaskDeletion!==false, confirmOtherActions:user.confirmOtherActions!==false, showInProgressColumn:user.showInProgressColumn!==false,studyPhoneEnabled:user.studyPhoneEnabled!==false,taskSortBy:user.taskSortBy||'dueDate',taskSortOrder:user.taskSortOrder||'asc' });
+    res.json({ themeMode:['light','system'].includes(user.themeMode)?user.themeMode:'dark',timeZone: user.timeZone || '', confirmTaskDeletion:user.confirmTaskDeletion!==false, confirmOtherActions:user.confirmOtherActions!==false, showInProgressColumn:user.showInProgressColumn!==false,studyPhoneEnabled:user.studyPhoneEnabled!==false,taskSortBy:user.taskSortBy||'dueDate',taskSortOrder:user.taskSortOrder||'asc',birthday:user.birthday||'' });
   } catch { res.status(500).json({ message: 'Could not load account preferences.' }); }
 });
 app.put('/api/account/preferences', authenticateToken, async (req, res) => {
-  const { themeMode,timeZone,confirmTaskDeletion,confirmOtherActions,showInProgressColumn,studyPhoneEnabled,taskSortBy,taskSortOrder } = req.body;
+  const { themeMode,timeZone,confirmTaskDeletion,confirmOtherActions,showInProgressColumn,studyPhoneEnabled,taskSortBy,taskSortOrder,birthday } = req.body;
   const update={};
+  if (birthday !== undefined) {
+    if (typeof birthday !== 'string' || (birthday !== '' && !validCalendarDay(`2000-${birthday}`))) return res.status(400).json({ message: 'Choose a valid birthday month and day.' });
+    update.birthday = birthday;
+  }
   if(themeMode!==undefined){if(!['dark','light','system'].includes(themeMode))return res.status(400).json({message:'Choose light, dark, or match device mode.'});update.themeMode=themeMode;}
   if(timeZone!==undefined){
   if (typeof timeZone !== 'string' || timeZone.length > 100) return res.status(400).json({ message: 'Choose a valid time zone.' });
@@ -658,9 +663,9 @@ app.put('/api/account/preferences', authenticateToken, async (req, res) => {
   if(taskSortOrder!==undefined){if(!['asc','desc'].includes(taskSortOrder))return res.status(400).json({message:'Choose a valid sort direction.'});update.taskSortOrder=taskSortOrder;}
   if(!Object.keys(update).length)return res.status(400).json({message:'Choose a preference to update.'});
   try {
-    const user = await User.findByIdAndUpdate(req.user.userId, { $set: update }, { new: true }).select('themeMode timeZone confirmTaskDeletion confirmOtherActions showInProgressColumn studyPhoneEnabled taskSortBy taskSortOrder');
+    const user = await User.findByIdAndUpdate(req.user.userId, { $set: update }, { new: true }).select('themeMode timeZone confirmTaskDeletion confirmOtherActions showInProgressColumn studyPhoneEnabled taskSortBy taskSortOrder +birthday');
     if (!user) return res.status(404).json({ message: 'Account not found.' });
-    res.json({ themeMode:['light','system'].includes(user.themeMode)?user.themeMode:'dark',timeZone: user.timeZone || '',confirmTaskDeletion:user.confirmTaskDeletion!==false,confirmOtherActions:user.confirmOtherActions!==false, showInProgressColumn:user.showInProgressColumn!==false,studyPhoneEnabled:user.studyPhoneEnabled!==false,taskSortBy:user.taskSortBy||'dueDate',taskSortOrder:user.taskSortOrder||'asc' });
+    res.json({ themeMode:['light','system'].includes(user.themeMode)?user.themeMode:'dark',timeZone: user.timeZone || '',confirmTaskDeletion:user.confirmTaskDeletion!==false,confirmOtherActions:user.confirmOtherActions!==false, showInProgressColumn:user.showInProgressColumn!==false,studyPhoneEnabled:user.studyPhoneEnabled!==false,taskSortBy:user.taskSortBy||'dueDate',taskSortOrder:user.taskSortOrder||'asc',birthday:user.birthday||'' });
   } catch { res.status(500).json({ message: 'Could not save your account preferences.' }); }
 });
 app.post('/api/user/reset', authenticateToken, async (req, res) => {
