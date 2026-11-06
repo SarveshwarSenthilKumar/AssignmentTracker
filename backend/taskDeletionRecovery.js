@@ -57,7 +57,7 @@ module.exports = function createTaskDeletionRecovery({ mongoose, Todo, Folder, a
         const active = await Todo.find({ user: req.user.userId }).select('_id').session(session).lean();
         const activeIds = new Set(active.map(task => String(task._id)));
         const validIds = new Set([...activeIds, ...record.tasks.map(task => String(task._id))]);
-        const tasks = record.tasks.filter(task => !activeIds.has(String(task._id))).map(task => ({ ...task, folder: task.folder && folders.has(String(task.folder)) ? task.folder : null, dependsOn: (task.dependsOn || []).filter(id => validIds.has(String(id))) }));
+        const tasks = record.tasks.filter(task => !activeIds.has(String(task._id))).map(task => ({ ...task, restoredAt: new Date(), folder: task.folder && folders.has(String(task.folder)) ? task.folder : null, dependsOn: (task.dependsOn || []).filter(id => validIds.has(String(id))) }));
         if (tasks.length) await Todo.insertMany(tasks, { session });
         for (const edge of record.connections) {
           const dependencies = edge.dependsOn.filter(id => validIds.has(String(id)));

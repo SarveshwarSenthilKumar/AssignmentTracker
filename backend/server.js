@@ -74,6 +74,7 @@ const userSchema = new mongoose.Schema({
   timeZone: { type: String, default: '' },
   themeMode: { type: String, enum: ['dark','light','system'], default: 'dark' },
   confirmTaskDeletion: { type: Boolean, default: true },
+  completedTaskRetentionDays: { type: Number, default: 0 },
   confirmOtherActions: { type: Boolean, default: true },
   showInProgressColumn: { type: Boolean, default: true },
   taskSortBy:{type:String,enum:['dueDate','manual','createdAt','completedAt','text','status'],default:'dueDate'},
@@ -146,6 +147,7 @@ const Folder = mongoose.model('Folder', folderSchema);
 // Todo Schema
 const todoSchema = new mongoose.Schema({
   progressTarget: { type: Number, default: null },
+  restoredAt: { type: Date, default: null },
   progressMilestones: { type: [new mongoose.Schema({ day: String, target: Number }, { _id: false })], default: [] },
   progressUnit: { type: String, default: '' },
   progressAutoComplete: { type: Boolean, default: false },
@@ -644,6 +646,11 @@ app.get('/api/account/preferences', authenticateToken, async (req, res) => {
 app.put('/api/account/preferences', authenticateToken, async (req, res) => {
   const { themeMode,timeZone,confirmTaskDeletion,confirmOtherActions,showInProgressColumn,studyPhoneEnabled,taskSortBy,taskSortOrder,birthday } = req.body;
   const update={};
+  if (req.body.completedTaskRetentionDays !== undefined) {
+    const days = req.body.completedTaskRetentionDays;
+    if (!Number.isInteger(days) || days < 0 || days > 3650) return res.status(400).json({ message: 'Choose 1–3,650 days, or turn automatic deletion off.' });
+    update.completedTaskRetentionDays = days;
+  }
   if (birthday !== undefined) {
     if (typeof birthday !== 'string' || (birthday !== '' && !validCalendarDay(`2000-${birthday}`))) return res.status(400).json({ message: 'Choose a valid birthday month and day.' });
     update.birthday = birthday;
@@ -928,6 +935,7 @@ app.put('/api/todos/:id', authenticateToken, async (req, res) => {
 });
 
 const taskRecovery = require('./taskDeletionRecovery')({ mongoose, Todo, Folder, app, authenticateToken });
+require('./completedTaskCleanup')({ User, Todo, remove: taskRecovery.remove });
 
 // Delete a todo
 app.post('/api/todos/bulk-delete', authenticateToken, async (req,res)=>{
