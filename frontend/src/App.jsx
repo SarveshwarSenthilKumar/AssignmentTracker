@@ -46,6 +46,7 @@ import { SHORTCUTS, matchesShortcut } from './lib/shortcuts'
 import { localToInstant, zonedLocal } from './lib/timeZone'
 import { taskDueLabel,dayLabel } from './lib/calendar'
 import CalendarPage from './components/CalendarPage'
+import CalendarReminderNotifications from './components/CalendarReminderNotifications'
 import TaskDependencies from './components/TaskDependencies'
 import { dependencySummary } from './lib/taskDependencies'
 import TaskVisualization from './components/TaskVisualization'
@@ -2477,6 +2478,7 @@ function App() {
 
         <footer className="platform-legal-footer"><a href={`#/suggest-feature/${encodeURIComponent(page)}`}>Suggest a feature</a><span aria-hidden="true"> · </span><a href={`#/report-bug/${encodeURIComponent(page)}`}>Report a bug</a><span aria-hidden="true"> · </span><a href="#/terms">Terms and Conditions</a><span aria-hidden="true"> · </span><a href="#/privacy">Privacy Policy</a></footer>
         <StudyPhone key={'phone:'+user?.id+':'+assistantGeneration} userId={user?.id} token={token} tasks={todos} enabled={user?.studyPhoneEnabled!==false}/>
+        <CalendarReminderNotifications key={user?.id} userId={user?.id} token={token} onOpen={selectedPDF?undefined:id=>{setAssistantCalendarId(id);navigate('calendar')}}/>
         {/* PDF Editor */}
         {selectedPDF && (
           <DocumentEditor

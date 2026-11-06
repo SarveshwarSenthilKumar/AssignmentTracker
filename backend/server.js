@@ -221,6 +221,7 @@ const CalendarEntry = mongoose.model('CalendarEntry', new mongoose.Schema({
   allDay: { type: Boolean, default: true },
   startDate: { type: String, required: true }, endDate: { type: String, required: true },
   startAt: { type: Date, default: null }, endAt: { type: Date, default: null },
+  reminderMinutes: { type: Number, enum: [0, 5, 15, 30, 60, 1440], default: null },
   done: { type: Boolean, default: false },
   taskIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Todo' }],
   documentIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'PDF' }],
@@ -711,6 +712,19 @@ for(const [route,filename,type]of [
 app.get('/api/calendar-entries', authenticateToken, async (req, res) => {
   try { res.json(await CalendarEntry.find({ user: req.user.userId }).sort({ startDate: 1, startAt: 1 })); }
   catch { res.status(500).json({ message: 'Could not load your calendar entries.' }); }
+});
+app.get('/api/calendar-reminders', authenticateToken, async (req, res) => {
+  try {
+    const now = Date.now();
+    const date = offset => new Date(now + offset * 86400000).toISOString().slice(0, 10);
+    const reminders = await CalendarEntry.find({
+      user: req.user.userId,
+      done: { $ne: true },
+      reminderMinutes: { $in: [0, 5, 15, 30, 60, 1440] },
+      startDate: { $gte: date(-2), $lte: date(3) }
+    }).select('title startDate startAt allDay reminderMinutes').lean();
+    res.json(reminders);
+  } catch { res.status(503).json({ message: 'Could not load calendar reminders.' }); }
 });
 app.post('/api/calendar-entries', authenticateToken, async (req, res) => {
   let entry;

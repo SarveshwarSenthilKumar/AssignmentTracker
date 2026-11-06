@@ -6,6 +6,10 @@ function calendarEntry(body) {
   for (const [key, limit] of [['notes',4000],['location',300]]) if (body[key] !== undefined && (typeof body[key] !== 'string' || body[key].length > limit)) throw new Error(`${key === 'notes' ? 'Notes' : 'Location'} is too long or invalid.`);
   if (body.done !== undefined && typeof body.done !== 'boolean') throw new Error('Invalid completion state.');
   const result = { title: body.title.trim(), kind: body.kind, notes: body.notes?.trim() || '', location: body.location?.trim() || '', allDay: body.kind === 'marker' || body.allDay, done: body.done ?? false };
+  if (body.reminderMinutes !== undefined) {
+    if (![null, 0, 5, 15, 30, 60, 1440].includes(body.reminderMinutes)) throw new Error('Choose a valid reminder time.');
+    result.reminderMinutes = body.reminderMinutes;
+  }
   if(body.categoryId!==undefined){
     if(body.categoryId!==null&&(typeof body.categoryId!=='string'||!/^[a-f\d-]{36}$/i.test(body.categoryId)))throw new Error('Choose a valid calendar category.');
     result.categoryId=body.categoryId;
