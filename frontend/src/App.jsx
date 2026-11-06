@@ -146,6 +146,8 @@ function App() {
   const [dueHasTime,setDueHasTime]=useState(false)
   const [scheduledDay,setScheduledDay]=useState('')
   const [taskView,setTaskView]=useState('active')
+  const [recreatingTask,setRecreatingTask]=useState(null)
+  const recreateLock=useRef(false)
   useEffect(()=>{setTaskView('active')},[page,selectedTask])
   const [taskDatePrompt,setTaskDatePrompt]=useState(null),[creatingTask,setCreatingTask]=useState(false)
   const createTaskLock=useRef(false)
@@ -924,6 +926,7 @@ function App() {
           </div>
         </div>
 
+        {todo.status === 'completed' && <button type="button" className="task-recreate-button" disabled={!!recreatingTask} onPointerDown={event=>event.stopPropagation()} onClick={event=>{event.stopPropagation();recreateTask(todo._id)}}>{recreatingTask === todo._id ? 'Recreating…' : 'Recreate task'}</button>}
         {!!todo.progressTarget && <details className="task-progress-quick" onClick={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()}>
           <summary><ProgressSummary task={todo}/><span>Log progress</span></summary>
           <TaskProgress key={todo._id} task={todo} token={token} onSaved={saveProgressTask} showSummary={false}/>
@@ -1012,6 +1015,27 @@ function App() {
         )}
       </div>
     )
+  }
+
+  const recreateTask = async (id, recordId) => {
+    if (recreateLock.current) return
+    recreateLock.current = true
+    setRecreatingTask(id)
+    setError(null)
+    try {
+      const url = recordId ? `/api/todos/deletion-history/${recordId}/recreate` : `/api/todos/${id}/recreate`
+      const response = await fetch(url, {
+        method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(recordId ? { taskId: id } : {})
+      })
+      const task = await readApiJson(response)
+      if (!response.ok || !task._id) throw new Error(task.message || 'Could not recreate the task.')
+      setTodos(previous => [...previous.filter(item => item._id !== task._id), task])
+      setTaskView('active')
+      setSelectedFolder('all')
+      setSelectedTask(task)
+    } catch (error) { setError(error.message) }
+    finally { recreateLock.current = false; setRecreatingTask(null) }
   }
 
   const deleteTodo = async (id) => {
@@ -1573,7 +1597,7 @@ function App() {
           <button type="button" aria-pressed={taskView==='active'} onClick={()=>setTaskView('active')}>Tasks</button>
           <button type="button" aria-pressed={taskView==='deleted'} onClick={()=>setTaskView('deleted')}>Recently deleted</button>
         </div>}
-        {page === 'tasks' && taskView==='deleted' && <TaskDeletionUndo token={token} onRestored={()=>fetchTodos(false)}/>}
+        {page === 'tasks' && taskView==='deleted' && <TaskDeletionUndo token={token} onRestored={()=>fetchTodos(false)} onRecreate={(recordId,id)=>recreateTask(id,recordId)} recreatingTask={recreatingTask}/>}
         {page === 'tasks' && taskView==='active' && <>
         {/* Folders Section */}
         <div className="mb-8">

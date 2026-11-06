@@ -93,3 +93,5 @@
 .task-status-circle{width:28px;height:28px;flex:0 0 28px;pointer-events:none;transition:background-color .15s,border-color .15s,box-shadow .15s}.task-status-hitbox *{pointer-events:none}.task-status-hitbox:hover:not(:disabled) .task-status-circle{box-shadow:0 0 0 5px #9aabbd18}.task-status-hitbox:focus-visible{outline:2px solid var(--accent,#96b7d3);outline-offset:2px}.task-status-hitbox:disabled{cursor:wait;opacity:.6}@media(prefers-reduced-motion:reduce){.task-status-circle{transition:none}}
 
 .deleted-task-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+
+.task-recreate-button{margin:8px 12px 0 48px;padding:6px 10px;border:1px solid var(--border-strong);border-radius:8px;background:var(--surface-input);color:var(--text-primary);font-size:.8rem}.task-recreate-button:disabled{opacity:.5}

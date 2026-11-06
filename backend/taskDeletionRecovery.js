@@ -9,6 +9,36 @@ module.exports = function createTaskDeletionRecovery({ mongoose, User, Todo, Fol
     expiresAt: { type: Date, default: null, expires: 0 },
   }));
   const recoverable = () => ({ $or: [{ expiresAt: null }, { expiresAt: { $gt: new Date() } }] });
+  async function recreate(source, user) {
+    const folder = source.folder && await Folder.exists({ _id: source.folder, user });
+    return Todo.create({
+      user, folder: folder ? source.folder : null,
+      text: source.text, description: source.description, links: source.links,
+      progressTarget: source.progressTarget, progressUnit: source.progressUnit,
+      progressAutoComplete: source.progressAutoComplete,
+      status: 'todo'
+    });
+  }
+
+  app.post('/api/todos/:id([a-fA-F0-9]{24})/recreate', authenticateToken, async (req, res) => {
+    try {
+      const source = await Todo.findOne({ _id: req.params.id, user: req.user.userId, status: 'completed', canvasType: { $ne: 'calendar_event' } }).lean();
+      if (!source) return res.status(404).json({ message: 'Completed task not found.' });
+      res.status(201).json(await recreate(source, req.user.userId));
+    } catch { res.status(500).json({ message: 'Could not recreate the task.' }); }
+  });
+
+  app.post('/api/todos/deletion-history/:id/recreate', authenticateToken, async (req, res) => {
+    if (!mongoose.isValidObjectId(req.params.id) || typeof req.body?.taskId !== 'string' || !/^[a-f\d]{24}$/i.test(req.body.taskId)) {
+      return res.status(400).json({ message: 'Choose a valid deleted task.' });
+    }
+    try {
+      const record = await Recovery.findOne({ _id: req.params.id, user: req.user.userId, ...recoverable() }).lean();
+      const source = record?.tasks.find(task => String(task._id) === req.body.taskId && task.canvasType !== 'calendar_event');
+      if (!source) return res.status(404).json({ message: 'Deleted task is no longer available.' });
+      res.status(201).json(await recreate(source, req.user.userId));
+    } catch { res.status(500).json({ message: 'Could not recreate the task.' }); }
+  });
   async function remove(filter) {
     const session = await mongoose.startSession();
     let result;
@@ -35,8 +65,8 @@ module.exports = function createTaskDeletionRecovery({ mongoose, User, Todo, Fol
   }
   app.get('/api/todos/deletion-history', authenticateToken, async (req, res) => {
     try {
-      const records = await Recovery.find({ user: req.user.userId, ...recoverable() }).select('_id createdAt expiresAt tasks.text').sort({ createdAt: -1, _id: -1 }).lean();
-      res.json(records.map(record => ({ _id: record._id, count: record.tasks.length, label: record.tasks.length === 1 ? record.tasks[0].text : `${record.tasks.length} tasks`, tasks: record.tasks.map(task => ({ text: task.text })), createdAt: record.createdAt, expiresAt: record.expiresAt })));
+      const records = await Recovery.find({ user: req.user.userId, ...recoverable() }).select('_id createdAt expiresAt tasks._id tasks.text tasks.canvasType').sort({ createdAt: -1, _id: -1 }).lean();
+      res.json(records.map(record => ({ _id: record._id, count: record.tasks.length, label: record.tasks.length === 1 ? record.tasks[0].text : `${record.tasks.length} tasks`, tasks: record.tasks.map(task => ({ id: task._id, text: task.text, canRecreate: task.canvasType !== 'calendar_event' })), createdAt: record.createdAt, expiresAt: record.expiresAt })));
     } catch { res.status(500).json({ message: 'Could not load deleted task history.' }); }
   });
   app.delete('/api/todos/deletion-history/:id', authenticateToken, async (req, res) => {

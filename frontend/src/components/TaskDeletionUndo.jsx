@@ -6,7 +6,7 @@ import InlineConfirmation from './InlineConfirmation'
 export const notifyTaskDeletion = () => window.dispatchEvent(new Event('task-deleted'))
 const isRecoverable = record => !record.expiresAt || Date.parse(record.expiresAt) > Date.now()
 
-export default function TaskDeletionUndo({ token, onRestored }) {
+export default function TaskDeletionUndo({ token, onRestored, onRecreate, recreatingTask }) {
   const [records, setRecords] = useState([]), [busy, setBusy] = useState(null), [error, setError] = useState(''), [loading, setLoading] = useState(true)
   const lock = useRef(false), generation = useRef(0)
   const [pendingDelete, setPendingDelete] = useState(null)
@@ -33,7 +33,7 @@ export default function TaskDeletionUndo({ token, onRestored }) {
     return () => { generation.current++; window.clearInterval(expire); window.removeEventListener('task-deleted', listener); window.removeEventListener('workspace-reset', listener) }
   }, [token])
   const changeRecord = async (id, permanent = false) => {
-    if (lock.current) return
+    if (lock.current || recreatingTask) return
     lock.current = true
     setBusy({ id, permanent }); setError(''); setNotice(''); setPendingDelete(null)
     try {
@@ -46,6 +46,7 @@ export default function TaskDeletionUndo({ token, onRestored }) {
     } catch (err) { setError(err.message) }
     finally { lock.current = false; setBusy(null) }
   }
+  const recreateButton = (record, task) => task?.id && task.canRecreate && <button type="button" disabled={!!busy || loading || !!pendingDelete || !!recreatingTask} onClick={() => onRecreate(record._id, task.id)}>{recreatingTask === task.id ? 'Recreating…' : 'Recreate task'}</button>
   return <section className="recently-deleted-tasks" aria-labelledby="deleted-tasks-heading">
     <header><h2 id="deleted-tasks-heading">Recently deleted</h2><p>Restore tasks before the date shown or choose Permanently delete to remove them now. Set the recovery period for new deletions in Account.</p></header>
     {error && <div role="alert">{error} <button type="button" disabled={!!busy || loading} onClick={refresh}>Retry</button></div>}
@@ -54,9 +55,10 @@ export default function TaskDeletionUndo({ token, onRestored }) {
     {!loading && !error && !records.length && <p className="deleted-tasks-empty">No recently deleted tasks.</p>}
     <div className="deleted-task-list">{records.map(record => <article key={record._id}>
       <div className="deleted-task-summary"><h3>{record.label}</h3><p>{record.expiresAt ? `Available until ${new Date(record.expiresAt).toLocaleString()}` : 'No expiry'}</p>
-        {record.count > 1 && <details><summary>View {record.count} deleted tasks</summary><ul>{record.tasks?.map((task, index) => <li key={index}>{task.text}</li>)}</ul></details>}
+        {record.count > 1 && <details><summary>View {record.count} deleted tasks</summary><ul>{record.tasks?.map((task, index) => <li key={task.id || index}>{task.text} {recreateButton(record, task)}</li>)}</ul></details>}
       </div>
       <div className="deleted-task-actions">
+        {record.count === 1 && recreateButton(record, record.tasks?.[0])}
         <button type="button" disabled={!!busy || loading || !!pendingDelete} onClick={() => changeRecord(record._id)}>{busy?.id === record._id && !busy.permanent ? <><Loader2 size={16} className="animate-spin"/> Restoring…</> : <><Undo2 size={16}/> {record.count > 1 ? 'Restore group' : 'Restore task'}</>}</button>
         <button type="button" disabled={!!busy || loading || !!pendingDelete} onClick={() => setPendingDelete(record)}>{busy?.id === record._id && busy.permanent ? <><Loader2 size={16} className="animate-spin"/> Deleting…</> : <><Trash2 size={16}/> Permanently delete{record.count > 1 ? ' group' : ''}</>}</button>
       </div>
