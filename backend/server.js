@@ -59,6 +59,7 @@ const userSchema = new mongoose.Schema({
   calendarColors: { type: Map, of: String, default: {} },
   calendarCategories:{type:[new mongoose.Schema({id:String,name:String,color:String},{_id:false})],default:[]},
   hiddenCalendarIds: { type: [String], default: [] },
+  interestedCalendarIds: { type: [String], default: [], select: false },
   calendarHistoryRevision: { type: Number, default: 0 },
   folderHierarchyRevision:{type:Number,default:0},
   searchIndexRevision:{type:Number,default:0},
@@ -712,6 +713,30 @@ for(const [route,filename,type]of [
 app.get('/api/calendar-entries', authenticateToken, async (req, res) => {
   try { res.json(await CalendarEntry.find({ user: req.user.userId }).sort({ startDate: 1, startAt: 1 })); }
   catch { res.status(500).json({ message: 'Could not load your calendar entries.' }); }
+});
+app.get('/api/calendar-interests', authenticateToken, async (req, res) => {
+  try {
+    const account = await User.findById(req.user.userId).select('+interestedCalendarIds').lean();
+    if (!account) return res.status(404).json({ message: 'Account not found.' });
+    res.json(account.interestedCalendarIds || []);
+  } catch { res.status(503).json({ message: 'Could not load interested events.' }); }
+});
+app.put('/api/calendar-interests', authenticateToken, async (req, res) => {
+  const { id, interested } = req.body || {};
+  if (typeof id !== 'string' || !/^(?:txst:[\w-]{1,100}|(?:entry|task):[a-f\d]{24})$/i.test(id) || typeof interested !== 'boolean') {
+    return res.status(400).json({ message: 'Choose a valid calendar event.' });
+  }
+  try {
+    const filter = { _id: req.user.userId };
+    if (interested) filter.$or = [
+      { interestedCalendarIds: id },
+      { 'interestedCalendarIds.9999': { $exists: false } }
+    ];
+    const update = interested ? { $addToSet: { interestedCalendarIds: id } } : { $pull: { interestedCalendarIds: id } };
+    const account = await User.findOneAndUpdate(filter, update, { new: true }).select('+interestedCalendarIds').lean();
+    if (!account) return res.status(409).json({ message: 'Could not save this event. Your interest list may be full.' });
+    res.json(account.interestedCalendarIds || []);
+  } catch { res.status(503).json({ message: 'Could not save your event interest.' }); }
 });
 app.get('/api/calendar-reminders', authenticateToken, async (req, res) => {
   try {
