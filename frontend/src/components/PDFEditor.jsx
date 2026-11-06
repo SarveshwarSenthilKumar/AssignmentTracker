@@ -500,14 +500,14 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       // Older highlighter controls displayed one third of the actual width.
       if(!stored&&Number.isFinite(saved.highlighter))saved.highlighter*=3
     }catch{}
-    const size=tool=>Number.isFinite(saved[tool])?Math.max(1,Math.min(tool==='highlighter'?120:40,saved[tool])):tool==='highlighter'?12:1.5
+    const size=tool=>Number.isFinite(saved[tool])&&saved[tool]>0?saved[tool]:tool==='highlighter'?12:1.5
     return {pen:size('pen'),highlighter:size('highlighter')}
   })
   const tipTool=currentTool==='highlighter'?'highlighter':'pen'
   const strokeWidth=tipSizes[tipTool]
   const setStrokeWidth=value=>{
-    if(!Number.isFinite(value))return
-    setTipSizes(previous=>({...previous,[tipTool]:Math.max(1,Math.min(tipTool==='highlighter'?120:40,value))}))
+    if(!Number.isFinite(value)||value<=0)return
+    setTipSizes(previous=>({...previous,[tipTool]:value}))
   }
   useEffect(()=>{try{localStorage.setItem('pdf-tool-tip-sizes-v2',JSON.stringify(tipSizes))}catch{}},[tipSizes])
   const [eraserOptions,setEraserOptions]=useState(()=>{

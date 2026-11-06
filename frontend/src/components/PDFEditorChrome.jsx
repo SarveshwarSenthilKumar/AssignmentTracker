@@ -113,13 +113,24 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
   </>,{custom:<span className="pc-color-chip" style={{backgroundColor:tools.color}}/>,left:true})
   const text=tools.current==='text',erase=tools.current==='eraser'
   const size=text?tools.fontSize:erase?tools.eraser.size:tools.strokeWidth
-  const tipStep=tools.current==='highlighter'?.5:.1
+  const [exactTip,setExactTip]=useState(null)
+  const standardTipStep=tools.current==='highlighter'?.5:.1
+  const tipStep=size<=standardTipStep?Number((size/2).toPrecision(12)):standardTipStep
   const tipMaximum=tools.current==='highlighter'?120:40
-  const adjustTip=direction=>tools.onWidth(Math.max(1,Math.min(tipMaximum,Math.round((size+direction*tipStep)*10)/10)))
+  const adjustTip=direction=>tools.onWidth(Number((size+direction*tipStep).toPrecision(15)))
+  const commitTip=event=>{
+    tools.onWidth(Number(event.currentTarget.value))
+    setExactTip(null)
+  }
   const sizeMenu=menu('brush',erase?'Eraser settings':text?'Text settings':'Stroke settings',SlidersHorizontal,<>
     {erase?<PDFEraserControls {...tools.eraser}/>:<>
-      <label className="pc-field">{text?'Font size':'Stroke width'}<div className="pc-size-input"><input type="range" min={text?6:1} max={text?144:tools.current==='highlighter'?120:40} step={text?1:tipStep} value={size} onChange={event=>(text?tools.onFontSize:tools.onWidth)(Number(event.target.value))}/><input type="number" aria-label={text?'Exact font size':'Exact stroke width'} min={text?6:1} max={text?144:tools.current==='highlighter'?120:40} step={text?1:tipStep} value={size} onChange={event=>{const value=Number(event.target.value);if(event.target.value&&Number.isFinite(value))(text?tools.onFontSize:tools.onWidth)(Math.max(text?6:1,Math.min(text?144:tools.current==='highlighter'?120:40,value)))}}/><span>pt</span></div></label>
-      {!text&&<><div className="pc-tip-adjust" role="group" aria-label="Gradually adjust tip size"><button type="button" onClick={()=>adjustTip(-1)} disabled={size<=1} aria-label={`Decrease tip size by ${tipStep} points`}>− {tipStep} pt</button><output aria-live="polite">{Number(size.toFixed(1))} pt</output><button type="button" onClick={()=>adjustTip(1)} disabled={size>=tipMaximum} aria-label={`Increase tip size by ${tipStep} points`}>+ {tipStep} pt</button></div><p className="pc-menu-note">Tap + or − for small, precise changes. Each tap adjusts only this tool.</p><p className="pc-menu-note">{tools.current==='highlighter'?'Highlighter: 12 pt suits a line of text.':'Pen: 1.5 pt suits handwriting and fine notes.'} Sizes show the actual stroke width and save separately on this device.</p><button type="button" className="pc-menu-action" onClick={()=>tools.onWidth(tools.current==='highlighter'?12:1.5)}>Use recommended {tools.current==='highlighter'?'highlighter':'pen'} size ({tools.current==='highlighter'?12:1.5} pt)</button></>}
+      <label className="pc-field">{text?'Font size':'Stroke width'}<div className="pc-size-input">
+        <input type="range" min={text?6:.01} max={text?144:tipMaximum} step={text?1:.01} value={size} onChange={event=>(text?tools.onFontSize:tools.onWidth)(Number(event.target.value))}/>
+        {text ? <input type="number" aria-label="Exact font size" min={6} max={144} step={1} value={size} onChange={event=>{if(event.target.value)tools.onFontSize(Math.max(6,Math.min(144,Number(event.target.value))))}}/> :
+          <input type="number" inputMode="decimal" aria-label="Exact stroke width" step="any" value={exactTip?.tool===tools.current?exactTip.value:size} onChange={event=>setExactTip({tool:tools.current,value:event.target.value})} onBlur={commitTip} onKeyDown={event=>{if(event.key==='Enter'){event.preventDefault();event.currentTarget.blur()}}}/>}
+        <span>pt</span>
+      </div></label>
+      {!text&&<><div className="pc-tip-adjust" role="group" aria-label="Gradually adjust tip size"><button type="button" onClick={()=>adjustTip(-1)} disabled={tipStep<=0 || size-tipStep<=0} aria-label={`Decrease tip size by ${tipStep} points`}>− {tipStep} pt</button><output aria-live="polite">{size} pt</output><button type="button" onClick={()=>adjustTip(1)} disabled={tipStep<=0 || !Number.isFinite(size+tipStep) || size+tipStep===size} aria-label={`Increase tip size by ${tipStep} points`}>+ {tipStep} pt</button></div><p className="pc-menu-note">Type any positive width and press Enter. Use + or − for small adjustments.</p><p className="pc-menu-note">{tools.current==='highlighter'?'Highlighter: 12 pt suits a line of text.':'Pen: 1.5 pt suits handwriting and fine notes.'} Sizes show the actual stroke width and save separately on this device.</p><button type="button" className="pc-menu-action" onClick={()=>tools.onWidth(tools.current==='highlighter'?12:1.5)}>Use recommended {tools.current==='highlighter'?'highlighter':'pen'} size ({tools.current==='highlighter'?12:1.5} pt)</button></>}
       {!text&&<label className="pc-checkbox"><input type="checkbox" checked={tools.usePressure} onChange={tools.onPressure}/>Use pen pressure</label>}
       {!text&&<><label className="pc-checkbox"><input type="checkbox" checked={tools.autoStraightLines} onChange={tools.onAutoStraightLines}/>Straight-line detection</label><p className="pc-menu-note">Automatically straighten long pen strokes. Turn off to keep freehand strokes. Saved on this device.</p></>}
       {!text&&<label className="pc-checkbox"><input type="checkbox" checked={tools.autoDottedLines} onChange={tools.onAutoDottedLines}/>Dotted-line detection</label>}
