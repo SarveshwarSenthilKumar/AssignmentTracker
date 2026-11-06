@@ -6,10 +6,24 @@ function validateProgressConfig(body) {
   if (!positive(body.progressTarget)) throw new Error('Choose a whole-number target from 1 to 1,000,000,000.');
   if (body.progressUnit !== undefined && (typeof body.progressUnit !== 'string' || body.progressUnit.trim().length > 40)) throw new Error('Use a unit name of up to 40 characters.');
   if (body.progressAutoComplete !== undefined && typeof body.progressAutoComplete !== 'boolean') throw new Error('Choose whether to complete the task automatically.');
+  let milestones;
+  if (body.progressMilestones !== undefined) {
+    if (!Array.isArray(body.progressMilestones) || body.progressMilestones.length > 30) throw new Error('Choose up to 30 milestones.');
+    milestones = body.progressMilestones.map(milestone => {
+      if (!validDay(milestone?.day) || !positive(milestone.target) || milestone.target > body.progressTarget) {
+        throw new Error('Each milestone needs a date and a whole-number amount within the overall target.');
+      }
+      return { day: milestone.day, target: milestone.target };
+    }).sort((a, b) => a.day.localeCompare(b.day));
+    if (milestones.some((item, index) => index > 0 && (item.day === milestones[index - 1].day || item.target <= milestones[index - 1].target))) {
+      throw new Error('Use a different date for each milestone and increase the cumulative amount at each later date.');
+    }
+  }
   return {
     progressTarget: body.progressTarget,
     progressUnit: (body.progressUnit || '').trim(),
-    ...(body.progressAutoComplete !== undefined ? { progressAutoComplete: body.progressAutoComplete } : {})
+    ...(body.progressAutoComplete !== undefined ? { progressAutoComplete: body.progressAutoComplete } : {}),
+    ...(milestones !== undefined ? { progressMilestones: milestones } : {})
   };
 }
 

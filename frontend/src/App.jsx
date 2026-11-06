@@ -443,7 +443,7 @@ function App() {
   const addTodo=async e=>{
     e.preventDefault()
     if(!input.trim()||createTaskLock.current)return
-    const snapshot={text:input.trim(),folder:selectedFolder==='all'?null:selectedFolder,scheduledDate:scheduledDay,progress:newProgress.enabled?{progressTarget:Number(newProgress.target),progressUnit:newProgress.unit,progressAutoComplete:newProgress.autoComplete}:null}
+    const snapshot={text:input.trim(),folder:selectedFolder==='all'?null:selectedFolder,scheduledDate:scheduledDay,progress:newProgress.enabled?{progressTarget:Number(newProgress.target),progressUnit:newProgress.unit,progressAutoComplete:newProgress.autoComplete,progressMilestones:(newProgress.milestones||[]).map(item=>({day:item.day,target:Number(item.target)}))}:null}
     if(!dueDate){
       const suggestions=taskDateSuggestions(snapshot.text)
       if(suggestions.length){setTaskDatePrompt({...snapshot,suggestions});return}

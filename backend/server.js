@@ -146,6 +146,7 @@ const Folder = mongoose.model('Folder', folderSchema);
 // Todo Schema
 const todoSchema = new mongoose.Schema({
   progressTarget: { type: Number, default: null },
+  progressMilestones: { type: [new mongoose.Schema({ day: String, target: Number }, { _id: false })], default: [] },
   progressUnit: { type: String, default: '' },
   progressAutoComplete: { type: Boolean, default: false },
   progressLogs: { type: [new mongoose.Schema({ id: String, day: String, amount: Number, note: { type: String, default: '', maxlength: 1000 }, createdAt: { type: Date, default: Date.now } }, { _id: false })], default: [] },

@@ -8,6 +8,37 @@ const number = value => Number(value).toLocaleString()
 const totalFor = task => (task.progressLogs || []).reduce((sum, entry) => sum + entry.amount, 0)
 const dateLabel = day => new Date(`${day}T12:00:00Z`).toLocaleDateString(undefined, { timeZone: 'UTC', year: 'numeric', month: 'short', day: 'numeric' })
 
+function MilestoneFields({ items, onChange, target, disabled }) {
+  const update = (index, field, value) => onChange(items.map((item, position) => position === index ? { ...item, [field]: value } : item))
+  return <fieldset className="task-progress-milestones" disabled={disabled}>
+    <legend>Milestones (optional)</legend>
+    <p>Set cumulative goals by date, such as 50 by Friday and 100 by the following Friday.</p>
+    {items.map((item, index) => <div className="task-progress-fields" key={index}>
+      <label>Total by this date<input type="number" min="1" max={Number(target) || 1000000000} step="1" required value={item.target} onChange={event => update(index, 'target', event.target.value)}/></label>
+      <label>Due date<input type="date" required value={item.day} onChange={event => update(index, 'day', event.target.value)}/></label>
+      <button type="button" onClick={() => onChange(items.filter((_, position) => position !== index))} aria-label={`Remove milestone ${index + 1}`}>Remove</button>
+    </div>)}
+    <button type="button" disabled={items.length >= 30} onClick={() => onChange([...items, { day: '', target: '' }])}>Add milestone</button>
+  </fieldset>
+}
+
+function MilestoneSummary({ task, today, total }) {
+  const milestones = task.progressMilestones || []
+  if (!milestones.length) return null
+  return <section className="task-progress-milestones" aria-label="Progress milestones">
+    <strong>Milestones</strong>
+    <ul>{milestones.map(({ day, target }) => {
+      const byDeadline = (task.progressLogs || []).reduce((sum, entry) => entry.day <= day ? sum + entry.amount : sum, 0)
+      const state = byDeadline >= target ? 'Reached on time' : day < today ? total >= target ? 'Reached after deadline' : 'Past due' : day === today ? 'Due today' : 'Upcoming'
+      return <li key={day}>
+        <strong>{number(target)} {task.progressUnit || 'units'} by {dateLabel(day)}</strong>
+        <span>{number(byDeadline)} of {number(target)} logged by deadline · {state}</span>
+        <progress value={Math.min(byDeadline, target)} max={target} aria-label={`${number(byDeadline)} of ${number(target)} by ${dateLabel(day)}`}/>
+      </li>
+    })}</ul>
+  </section>
+}
+
 export function ProgressSummary({ task }) {
   if (!task.progressTarget) return null
   const total = totalFor(task)
@@ -15,13 +46,14 @@ export function ProgressSummary({ task }) {
 }
 
 export function ProgressCreateFields({ value, onChange, disabled }) {
-  return <div className="task-progress-create"><label className="task-progress-toggle"><input type="checkbox" checked={value.enabled} disabled={disabled} onChange={event => onChange({ ...value, enabled: event.target.checked })}/>Track progress over multiple days</label>{value.enabled && <div className="task-progress-fields"><label>Target<input type="number" min="1" max="1000000000" step="1" required disabled={disabled} value={value.target} onChange={event => onChange({ ...value, target: event.target.value })} placeholder="200"/></label><label>Unit (optional)<input maxLength="40" disabled={disabled} value={value.unit} onChange={event => onChange({ ...value, unit: event.target.value })} placeholder="applications"/></label><label className="task-progress-toggle"><input type="checkbox" checked={!!value.autoComplete} disabled={disabled} onChange={event => onChange({ ...value, autoComplete: event.target.checked })}/>Mark complete when the goal is reached</label><p>Log a little each day, such as 20 applications toward a target of 200.</p></div>}</div>
+  return <div className="task-progress-create"><label className="task-progress-toggle"><input type="checkbox" checked={value.enabled} disabled={disabled} onChange={event => onChange({ ...value, enabled: event.target.checked })}/>Track progress over multiple days</label>{value.enabled && <div className="task-progress-fields"><label>Target<input type="number" min="1" max="1000000000" step="1" required disabled={disabled} value={value.target} onChange={event => onChange({ ...value, target: event.target.value })} placeholder="200"/></label><label>Unit (optional)<input maxLength="40" disabled={disabled} value={value.unit} onChange={event => onChange({ ...value, unit: event.target.value })} placeholder="applications"/></label><label className="task-progress-toggle"><input type="checkbox" checked={!!value.autoComplete} disabled={disabled} onChange={event => onChange({ ...value, autoComplete: event.target.checked })}/>Mark complete when the goal is reached</label><MilestoneFields items={value.milestones||[]} onChange={milestones=>onChange({...value,milestones})} target={value.target} disabled={disabled}/></div>}</div>
 }
 
 export default function TaskProgress({ task, token, onSaved, showSummary = true }) {
   const [target, setTarget] = useState(String(task.progressTarget || ''))
   const [unit, setUnit] = useState(task.progressUnit || '')
   const [autoComplete, setAutoComplete] = useState(task.progressAutoComplete === true)
+  const [milestones, setMilestones] = useState(task.progressMilestones || [])
   const [editing, setEditing] = useState(false)
   const [day, setDay] = useState(today), [amount, setAmount] = useState('')
   const [note, setNote] = useState('')
@@ -32,7 +64,8 @@ export default function TaskProgress({ task, token, onSaved, showSummary = true 
     setTarget(String(task.progressTarget || ''))
     setUnit(task.progressUnit || '')
     setAutoComplete(task.progressAutoComplete === true)
-  }, [task._id, task.progressTarget, task.progressUnit, task.progressAutoComplete])
+    setMilestones(task.progressMilestones || [])
+  }, [task._id, task.progressTarget, task.progressUnit, task.progressAutoComplete, task.progressMilestones])
   const total = totalFor(task), logs = task.progressLogs || []
   const todayLabel = today()
   const yesterday = new Date(Date.parse(`${todayLabel}T00:00:00Z`) - 86400000).toISOString().slice(0, 10)
@@ -51,7 +84,10 @@ export default function TaskProgress({ task, token, onSaved, showSummary = true 
   }
   const configure = event => {
     event.preventDefault()
-    save('', 'PUT', { progressTarget: Number(target), progressUnit: unit, progressAutoComplete: autoComplete }, 'Progress target saved.', () => setEditing(false))
+    save('', 'PUT', {
+      progressTarget: Number(target), progressUnit: unit, progressAutoComplete: autoComplete,
+      progressMilestones: milestones.map(item => ({ day: item.day, target: Number(item.target) }))
+    }, 'Progress target saved.', () => setEditing(false))
   }
   const logProgress = event => {
     event.preventDefault()
@@ -67,9 +103,10 @@ export default function TaskProgress({ task, token, onSaved, showSummary = true 
   return <section className="task-progress" aria-label="Daily task progress" aria-busy={busy} onClick={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()}>
     <header><strong>Daily progress</strong>{!!task.progressTarget && <button type="button" disabled={busy} onClick={() => setEditing(!editing)}>{editing ? 'Close target settings' : 'Edit target'}</button>}</header>
     {!task.progressTarget && !editing && <><p>Chip away at a larger goal, such as 200 job applications.</p><button type="button" onClick={() => setEditing(true)}>Set a progress target</button></>}
-    {editing && <form onSubmit={configure} className="task-progress-fields"><label>Target<input type="number" min="1" max="1000000000" step="1" required value={target} disabled={busy} onChange={event => setTarget(event.target.value)}/></label><label>Unit (optional)<input value={unit} maxLength="40" disabled={busy} onChange={event => setUnit(event.target.value)} placeholder="applications"/></label><label className="task-progress-toggle"><input type="checkbox" checked={autoComplete} disabled={busy} onChange={event => setAutoComplete(event.target.checked)}/>Mark complete when the goal is reached</label><button disabled={busy}>Save target</button>{!task.progressTarget && <button type="button" disabled={busy} onClick={() => setEditing(false)}>Cancel</button>}</form>}
+    {editing && <form onSubmit={configure} className="task-progress-fields"><label>Target<input type="number" min="1" max="1000000000" step="1" required value={target} disabled={busy} onChange={event => setTarget(event.target.value)}/></label><label>Unit (optional)<input value={unit} maxLength="40" disabled={busy} onChange={event => setUnit(event.target.value)} placeholder="applications"/></label><label className="task-progress-toggle"><input type="checkbox" checked={autoComplete} disabled={busy} onChange={event => setAutoComplete(event.target.checked)}/>Mark complete when the goal is reached</label><MilestoneFields items={milestones} onChange={setMilestones} target={target} disabled={busy}/><button disabled={busy}>Save target</button>{!task.progressTarget && <button type="button" disabled={busy} onClick={() => setEditing(false)}>Cancel</button>}</form>}
     {!!task.progressTarget && <>
       {showSummary && <ProgressSummary task={task}/>}
+      <MilestoneSummary task={task} today={todayLabel} total={total}/>
       <p>{task.progressAutoComplete ? 'Completes automatically when the goal is reached.' : 'You mark this task complete manually.'}</p>
       <p>{total >= task.progressTarget ? 'Goal reached!' : `${number(task.progressTarget - total)} remaining`} · Today: {number(logs.filter(entry => entry.day === today()).reduce((sum, entry) => sum + entry.amount, 0))} {task.progressUnit || 'units'}</p>
       <form onSubmit={logProgress} className="task-progress-log">
