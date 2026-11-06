@@ -2284,6 +2284,11 @@ function App() {
               <div className="mb-6">
                 <label className="block text-slate-400 text-sm mb-2">Task Name</label>
                 <p className="text-xl text-white font-medium">{selectedTask.text}</p>
+                {selectedTask.status === 'completed' && selectedTask.canvasType !== 'calendar_event' && (
+                  <button type="button" className="mt-3 rounded-lg border border-white/10 px-3 py-2 text-sm hover:bg-white/10 disabled:opacity-50" disabled={!!recreatingTask} onClick={() => recreateTask(selectedTask._id)}>
+                    {recreatingTask === selectedTask._id ? 'Recreating…' : 'Recreate task'}
+                  </button>
+                )}
               </div>
 
               {/* Status */}
