@@ -36,6 +36,14 @@ module.exports = function createTaskDeletionRecovery({ mongoose, Todo, Folder, a
       res.json(records.map(record => ({ _id: record._id, count: record.tasks.length, label: record.tasks.length === 1 ? record.tasks[0].text : `${record.tasks.length} tasks`, tasks: record.tasks.map(task => ({ text: task.text })), createdAt: record.createdAt, expiresAt: record.expiresAt })));
     } catch { res.status(500).json({ message: 'Could not load deleted task history.' }); }
   });
+  app.delete('/api/todos/deletion-history/:id', authenticateToken, async (req, res) => {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: 'Invalid task deletion.' });
+    try {
+      const result = await Recovery.deleteOne({ _id: req.params.id, user: req.user.userId });
+      if (!result.deletedCount) return res.status(404).json({ message: 'This deletion is no longer in Recently deleted.' });
+      res.json({ deleted: true });
+    } catch { res.status(500).json({ message: 'Could not permanently delete the selected tasks.' }); }
+  });
   app.post('/api/todos/deletion-history/:id/undo', authenticateToken, async (req, res) => {
     if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: 'Invalid task deletion.' });
     const session = await mongoose.startSession();

@@ -91,3 +91,5 @@
 
 .task-status-hitbox{display:inline-flex;align-items:center;justify-content:center;flex:0 0 44px;width:44px;min-width:44px;height:44px;min-height:44px;padding:8px;border:0;border-radius:50%;background:transparent;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none}
 .task-status-circle{width:28px;height:28px;flex:0 0 28px;pointer-events:none;transition:background-color .15s,border-color .15s,box-shadow .15s}.task-status-hitbox *{pointer-events:none}.task-status-hitbox:hover:not(:disabled) .task-status-circle{box-shadow:0 0 0 5px #9aabbd18}.task-status-hitbox:focus-visible{outline:2px solid var(--accent,#96b7d3);outline-offset:2px}.task-status-hitbox:disabled{cursor:wait;opacity:.6}@media(prefers-reduced-motion:reduce){.task-status-circle{transition:none}}
+
+.deleted-task-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
