@@ -8,7 +8,7 @@ export default function TaskCleanupSettings() {
   const savedRecoveryDays = user?.deletedTaskRetentionDays ?? 7
   const [enabled, setEnabled] = useState(savedDays > 0)
   const [days, setDays] = useState(String(savedDays || 30))
-  const [recoveryDays, setRecoveryDays] = useState(String(savedRecoveryDays))
+  const [recoveryDays, setRecoveryDays] = useState(String(savedRecoveryDays || 7))
   const [busy, setBusy] = useState(false)
   const [feedback, setFeedback] = useState(null)
 
@@ -16,7 +16,7 @@ export default function TaskCleanupSettings() {
     setEnabled(savedDays > 0)
     setDays(String(savedDays || 30))
   }, [savedDays])
-  useEffect(() => setRecoveryDays(String(savedRecoveryDays)), [savedRecoveryDays])
+  useEffect(() => setRecoveryDays(String(savedRecoveryDays || 7)), [savedRecoveryDays])
 
   async function save(preferences, message) {
     if (busy) return
@@ -55,12 +55,16 @@ export default function TaskCleanupSettings() {
     </form>
     <h3>Recently deleted recovery period</h3>
     <p>Choose how long new deletions can be restored. Items already in Recently deleted keep the expiry date shown there. You can permanently delete them sooner from that view.</p>
+    <p role="status">{savedRecoveryDays ? `Automatic expiry is on · ${savedRecoveryDays} ${savedRecoveryDays === 1 ? 'day' : 'days'}` : 'Automatic expiry is off. New deletions have no expiry.'}</p>
     <form onSubmit={event => {
       event.preventDefault()
       save({ deletedTaskRetentionDays: Number(recoveryDays) }, 'Recovery period saved for new deletions.')
     }}>
       <label><span>Days to keep deleted tasks</span><input type="number" min="1" max="90" step="1" required value={recoveryDays} disabled={busy} onChange={event => setRecoveryDays(event.target.value)}/></label>
-      <div className="calendar-detail-actions"><button type="submit" disabled={busy || Number(recoveryDays) === savedRecoveryDays}>Save recovery period</button></div>
+      <div className="calendar-detail-actions">
+        <button type="submit" disabled={busy || Number(recoveryDays) === savedRecoveryDays}>{savedRecoveryDays ? 'Save recovery period' : 'Turn on automatic expiry'}</button>
+        {savedRecoveryDays > 0 && <button type="button" disabled={busy} onClick={() => save({ deletedTaskRetentionDays: 0 }, 'Automatic expiry is off for new deletions.')}>Turn off automatic expiry</button>}
+      </div>
     </form>
     {feedback && <p role={feedback.error ? 'alert' : 'status'}>{feedback.message}</p>}
   </section>
