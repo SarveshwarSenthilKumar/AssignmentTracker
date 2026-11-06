@@ -46,7 +46,7 @@ export default function TaskDeletionUndo({ token, onRestored }) {
     finally { lock.current = false; setBusy(null) }
   }
   return <section className="recently-deleted-tasks" aria-labelledby="deleted-tasks-heading">
-    <header><h2 id="deleted-tasks-heading">Recently deleted</h2><p>Restore deleted tasks within seven days or permanently delete them now. Restored tasks return to their original folders, or Inbox if a folder no longer exists.</p></header>
+    <header><h2 id="deleted-tasks-heading">Recently deleted</h2><p>Restore tasks before the date shown or choose Permanently delete to remove them now. Set the recovery period for new deletions in Account.</p></header>
     {error && <div role="alert">{error} <button type="button" disabled={!!busy || loading} onClick={refresh}>Retry</button></div>}
     {notice && <p role="status">{notice}</p>}
     {loading && <p role="status">Loading deleted tasks…</p>}

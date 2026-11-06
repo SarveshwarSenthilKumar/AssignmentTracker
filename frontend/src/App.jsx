@@ -1018,7 +1018,7 @@ function App() {
     if(deletingTaskIds.current.has(id))return
     const task=todos.find(task=>task._id===id)
     if(!task)return
-    if (!await taskConfirmation.ask(`Delete “${task?.text || 'this task'}”? You can restore deleted tasks from Recently deleted for seven days.`, 'Delete task')) return
+    if (!await taskConfirmation.ask(`Delete “${task?.text || 'this task'}”? You can restore deleted tasks from Recently deleted until their recovery period expires.`, 'Delete task')) return
     if(deletingTaskIds.current.has(id))return
     deletingTaskIds.current.add(id)
     try {
@@ -1061,7 +1061,7 @@ function App() {
     if(!ids.length)return
     bulkDeleteLock.current=true
     try{
-      if(!await taskConfirmation.ask(`Delete ${ids.length} selected ${ids.length===1?'task':'tasks'}? Unselected tasks will stay. You can restore deleted tasks from Recently deleted for seven days.`,'Delete selected tasks'))return
+      if(!await taskConfirmation.ask(`Delete ${ids.length} selected ${ids.length===1?'task':'tasks'}? Unselected tasks will stay. You can restore deleted tasks from Recently deleted until their recovery period expires.`,'Delete selected tasks'))return
       setBulkDeleting(true)
       const response=await fetch('/api/todos/bulk-delete',{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({ids})})
       const data=await readApiJson(response)

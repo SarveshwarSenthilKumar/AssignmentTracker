@@ -1,6 +1,6 @@
 // Keep deletion snapshots outside the active task collection, so existing task
 // queries and integrations never mistake deleted tasks for active ones.
-module.exports = function createTaskDeletionRecovery({ mongoose, Todo, Folder, app, authenticateToken }) {
+module.exports = function createTaskDeletionRecovery({ mongoose, User, Todo, Folder, app, authenticateToken }) {
   const Recovery = mongoose.model('TaskDeletionRecovery', new mongoose.Schema({
     user: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
     tasks: [mongoose.Schema.Types.Mixed],
@@ -18,10 +18,12 @@ module.exports = function createTaskDeletionRecovery({ mongoose, Todo, Folder, a
         if (!ids.length) { result = { deletedCount: 0, deletedIds: [] }; return; }
         const linked = await Todo.find({ user: filter.user, _id: { $nin: ids }, dependsOn: { $in: ids } }).select('_id dependsOn').session(session).lean();
         const removed = new Set(ids.map(String));
+        const account = await User.findById(filter.user).select('deletedTaskRetentionDays').session(session).lean();
+        const recoveryDays = account?.deletedTaskRetentionDays ?? 7;
         const [recovery] = await Recovery.create([{
           user: filter.user, tasks,
           connections: linked.map(task => ({ id: task._id, dependsOn: task.dependsOn.filter(id => removed.has(String(id))) })),
-          expiresAt: new Date(Date.now() + 7 * 86400000),
+          expiresAt: new Date(Date.now() + recoveryDays * 86400000),
         }], { session });
         const deleted = await Todo.deleteMany({ user: filter.user, _id: { $in: ids } }, { session });
         await Todo.updateMany({ user: filter.user, dependsOn: { $in: ids } }, { $pull: { dependsOn: { $in: ids } } }, { session });
@@ -51,7 +53,7 @@ module.exports = function createTaskDeletionRecovery({ mongoose, Todo, Folder, a
       let restored;
       await session.withTransaction(async () => {
         const record = await Recovery.findOne({ _id: req.params.id, user: req.user.userId, expiresAt: { $gt: new Date() } }).session(session).lean();
-        if (!record) { const error = new Error('This deletion was already undone or its seven-day recovery period expired.'); error.status = 404; throw error; }
+        if (!record) { const error = new Error('This deletion is no longer available to restore.'); error.status = 404; throw error; }
         const folderIds = [...new Set(record.tasks.map(task => task.folder).filter(Boolean).map(String))];
         const folders = new Set((await Folder.find({ user: req.user.userId, _id: { $in: folderIds } }).select('_id').session(session).lean()).map(folder => String(folder._id)));
         const active = await Todo.find({ user: req.user.userId }).select('_id').session(session).lean();
