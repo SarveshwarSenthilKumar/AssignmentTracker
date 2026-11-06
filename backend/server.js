@@ -654,7 +654,7 @@ app.put('/api/account/preferences', authenticateToken, async (req, res) => {
   }
   if (req.body.deletedTaskRetentionDays !== undefined) {
     const days = req.body.deletedTaskRetentionDays;
-    if (!Number.isInteger(days) || days < 1 || days > 90) return res.status(400).json({ message: 'Choose a recovery period from 1 to 90 days.' });
+    if (!Number.isInteger(days) || days < 0 || days > 90) return res.status(400).json({ message: 'Choose a recovery period from 1 to 90 days or turn expiry off.' });
     update.deletedTaskRetentionDays = days;
   }
   if (birthday !== undefined) {

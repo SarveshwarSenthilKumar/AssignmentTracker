@@ -6,8 +6,9 @@ module.exports = function createTaskDeletionRecovery({ mongoose, User, Todo, Fol
     tasks: [mongoose.Schema.Types.Mixed],
     connections: [mongoose.Schema.Types.Mixed],
     createdAt: { type: Date, default: Date.now },
-    expiresAt: { type: Date, required: true, expires: 0 },
+    expiresAt: { type: Date, default: null, expires: 0 },
   }));
+  const recoverable = () => ({ $or: [{ expiresAt: null }, { expiresAt: { $gt: new Date() } }] });
   async function remove(filter) {
     const session = await mongoose.startSession();
     let result;
@@ -23,7 +24,7 @@ module.exports = function createTaskDeletionRecovery({ mongoose, User, Todo, Fol
         const [recovery] = await Recovery.create([{
           user: filter.user, tasks,
           connections: linked.map(task => ({ id: task._id, dependsOn: task.dependsOn.filter(id => removed.has(String(id))) })),
-          expiresAt: new Date(Date.now() + recoveryDays * 86400000),
+          expiresAt: recoveryDays === 0 ? null : new Date(Date.now() + recoveryDays * 86400000),
         }], { session });
         const deleted = await Todo.deleteMany({ user: filter.user, _id: { $in: ids } }, { session });
         await Todo.updateMany({ user: filter.user, dependsOn: { $in: ids } }, { $pull: { dependsOn: { $in: ids } } }, { session });
@@ -34,7 +35,7 @@ module.exports = function createTaskDeletionRecovery({ mongoose, User, Todo, Fol
   }
   app.get('/api/todos/deletion-history', authenticateToken, async (req, res) => {
     try {
-      const records = await Recovery.find({ user: req.user.userId, expiresAt: { $gt: new Date() } }).select('_id createdAt expiresAt tasks.text').sort({ createdAt: -1, _id: -1 }).lean();
+      const records = await Recovery.find({ user: req.user.userId, ...recoverable() }).select('_id createdAt expiresAt tasks.text').sort({ createdAt: -1, _id: -1 }).lean();
       res.json(records.map(record => ({ _id: record._id, count: record.tasks.length, label: record.tasks.length === 1 ? record.tasks[0].text : `${record.tasks.length} tasks`, tasks: record.tasks.map(task => ({ text: task.text })), createdAt: record.createdAt, expiresAt: record.expiresAt })));
     } catch { res.status(500).json({ message: 'Could not load deleted task history.' }); }
   });
@@ -52,7 +53,7 @@ module.exports = function createTaskDeletionRecovery({ mongoose, User, Todo, Fol
     try {
       let restored;
       await session.withTransaction(async () => {
-        const record = await Recovery.findOne({ _id: req.params.id, user: req.user.userId, expiresAt: { $gt: new Date() } }).session(session).lean();
+        const record = await Recovery.findOne({ _id: req.params.id, user: req.user.userId, ...recoverable() }).session(session).lean();
         if (!record) { const error = new Error('This deletion is no longer available to restore.'); error.status = 404; throw error; }
         const folderIds = [...new Set(record.tasks.map(task => task.folder).filter(Boolean).map(String))];
         const folders = new Set((await Folder.find({ user: req.user.userId, _id: { $in: folderIds } }).select('_id').session(session).lean()).map(folder => String(folder._id)));

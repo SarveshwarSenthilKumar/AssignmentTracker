@@ -4,6 +4,7 @@ import { readApiJson } from '../lib/apiResponse'
 import InlineConfirmation from './InlineConfirmation'
 
 export const notifyTaskDeletion = () => window.dispatchEvent(new Event('task-deleted'))
+const isRecoverable = record => !record.expiresAt || Date.parse(record.expiresAt) > Date.now()
 
 export default function TaskDeletionUndo({ token, onRestored }) {
   const [records, setRecords] = useState([]), [busy, setBusy] = useState(null), [error, setError] = useState(''), [loading, setLoading] = useState(true)
@@ -17,7 +18,7 @@ export default function TaskDeletionUndo({ token, onRestored }) {
       const response = await fetch('/api/todos/deletion-history', { headers: { Authorization: `Bearer ${token}` } })
       const data = await readApiJson(response)
       if (!response.ok) throw new Error(data.message || 'Could not load task recovery history.')
-      if (current === generation.current) setRecords(data.filter(record => new Date(record.expiresAt) > new Date()))
+      if (current === generation.current) setRecords(data.filter(isRecoverable))
     } catch (err) { if (current === generation.current) setError(err.message) }
     finally { if (current === generation.current) setLoading(false) }
   }
@@ -26,7 +27,7 @@ export default function TaskDeletionUndo({ token, onRestored }) {
     if (!token) return
     refresh()
     const listener = () => refresh()
-    const expire = window.setInterval(() => setRecords(previous => previous.filter(record => new Date(record.expiresAt) > new Date())), 60000)
+    const expire = window.setInterval(() => setRecords(previous => previous.filter(isRecoverable)), 60000)
     window.addEventListener('task-deleted', listener)
     window.addEventListener('workspace-reset', listener)
     return () => { generation.current++; window.clearInterval(expire); window.removeEventListener('task-deleted', listener); window.removeEventListener('workspace-reset', listener) }
@@ -52,7 +53,7 @@ export default function TaskDeletionUndo({ token, onRestored }) {
     {loading && <p role="status">Loading deleted tasks…</p>}
     {!loading && !error && !records.length && <p className="deleted-tasks-empty">No recently deleted tasks.</p>}
     <div className="deleted-task-list">{records.map(record => <article key={record._id}>
-      <div className="deleted-task-summary"><h3>{record.label}</h3><p>Available until {new Date(record.expiresAt).toLocaleString()}</p>
+      <div className="deleted-task-summary"><h3>{record.label}</h3><p>{record.expiresAt ? `Available until ${new Date(record.expiresAt).toLocaleString()}` : 'No expiry'}</p>
         {record.count > 1 && <details><summary>View {record.count} deleted tasks</summary><ul>{record.tasks?.map((task, index) => <li key={index}>{task.text}</li>)}</ul></details>}
       </div>
       <div className="deleted-task-actions">
