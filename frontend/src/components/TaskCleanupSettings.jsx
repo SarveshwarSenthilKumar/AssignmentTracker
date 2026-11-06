@@ -15,10 +15,8 @@ export default function TaskCleanupSettings() {
     setDays(String(savedDays || 30))
   }, [savedDays])
 
-  async function save(event) {
-    event.preventDefault()
+  async function save(retention) {
     if (busy) return
-    const retention = enabled ? Number(days) : 0
     setBusy(true)
     setFeedback(null)
     try {
@@ -41,10 +39,14 @@ export default function TaskCleanupSettings() {
   return <section className="confirmation-settings" aria-label="Automatic task deletion" aria-busy={busy}>
     <h3>Automatic task deletion</h3>
     <p>Move completed tasks to Recently deleted after a set number of days. This applies to existing completed tasks too. You have seven days to restore them.</p>
-    <form onSubmit={save}>
+    <p role="status">{savedDays ? `On · ${savedDays} ${savedDays === 1 ? 'day' : 'days'} after completion` : 'Off · Automatic deletion is disabled.'}</p>
+    <form onSubmit={event => { event.preventDefault(); save(enabled ? Number(days) : 0) }}>
       <label><span>Automatically delete completed tasks</span><input type="checkbox" checked={enabled} disabled={busy} onChange={event => setEnabled(event.target.checked)}/></label>
       {enabled && <label><span>Days after completion</span><input type="number" min="1" max="3650" step="1" required value={days} disabled={busy} onChange={event => setDays(event.target.value)}/></label>}
-      <div className="calendar-detail-actions"><button type="submit" disabled={busy || (enabled ? Number(days) : 0) === savedDays}>{busy ? 'Saving…' : 'Save deletion settings'}</button></div>
+      <div className="calendar-detail-actions">
+        <button type="submit" disabled={busy || (enabled ? Number(days) : 0) === savedDays}>{busy ? 'Saving…' : 'Save deletion settings'}</button>
+        {savedDays > 0 && <button type="button" disabled={busy} onClick={() => save(0)}>Turn off automatic deletion</button>}
+      </div>
     </form>
     {feedback && <p role={feedback.error ? 'alert' : 'status'}>{feedback.message}</p>}
   </section>
