@@ -7,11 +7,12 @@ const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 export default function ClassScheduleImport({ token, disabled, onReview }) {
   const [rows, setRows] = useState([])
   const [busy, setBusy] = useState(false)
+  const [stage, setStage] = useState('')
   const [error, setError] = useState('')
   const [selectedFile, setSelectedFile] = useState(null)
   const lock = useRef(false)
 
-  async function importFile(file) {
+  async function importFile(file, useOriginal = false) {
     if (!file || lock.current) return
     setRows([])
     if (file.size > 10 * 1024 * 1024) {
@@ -23,7 +24,22 @@ export default function ClassScheduleImport({ token, disabled, onReview }) {
     setError('')
     try {
       const body = new FormData()
-      body.append('schedule', file)
+      let extracted = ''
+      if (!useOriginal) {
+        const controller = new AbortController()
+        const timer = setTimeout(() => controller.abort(), 30000)
+        setStage('Reading text on this device')
+        try {
+          const { readLocalJobFile } = await import('../lib/localJobFile')
+          const result = await readLocalJobFile(file, { signal: controller.signal, preserveRows: true })
+          extracted = result.text
+        } catch {
+          // If the text layer or local OCR is unavailable, Gemini can read the original.
+        } finally { clearTimeout(timer) }
+      }
+      if (extracted) body.append('scheduleText', extracted)
+      else body.append('schedule', file)
+      setStage(extracted ? 'Organizing extracted text with Gemini' : 'Reading the original file with Gemini')
       const response = await fetch('/api/calendar/class-schedule/import', {
         method: 'POST', headers: { Authorization: `Bearer ${token}` }, body
       })
@@ -43,16 +59,17 @@ export default function ClassScheduleImport({ token, disabled, onReview }) {
 
   return <details className="calendar-repeat">
     <summary>Import class schedule from PDF or screenshot</summary>
-    <p>The file is sent to Gemini to extract meetings. Review and save each class separately.</p>
+    <p>Text is extracted on this device when possible. Gemini receives the extracted text or the original file if local reading is unavailable. Review and save each class separately.</p>
     <label>Schedule file <input type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" disabled={busy || disabled} onChange={event => {
       const file = event.currentTarget.files[0]
       if (!file) return
       setSelectedFile(file)
       importFile(file)
     }}/></label>
-    {busy && <p role="status">Reading {selectedFile?.name || 'schedule'}…</p>}
+    {busy && <p role="status">{stage || 'Reading schedule'} · {selectedFile?.name}</p>}
     {error && (error.diagnostics ? <CoverLetterError error={error} expanded/> : <p role="alert">{error.message || error}</p>)}
     {error && selectedFile && <button type="button" disabled={busy || disabled} onClick={() => importFile(selectedFile)}>Retry selected file</button>}
+    {selectedFile && !busy && (error || rows.length > 0) && <button type="button" disabled={disabled} onClick={() => importFile(selectedFile, true)}>Read original file with Gemini</button>}
     {rows.length > 0 && <ul>{rows.map((row, index) => <li key={index}>
       <strong>{row.title}</strong> · {row.weekdays.map(day => weekdays[day]).join(', ') || 'Weekdays needed'} · {row.startTime || 'Start time needed'}{row.endTime ? `–${row.endTime}` : ' · End time needed'}
       {(!row.startDate || !row.endDate) && ' · Review term dates'}

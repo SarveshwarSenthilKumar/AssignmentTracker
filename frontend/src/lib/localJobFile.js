@@ -4,7 +4,7 @@ import workerUrl from 'pdfjs-dist/build/pdf.worker.min.js?url'
 pdfjs.GlobalWorkerOptions.workerSrc=workerUrl
 
 const check=signal=>{if(signal?.aborted)throw new DOMException('File import canceled.','AbortError')}
-function pdfText(content,viewport){
+function pdfText(content,viewport,preserveRows=false){
   const lines=[]
   for(const item of content.items){
     if(!item.str?.trim()||!item.transform)continue
@@ -25,11 +25,11 @@ function pdfText(content,viewport){
       // Preserve separation between columns/sidebars instead of constructing
       // a fictional sentence from unrelated text sharing the same baseline.
       const separate=previous&&gap>Math.max(38,Math.min(item.height,previous.height)*3)
-      const prefix=separate?'\n':previous&&gap>Math.min(item.height,previous.height)*.12&&!/\s$/.test(previous.text)&&!/^\s/.test(item.text)?' ':''
+      const prefix=separate?(preserveRows?'\t':'\n'):previous&&gap>Math.min(item.height,previous.height)*.12&&!/\s$/.test(previous.text)&&!/^\s/.test(item.text)?' ':''
       previous=item;return prefix+item.text
     }).join('')
   }
-  if(columnBoundary!==null){
+  if(!preserveRows&&columnBoundary!==null){
     const left=[],right=[]
     for(const line of ordered){const first=line.items.filter(item=>item.x<columnBoundary),second=line.items.filter(item=>item.x>=columnBoundary);if(first.length)left.push(renderLine({...line,items:first}));if(second.length)right.push(renderLine({...line,items:second}))}
     // Require substantial text on both sides before changing reading order.
@@ -63,7 +63,7 @@ async function imageCanvas(file){
     return normalizeImage(canvas)
   }finally{URL.revokeObjectURL(url)}
 }
-export async function readLocalJobFile(file,{signal,onProgress=()=>{}}={}){
+export async function readLocalJobFile(file,{signal,onProgress=()=>{},preserveRows=false}={}){
   if(!file?.size||file.size>10*1024*1024)throw new Error('Choose a nonempty job file up to 10 MB.')
   if(!/\.(pdf|png|jpe?g|webp)$/i.test(file.name))throw new Error('Choose PDF, PNG, JPEG or WebP.')
   let ocr=null,pdfTask=null,currentPage=1,pageCount=1,ocrPages=0,textPages=0
@@ -114,7 +114,7 @@ export async function readLocalJobFile(file,{signal,onProgress=()=>{}}={}){
       for(currentPage=1;currentPage<=pageCount;currentPage++){
         check(signal);onProgress({message:`Reading PDF page ${currentPage} of ${pageCount}…`})
         const page=await pdf.getPage(currentPage),content=await page.getTextContent(),viewport=page.getViewport({scale:1})
-        const direct=pdfText(content,viewport)
+        const direct=pdfText(content,viewport,preserveRows)
         const readable=direct.replace(/[^\p{L}\p{N}]/gu,'').length>=80&&direct.split(/\s+/).length>=15&&(direct.match(/\uFFFD/g)||[]).length<Math.max(2,direct.length*.01)
         if(readable){extracted+=direct+'\n\n';textPages++;layout.push(...pdfJobLayout(content,viewport,pdfjs,currentPage))}
         else{
