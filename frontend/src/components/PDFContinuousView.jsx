@@ -1,3 +1,4 @@
+import {pdfTextLines} from '../lib/pdfTextBox'
 import PDFInkLayer from './PDFInkLayer'
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { Document, Page } from 'react-pdf'
@@ -32,7 +33,7 @@ const ContinuousPage=memo(function ContinuousPage({number,active,activeReady,act
         {items.filter(item=>item.sourceText).map(item=><div key={`cover-${item.id}`} style={{position:'absolute',left:item.sourceText.x*scale,top:item.sourceText.y*scale,width:item.sourceText.width*scale,height:item.sourceText.height*scale,background:item.sourceText.background||'#fff'}}/>)}
         <PDFInkLayer items={items} width={base.w} height={base.h} scale={scale} usePressure={usePressure}/>
         {items.filter(item=>item.tool==='image').map(item=><img key={item.id} src={item.dataUrl} alt={item.label||'Annotation'} draggable={false} style={{position:'absolute',left:item.x*scale,top:item.y*scale,width:item.width*scale,height:item.height*scale}}/>)}
-        {items.filter(item=>item.tool==='text').map(item=><div key={item.id} data-text-annotation style={{position:'absolute',left:item.x*scale,top:item.y*scale,color:item.color||'#000',fontSize:(item.fontSize||16)*scale,...replacementCss(item,scale),lineHeight:1.2,whiteSpace:'pre',padding:`${2*scale}px ${4*scale}px`,pointerEvents:reading?'auto':undefined,userSelect:reading?'text':undefined,cursor:reading?'text':undefined}}>{item.text}</div>)}
+        {items.filter(item=>item.tool==='text').map(item=><div key={item.id} data-text-annotation style={{position:'absolute',left:item.x*scale,top:item.y*scale,color:item.color||'#000',fontSize:(item.fontSize||16)*scale,...replacementCss(item,scale),lineHeight:1.2,whiteSpace:'pre',boxSizing:'border-box',width:item.textBoxWidth?item.textBoxWidth*scale:undefined,padding:`${2*scale}px ${4*scale}px`,pointerEvents:reading?'auto':undefined,userSelect:reading?'text':undefined,cursor:reading?'text':undefined}}>{pdfTextLines(item).join('\n')}</div>)}
       </div>}
     </div>
   </section>

@@ -1,6 +1,7 @@
 import {useEffect,useRef} from 'react'
 import {pdfjs} from 'react-pdf'
 import {registerCopyRun} from '../lib/pdfCopyText'
+import {pdfTextLines} from '../lib/pdfTextBox'
 
 const contents=new WeakMap()
 const readContent=page=>{
@@ -13,7 +14,7 @@ function annotationItems(annotation,viewport,styles){
   styles[fontName]={fontFamily:style.fontFamily||'Arial, sans-serif',ascent:.8,descent:-.2,vertical:false}
   const context=document.createElement('canvas').getContext('2d')
   context.font=`${style.embedded?'normal':style.italic?'italic':'normal'} ${style.embedded?400:style.fontWeight||400} ${size}px ${styles[fontName].fontFamily}`
-  return (annotation.text||'').split('\n').map((str,index)=>{
+  return pdfTextLines(annotation).map((str,index)=>{
     const x=annotation.x+4,y=annotation.y+2+size*(style.baselineRatio||.9465)+index*size*1.2
     const transform=pdfjs.Util.transform(pdfjs.Util.inverseTransform(viewport.transform),[size*(style.horizontalScale||1),0,0,-size,x,y])
     return {str,dir:'ltr',transform,fontName,width:(context.measureText(str).width+(style.letterSpacing||0)*Math.max(0,str.length-1))*(style.horizontalScale||1),height:size,hasEOL:true}

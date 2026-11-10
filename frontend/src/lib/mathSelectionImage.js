@@ -1,3 +1,5 @@
+import {pdfTextLines} from './pdfTextBox'
+
 export function selectionHasInk(items,box){
   return items.some(item=>{
     // A translucent highlight does not change the printed equation beneath it.
@@ -25,7 +27,7 @@ export async function mathSelectionImage(page,box,items,padding=5){
       else{for(const point of item.points.slice(1))context.lineTo(point.x,point.y);context.stroke()}
     }else if(item.tool==='text'){
       context.font=`${item.fontSize||16}px Helvetica, Arial, sans-serif`;context.fillStyle=item.color||'#000';context.textBaseline='top'
-      String(item.text||'').split('\n').forEach((line,index)=>context.fillText(line,item.x+4,item.y+2+index*(item.fontSize||16)*1.2))
+      pdfTextLines(item).forEach((line,index)=>context.fillText(line,item.x+4,item.y+2+index*(item.fontSize||16)*1.2))
     }else if(item.tool==='image'&&item.dataUrl?.startsWith('data:image/')){
       const image=new Image();image.src=item.dataUrl;try{await image.decode();context.drawImage(image,item.x,item.y,item.width,item.height)}catch{context.restore();throw new Error('An inserted image could not be read. Try selecting again.')}
     }

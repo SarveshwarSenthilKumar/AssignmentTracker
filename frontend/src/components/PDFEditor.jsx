@@ -44,6 +44,7 @@ import workerUrl from 'pdfjs-dist/build/pdf.worker.min.js?url'
 import './PDFEditor.css'
 import InsertHandles from './InsertHandles'
 import { moveInsert, resizeFromCorner } from '../lib/insertGeometry'
+import { PDF_TEXT_FONT, pdfTextLines } from '../lib/pdfTextBox'
 import InsertPanel, { imageFromFile, makeInsert } from './PDFInsertPanel'
 import { cn } from '../lib/utils'
 
@@ -60,7 +61,7 @@ const TEXT_PAD_X = 4
 const TEXT_PAD_Y = 2
 const LINE_HEIGHT = 1.2
 const BASELINE_RATIO = 0.9465 // distance from top of a line box to the baseline, in font sizes
-const FONT_STACK = 'Helvetica, Arial, sans-serif'
+const FONT_STACK = PDF_TEXT_FONT
 const PDF_OPTIONS = { isEvalSupported: false }
 const EMPTY_PAGE_ITEMS=[]
 const COLORS = ['#000000', '#9e6464', '#526c83', '#62816f', '#9a835e', '#777487', '#967d87']
@@ -170,7 +171,7 @@ export async function burnAnnotations(pdfBytes, annotations, usePressure) {
       const size = item.fontSize || 16
       const selectedFont=await textFont(item),characters=new Set(selectedFont.getCharacterSet())
       if(item.textStyle&&Array.from(item.text.replace(/[\n\r\t]/g,'')).some(character=>!characters.has(character.codePointAt(0))))throw new Error(`The original font ${item.textStyle.fontName} does not contain all the characters in your replacement. Your edits are saved, but this PDF cannot be exported in the original font with those characters.`)
-      item.text.replace(/\t/g, '    ').split('\n').forEach((line, i) => {
+      pdfTextLines(item).forEach((line, i) => {
         const safe = Array.from(line)
           .map(ch => (characters.has(ch.codePointAt(0)) ? ch : '?'))
           .join('')
@@ -243,6 +244,7 @@ function TextAnnotation({
     ...replacementCss(item,scale),
     padding: `${TEXT_PAD_Y * scale}px ${TEXT_PAD_X * scale}px`,
     whiteSpace: 'pre',
+    width: item.textBoxWidth ? item.textBoxWidth * scale : undefined,
     margin: 0,
     border: 0,
     boxSizing: 'border-box'
@@ -373,14 +375,14 @@ function TextAnnotation({
 
       {isActive ? (
         // Hidden mirror gives the box its size; the textarea sits on top of it.
-        <div className="relative inline-block" style={{ minWidth: 48 * scale }}>
+        <div className="relative inline-block" style={{ minWidth: (item.textBoxWidth || 48) * scale }}>
           <div aria-hidden style={{ ...textStyle, visibility: 'hidden' }}>
-            {(item.text || '') + ' '}
+            {pdfTextLines(item).join('\n') + ' '}
           </div>
           <textarea
             ref={textareaRef}
             value={item.text}
-            wrap="off"
+            wrap={item.textBoxWidth ? 'soft' : 'off'}
             rows={1}
             spellCheck={false}
             placeholder="Type text…"
@@ -399,6 +401,8 @@ function TextAnnotation({
             }}
             style={{
               ...textStyle,
+              whiteSpace: item.textBoxWidth ? 'pre-wrap' : 'pre',
+              overflowWrap: item.textBoxWidth ? 'anywhere' : undefined,
               color: textColor,
               caretColor: textColor,
               colorScheme: 'light',
@@ -434,7 +438,7 @@ function TextAnnotation({
             tool === 'eraser' && 'cursor-pointer hover:outline hover:outline-1 hover:outline-red-400 hover:bg-red-500/20 hover:line-through'
           )}
         >
-          {item.text}
+          {pdfTextLines(item).join('\n')}
         </div>
       )}
     </div>
@@ -1036,8 +1040,8 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     const context = canvas.getContext('2d')
     const size = item.fontSize || 16
     context.font = `${size}px ${FONT_STACK}`
-    const lines = (item.text || '').split('\n')
-    return { width: Math.max(12, ...lines.map(line => context.measureText(line).width)) + TEXT_PAD_X * 2, height: lines.length * size * LINE_HEIGHT + TEXT_PAD_Y * 2 }
+    const lines = pdfTextLines(item, line => context.measureText(line).width)
+    return { width: item.textBoxWidth || Math.max(12, ...lines.map(line => context.measureText(line).width)) + TEXT_PAD_X * 2, height: lines.length * size * LINE_HEIGHT + TEXT_PAD_Y * 2 }
   }
 
   const beginTransform = (e, item, corner = null) => {
@@ -1057,7 +1061,16 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     const pt = toLocal(e)
     if (!drag.moved && Math.hypot(pt.x - drag.origin.x, pt.y - drag.origin.y) * scale < 3) return
     let changes
-    if (drag.corner) {
+    if (drag.corner && drag.item.tool === 'text' && !drag.item.sourceText) {
+      const fromLeft = drag.corner.includes('w')
+      const fixedX = fromLeft ? drag.item.x + drag.size.width : drag.item.x
+      const available = fromLeft ? fixedX : pageBase.w - fixedX
+      const delta = pt.x - drag.origin.x
+      const textBoxWidth = Math.max(1, Math.min(available, Math.max(24, drag.size.width + (fromLeft ? -delta : delta))))
+      const height = insertSize({ ...drag.item, textBoxWidth }).height
+      const top = drag.corner.includes('n') ? drag.item.y + drag.size.height - height : drag.item.y
+      changes = { textBoxWidth, x: fromLeft ? fixedX - textBoxWidth : fixedX, y: Math.max(0, Math.min(top, pageBase.h - height)) }
+    } else if (drag.corner) {
       const text = drag.item.tool === 'text'
       const size = drag.item.fontSize || 16
       const result = resizeFromCorner(drag.item, drag.size, pt, drag.corner, pageBase, text ? { min: 8 / size, max: 96 / size } : {})
