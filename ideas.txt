@@ -61,3 +61,9 @@ add group editing for group projects
 add a feature to have a small database which would store the ai summary for a day and would only refresh if more than 200 people selected it to report
 
 add ability to add sports events to calendar including f1
+
+add an all work day option
+add option to display whole day with entire title despite size
+add option  to open the calendar separately in an outside tab
+add add an appointment at very top instead of scroll past all events
+add links for media as well
