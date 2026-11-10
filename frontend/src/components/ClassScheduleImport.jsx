@@ -12,6 +12,7 @@ export default function ClassScheduleImport({ token, disabled, onReview }) {
   const [error, setError] = useState('')
   const [selectedFile, setSelectedFile] = useState(null)
   const lock = useRef(false)
+  const extractedFile = useRef(null)
 
   async function importFile(file, useOriginal = false) {
     if (!file || lock.current) return
@@ -25,9 +26,20 @@ export default function ClassScheduleImport({ token, disabled, onReview }) {
     setBusy(true)
     setError('')
     try {
+      setStage('Checking schedule import availability')
+      const headers = { Authorization: `Bearer ${token}` }
+      const availability = await fetch('/api/calendar/class-schedule/import', { headers, cache: 'no-store' })
+      if (availability.status === 404) {
+        throw new Error('The running backend is out of date. Stop npm run dev with Ctrl+C, start it again from the frontend folder, then refresh and retry.')
+      }
+      const capabilities = await readApiJson(availability)
+      if (!availability.ok) throw new Error(capabilities.message || 'Could not reach the schedule importer.')
+      if (capabilities.version < 2 || capabilities.acceptsExtractedText !== true) {
+        throw new Error('The running backend does not support the updated importer. Restart npm run dev and refresh the app.')
+      }
       const body = new FormData()
-      let extracted = ''
-      if (!useOriginal) {
+      let extracted = !useOriginal && extractedFile.current?.file === file ? extractedFile.current.text : ''
+      if (!useOriginal && !extracted) {
         const controller = new AbortController()
         const timer = setTimeout(() => controller.abort(), 30000)
         setStage('Reading text on this device')
@@ -35,6 +47,7 @@ export default function ClassScheduleImport({ token, disabled, onReview }) {
           const { readLocalJobFile } = await import('../lib/localJobFile')
           const result = await readLocalJobFile(file, { signal: controller.signal, preserveRows: true })
           extracted = result.text
+          extractedFile.current = { file, text: extracted }
         } catch {
           // If the text layer or local OCR is unavailable, Gemini can read the original.
         } finally { clearTimeout(timer) }
@@ -43,7 +56,7 @@ export default function ClassScheduleImport({ token, disabled, onReview }) {
       else body.append('schedule', file)
       setStage(extracted ? 'Organizing extracted text with Gemini' : 'Reading the original file with Gemini')
       const response = await fetch('/api/calendar/class-schedule/import', {
-        method: 'POST', headers: { Authorization: `Bearer ${token}` }, body
+        method: 'POST', headers, body
       })
       const data = await readApiJson(response)
       if (!response.ok || !Array.isArray(data.classes)) {
@@ -66,6 +79,7 @@ export default function ClassScheduleImport({ token, disabled, onReview }) {
     <label>Schedule file <input type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" disabled={busy || disabled} onChange={event => {
       const file = event.currentTarget.files[0]
       if (!file) return
+      extractedFile.current = null
       setSelectedFile(file)
       importFile(file)
     }}/></label>

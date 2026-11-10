@@ -32,6 +32,9 @@ const responseSchema = {
 
 module.exports = function registerClassScheduleImport(app, auth, upload, credentials, model) {
   const active = new Set();
+  app.get('/api/calendar/class-schedule/import', auth, (_req, res) => {
+    res.set('Cache-Control', 'no-store').json({ version: 2, acceptsExtractedText: true });
+  });
   app.post('/api/calendar/class-schedule/import', auth, upload.single('schedule'), async (req, res) => {
     const userId = String(req.user.userId);
     const file = req.file?.buffer;
