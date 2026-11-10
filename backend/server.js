@@ -503,6 +503,7 @@ app.use('/api/assistant/test',authenticateToken,requireAIAccess());
 app.use('/api/documents/generate',authenticateToken,requireAIAccess('generation'));
 app.use('/api/calculator/recognize',authenticateToken,requireAIAccess('recognition'));
 registerMathRecognition(app,authenticateToken,assistantCredentials,aiModel);
+require('./classScheduleImport')(app,authenticateToken,upload,assistantCredentials,aiModel);
 registerGeneratedDocuments(app,authenticateToken,{credentials:assistantCredentials,model:aiModel,PDF,PDFFolder,mongoose});
 require('./oneNoteImport').registerOneNoteImport(app, authenticateToken, upload);
 function aiState(userId) {

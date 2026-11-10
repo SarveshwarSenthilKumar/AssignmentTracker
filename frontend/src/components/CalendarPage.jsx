@@ -1,4 +1,5 @@
 import CalendarDayTaskInput from './CalendarDayTaskInput'
+import ClassScheduleImport from './ClassScheduleImport'
 import CalendarDayNote from './CalendarDayNote'
 import { useAuth } from '../contexts/AuthContext'
 import {TaskDayPlanner} from './TaskSchedule'
@@ -132,6 +133,17 @@ export default function CalendarPage({ tasks, documents=[], documentFolders=[], 
     const weekday=new Date(`${selectedDay}T12:00:00Z`).getUTCDay()
     setDraft(previous=>({...previous,recurrence:{unit:'weeks',interval:1,count:12,end:'until',until:'',weekdays:[weekday]}}))
   }
+  const reviewImportedClass=row=>{
+    openForm('class')
+    const startDate=row.startDate||selectedDay
+    setDraft(previous=>({
+      ...previous,title:row.title,location:row.location,
+      startLocal:row.startTime?`${startDate}T${row.startTime}`:'',
+      endLocal:row.endTime?`${startDate}T${row.endTime}`:'',
+      recurrence:{unit:'weeks',interval:1,count:12,end:'until',until:row.endDate,weekdays:row.weekdays}
+    }))
+    if(!row.startDate||!row.endDate)setNotice('Review the term dates. If the start date was missing, the selected calendar day was used as a starting point.')
+  }
   const navigate=count=>{const next=shiftMonth(anchor,count);setAnchor(next);setSelectedDay(next);setSelectedId(null)}
   const showToday=()=>{setAnchor(today);setSelectedDay(today);setSelectedId(null)}
   const run=async operation=>{if(lock.current||loading||attachmentBusy)return;lock.current=true;setBusy(true);setError('');try{await operation()}catch(error){setError(error.message)}finally{lock.current=false;setBusy(false)}}
@@ -185,6 +197,7 @@ export default function CalendarPage({ tasks, documents=[], documentFolders=[], 
     <CalendarCategories categories={categories} token={token} disabled={busy||loading||attachmentBusy} onChange={setCategories} onCreated={category=>setDraft(previous=>previous?{...previous,categoryId:category.id}:previous)} onAdd={categoryId=>{openForm();setDraft({...entryDraft(selectedDay),categoryId})}}/>
     <label className="calendar-category-filter">Category<select value={categoryFilter} onChange={event=>setCategoryFilter(event.target.value)}><option value="all">All categories</option><option value="none">Uncategorized</option>{categories.map(category=><option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
     <F1SeasonImport categories={categories} token={token} disabled={busy||loading||attachmentBusy} onImported={added=>{setCategoryFilter('all');setEntries(previous=>{const ids=new Set(added.map(entry=>entry._id));return [...previous.filter(entry=>!ids.has(entry._id)),...added]});setSources(previous=>new Set([...previous,'sports']));setHideDone(false);setQuery('');if(added.length){const next=added.find(entry=>(entry.allDay?entry.startDate:calendarDay(entry.startAt))>=today)||added[0];const day=next.allDay?next.startDate:calendarDay(next.startAt);setAnchor(day);setSelectedDay(day);setSelectedId(`entry:${next._id}`)}}}/>
+    <ClassScheduleImport token={token} disabled={busy||loading||attachmentBusy} onReview={reviewImportedClass}/>
     <div className="calendar-actions calendar-sports-actions">
       <button type="button" disabled={busy||loading||attachmentBusy} onClick={openClassSchedule}><Plus size={15}/>Add class schedule</button>
       <button type="button" disabled={busy||loading||attachmentBusy} onClick={()=>openForm('sports')}><Plus size={15}/>Sports event</button>
