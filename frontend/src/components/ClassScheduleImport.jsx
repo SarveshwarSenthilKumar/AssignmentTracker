@@ -6,6 +6,7 @@ const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 export default function ClassScheduleImport({ token, disabled, onReview }) {
   const [rows, setRows] = useState([])
+  const [warning, setWarning] = useState('')
   const [busy, setBusy] = useState(false)
   const [stage, setStage] = useState('')
   const [error, setError] = useState('')
@@ -15,6 +16,7 @@ export default function ClassScheduleImport({ token, disabled, onReview }) {
   async function importFile(file, useOriginal = false) {
     if (!file || lock.current) return
     setRows([])
+    setWarning('')
     if (file.size > 10 * 1024 * 1024) {
       setError('Choose a schedule file up to 10 MB.')
       return
@@ -49,6 +51,7 @@ export default function ClassScheduleImport({ token, disabled, onReview }) {
         return
       }
       setRows(data.classes)
+      setWarning(data.warning || '')
     } catch (error) {
       setError(error.message)
     } finally {
@@ -68,6 +71,7 @@ export default function ClassScheduleImport({ token, disabled, onReview }) {
     }}/></label>
     {busy && <p role="status">{stage || 'Reading schedule'} · {selectedFile?.name}</p>}
     {error && (error.diagnostics ? <CoverLetterError error={error} expanded/> : <p role="alert">{error.message || error}</p>)}
+    {warning && <p role="status">{warning}</p>}
     {error && selectedFile && <button type="button" disabled={busy || disabled} onClick={() => importFile(selectedFile)}>Retry selected file</button>}
     {selectedFile && !busy && (error || rows.length > 0) && <button type="button" disabled={disabled} onClick={() => importFile(selectedFile, true)}>Read original file with Gemini</button>}
     {rows.length > 0 && <ul>{rows.map((row, index) => <li key={index}>
