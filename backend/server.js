@@ -78,6 +78,7 @@ const userSchema = new mongoose.Schema({
   deletedTaskRetentionDays: { type: Number, default: 7 },
   confirmOtherActions: { type: Boolean, default: true },
   showInProgressColumn: { type: Boolean, default: true },
+  showTaskStreaks: { type: Boolean, default: true },
   taskSortBy:{type:String,enum:['dueDate','manual','createdAt','completedAt','text','status'],default:'dueDate'},
   taskSortOrder:{type:String,enum:['asc','desc'],default:'asc'},
   studyPhoneEnabled: { type: Boolean, default: true },
@@ -639,13 +640,13 @@ app.post('/api/assistant/chat', authenticateToken, async (req, res) => {
 });
 app.get('/api/account/preferences', authenticateToken, async (req, res) => {
   try {
-    const user = await User.findById(req.user.userId).select('themeMode timeZone confirmTaskDeletion confirmOtherActions showInProgressColumn studyPhoneEnabled taskSortBy taskSortOrder completedTaskRetentionDays deletedTaskRetentionDays +birthday');
+    const user = await User.findById(req.user.userId).select('themeMode timeZone confirmTaskDeletion confirmOtherActions showInProgressColumn showTaskStreaks studyPhoneEnabled taskSortBy taskSortOrder completedTaskRetentionDays deletedTaskRetentionDays +birthday');
     if (!user) return res.status(404).json({ message: 'Account not found.' });
-    res.json({ themeMode:['light','system'].includes(user.themeMode)?user.themeMode:'dark',timeZone: user.timeZone || '', confirmTaskDeletion:user.confirmTaskDeletion!==false, confirmOtherActions:user.confirmOtherActions!==false, showInProgressColumn:user.showInProgressColumn!==false,studyPhoneEnabled:user.studyPhoneEnabled!==false,taskSortBy:user.taskSortBy||'dueDate',taskSortOrder:user.taskSortOrder||'asc',birthday:user.birthday||'',completedTaskRetentionDays:user.completedTaskRetentionDays||0,deletedTaskRetentionDays:user.deletedTaskRetentionDays??7 });
+    res.json({ themeMode:['light','system'].includes(user.themeMode)?user.themeMode:'dark',timeZone: user.timeZone || '', confirmTaskDeletion:user.confirmTaskDeletion!==false, confirmOtherActions:user.confirmOtherActions!==false, showInProgressColumn:user.showInProgressColumn!==false,showTaskStreaks:user.showTaskStreaks!==false,studyPhoneEnabled:user.studyPhoneEnabled!==false,taskSortBy:user.taskSortBy||'dueDate',taskSortOrder:user.taskSortOrder||'asc',birthday:user.birthday||'',completedTaskRetentionDays:user.completedTaskRetentionDays||0,deletedTaskRetentionDays:user.deletedTaskRetentionDays??7 });
   } catch { res.status(500).json({ message: 'Could not load account preferences.' }); }
 });
 app.put('/api/account/preferences', authenticateToken, async (req, res) => {
-  const { themeMode,timeZone,confirmTaskDeletion,confirmOtherActions,showInProgressColumn,studyPhoneEnabled,taskSortBy,taskSortOrder,birthday } = req.body;
+  const { themeMode,timeZone,confirmTaskDeletion,confirmOtherActions,showInProgressColumn,showTaskStreaks,studyPhoneEnabled,taskSortBy,taskSortOrder,birthday } = req.body;
   const update={};
   if (req.body.completedTaskRetentionDays !== undefined) {
     const days = req.body.completedTaskRetentionDays;
@@ -668,7 +669,7 @@ app.put('/api/account/preferences', authenticateToken, async (req, res) => {
   catch { return res.status(400).json({ message: 'Choose a valid time zone.' }); }
   update.timeZone=timeZone;
   }
-  for(const [key,value] of Object.entries({confirmTaskDeletion,confirmOtherActions,showInProgressColumn,studyPhoneEnabled})){
+  for(const [key,value] of Object.entries({confirmTaskDeletion,confirmOtherActions,showInProgressColumn,showTaskStreaks,studyPhoneEnabled})){
     if(value===undefined)continue;
     if(typeof value!=='boolean')return res.status(400).json({message:'Preferences must be enabled or disabled.'});
     update[key]=value;
@@ -677,9 +678,9 @@ app.put('/api/account/preferences', authenticateToken, async (req, res) => {
   if(taskSortOrder!==undefined){if(!['asc','desc'].includes(taskSortOrder))return res.status(400).json({message:'Choose a valid sort direction.'});update.taskSortOrder=taskSortOrder;}
   if(!Object.keys(update).length)return res.status(400).json({message:'Choose a preference to update.'});
   try {
-    const user = await User.findByIdAndUpdate(req.user.userId, { $set: update }, { new: true }).select('themeMode timeZone confirmTaskDeletion confirmOtherActions showInProgressColumn studyPhoneEnabled taskSortBy taskSortOrder completedTaskRetentionDays deletedTaskRetentionDays +birthday');
+    const user = await User.findByIdAndUpdate(req.user.userId, { $set: update }, { new: true }).select('themeMode timeZone confirmTaskDeletion confirmOtherActions showInProgressColumn showTaskStreaks studyPhoneEnabled taskSortBy taskSortOrder completedTaskRetentionDays deletedTaskRetentionDays +birthday');
     if (!user) return res.status(404).json({ message: 'Account not found.' });
-    res.json({ themeMode:['light','system'].includes(user.themeMode)?user.themeMode:'dark',timeZone: user.timeZone || '',confirmTaskDeletion:user.confirmTaskDeletion!==false,confirmOtherActions:user.confirmOtherActions!==false, showInProgressColumn:user.showInProgressColumn!==false,studyPhoneEnabled:user.studyPhoneEnabled!==false,taskSortBy:user.taskSortBy||'dueDate',taskSortOrder:user.taskSortOrder||'asc',birthday:user.birthday||'',completedTaskRetentionDays:user.completedTaskRetentionDays||0,deletedTaskRetentionDays:user.deletedTaskRetentionDays??7 });
+    res.json({ themeMode:['light','system'].includes(user.themeMode)?user.themeMode:'dark',timeZone: user.timeZone || '',confirmTaskDeletion:user.confirmTaskDeletion!==false,confirmOtherActions:user.confirmOtherActions!==false, showInProgressColumn:user.showInProgressColumn!==false,showTaskStreaks:user.showTaskStreaks!==false,studyPhoneEnabled:user.studyPhoneEnabled!==false,taskSortBy:user.taskSortBy||'dueDate',taskSortOrder:user.taskSortOrder||'asc',birthday:user.birthday||'',completedTaskRetentionDays:user.completedTaskRetentionDays||0,deletedTaskRetentionDays:user.deletedTaskRetentionDays??7 });
   } catch { res.status(500).json({ message: 'Could not save your account preferences.' }); }
 });
 app.post('/api/user/reset', authenticateToken, async (req, res) => {
