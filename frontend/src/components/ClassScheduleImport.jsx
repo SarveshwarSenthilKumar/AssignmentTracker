@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { readApiJson } from '../lib/apiResponse'
+import CoverLetterError from './CoverLetterError'
 
 const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
@@ -27,7 +28,10 @@ export default function ClassScheduleImport({ token, disabled, onReview }) {
         method: 'POST', headers: { Authorization: `Bearer ${token}` }, body
       })
       const data = await readApiJson(response)
-      if (!response.ok || !Array.isArray(data.classes)) throw new Error(data.message || 'Could not read the schedule.')
+      if (!response.ok || !Array.isArray(data.classes)) {
+        setError({ message: data.message || 'Could not read the schedule.', diagnostics: data.diagnostics })
+        return
+      }
       setRows(data.classes)
     } catch (error) {
       setError(error.message)
@@ -42,7 +46,7 @@ export default function ClassScheduleImport({ token, disabled, onReview }) {
     <p>The file is sent to Gemini to extract meetings. Review and save each class separately.</p>
     <label>Schedule file <input type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" disabled={busy || disabled} onChange={importFile}/></label>
     {busy && <p role="status">Reading schedule…</p>}
-    {error && <p role="alert">{error}</p>}
+    {error && (error.diagnostics ? <CoverLetterError error={error} expanded/> : <p role="alert">{error.message || error}</p>)}
     {rows.length > 0 && <ul>{rows.map((row, index) => <li key={index}>
       <strong>{row.title}</strong> · {row.weekdays.map(day => weekdays[day]).join(', ') || 'Weekdays needed'} · {row.startTime || 'Start time needed'}{row.endTime ? `–${row.endTime}` : ' · End time needed'}
       {(!row.startDate || !row.endDate) && ' · Review term dates'}

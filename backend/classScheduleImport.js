@@ -1,5 +1,4 @@
-const { callAssistantAPI } = require('./assistantDiagnostics');
-const { responseText } = require('./assistant');
+const { callAssistantAPI, AssistantAPIError, safeMessage } = require('./assistantDiagnostics');
 const { validDay } = require('./calendarEntries');
 
 module.exports = function registerClassScheduleImport(app, auth, upload, credentials, model) {
@@ -27,7 +26,25 @@ module.exports = function registerClassScheduleImport(app, auth, upload, credent
         contents: [{ role: 'user', parts: [{ inlineData: { mimeType, data: file.toString('base64') } }] }],
         generationConfig: { responseMimeType: 'application/json', maxOutputTokens: 8192 }
       }, { apiKey: credential.apiKey, signal: controller.signal, metadata: { kind: 'class_schedule_import' } });
-      const parsed = JSON.parse(responseText(result.data));
+      const candidate = result.data.candidates?.[0];
+      const finishReason = safeMessage(candidate?.finishReason, [credential.apiKey]);
+      const responseDetails = { ...result.diagnostics, category: 'invalid_response', code: finishReason };
+      const reply = (candidate?.content?.parts || [])
+        .filter(part => !part.thought && typeof part.text === 'string')
+        .map(part => part.text).join('\n').trim();
+      if (finishReason === 'MAX_TOKENS') {
+        return res.status(422).json({ message: 'Gemini reached its output limit before finishing. Try importing fewer pages at a time.', diagnostics: responseDetails });
+      }
+      if (!reply) return res.status(422).json({ message: 'Gemini returned no schedule text.', diagnostics: responseDetails });
+      let parsed;
+      try {
+        parsed = JSON.parse(reply.replace(/^```(?:json)?\s*|\s*```$/gi, ''));
+      } catch {
+        return res.status(422).json({ message: 'Gemini returned text that could not be parsed as a schedule.', diagnostics: responseDetails });
+      }
+      if (!Array.isArray(parsed?.classes)) {
+        return res.status(422).json({ message: 'Gemini’s response was missing the class list.', diagnostics: responseDetails });
+      }
       const time = value => typeof value === 'string' && /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value) ? value : '';
       const classes = (Array.isArray(parsed?.classes) ? parsed.classes : []).slice(0, 40)
         .filter(row => typeof row?.title === 'string' && row.title.trim())
@@ -39,10 +56,16 @@ module.exports = function registerClassScheduleImport(app, auth, upload, credent
           startTime: time(row.startTime), endTime: time(row.endTime),
           weekdays: [...new Set((Array.isArray(row.weekdays) ? row.weekdays : []).filter(day => Number.isInteger(day) && day >= 0 && day <= 6))]
         }));
-      if (!classes.length) return res.status(422).json({ message: 'No class meetings were readable. Try a clearer screenshot or PDF.' });
+      if (!classes.length) return res.status(422).json({ message: 'Gemini returned no readable class meetings.', diagnostics: { ...responseDetails, category: 'no_classes' } });
       res.json({ classes });
-    } catch {
-      if (!res.destroyed) res.status(422).json({ message: 'Could not read the schedule. Check your AI settings or try a clearer file.' });
+    } catch (error) {
+      if (res.destroyed) return;
+      if (error instanceof AssistantAPIError) {
+        const details = error.diagnostics;
+        return res.status(details.providerStatus === 429 ? 429 : error.status).json({ message: details.message, diagnostics: details });
+      }
+      console.error('Class schedule import failed:', error.name);
+      res.status(500).json({ message: 'The backend could not finish the schedule import. Check the backend logs.' });
     } finally {
       clearTimeout(timer);
       active.delete(userId);
