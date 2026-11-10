@@ -1,5 +1,6 @@
 import CalendarDayTaskInput from './CalendarDayTaskInput'
 import ClassScheduleImport from './ClassScheduleImport'
+import { downloadClassSchedule } from '../lib/classSchedulePdf'
 import CalendarDayNote from './CalendarDayNote'
 import { useAuth } from '../contexts/AuthContext'
 import {TaskDayPlanner} from './TaskSchedule'
@@ -200,6 +201,8 @@ export default function CalendarPage({ tasks, documents=[], documentFolders=[], 
     <ClassScheduleImport token={token} disabled={busy||loading||attachmentBusy} onReview={reviewImportedClass}/>
     <div className="calendar-actions calendar-sports-actions">
       <button type="button" disabled={busy||loading||attachmentBusy} onClick={openClassSchedule}><Plus size={15}/>Add class schedule</button>
+      <button type="button" disabled={busy||loading||attachmentBusy} onClick={()=>run(()=>downloadClassSchedule(entries,selectedDay))}>Download class schedule PDF</button>
+      <span>Exports the week of {dayLabel(selectedDay,{month:'short',day:'numeric'})}.</span>
       <button type="button" disabled={busy||loading||attachmentBusy} onClick={()=>openForm('sports')}><Plus size={15}/>Sports event</button>
     </div>
     {draft&&<form ref={panel} className="calendar-entry-form" noValidate onSubmit={save} aria-label={draft._id?'Edit calendar entry':'New calendar entry'}><div className="calendar-form-heading"><h3>{draft._seriesDetails?'Edit series details':draft._id?'Edit calendar entry':draft.kind==='class'?'Add class schedule':draft.kind==='sports'?'New sports event':'New calendar entry'}</h3><button type="button" disabled={busy||loading||attachmentBusy} onClick={()=>setDraft(null)} aria-label="Close calendar form"><X size={17}/></button></div><div className="calendar-form-fields">
