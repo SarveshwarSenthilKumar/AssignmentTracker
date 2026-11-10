@@ -1600,8 +1600,9 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     finally{cleanCopyLock.current=false;setCopyingClean(false)}
   }
 
-  const handleDownload = async () => {
+  const handleDownload = async (format) => {
     if (downloading) return
+    const asImage = exportImage && format !== 'pdf'
     setDownloading(true)
     setActionError(null)
     try {
@@ -1626,7 +1627,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       }
 
       let blob = new Blob([outBytes], { type: 'application/pdf' })
-      if (exportImage) {
+      if (asImage) {
         const task = pdfjs.getDocument({ data: new Uint8Array(outBytes), isEvalSupported: false })
         try {
           const document = await task.promise, page = await document.getPage(1)
@@ -1637,7 +1638,9 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
           if (!blob) throw new Error('Could not export the image.')
         } finally { await task.destroy() }
       }
-      const filename = exportImage ? `${(pdfData?.originalName || 'image').replace(/\.[^.]+$/, '')}-edited.png` : pdfData?.originalName || pdfData?.name || 'document.pdf'
+      const originalName = pdfData?.originalName || pdfData?.name || (exportImage ? 'image' : 'document')
+      const baseName = originalName.replace(/\.[^.]+$/, '') || 'document'
+      const filename = asImage ? `${baseName}-edited.png` : `${baseName}-annotated.pdf`
       await downloadBlob(blob, filename)
     } catch (err) {
 

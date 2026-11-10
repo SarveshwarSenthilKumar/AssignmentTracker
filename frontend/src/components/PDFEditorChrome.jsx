@@ -56,7 +56,8 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
     {open===key&&<section id={`${id}-${key}`} className={`pc-popover pc-popover-${key}`} aria-label={label}><div className="pc-popover-title">{label}</div>{children}</section>}
   </div>
   const documentMenu=menu('document','Document',FileText,<>
-    {action(Download,doc.downloading?'Exporting…':'Download',doc.onDownload,{disabled:doc.downloading,detail:doc.exportImage?'Export edited image':'Export PDF with annotations'})}
+    {action(Download,doc.downloading?'Exporting…':'Download annotated PDF',()=>doc.onDownload('pdf'),{disabled:doc.downloading,detail:'Include the current text boxes, ink, and inserts'})}
+    {doc.exportImage&&action(Download,'Download edited PNG',doc.onDownload,{disabled:doc.downloading})}
     {doc.onCleanCopy&&action(Copy,doc.copying?'Creating copy…':'Create clean copy',doc.onCleanCopy,{disabled:doc.copying||pages.busy,detail:'Separate document without editor annotations'})}
     {doc.onCleanup&&action(Pen,'Clean up PDF',doc.onCleanup,{disabled:pages.busy,detail:'Use your comments to prepare and review text corrections'})}
     <hr/>{action(Settings,'Document settings',utilities.onSettings,{active:utilities.settingsOpen,detail:'Name, folder, tags and document actions'})}
