@@ -220,7 +220,7 @@ const CalendarEntry = mongoose.model('CalendarEntry', new mongoose.Schema({
   seriesRule: { type: mongoose.Schema.Types.Mixed },
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
   title: { type: String, required: true, maxlength: 200 },
-  kind: { type: String, enum: ['appointment','marker','sports'], required: true },
+  kind: { type: String, enum: ['appointment','marker','sports','class'], required: true },
   sports:{type:new mongoose.Schema({sport:{type:String,maxlength:120},league:{type:String,maxlength:120},team:{type:String,maxlength:120},opponent:{type:String,maxlength:120}},{_id:false}),default:null},
   externalId:{type:String,maxlength:200,index:true},
   categoryId:{type:String,default:null,maxlength:36},

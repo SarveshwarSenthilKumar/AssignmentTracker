@@ -2,7 +2,7 @@ const validDay = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.tes
 const instant = value => typeof value === 'string' && validDay(value.slice(0,10)) && /^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})$/.test(value) && Number.isFinite(Date.parse(value));
 function calendarEntry(body) {
   if (!body || typeof body.title !== 'string' || !body.title.trim() || body.title.trim().length > 200) throw new Error('Enter a title of up to 200 characters.');
-  if (!['appointment','marker','sports'].includes(body.kind) || typeof body.allDay !== 'boolean') throw new Error('Choose an appointment, sports event, or date marker.');
+  if (!['appointment','marker','sports','class'].includes(body.kind) || typeof body.allDay !== 'boolean') throw new Error('Choose a valid calendar entry type.');
   for (const [key, limit] of [['notes',4000],['location',300]]) if (body[key] !== undefined && (typeof body[key] !== 'string' || body[key].length > limit)) throw new Error(`${key === 'notes' ? 'Notes' : 'Location'} is too long or invalid.`);
   if (body.done !== undefined && typeof body.done !== 'boolean') throw new Error('Invalid completion state.');
   const result = { title: body.title.trim(), kind: body.kind, notes: body.notes?.trim() || '', location: body.location?.trim() || '', allDay: body.kind === 'marker' || body.allDay, done: body.done ?? false };
