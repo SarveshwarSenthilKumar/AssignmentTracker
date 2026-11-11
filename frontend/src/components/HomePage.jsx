@@ -1,13 +1,51 @@
 import SuggestedEvents from './SuggestedEvents'
 import {useEffect,useMemo,useState} from 'react'
-import {ArrowUpRight,ArrowRight,Plus,Upload,CalendarDays,CheckCircle2,FileText,Clock,RefreshCw,Briefcase,Sparkles,Layers,FolderOpen} from 'lucide-react'
+import {AlertCircle,ArrowUpRight,ArrowRight,Plus,Upload,CalendarDays,CheckCircle2,FileText,Clock,RefreshCw,Briefcase,Sparkles,Layers,FolderOpen,SlidersHorizontal} from 'lucide-react'
 import {calendarDay,calendarItems,calendarTime,dayLabel,itemsOnDay,shiftDay,CALENDAR_LABELS,taskDueLabel} from '../lib/calendar'
 import {activeTimeZone} from '../lib/timeZone'
 import {readApiJson} from '../lib/apiResponse'
 import useTxstEvents from '../hooks/useTxstEvents'
 import './HomePage.css'
 
+const metricTitles = {
+  open: 'Open tasks',
+  today: 'Due today',
+  events: 'Events ahead',
+  documents: 'Documents',
+  overdue: 'Overdue tasks',
+  progress: 'In-progress tasks',
+  completed: 'Completed tasks',
+  completion: 'Completion rate',
+  undated: 'Tasks without a deadline',
+}
+const defaultMetrics = ['open', 'today', 'events', 'documents']
+
+function readMetrics(key) {
+  try {
+    const saved = JSON.parse(localStorage.getItem(key))
+    if (Array.isArray(saved) && saved.length === defaultMetrics.length &&
+      new Set(saved).size === saved.length && saved.every(id => Object.hasOwn(metricTitles, id))) return saved
+  } catch {
+    // Use the default cards if the preference cannot be read.
+  }
+  return defaultMetrics
+}
+
 export default function HomePage({user,token,tasks,documents,folders,loading,onNavigate,onOpenTask,onOpenDocument,onOpenCalendar,onNewTask,onUpload,onRefresh,canvasStatus}){
+  const metricsKey = `home-stat-cards:${user?.id ?? user?._id ?? 'local'}`
+  const [metricSlots, setMetricSlots] = useState(() => readMetrics(metricsKey))
+  const saveMetrics = slots => {
+    setMetricSlots(slots)
+    try {
+      localStorage.setItem(metricsKey, JSON.stringify(slots))
+    } catch {
+      // The selected cards are still available for this visit.
+    }
+  }
+  const changeMetric = (index, id) => {
+    const previous = metricSlots[index]
+    saveMetrics(metricSlots.map((current, slot) => slot === index ? id : current === id ? previous : current))
+  }
   const [now,setNow]=useState(()=>new Date()),[entries,setEntries]=useState([]),[calendarLoading,setCalendarLoading]=useState(true),[calendarError,setCalendarError]=useState(''),[revision,setRevision]=useState(0),[refreshing,setRefreshing]=useState(false),[refreshError,setRefreshError]=useState('')
   const {campus}=useTxstEvents(token)
   const today=calendarDay(now),zone=activeTimeZone()
@@ -35,6 +73,17 @@ export default function HomePage({user,token,tasks,documents,folders,loading,onN
   const dueToday=activeTasks.filter(task=>(task.calendarAllDay&&task.calendarDate?task.calendarDate:calendarDay(task.dueDate))===today).length
   const eventCount=events.filter(item=>item.kind!=='deadline'&&item.kind!=='work'&&item.startDate<=shiftDay(today,6)&&item.endDate>=today).length
   const completed=taskRecords.length-activeTasks.length,progress=taskRecords.length?Math.round(completed/taskRecords.length*100):0
+  const metrics = {
+    open: [CheckCircle2, activeTasks.length, 'Your current to-do list', 'tasks'],
+    today: [Clock, dueToday, overdue ? <span className="home-stat-overdue">{overdue} overdue</span> : 'Task deadlines in your time zone', 'tasks'],
+    events: [CalendarDays, eventCount, 'Over the next seven days', 'calendar'],
+    documents: [FolderOpen, activeDocuments.length, 'Notes, files, resumes and letters', 'documents'],
+    overdue: [AlertCircle, overdue, 'Open tasks past their deadline', 'tasks'],
+    progress: [Clock, activeTasks.filter(task => task.status === 'in-progress' || task.status === 'in_progress').length, 'Tasks you’ve started', 'tasks'],
+    completed: [CheckCircle2, completed, 'Finished tasks', 'tasks'],
+    completion: [CheckCircle2, `${progress}%`, 'Share of all tasks completed', 'tasks'],
+    undated: [CalendarDays, activeTasks.filter(task => !task.dueDate && !(task.calendarAllDay && task.calendarDate)).length, 'Open tasks without a due date', 'tasks'],
+  }
   const firstName=(user?.name||user?.username||'').trim().split(/\s+/)[0]
   const hour=Number(new Intl.DateTimeFormat('en',{timeZone:zone,hour:'numeric',hourCycle:'h23'}).format(now))
   const greeting=hour<12?'Good morning':hour<18?'Good afternoon':'Good evening'
@@ -53,7 +102,34 @@ export default function HomePage({user,token,tasks,documents,folders,loading,onN
       <aside className="home-next-card"><div><span className="home-eyebrow"><Clock size={14}/>NEXT ON YOUR CALENDAR</span><CalendarDays size={21}/></div>{calendarLoading?<p role="status">Loading your schedule…</p>:next?<><span className="home-next-date">{dayLabel(next.startDate,{month:'short',day:'numeric',weekday:'short'})}</span><h2>{next.title}</h2><p>{calendarTime(next)}</p><button type="button" onClick={()=>openEvent(next)}>View details<ArrowRight size={15}/></button></>:<><h2>A little breathing room.</h2><p>{calendarError?'Your saved schedule could not be loaded.':'No upcoming items in the loaded schedule.'}</p><button type="button" onClick={()=>onNavigate('calendar')}>Plan something<ArrowRight size={15}/></button></>}</aside>
     </div>
     {(calendarError||refreshError)&&<p className="home-notice" role="alert">{calendarError||refreshError} <button type="button" onClick={refresh}>Retry</button></p>}
-    <div className="home-stats">{[[CheckCircle2,loading?'—':activeTasks.length,'Open tasks','Your current to-do list','tasks'],[Clock,loading?'—':dueToday,'Due today',overdue ? <span style={{color:'var(--danger)',fontSize:'inherit'}}>{overdue} overdue</span> : 'Task deadlines in your time zone','tasks'],[CalendarDays,calendarLoading?'—':eventCount,'Events ahead','Over the next seven days','calendar'],[FolderOpen,loading?'—':activeDocuments.length,'Documents','Notes, files, resumes and letters','documents']].map(([Icon,value,title,detail,route])=><button type="button" key={title} onClick={()=>onNavigate(route)}><div><Icon size={18}/><ArrowUpRight size={14}/></div><strong>{value}</strong><span>{title}</span><small>{detail}</small></button>)}</div>
+    <section className="home-stat-section" aria-label="Dashboard metrics">
+      <details className="home-stat-settings">
+        <summary><SlidersHorizontal size={15} aria-hidden="true" /> Customize stats</summary>
+        <div className="home-stat-picker">
+          {metricSlots.map((id, index) => (
+            <label key={index}>
+              Card {index + 1}
+              <select value={id} onChange={event => changeMetric(index, event.target.value)}>
+                {Object.entries(metricTitles).map(([value, title]) => <option key={value} value={value}>{title}</option>)}
+              </select>
+            </label>
+          ))}
+          <button type="button" onClick={() => saveMetrics(defaultMetrics)}>Reset to defaults</button>
+        </div>
+      </details>
+      <div className="home-stats">
+        {metricSlots.map(id => {
+          const [Icon, value, detail, route] = metrics[id]
+          const pending = id === 'events' ? calendarLoading : loading
+          return <button type="button" key={id} onClick={() => onNavigate(route)}>
+            <div><Icon size={18} aria-hidden="true" /><ArrowUpRight size={14} aria-hidden="true" /></div>
+            <strong>{pending ? '—' : value}</strong>
+            <span>{metricTitles[id]}</span>
+            <small>{detail}</small>
+          </button>
+        })}
+      </div>
+    </section>
     <div className="home-main-grid"><section className="home-panel home-focus"><header><div><span className="home-eyebrow">A GOOD PLACE TO START</span><h2>Your focus list</h2></div><button type="button" onClick={()=>onNavigate('tasks')}>All tasks<ArrowUpRight size={14}/></button></header>{loading?<p className="home-empty" role="status">Loading tasks…</p>:focusTasks.length?<div className="home-task-list">{focusTasks.map(task=>{const day=(task.calendarAllDay&&task.calendarDate?task.calendarDate:calendarDay(task.dueDate)),late=task.dueDate&&(task.calendarAllDay?day<today:Date.parse(task.dueDate)<now.getTime());return <button className="home-task-row" key={task._id} type="button" onClick={()=>onOpenTask(task)}><span className={`home-task-status${task.status==='in_progress'?' is-progress':''}`}><span/></span><span><strong>{task.text}</strong><small>{folders.find(folder=>folder._id===task.folder)?.name||'Inbox'} · {task.status==='in_progress'?'In progress':'To do'}</small></span><time className={late?'is-overdue':''}>{task.dueDate?taskDueLabel(task):'No due date'}</time><ArrowUpRight size={14}/></button>})}</div>:<div className="home-empty"><CheckCircle2 size={28}/><h3>{taskRecords.length?'You’re all caught up.':'Start with one small task.'}</h3><p>{taskRecords.length?'Your completed work is still available in Tasks.':'Give your next idea or deadline a place to land.'}</p><button type="button" onClick={onNewTask}>Add a task<Plus size={14}/></button></div>}<footer className="home-progress"><div><span>Overall task progress</span><strong>{loading?'—':`${completed} of ${taskRecords.length} complete`}</strong></div><progress aria-label="Overall task completion" value={completed} max={Math.max(1,taskRecords.length)}/><small>{taskRecords.length?`${progress}% complete`:'Your progress will appear as you complete tasks.'}</small></footer></section>
       <section className="home-panel home-schedule"><header><div><span className="home-eyebrow">MAKE TIME FOR IT</span><h2>Your schedule</h2></div><button type="button" onClick={()=>onNavigate('calendar')}>Calendar<ArrowUpRight size={14}/></button></header><div className="home-week" role="group" aria-label="Choose an agenda date">{week.map(day=><button type="button" key={day} aria-pressed={selectedDay===day} onClick={()=>setSelectedDay(day)}><span>{dayLabel(day,{weekday:'short'})}</span><strong>{Number(day.slice(-2))}</strong><i className={events.some(item=>item.startDate<=day&&item.endDate>=day)?'has-events':''}/></button>)}</div><h3 className="home-agenda-label">{selectedDay===today?'Today':dayLabel(selectedDay,{weekday:'long',month:'short',day:'numeric'})}</h3>{calendarLoading?<p className="home-empty" role="status">Loading calendar…</p>:agenda.length?<div className="home-agenda">{agenda.slice(0,5).map(renderEvent)}{agenda.length>5&&<button type="button" className="home-more" onClick={()=>onNavigate('calendar')}>See {agenda.length-5} more in Calendar<ArrowRight size={14}/></button>}</div>:<div className="home-empty home-empty-small"><CalendarDays size={25}/><p>No loaded events or deadlines for this day.</p><button type="button" onClick={()=>onNavigate('calendar')}>Open calendar<ArrowRight size={14}/></button></div>}{campus.warning&&<p className="home-data-note">TXST events couldn’t refresh. <a href="#/calendar">Open Calendar for details.</a></p>}</section>
       <section className="home-panel home-files"><header><div><span className="home-eyebrow">BACK TO YOUR IDEAS</span><h2>Recent documents</h2></div><button type="button" onClick={()=>onNavigate('documents')}>Library<ArrowUpRight size={14}/></button></header>{loading?<p className="home-empty" role="status">Loading files…</p>:recent.length?<div className="home-file-grid">{recent.map(file=><button type="button" key={file._id} onClick={()=>onOpenDocument(file._id)}><span className="home-file-icon"><FileText size={23}/><small>{file.originalName?.split('.').pop()?.toUpperCase()||'FILE'}</small></span><span><strong>{file.name}</strong><small>{file.tags?.includes('resume')?'Resume':file.tags?.includes('cover-letter')?'Cover letter':file.tags?.includes('notes')?'Notes':'Document'}</small></span><ArrowUpRight size={14}/></button>)}</div>:<div className="home-empty home-empty-small"><FileText size={25}/><p>Your notes and files belong here.</p><button type="button" onClick={onUpload}>Upload your first document<Upload size={14}/></button></div>}</section>
