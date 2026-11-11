@@ -48,6 +48,7 @@ import AssistantChat from './components/AssistantChat'
 import { SHORTCUTS, matchesShortcut } from './lib/shortcuts'
 import { localToInstant, zonedLocal } from './lib/timeZone'
 import { taskDueLabel,dayLabel } from './lib/calendar'
+import { isOverdue } from './lib/taskVisualization'
 import CalendarPage from './components/CalendarPage'
 import CalendarReminderNotifications from './components/CalendarReminderNotifications'
 import TaskDependencies from './components/TaskDependencies'
@@ -62,7 +63,7 @@ import useShortcuts from './hooks/useShortcuts'
 import ShortcutsPage from './components/ShortcutsPage'
 import './Navigation.css'
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Trash2, Check, X, Loader2, FolderPlus, Folder, LogOut, Sparkles, Link2, ChevronDown, ChevronUp, Edit2, Copy, Save, User, Trophy, Target, Calendar, ArrowUpDown, RefreshCw, Terminal, ChevronRight, FileText, Keyboard } from 'lucide-react'
+import { AlertCircle, Plus, Trash2, Check, X, Loader2, FolderPlus, Folder, LogOut, Sparkles, Link2, ChevronDown, ChevronUp, Edit2, Copy, Save, User, Trophy, Target, Calendar, ArrowUpDown, RefreshCw, Terminal, ChevronRight, FileText, Keyboard } from 'lucide-react'
 import { cn } from './lib/utils'
 import { useAuth } from './contexts/AuthContext'
 import Auth from './components/Auth'
@@ -117,6 +118,19 @@ function App() {
   const [editData, setEditData] = useState({})
   const editRefs = useRef({})
   const [selectedTask, setSelectedTask] = useState(null)
+  const [deadlineTime, setDeadlineTime] = useState(Date.now)
+  const showTaskDeadlines = page === 'tasks' || Boolean(selectedTask)
+  useEffect(() => {
+    if (!showTaskDeadlines) return
+    const refresh = () => setDeadlineTime(Date.now())
+    refresh()
+    const timer = window.setInterval(refresh, 60_000)
+    window.addEventListener('focus', refresh)
+    return () => {
+      window.clearInterval(timer)
+      window.removeEventListener('focus', refresh)
+    }
+  }, [showTaskDeadlines])
   const [searchJobId,setSearchJobId]=useState(null),[searchCategoryId,setSearchCategoryId]=useState(null),[searchShortcutsQuery,setSearchShortcutsQuery]=useState('')
   const [searchLibraryTarget,setSearchLibraryTarget]=useState(null)
   const inputRef = useRef(null)
@@ -816,6 +830,12 @@ function App() {
     }
   }
 
+  const overdueWarning = task => task.canvasType !== 'calendar_event' && isOverdue(task, deadlineTime) ? (
+    <span className="mt-1 inline-flex items-center gap-1 rounded-full border border-current px-2 py-0.5 text-xs font-medium" style={{ color: 'var(--danger)' }}>
+      <AlertCircle size={13} aria-hidden="true" /> Overdue
+    </span>
+  ) : null
+
   const renderTaskCard = (todo, statusColor) => {
     const isExpanded = expandedTodos.has(todo._id)
     const isEditing = editingTodos.has(todo._id)
@@ -902,6 +922,7 @@ function App() {
                 </button>
               )}
             </div>
+            {!isEditing && overdueWarning(todo)}
             {todo.scheduledDate&&!isEditing&&<p className="task-plan-badge">Do on: {dayLabel(todo.scheduledDate,{weekday:'short',month:'short',day:'numeric'})}</p>}
           </div>
 
@@ -2354,6 +2375,7 @@ function App() {
                     ? taskDueLabel(selectedTask,true)
                     : 'No due date'}
                 </p>
+                {overdueWarning(todos.find(task => task._id === selectedTask._id) || selectedTask)}
               </div>
 
               {/* Links */}
