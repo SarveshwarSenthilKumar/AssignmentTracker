@@ -6,7 +6,7 @@ import useShortcuts from '../hooks/useShortcuts'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { FileText, FileDown, Folder, FolderPlus, Upload, Search, Trash2, Edit2, ArrowRight, RotateCcw, X, Download, Loader2, Files, Check, RefreshCw } from 'lucide-react'
 import { downloadBlob } from '../lib/documentFormats'
-import { readApiJson } from '../lib/apiResponse'
+import { createDocument } from '../lib/createDocument'
 import AIDocumentCreator from './AIDocumentCreator'
 import MarkdownPDFCreator from './MarkdownPDFCreator'
 import OneNoteImport from './OneNoteImport'
@@ -29,11 +29,6 @@ export default function DocumentLibrary({ tasks = [], onOpenTask, documents, fol
   useEffect(()=>{
     if(!navigationTarget)return
     setSearch('');setSelected(new Set(navigationTarget.fileId?[navigationTarget.fileId]:[]))
-    if (navigationTarget.createNotes) {
-      setValue('Untitled notes')
-      setNoteTemplate('blank')
-      setModal({ type: 'new-notes' })
-    }
     const frame=requestAnimationFrame(()=>{if(navigationTarget.fileId){const row=document.querySelector(`[data-library-file-id="${navigationTarget.fileId}"]`);row?.scrollIntoView({block:'center'});row?.focus({preventScroll:true})}onNavigationHandled?.()})
     return()=>cancelAnimationFrame(frame)
   },[navigationTarget])
@@ -104,15 +99,11 @@ export default function DocumentLibrary({ tasks = [], onOpenTask, documents, fol
         pdf.setTitle(name);pdf.setCreator('Assignment Tracker')
         content=await pdf.save();mime='application/pdf';extension='pdf'
       }
-      const filename=(name.replace(/[<>:"/\\|?*\u0000-\u001f]/g,'-').replace(/\.(txt|md|pdf)$/i,'').trim()||'Notes')+'.'+extension
-      const body=new FormData()
-      body.append('pdfFile',new File([content],filename,{type:mime}))
-      body.append('name',name);body.append('tags',JSON.stringify(notebook?['notes','handwritten-notebook']:['notes']))
-      if(selectedFolder&&!['all','trash'].includes(selectedFolder))body.append('pdfFolderId',selectedFolder)
-      const response=await fetch('/api/pdfs',{method:'POST',headers:{Authorization:`Bearer ${token}`},body})
-      const file=await readApiJson(response)
-      if(!response.ok)throw new Error(file.message||'Could not create your notes.')
-      if(!file._id)throw new Error('The server did not return the new document. Refresh the library before retrying.')
+      const file = await createDocument({
+        token, name, content, mime, extension,
+        folderId: selectedFolder && !['all', 'trash'].includes(selectedFolder) ? selectedFolder : null,
+        tags: notebook ? ['notes', 'handwritten-notebook'] : ['notes'],
+      })
       onDocumentsChange(previous=>[file,...previous]);setSearch('');setSelected(new Set());setModal(null);setNotice({text:notebook?'Blank notebook created.':'Notes created.'});onOpen(file._id);return
     }
     if (modal.type === 'new-folder') {

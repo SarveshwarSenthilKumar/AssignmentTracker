@@ -126,6 +126,88 @@
   cursor: default;
 }
 
+.document-folder-created {
+  display: flex;
+  flex: 1 0 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+  padding-inline: 0.5rem;
+}
+
+.document-folder-created [role="status"] {
+  overflow-wrap: anywhere;
+}
+
+.document-file-dialog {
+  position: fixed;
+  inset: 0;
+  width: min(26rem, calc(100% - 2rem));
+  max-height: calc(100dvh - 2rem);
+  margin: auto;
+  padding: 1.25rem;
+  border: 1px solid #475569;
+  border-radius: 0.875rem;
+  background: #172235;
+  color: #f1f5f9;
+  color-scheme: dark;
+}
+
+.document-file-dialog::backdrop {
+  background: rgb(2 6 23 / 72%);
+}
+
+.document-file-dialog form,
+.document-file-dialog label {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.document-file-dialog form {
+  gap: 0.875rem;
+}
+
+.document-file-dialog h2 {
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.document-file-dialog p,
+.document-file-dialog footer {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.document-file-dialog p {
+  color: #cbd5e1;
+  overflow-wrap: anywhere;
+}
+
+.document-file-dialog p[role="alert"] {
+  color: #fecaca;
+}
+
+.document-file-dialog input,
+.document-file-dialog select,
+.document-file-dialog button {
+  min-width: 0;
+  padding: 0.5rem 0.625rem;
+  border: 1px solid #64748b;
+  border-radius: 0.375rem;
+  background: #0f172a;
+  color: inherit;
+}
+
+.document-file-dialog footer {
+  justify-content: flex-end;
+}
+
+.document-file-dialog button[type="submit"] {
+  background: #1d4ed8;
+  border-color: #60a5fa;
+}
+
 @media (max-width: 640px) {
   .document-folder-navigation {
     position: relative;
