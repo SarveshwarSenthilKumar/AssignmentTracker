@@ -23,6 +23,11 @@
   list-style: none;
 }
 
+.document-folder-navigation:has(details[open]) {
+  position: relative;
+  z-index: 46;
+}
+
 .document-folder-control::-webkit-details-marker {
   display: none;
 }
