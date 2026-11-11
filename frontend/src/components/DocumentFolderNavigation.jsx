@@ -1,11 +1,11 @@
 import { useId, useState } from 'react'
-import { ChevronDown, EyeOff, FileText, Folder, FolderOpen, Library } from 'lucide-react'
+import { ChevronDown, EyeOff, FilePlus, FileText, Folder, FolderOpen, Library } from 'lucide-react'
 import { folderTree } from '../lib/folderHierarchy'
 import './DocumentFolderNavigation.css'
 
 const visibilityKey = 'document-folder-navigation-hidden'
 
-export default function DocumentFolderNavigation({ documentId, documents, folders, disabled, onOpenDocument, onOpenFolder }) {
+export default function DocumentFolderNavigation({ documentId, documents, folders, disabled, onOpenDocument, onOpenFolder, onCreateFile }) {
   const [navigating, setNavigating] = useState(false)
   const menuGroup = useId()
   const [hidden, setHidden] = useState(() => {
@@ -96,6 +96,9 @@ export default function DocumentFolderNavigation({ documentId, documents, folder
               </div>
             </details>
           )}
+          <button type="button" className="document-folder-control document-folder-create" disabled={unavailable || !document} onClick={() => navigate(onCreateFile, folder?._id ?? null)}>
+            <FilePlus size={16} aria-hidden="true" /> New file
+          </button>
           <button type="button" className="document-folder-control document-folder-hide" aria-label="Hide folder navigation" title="Hide folder navigation" aria-expanded={true} onClick={toggleVisibility}>
             <EyeOff size={16} aria-hidden="true" />
           </button>

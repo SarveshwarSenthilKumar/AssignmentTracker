@@ -73,7 +73,12 @@
   margin-left: auto;
 }
 
-.document-folder-files + .document-folder-hide {
+.document-folder-create {
+  margin-left: auto;
+}
+
+.document-folder-files + .document-folder-create,
+.document-folder-create + .document-folder-hide {
   margin-left: 0;
 }
 

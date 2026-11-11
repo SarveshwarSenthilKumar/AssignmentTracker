@@ -29,6 +29,11 @@ export default function DocumentLibrary({ tasks = [], onOpenTask, documents, fol
   useEffect(()=>{
     if(!navigationTarget)return
     setSearch('');setSelected(new Set(navigationTarget.fileId?[navigationTarget.fileId]:[]))
+    if (navigationTarget.createNotes) {
+      setValue('Untitled notes')
+      setNoteTemplate('blank')
+      setModal({ type: 'new-notes' })
+    }
     const frame=requestAnimationFrame(()=>{if(navigationTarget.fileId){const row=document.querySelector(`[data-library-file-id="${navigationTarget.fileId}"]`);row?.scrollIntoView({block:'center'});row?.focus({preventScroll:true})}onNavigationHandled?.()})
     return()=>cancelAnimationFrame(frame)
   },[navigationTarget])

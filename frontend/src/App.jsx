@@ -2529,6 +2529,12 @@ function App() {
                 folders={pdfFolders}
                 disabled={disabled}
                 onOpenDocument={id => leave(() => setSelectedPDF(id))}
+                onCreateFile={id => leave(() => {
+                  setSelectedPDFFolder(id)
+                  setSearchLibraryTarget({ createNotes: true })
+                  setSelectedPDF(null)
+                  navigate('documents')
+                })}
                 onOpenFolder={id => leave(() => {
                   setSelectedPDFFolder(id)
                   setSelectedPDF(null)
