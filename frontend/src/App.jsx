@@ -1,3 +1,4 @@
+import DocumentFolderNavigation from './components/DocumentFolderNavigation'
 import AdminPortal from './components/AdminPortal'
 import FeatureSuggestionsPage from './components/FeatureSuggestionsPage'
 import BugReportsPage from './components/BugReportsPage'
@@ -2521,6 +2522,21 @@ function App() {
             onAssistantHost={setEditorAssistantHost}
             key={selectedPDF}
             onCleanCopy={copy=>{setPdfs(previous=>[copy,...previous]);setSelectedPDF(copy._id)}}
+            renderFolderNavigation={(leave, disabled) => (
+              <DocumentFolderNavigation
+                documentId={selectedPDF}
+                documents={pdfs}
+                folders={pdfFolders}
+                disabled={disabled}
+                onOpenDocument={id => leave(() => setSelectedPDF(id))}
+                onOpenFolder={id => leave(() => {
+                  setSelectedPDFFolder(id)
+                  setSelectedPDF(null)
+                  navigate('documents')
+                  fetchPDFs()
+                })}
+              />
+            )}
             pdfId={selectedPDF}
             onClose={() => { setSelectedPDF(null); fetchPDFs() }}
             token={token}

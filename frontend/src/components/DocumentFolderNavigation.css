@@ -1,0 +1,30 @@
+.document-folder-navigation {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  padding: 0.5rem 1rem;
+  background: #0f172a;
+  border-bottom: 1px solid #334155;
+  color: #e2e8f0;
+  font-size: 0.875rem;
+}
+
+.document-folder-navigation label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.document-folder-navigation select {
+  min-width: 0;
+  max-width: min(22rem, 60vw);
+  padding: 0.25rem 0.5rem;
+  border: 1px solid #64748b;
+  border-radius: 0.375rem;
+  background: #1e293b;
+  color: inherit;
+  text-overflow: ellipsis;
+}

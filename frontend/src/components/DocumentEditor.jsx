@@ -17,7 +17,7 @@ import './DocumentEditor.css'
 const cellText = value => value == null ? '' : typeof value === 'object' ? value.formula ? `=${value.formula}` : value.richText ? value.richText.map(run => run.text).join('') : String(value.text ?? value.result ?? value.error ?? '') : String(value)
 const typedValue = value => value.startsWith('=') ? { formula: value.slice(1) } : /^(?:0|-?[1-9]\d*)(?:\.\d+)?$/.test(value) ? Number(value) : value
 
-export default function DocumentEditor({ pdfId, token, onClose, onCleanCopy, assistantOpen, onToggleAssistant, onAssistantHost }) {
+export default function DocumentEditor({ pdfId, token, onClose, onCleanCopy, assistantOpen, onToggleAssistant, onAssistantHost, renderFolderNavigation }) {
   const confirmation = useInlineConfirm()
   const [data, setData] = useState(null), [kind, setKind] = useState(null), [loading, setLoading] = useState(true)
   const [loadFailed, setLoadFailed] = useState(false)
@@ -100,13 +100,14 @@ export default function DocumentEditor({ pdfId, token, onClose, onCleanCopy, ass
     } catch { setError('Local draft storage is unavailable. Use Save to keep your edits.') }
   }, [dirty, text, table, changes, loading, loadFailed, pdfId, data])
   const markDirty = () => { revision.current++; setDirty(true) }
-  const close = async () => {
+  const leave = async (destination) => {
     if (saveLock.current) return false
     if (dirty && !await confirmation.ask('You have unsaved edits. Discard them and close the editor?', 'Discard edits')) return false
     try { sessionStorage.removeItem(`document-draft:${pdfId}`) } catch { /* Closing remains available without local storage. */ }
-    onClose()
+    destination()
     return true
   }
+  const close = () => leave(onClose)
   const serialize = async () => {
     if (kind === 'word') {
       if(!wordTemplate.current)throw new Error('The original Word template is unavailable. Reopen the document before saving.')
@@ -171,8 +172,8 @@ export default function DocumentEditor({ pdfId, token, onClose, onCleanCopy, ass
     if(!kind||kind==='pdf'||kind==='image')return
     return registerEditor(pdfId,{snapshot:()=>liveAssistantEditor.current.snapshot(),apply:actions=>liveAssistantEditor.current.apply(actions),close})
   },[pdfId,kind,dirty,saving])
-  if (kind === 'pdf' && !loading && !error) return <PDFEditor assistantOpen={assistantOpen} onToggleAssistant={onToggleAssistant} onAssistantHost={onAssistantHost} onCleanCopy={onCleanCopy} pdfId={pdfId} token={token} onClose={onClose} />
-  if (kind === 'image' && imageDocument && !error) return <PDFEditor assistantOpen={assistantOpen} onToggleAssistant={onToggleAssistant} onAssistantHost={onAssistantHost} onCleanCopy={onCleanCopy} pdfId={pdfId} token={token} onClose={onClose} initialDocument={imageDocument} exportImage />
+  if (kind === 'pdf' && !loading && !error) return <PDFEditor assistantOpen={assistantOpen} onToggleAssistant={onToggleAssistant} onAssistantHost={onAssistantHost} onCleanCopy={onCleanCopy} pdfId={pdfId} token={token} onClose={onClose} renderFolderNavigation={renderFolderNavigation} />
+  if (kind === 'image' && imageDocument && !error) return <PDFEditor assistantOpen={assistantOpen} onToggleAssistant={onToggleAssistant} onAssistantHost={onAssistantHost} onCleanCopy={onCleanCopy} pdfId={pdfId} token={token} onClose={onClose} renderFolderNavigation={renderFolderNavigation} initialDocument={imageDocument} exportImage />
   const editable = ['text','word','table','workbook'].includes(kind) && !loading && !loadFailed
   const rows = kind === 'workbook' ? gridSize.rows : table.length
   const cols = kind === 'workbook' ? gridSize.cols : Math.max(1, ...table.map(row => row.length))
@@ -186,6 +187,7 @@ export default function DocumentEditor({ pdfId, token, onClose, onCleanCopy, ass
       {data?.hasOriginalBackup && <button disabled={saving} onClick={() => download(true)}>Original file</button>}
       <button aria-label="Close editor" disabled={saving} onClick={close}><X size={20} /></button>
     </div></header>
+    {renderFolderNavigation?.(leave, loading || saving || confirmation.pending)}
     <InlineConfirmation {...confirmation} />
     {error && <div role="alert" className="document-error">{error}<button onClick={() => setError('')}>Dismiss</button></div>}
     {kind === 'word' && <p className="document-notice">Text review uses the editor’s display font. Save and Download retain the original Word fonts, sizes, styles, headers, images, tables and layout settings. Keep the existing paragraph breaks. Open the downloaded DOCX in Word to see its formatted layout.</p>}

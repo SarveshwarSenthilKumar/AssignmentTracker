@@ -462,7 +462,7 @@ function PagePreview({ pageNumber }) {
 /* ------------------------------------------------------------------ */
 /* Main editor                                                         */
 /* ------------------------------------------------------------------ */
-export default function PDFEditor({ pdfId, onClose, token, initialDocument = null, exportImage = false, onCleanCopy, assistantOpen=false, onToggleAssistant, onAssistantHost }) {
+export default function PDFEditor({ pdfId, onClose, token, initialDocument = null, exportImage = false, onCleanCopy, assistantOpen=false, onToggleAssistant, onAssistantHost, renderFolderNavigation }) {
   const [showCleanup,setShowCleanup]=useState(false)
   const [copyParagraphs,setCopyParagraphs]=useState(()=>{try{return localStorage.getItem('pdf-copy-paragraphs')!=='false'}catch{return true}})
   useEffect(()=>{try{localStorage.setItem('pdf-copy-paragraphs',String(copyParagraphs))}catch{}},[copyParagraphs])
@@ -796,15 +796,16 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     return () => clearTimeout(timer)
   }, [drawingPaths, saveAnnotations])
 
-  const handleClose = async () => {
+  const leave = async (destination) => {
     commitText()
     if (dirtyRef.current || saveStatus === 'saving') {
       const saved = await saveAnnotations()
       if (!saved) { setActionError('Your changes could not be saved. Retry Save before closing.'); return false }
     }
-    onClose()
+    destination()
     return true
   }
+  const handleClose = () => leave(onClose)
 
   /* ---------- loading ---------- */
   useEffect(() => {
@@ -2126,6 +2127,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       <InlineConfirmation {...confirmation} />
       {showStylusStudio&&<PDFStylusSettings barrel={stylusBarrel} onBarrel={setStylusBarrel} tip={stylusEraser?stylusExtra.tip:'none'} onTip={tip=>{setStylusEraser(tip!=='none');setStylusExtra(previous=>({...previous,tip}))}} extra={stylusExtra} onExtra={setStylusExtra} onReset={()=>{setStylusBarrel('eraser');setStylusEraser(true);setStylusExtra({secondary:'none',tip:'eraser',mode:'precision',size:20,shape:'round'})}} onClose={()=>setShowStylusStudio(false)}/>}
 
+      {!focusMode && renderFolderNavigation?.(leave, loading || inserting || deletingPage || saveStatus === 'saving' || confirmation.pending)}
       <PDFEditorChrome
         doc={{name:pdfData?.name,exportImage,saveStatus,history:historyCount,onUndo:undo,onRedo:redo,onSave:handleSave,onDownload:handleDownload,downloading,onCleanCopy:onCleanCopy?handleCleanCopy:null,copying:copyingClean,onClose:handleClose,copyParagraphs,onCopyParagraphs:setCopyParagraphs,onCleanup:exportImage?null:()=>{commitText();setCurrentTool('text');setShowCalculator(false);setShowGraph(false);setShowCleanup(true)}}}
         tools={{autoNumberLines,onAutoNumberLines:()=>setAutoNumberLines(previous=>!previous),autoDashedLines,onAutoDashedLines:()=>setAutoDashedLines(previous=>!previous),autoDottedLines,onAutoDottedLines:()=>setAutoDottedLines(previous=>!previous),lineUndoTimer,onLineUndoTimer:()=>setLineUndoTimer(previous=>!previous),autoStraightLines,onAutoStraightLines:()=>setAutoStraightLines(previous=>!previous),current:currentTool,onTool:tool=>{commitText();setCurrentTool(tool)},color:currentColor,onColor:handleColorChange,colors:COLORS,colorNames:COLOR_NAMES,fontSize,onFontSize:handleFontSizeChange,strokeWidth,onWidth:setStrokeWidth,usePressure,onPressure:()=>setUsePressure(previous=>!previous),eraser:{mode:eraserMode,onMode:setEraserMode,size:eraserSize,onSize:setEraserSize,shape:eraserShape,onShape:setEraserShape,target:eraserTarget,onTarget:setEraserTarget}}}

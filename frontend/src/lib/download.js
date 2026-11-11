@@ -1,14 +1,25 @@
 import './download.css'
 
 let downloading=false
-const filename=value=>String(value||'download').replace(/[<>:"/\\|?*\u0000-\u001f]/g,'-').replace(/[. ]+$/g,'').slice(0,200)||'download'
+function filename(value, blob) {
+  const name = String(value || 'download').replace(/[<>:"/\\|?*\u0000-\u001f]/g, '-').replace(/[. ]+$/g, '') || 'download'
+  if (blob?.type === 'application/pdf') {
+    const base = name.replace(/\.pdf$/i, '').slice(0, 196).replace(/[. ]+$/g, '') || 'download'
+    return `${base}.pdf`
+  }
+  return name.slice(0, 200)
+}
 const supportsPicker=()=>window.isSecureContext&&typeof window.showSaveFilePicker==='function'
 
 // Invoke the picker before awaiting anything: a completed conversion/fetch may
 // have consumed the original click's transient activation.
 async function chooseAndWrite(blob,name){
   let handle
-  try{handle=await window.showSaveFilePicker({id:'platform-downloads',suggestedName:filename(name),startIn:'downloads'})}
+  const pdfOptions = blob.type === 'application/pdf' ? {
+    types: [{ description: 'PDF document', accept: { 'application/pdf': ['.pdf'] } }],
+    excludeAcceptAllOption: true
+  } : {}
+  try{handle=await window.showSaveFilePicker({id:'platform-downloads',suggestedName:filename(name,blob),startIn:'downloads',...pdfOptions})}
   catch(error){if(error.name==='AbortError')return false;throw error}
   const writable=await handle.createWritable()
   try{await writable.write(blob);await writable.close()}
@@ -18,7 +29,7 @@ async function chooseAndWrite(blob,name){
 
 function browserDownload(blob,name){
   const url=URL.createObjectURL(blob),link=document.createElement('a')
-  link.href=url;link.download=filename(name);link.hidden=true
+  link.href=url;link.download=filename(name,blob);link.hidden=true
   ;(document.fullscreenElement||document.body).appendChild(link)
   try{link.click()}finally{link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000)}
 }
@@ -30,7 +41,7 @@ function readyDialog(blob,name,initialError=''){
     const heading=document.createElement('h2');heading.id='platform-save-title';heading.textContent='Save your download'
     const description=document.createElement('p');description.textContent=supportsPicker()?'Your file is ready. Choose a folder and filename to save it.':'This browser cannot open a save-location chooser from the site. Enable “Ask where to save each file before downloading” in your browser’s Downloads settings, then use Browser download below.'
     const label=document.createElement('label');label.textContent='Filename'
-    const input=document.createElement('input');input.value=filename(name);input.maxLength=200;input.required=true;label.appendChild(input)
+    const input=document.createElement('input');input.value=filename(name,blob);input.maxLength=200;input.required=true;label.appendChild(input)
     const size=document.createElement('small');size.textContent=blob.size>=1048576?`${(blob.size/1048576).toFixed(1)} MB`:`${Math.max(1,Math.ceil(blob.size/1024))} KB`
     const error=document.createElement('p');error.className='platform-save-error';error.setAttribute('role','alert');error.textContent=initialError
     const actions=document.createElement('div');actions.className='platform-save-actions'
