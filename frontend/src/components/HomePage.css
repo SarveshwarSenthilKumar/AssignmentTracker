@@ -44,6 +44,26 @@
   min-width: 0;
 }
 
+.home-stat-slot {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 0.375rem;
+}
+
+.home-stat-remove {
+  display: grid;
+  place-items: center;
+  min-height: 2rem;
+  padding: 0.35rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 0.375rem;
+}
+
+.home-stat-remove:hover {
+  color: var(--danger);
+}
+
 .home-stat-picker select {
   width: 100%;
   padding: 0.45rem 0.5rem;
@@ -75,6 +95,10 @@
 .home-stat-actions button:last-child {
   background: var(--accent-solid);
   color: white;
+}
+
+.home-stat-actions button:disabled {
+  opacity: 0.5;
 }
 
 .home-stat-preview-label {

@@ -1,6 +1,6 @@
 import SuggestedEvents from './SuggestedEvents'
 import {useEffect,useMemo,useState} from 'react'
-import {AlertCircle,ArrowUpRight,ArrowRight,Plus,Upload,CalendarDays,CheckCircle2,FileText,Clock,RefreshCw,Briefcase,Sparkles,Layers,FolderOpen,SlidersHorizontal} from 'lucide-react'
+import {AlertCircle,ArrowUpRight,ArrowRight,Plus,Upload,CalendarDays,CheckCircle2,FileText,Clock,RefreshCw,Briefcase,Sparkles,Layers,FolderOpen,SlidersHorizontal,X} from 'lucide-react'
 import {calendarDay,calendarItems,calendarTime,dayLabel,itemsOnDay,shiftDay,CALENDAR_LABELS,taskDueLabel} from '../lib/calendar'
 import {activeTimeZone} from '../lib/timeZone'
 import {readApiJson} from '../lib/apiResponse'
@@ -37,12 +37,13 @@ const metricTitles = {
   unfiled: 'Unfiled documents',
 }
 const defaultMetrics = ['open', 'today', 'events', 'documents']
+const maxMetricCards = 8
 const metricGroups = { tasks: 'Tasks', calendar: 'Calendar', documents: 'Documents' }
 
 function readMetrics(key) {
   try {
     const saved = JSON.parse(localStorage.getItem(key))
-    if (Array.isArray(saved) && saved.length === defaultMetrics.length &&
+    if (Array.isArray(saved) && saved.length <= maxMetricCards &&
       new Set(saved).size === saved.length && saved.every(id => Object.hasOwn(metricTitles, id))) return saved
   } catch {
     // Use the default cards if the preference cannot be read.
@@ -66,6 +67,13 @@ export default function HomePage({user,token,tasks,documents,folders,loading,onN
     setDraftMetrics(slots => {
       const previous = slots[index]
       return slots.map((current, slot) => slot === index ? id : current === id ? previous : current)
+    })
+  }
+  const addMetric = () => {
+    setDraftMetrics(slots => {
+      if (slots.length >= maxMetricCards) return slots
+      const next = Object.keys(metricTitles).find(id => !slots.includes(id))
+      return next ? [...slots, next] : slots
     })
   }
   const [now,setNow]=useState(()=>new Date()),[entries,setEntries]=useState([]),[calendarLoading,setCalendarLoading]=useState(true),[calendarError,setCalendarError]=useState(''),[revision,setRevision]=useState(0),[refreshing,setRefreshing]=useState(false),[refreshError,setRefreshError]=useState('')
@@ -156,9 +164,10 @@ export default function HomePage({user,token,tasks,documents,folders,loading,onN
         {draftMetrics && (
         <div className="home-stat-picker">
           {draftMetrics.map((id, index) => (
-            <label key={index}>
-              Card {index + 1}
-              <select value={id} onChange={event => changeMetric(index, event.target.value)}>
+            <div className="home-stat-slot" key={index}>
+              <label>
+                Card {index + 1}
+                <select value={id} onChange={event => changeMetric(index, event.target.value)}>
                 {Object.entries(metricGroups).map(([route, label]) => (
                   <optgroup key={route} label={label}>
                     {Object.keys(metrics).filter(value => metrics[value][3] === route).map(value => (
@@ -166,11 +175,19 @@ export default function HomePage({user,token,tasks,documents,folders,loading,onN
                     ))}
                   </optgroup>
                 ))}
-              </select>
-            </label>
+                </select>
+              </label>
+              <button type="button" className="home-stat-remove" aria-label={`Remove card ${index + 1}: ${metricTitles[id]}`}
+                onClick={() => setDraftMetrics(slots => slots.filter((_, slot) => slot !== index))}>
+                <X size={15} aria-hidden="true" />
+              </button>
+            </div>
           ))}
           <div className="home-stat-actions">
             <button type="button" onClick={() => setDraftMetrics(defaultMetrics)}>Reset to defaults</button>
+            <button type="button" disabled={draftMetrics.length >= maxMetricCards} onClick={addMetric}>
+              Add card ({draftMetrics.length}/{maxMetricCards})
+            </button>
             <button type="button" onClick={() => setDraftMetrics(null)}>Cancel</button>
             <button type="button" onClick={() => {
               saveMetrics(draftMetrics)
@@ -181,6 +198,7 @@ export default function HomePage({user,token,tasks,documents,folders,loading,onN
         )}
       </div>
       {draftMetrics && <h2 className="home-stat-preview-label">Live preview</h2>}
+      {draftMetrics?.length === 0 && <p className="home-stat-preview-label">No stat cards selected.</p>}
       <div className="home-stats" aria-label={draftMetrics ? 'Stat card preview' : undefined}>
         {(draftMetrics || metricSlots).map(id => {
           const [Icon, value, detail, route] = metrics[id]
