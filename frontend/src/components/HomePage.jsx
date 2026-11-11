@@ -34,6 +34,7 @@ function readMetrics(key) {
 export default function HomePage({user,token,tasks,documents,folders,loading,onNavigate,onOpenTask,onOpenDocument,onOpenCalendar,onNewTask,onUpload,onRefresh,canvasStatus}){
   const metricsKey = `home-stat-cards:${user?.id ?? user?._id ?? 'local'}`
   const [metricSlots, setMetricSlots] = useState(() => readMetrics(metricsKey))
+  const [draftMetrics, setDraftMetrics] = useState(null)
   const saveMetrics = slots => {
     setMetricSlots(slots)
     try {
@@ -43,8 +44,10 @@ export default function HomePage({user,token,tasks,documents,folders,loading,onN
     }
   }
   const changeMetric = (index, id) => {
-    const previous = metricSlots[index]
-    saveMetrics(metricSlots.map((current, slot) => slot === index ? id : current === id ? previous : current))
+    setDraftMetrics(slots => {
+      const previous = slots[index]
+      return slots.map((current, slot) => slot === index ? id : current === id ? previous : current)
+    })
   }
   const [now,setNow]=useState(()=>new Date()),[entries,setEntries]=useState([]),[calendarLoading,setCalendarLoading]=useState(true),[calendarError,setCalendarError]=useState(''),[revision,setRevision]=useState(0),[refreshing,setRefreshing]=useState(false),[refreshError,setRefreshError]=useState('')
   const {campus}=useTxstEvents(token)
@@ -103,10 +106,13 @@ export default function HomePage({user,token,tasks,documents,folders,loading,onN
     </div>
     {(calendarError||refreshError)&&<p className="home-notice" role="alert">{calendarError||refreshError} <button type="button" onClick={refresh}>Retry</button></p>}
     <section className="home-stat-section" aria-label="Dashboard metrics">
-      <details className="home-stat-settings">
-        <summary><SlidersHorizontal size={15} aria-hidden="true" /> Customize stats</summary>
+      <div className="home-stat-settings">
+        <button className="home-stat-toggle" type="button" aria-expanded={Boolean(draftMetrics)} onClick={() => setDraftMetrics(draftMetrics ? null : metricSlots)}>
+          <SlidersHorizontal size={15} aria-hidden="true" /> Customize stats
+        </button>
+        {draftMetrics && (
         <div className="home-stat-picker">
-          {metricSlots.map((id, index) => (
+          {draftMetrics.map((id, index) => (
             <label key={index}>
               Card {index + 1}
               <select value={id} onChange={event => changeMetric(index, event.target.value)}>
@@ -114,19 +120,29 @@ export default function HomePage({user,token,tasks,documents,folders,loading,onN
               </select>
             </label>
           ))}
-          <button type="button" onClick={() => saveMetrics(defaultMetrics)}>Reset to defaults</button>
+          <div className="home-stat-actions">
+            <button type="button" onClick={() => setDraftMetrics(defaultMetrics)}>Reset to defaults</button>
+            <button type="button" onClick={() => setDraftMetrics(null)}>Cancel</button>
+            <button type="button" onClick={() => {
+              saveMetrics(draftMetrics)
+              setDraftMetrics(null)
+            }}>Save layout</button>
+          </div>
         </div>
-      </details>
-      <div className="home-stats">
-        {metricSlots.map(id => {
+        )}
+      </div>
+      {draftMetrics && <h2 className="home-stat-preview-label">Live preview</h2>}
+      <div className="home-stats" aria-label={draftMetrics ? 'Stat card preview' : undefined}>
+        {(draftMetrics || metricSlots).map(id => {
           const [Icon, value, detail, route] = metrics[id]
           const pending = id === 'events' ? calendarLoading : loading
-          return <button type="button" key={id} onClick={() => onNavigate(route)}>
+          const Card = draftMetrics ? 'div' : 'button'
+          return <Card className="home-stat-card" key={id} {...(!draftMetrics && { type: 'button', onClick: () => onNavigate(route) })}>
             <div><Icon size={18} aria-hidden="true" /><ArrowUpRight size={14} aria-hidden="true" /></div>
             <strong>{pending ? '—' : value}</strong>
             <span>{metricTitles[id]}</span>
             <small>{detail}</small>
-          </button>
+          </Card>
         })}
       </div>
     </section>
