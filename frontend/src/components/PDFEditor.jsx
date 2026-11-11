@@ -797,6 +797,8 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   }, [drawingPaths, saveAnnotations])
 
   const leave = async (destination) => {
+    if (deletingPageRef.current || insertingRef.current || cleanCopyLock.current) return false
+    if (!await confirmation.ask('Leave this document? Any pending annotations will be saved before you leave.', 'Leave document', { required: true })) return false
     commitText()
     if (dirtyRef.current || saveStatus === 'saving') {
       const saved = await saveAnnotations()
@@ -1591,6 +1593,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     if(cleanCopyLock.current||deletingPageRef.current||insertingRef.current)return
     cleanCopyLock.current=true;setCopyingClean(true);setActionError(null)
     try{
+      if (!await confirmation.ask('Create a clean copy and leave this document to open it?', 'Create and open copy', { required: true })) return
       commitText();await saveQueueRef.current;await saveAnnotations()
       const response=await fetch(`/api/pdfs/${pdfId}/clean-copy`,{method:'POST',headers:{Authorization:`Bearer ${token}`}})
       const copy=await response.json().catch(()=>({}))
@@ -1652,7 +1655,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   }
 
   const handleDelete = async () => {
-    if (!await confirmation.ask('Move this document to Trash? You can restore it from the library.', 'Move to Trash')) return
+    if (!await confirmation.ask('Move this document to Trash and close it? You can restore it from the library.', 'Move to Trash', { required: true })) return
     try {
       const response = await fetch(`/api/pdfs/${pdfId}`, {
         method: 'DELETE',
@@ -1862,6 +1865,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const liveAssistantEditor=useRef(null)
   liveAssistantEditor.current={
     close:handleClose,
+    leave,
     snapshot:()=>{
       if(loading||exportImage||deletingPageRef.current||insertingRef.current||existingRuns.loading||existingRuns.page!==pageNumber)return null
       const edited=new Set(pathsRef.current.filter(item=>item.page===pageNumber&&item.sourceText).map(item=>item.sourceText.key))
@@ -1896,7 +1900,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       if(target)goToPage(target)
     }
   }
-  useEffect(()=>registerEditor(pdfId,{snapshot:()=>liveAssistantEditor.current.snapshot(),apply:actions=>liveAssistantEditor.current.apply(actions),close:()=>liveAssistantEditor.current.close()}),[pdfId])
+  useEffect(()=>registerEditor(pdfId,{snapshot:()=>liveAssistantEditor.current.snapshot(),apply:actions=>liveAssistantEditor.current.apply(actions),close:()=>liveAssistantEditor.current.close(),leave:destination=>liveAssistantEditor.current.leave(destination)}),[pdfId])
 
   const pageIndex=useMemo(()=>{const index=new Map();for(const item of drawingPaths){const number=item.page||1;if(!index.has(number))index.set(number,[]);index.get(number).push(item)}return index},[drawingPaths])
 

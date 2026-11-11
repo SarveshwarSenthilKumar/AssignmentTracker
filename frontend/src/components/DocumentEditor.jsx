@@ -102,7 +102,11 @@ export default function DocumentEditor({ pdfId, token, onClose, onCleanCopy, ass
   const markDirty = () => { revision.current++; setDirty(true) }
   const leave = async (destination) => {
     if (saveLock.current) return false
-    if (dirty && !await confirmation.ask('You have unsaved edits. Discard them and close the editor?', 'Discard edits')) return false
+    if (!await confirmation.ask(
+      dirty ? 'Leave this document and discard your unsaved edits?' : 'Leave this document?',
+      dirty ? 'Discard and leave' : 'Leave document',
+      { required: true },
+    )) return false
     try { sessionStorage.removeItem(`document-draft:${pdfId}`) } catch { /* Closing remains available without local storage. */ }
     destination()
     return true
@@ -123,6 +127,10 @@ export default function DocumentEditor({ pdfId, token, onClose, onCleanCopy, ass
   const save = async (replacement) => {
     if (saveLock.current) return
     saveLock.current=true
+    if (replacement && !await confirmation.ask('Replace this file and leave the document?', 'Replace and leave', { required: true })) {
+      saveLock.current = false
+      return
+    }
     const currentRevision = revision.current
     setSaving(true); setError('')
     try {
@@ -146,11 +154,6 @@ export default function DocumentEditor({ pdfId, token, onClose, onCleanCopy, ass
     const timer=setTimeout(()=>{autoAttempt.current=revision.current;save()},1800)
     return()=>clearTimeout(timer)
   },[autoSave,isNotes,dirty,text,loading,loadFailed,saving])
-  useEffect(()=>{
-    if(!dirty)return
-    const warn=event=>{event.preventDefault();event.returnValue=''}
-    window.addEventListener('beforeunload',warn);return()=>window.removeEventListener('beforeunload',warn)
-  },[dirty])
   const download = async (original = false) => {
     try {
       if (original) {
@@ -169,9 +172,9 @@ export default function DocumentEditor({ pdfId, token, onClose, onCleanCopy, ass
     setAiUndo(previous=>[...previous.slice(-9),text]);revision.current++;setText(actions[0].text);setDirty(true)
   }}
   useEffect(()=>{
-    if(!kind||kind==='pdf'||kind==='image')return
-    return registerEditor(pdfId,{snapshot:()=>liveAssistantEditor.current.snapshot(),apply:actions=>liveAssistantEditor.current.apply(actions),close})
-  },[pdfId,kind,dirty,saving])
+    if ((kind === 'pdf' && !loading && !error) || (kind === 'image' && imageDocument && !error)) return
+    return registerEditor(pdfId,{snapshot:()=>liveAssistantEditor.current.snapshot(),apply:actions=>liveAssistantEditor.current.apply(actions),close,leave})
+  },[pdfId,kind,dirty,saving,loading,error,imageDocument,onClose])
   if (kind === 'pdf' && !loading && !error) return <PDFEditor assistantOpen={assistantOpen} onToggleAssistant={onToggleAssistant} onAssistantHost={onAssistantHost} onCleanCopy={onCleanCopy} pdfId={pdfId} token={token} onClose={onClose} renderFolderNavigation={renderFolderNavigation} />
   if (kind === 'image' && imageDocument && !error) return <PDFEditor assistantOpen={assistantOpen} onToggleAssistant={onToggleAssistant} onAssistantHost={onAssistantHost} onCleanCopy={onCleanCopy} pdfId={pdfId} token={token} onClose={onClose} renderFolderNavigation={renderFolderNavigation} initialDocument={imageDocument} exportImage />
   const editable = ['text','word','table','workbook'].includes(kind) && !loading && !loadFailed

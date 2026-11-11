@@ -7,9 +7,9 @@ export default function useInlineConfirm(category='other') {
   const [pending, setPending] = useState(null)
   const resolveRef = useRef(null)
   const settle = useCallback(answer => { const resolve = resolveRef.current; resolveRef.current = null; setPending(null); resolve?.(answer) }, [])
-  const ask = useCallback((message, action = 'Continue') => {
+  const ask = useCallback((message, action = 'Continue', { required = false } = {}) => {
     resolveRef.current?.(false)
-    if(!enabled){resolveRef.current=null;setPending(null);return Promise.resolve(true)}
+    if(!enabled&&!required){resolveRef.current=null;setPending(null);return Promise.resolve(true)}
     return new Promise(resolve => { resolveRef.current = resolve; setPending({ message, action }) })
   }, [enabled])
   useEffect(() => {

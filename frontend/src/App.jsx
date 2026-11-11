@@ -166,6 +166,23 @@ function App() {
   const [showErrorDetails, setShowErrorDetails] = useState(false)
   const [showPDFUploadModal, setShowPDFUploadModal] = useState(false)
   const [selectedPDF, setSelectedPDF] = useState(null)
+  useEffect(() => {
+    if (!selectedPDF) return
+    const confirmExit = event => {
+      event.preventDefault()
+      event.returnValue = ''
+    }
+    window.addEventListener('beforeunload', confirmExit)
+    return () => window.removeEventListener('beforeunload', confirmExit)
+  }, [selectedPDF])
+  const openDocument = async id => {
+    if (id === selectedPDF) return
+    if (selectedPDF) {
+      await closeEditorForNavigation(selectedPDF, () => setSelectedPDF(id))
+    } else {
+      setSelectedPDF(id)
+    }
+  }
   const [pdfs, setPdfs] = useState([])
   const [pdfFolders, setPdfFolders] = useState([])
   const [selectedPDFFolder, setSelectedPDFFolder] = useState('all')
@@ -399,7 +416,7 @@ function App() {
 
   const handlePDFUploadSuccess = (uploadedPDF) => {
     setPdfs([uploadedPDF, ...pdfs])
-    setSelectedPDF(uploadedPDF._id)
+    openDocument(uploadedPDF._id)
   }
 
   const fetchPDFFolders = async () => {
@@ -976,7 +993,7 @@ function App() {
             ) : (
               <>
                 {todo.description && (
-                  <TaskDescription text={todo.description} documents={pdfs} onOpen={setSelectedPDF} />
+                  <TaskDescription text={todo.description} documents={pdfs} onOpen={openDocument} />
                 )}
                 {todo.links && todo.links.length > 0 && (
                   <div className="space-y-1">
@@ -1009,7 +1026,7 @@ function App() {
             {todo.canvasType!=='calendar_event'&&<TaskSchedule task={todo} token={token} onSaved={updated=>setTodos(previous=>previous.map(task=>task._id===updated._id?updated:task))}/>}
             {!todo.progressTarget && <TaskProgress key={`progress:${todo._id}`} task={todo} token={token} onSaved={saveProgressTask}/>}
             <TaskDependencies taskId={todo._id} tasks={todos} token={token} onTasksChange={setTodos} onOpenTask={setSelectedTask} />
-            <TaskAttachments taskId={todo._id} documents={pdfs} folders={pdfFolders} token={token} onDocumentsChange={setPdfs} onOpen={setSelectedPDF} onLibrary={() => { setSelectedPDFFolder('all'); navigate('documents') }} onInsert={isEditing ? reference => {
+            <TaskAttachments taskId={todo._id} documents={pdfs} folders={pdfFolders} token={token} onDocumentsChange={setPdfs} onOpen={openDocument} onLibrary={() => { setSelectedPDFFolder('all'); navigate('documents') }} onInsert={isEditing ? reference => {
               const field = document.getElementById(`task-description-${todo._id}`)
               const current = editData[todo._id]?.description || ''
               const start = field?.selectionStart ?? current.length, end = field?.selectionEnd ?? start
@@ -1547,28 +1564,28 @@ function App() {
   return (
     <div className="platform-viewport min-h-screen py-8 px-4">
       <div className="app-shell w-full max-w-[1440px] mx-auto">
-        <AppNavigation page={page} user={user} onSignOut={logout}/>
+        <AppNavigation page={page} user={user} onSignOut={() => selectedPDF ? closeEditorForNavigation(selectedPDF, logout) : logout()}/>
         <GlobalSearch token={token} onChoose={openSearchResult}/>
         {page!=='home'&&<div className="platform-page-title"><h1>{page==='admin'?'Admin portal':page==='suggest-feature'?'Feature suggestions':page==='report-bug'?'Report a bug':page==='roadmap'?'Site roadmap':page==='analytics'?'Analytics':page==='handbook'?'Product handbook':page==='logbook'?'Update logbook':page==='prep'?'Prep':page==='study'?'Question bank':page==='workspace'?'Workspace':page==='tasks'?'Tasks':page==='calendar'?'Calendar':page==='documents'?'Document library':page==='jobs'?'Jobs':page==='cover-letters'?'Cover letters':page==='resumes'?'Resumes':page==='visualization'?'Task visualization':page==='canvas'?'Canvas integration':page==='account'?'Account':page==='assistant'?'AI assistant':'Keyboard shortcuts'}</h1><p>{page==='admin'?'Review bug reports and feature suggestions from users.':page==='suggest-feature'?'Share ideas for improving the platform and follow their progress.':page==='report-bug'?'Report section-specific issues and follow their status.':page==='roadmap'?'Explore ideas, planned improvements and features in progress.':page==='analytics'?'Storage, activity, progress and your complete account inventory.':page==='handbook'?'Feature instructions and technical reference.':page==='logbook'?'Numbered platform changes, fixes and implementation history.':page==='prep'?'Prepare your resumes, cover letters and interview answers in one place.':page==='study'?'Save questions and topics, review answers, and track what you have studied.':page==='cover-letters'?'Store cover letters for your applications and keep versions ready to edit or download.':page==='jobs'?'Save job links and details alongside your resumes.':page==='resumes'?'Upload and keep your resumes ready for your next opportunity.':page==='workspace'?'Build a personal workflow with tabs, tools, and movable windows.':page==='tasks'?'Plan your work and track progress.':page==='calendar'?'Plan deadlines, assignments, and personal events in one place.':page==='documents'?'Organize and edit your files.':page==='visualization'?'Explore relationships, deadlines, and progress across your workspace.':page==='canvas'?'Manage your course connection and imports.':page==='account'?'Review your profile and workspace activity.':page==='assistant'?'Think, write, learn, and work with your files in a dedicated conversation workspace.':'A searchable reference for navigation and actions.'}</p></div>}
         <InlineConfirmation {...taskConfirmation} reveal />
-        {page==='home'&&<HomePage user={user} token={token} tasks={todos} documents={pdfs} folders={folders} loading={loading} canvasStatus={canvasStatus} onNavigate={navigate} onOpenTask={task=>setSelectedTask(task)} onOpenDocument={setSelectedPDF} onOpenCalendar={entry=>{setAssistantCalendarId(entry._id);navigate('calendar')}} onNewTask={()=>{setSelectedFolder('all');navigate('tasks');setTimeout(()=>inputRef.current?.focus(),0)}} onUpload={()=>{setSelectedPDFFolder('all');setShowPDFUploadModal(true)}} onRefresh={()=>Promise.all([fetchTodos(false),fetchPDFs()])}/>}
-        <WorkflowWorkspace key={'workspace:'+user?.id+':'+assistantGeneration} open={page==='workspace'} token={token} userId={user?.id} tasks={todos} folders={folders} documents={pdfs} documentFolders={pdfFolders} onTasksChange={setTodos} onOpenTask={task=>setSelectedTask(task)} onStatusChange={updateTodoStatus} onOpenDocument={setSelectedPDF} onUpload={()=>{setSelectedPDFFolder('all');setShowPDFUploadModal(true)}} onNavigate={navigate} onOpenCalendarEntry={entry=>{setAssistantCalendarId(entry._id);navigate('calendar')}} onOpenAssistant={()=>setAssistantOpen(true)} keyboardEnabled={!selectedPDF&&!assistantOpen&&!selectedTask&&!showPDFUploadModal&&!showCommandMenu}/>
-        {page==='calendar' && <CalendarPage onTaskCreated={task=>setTodos(previous=>[...previous.filter(item=>item._id!==task._id),task])} focusCategoryId={searchCategoryId} onCategoryFocused={()=>setSearchCategoryId(null)} focusEntryId={assistantCalendarId} onEntryFocused={()=>setAssistantCalendarId(null)} documents={pdfs} documentFolders={pdfFolders} onDocumentsChange={setPdfs} onOpenDocument={setSelectedPDF} tasks={todos} token={token} keyboardEnabled={!selectedPDF&&!assistantOpen} onOpenTask={task=>{pendingLibraryTask.current=task;setSelectedFolder('all');navigate('tasks')}} onRefreshTasks={fetchTodos} onSyncCanvas={syncCanvas} onCanvasSettings={()=>navigate('canvas')} canvasStatus={canvasStatus} syncing={syncing} />}
+        {page==='home'&&<HomePage user={user} token={token} tasks={todos} documents={pdfs} folders={folders} loading={loading} canvasStatus={canvasStatus} onNavigate={navigate} onOpenTask={task=>setSelectedTask(task)} onOpenDocument={openDocument} onOpenCalendar={entry=>{setAssistantCalendarId(entry._id);navigate('calendar')}} onNewTask={()=>{setSelectedFolder('all');navigate('tasks');setTimeout(()=>inputRef.current?.focus(),0)}} onUpload={()=>{setSelectedPDFFolder('all');setShowPDFUploadModal(true)}} onRefresh={()=>Promise.all([fetchTodos(false),fetchPDFs()])}/>}
+        <WorkflowWorkspace key={'workspace:'+user?.id+':'+assistantGeneration} open={page==='workspace'} token={token} userId={user?.id} tasks={todos} folders={folders} documents={pdfs} documentFolders={pdfFolders} onTasksChange={setTodos} onOpenTask={task=>setSelectedTask(task)} onStatusChange={updateTodoStatus} onOpenDocument={openDocument} onUpload={()=>{setSelectedPDFFolder('all');setShowPDFUploadModal(true)}} onNavigate={navigate} onOpenCalendarEntry={entry=>{setAssistantCalendarId(entry._id);navigate('calendar')}} onOpenAssistant={()=>setAssistantOpen(true)} keyboardEnabled={!selectedPDF&&!assistantOpen&&!selectedTask&&!showPDFUploadModal&&!showCommandMenu}/>
+        {page==='calendar' && <CalendarPage onTaskCreated={task=>setTodos(previous=>[...previous.filter(item=>item._id!==task._id),task])} focusCategoryId={searchCategoryId} onCategoryFocused={()=>setSearchCategoryId(null)} focusEntryId={assistantCalendarId} onEntryFocused={()=>setAssistantCalendarId(null)} documents={pdfs} documentFolders={pdfFolders} onDocumentsChange={setPdfs} onOpenDocument={openDocument} tasks={todos} token={token} keyboardEnabled={!selectedPDF&&!assistantOpen} onOpenTask={task=>{pendingLibraryTask.current=task;setSelectedFolder('all');navigate('tasks')}} onRefreshTasks={fetchTodos} onSyncCanvas={syncCanvas} onCanvasSettings={()=>navigate('canvas')} canvasStatus={canvasStatus} syncing={syncing} />}
         {canvasNotice && <div role="status" className="calendar-feedback">{canvasNotice}<button onClick={()=>setCanvasNotice('')} aria-label="Dismiss Canvas sync notice"><X size={15}/></button></div>}
-        {page==='cover-letters' && <CoverLettersPage token={token} documents={pdfs} onDocumentsChange={setPdfs} onOpen={setSelectedPDF}/>}
+        {page==='cover-letters' && <CoverLettersPage token={token} documents={pdfs} onDocumentsChange={setPdfs} onOpen={openDocument}/>}
         {page==='jobs' && <JobsPage token={token} focusJobId={searchJobId} onJobFocused={()=>setSearchJobId(null)}/>}
         {page==='admin' && <AdminPortal token={token} user={user}/>}
         {page==='suggest-feature' && <FeatureSuggestionsPage token={token} user={user} initialRoute={window.location.hash.split('/')[2]}/>}
         {page==='report-bug' && <BugReportsPage token={token} user={user} initialRoute={window.location.hash.split('/')[2]}/>}
         {page==='roadmap' && <SiteRoadmapPage token={token}/>}
-        {page==='analytics' && <AnalyticsPage token={token} onOpenDocument={setSelectedPDF}/>}
+        {page==='analytics' && <AnalyticsPage token={token} onOpenDocument={openDocument}/>}
         {page==='handbook' && <HandbookPage token={token}/>}
         {page==='logbook' && <UpdateLogbookPage token={token}/>}
-        {page==='prep' && <PrepPage token={token} documents={pdfs} onDocumentsChange={setPdfs} onOpen={setSelectedPDF}/>}
-        {page==='resumes' && <ResumesPage token={token} documents={pdfs} onDocumentsChange={setPdfs} onOpen={setSelectedPDF}/>}
+        {page==='prep' && <PrepPage token={token} documents={pdfs} onDocumentsChange={setPdfs} onOpen={openDocument}/>}
+        {page==='resumes' && <ResumesPage token={token} documents={pdfs} onDocumentsChange={setPdfs} onOpen={openDocument}/>}
         {page==='study' && <StudyPage token={token}/>}
         {page==='shortcuts' && <ShortcutsPage initialQuery={searchShortcutsQuery}/>}
-        {page==='visualization' && <TaskVisualization token={token} onTasksChange={setTodos} onOpenTask={task => { pendingLibraryTask.current = task; setSelectedFolder('all'); navigate('tasks') }} loading={loading} keyboardEnabled={!selectedPDF&&!assistantOpen} tasks={todos} folders={folders} documents={pdfs} onOpenDocument={setSelectedPDF} onStatusChange={updateTodoStatus} onEditTask={task=>{setSelectedFolder('all');navigate('tasks');startEditing(task)}} />}
+        {page==='visualization' && <TaskVisualization token={token} onTasksChange={setTodos} onOpenTask={task => { pendingLibraryTask.current = task; setSelectedFolder('all'); navigate('tasks') }} loading={loading} keyboardEnabled={!selectedPDF&&!assistantOpen} tasks={todos} folders={folders} documents={pdfs} onOpenDocument={openDocument} onStatusChange={updateTodoStatus} onEditTask={task=>{setSelectedFolder('all');navigate('tasks');startEditing(task)}} />}
 
         {error && (
           <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-lg">
@@ -1598,7 +1615,7 @@ function App() {
           </div>
         )}
 
-        {page === 'documents' && <DocumentLibrary navigationTarget={searchLibraryTarget} onNavigationHandled={()=>setSearchLibraryTarget(null)} tasks={todos} onOpenTask={task => { setSelectedFolder('all'); if (page === 'tasks') setSelectedTask(task); else { pendingLibraryTask.current = task; navigate('tasks') } }} keyboardEnabled={!selectedPDF&&!assistantOpen} documents={pdfs} folders={pdfFolders} token={token} onOpen={setSelectedPDF} onUpload={() => setShowPDFUploadModal(true)} onDocumentsChange={setPdfs} onFoldersChange={setPdfFolders} selectedFolder={selectedPDFFolder} onSelectFolder={setSelectedPDFFolder} />}
+        {page === 'documents' && <DocumentLibrary navigationTarget={searchLibraryTarget} onNavigationHandled={()=>setSearchLibraryTarget(null)} tasks={todos} onOpenTask={task => { setSelectedFolder('all'); if (page === 'tasks') setSelectedTask(task); else { pendingLibraryTask.current = task; navigate('tasks') } }} keyboardEnabled={!selectedPDF&&!assistantOpen} documents={pdfs} folders={pdfFolders} token={token} onOpen={openDocument} onUpload={() => setShowPDFUploadModal(true)} onDocumentsChange={setPdfs} onFoldersChange={setPdfFolders} selectedFolder={selectedPDFFolder} onSelectFolder={setSelectedPDFFolder} />}
 
         {page === 'tasks' && <div className="task-view-tabs" aria-label="Task views">
           <button type="button" aria-pressed={taskView==='active'} onClick={()=>setTaskView('active')}>Tasks</button>
@@ -1736,7 +1753,7 @@ function App() {
           </div>
         </div>
 
-        <FolderHierarchyControls folders={folders} selected={selectedFolder} token={token} base="/api/folders" documents={pdfs} onDocumentsChange={setPdfs} onOpenDocument={setSelectedPDF} onFoldersChange={setFolders} onSelect={setSelectedFolder} onCreate={id=>{setNewFolderParent(id);setNewFolderName('');setShowFolderModal(true)}} disabled={loading}/>
+        <FolderHierarchyControls folders={folders} selected={selectedFolder} token={token} base="/api/folders" documents={pdfs} onDocumentsChange={setPdfs} onOpenDocument={openDocument} onFoldersChange={setFolders} onSelect={setSelectedFolder} onCreate={id=>{setNewFolderParent(id);setNewFolderName('');setShowFolderModal(true)}} disabled={loading}/>
         <form onSubmit={addTodo} className="task-create-form mb-6">
           <div className="task-create-fields flex gap-3">
             <input
@@ -2323,9 +2340,9 @@ function App() {
               {/* Description */}
               <div className="mb-6">
                 <label className="block text-slate-400 text-sm mb-2">Description</label>
-                <TaskDescription text={selectedTask.description || 'No description'} documents={pdfs} onOpen={setSelectedPDF} />
+                <TaskDescription text={selectedTask.description || 'No description'} documents={pdfs} onOpen={openDocument} />
                 <TaskDependencies key={`dependencies:${selectedTask._id}`} taskId={selectedTask._id} tasks={todos} token={token} onTasksChange={setTodos} onOpenTask={setSelectedTask} />
-                <TaskAttachments key={selectedTask._id} taskId={selectedTask._id} documents={pdfs} folders={pdfFolders} token={token} onDocumentsChange={setPdfs} onOpen={setSelectedPDF} onLibrary={() => { setSelectedPDFFolder('all'); navigate('documents') }} />
+                <TaskAttachments key={selectedTask._id} taskId={selectedTask._id} documents={pdfs} folders={pdfFolders} token={token} onDocumentsChange={setPdfs} onOpen={openDocument} onLibrary={() => { setSelectedPDFFolder('all'); navigate('documents') }} />
               </div>
 
               {selectedTask.canvasType!=='calendar_event'&&<TaskSchedule task={selectedTask} token={token} onSaved={updated=>{setTodos(previous=>previous.map(task=>task._id===updated._id?updated:task));setSelectedTask(updated)}}/>}

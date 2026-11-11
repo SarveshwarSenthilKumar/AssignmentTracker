@@ -2,10 +2,10 @@
 const editors=new Map()
 export function registerEditor(id,api){editors.set(id,api);return()=>{if(editors.get(id)===api)editors.delete(id)}}
 export async function editorSnapshot(id){return editors.get(id)?.snapshot()||null}
-export async function closeEditorForNavigation(id){
+export async function closeEditorForNavigation(id,destination){
   const editor=editors.get(id)
   if(!editor?.close)throw new Error('Close the document editor before opening this search result. Your unsaved edits have been kept.')
-  return editor.close()
+  return destination ? editor.leave(destination) : editor.close()
 }
 export async function applyEditorActions(id,snapshot,actions){
   const editor=editors.get(id)
