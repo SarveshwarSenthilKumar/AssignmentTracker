@@ -111,7 +111,7 @@ export default function HomePage({user,token,tasks,documents,folders,loading,onN
   const completed=taskRecords.length-activeTasks.length,progress=taskRecords.length?Math.round(completed/taskRecords.length*100):0
   const metrics = {
     open: [CheckCircle2, activeTasks.length, 'Your current to-do list', 'tasks'],
-    today: [Clock, dueToday, overdue ? <span className="home-stat-overdue">{overdue} overdue</span> : 'Task deadlines in your time zone', 'tasks'],
+    today: [Clock, dueToday, 'Task deadlines in your time zone', 'tasks'],
     events: [CalendarDays, countEvents(today, weekEnd), 'Over the next seven days', 'calendar'],
     documents: [FolderOpen, activeDocuments.length, 'Notes, files, resumes and letters', 'documents'],
     overdue: [AlertCircle, overdue, 'Open tasks past their deadline', 'tasks'],
@@ -206,7 +206,12 @@ export default function HomePage({user,token,tasks,documents,folders,loading,onN
           const Card = draftMetrics ? 'div' : 'button'
           return <Card className="home-stat-card" key={id} {...(!draftMetrics && { type: 'button', onClick: () => onNavigate(route) })}>
             <div><Icon size={18} aria-hidden="true" /><ArrowUpRight size={14} aria-hidden="true" /></div>
-            <strong>{pending ? '—' : value}</strong>
+            <strong>
+              {pending ? '—' : value}
+              {!pending && id === 'today' && overdue > 0 && (
+                <> <span className="home-stat-overdue">({overdue}) overdue</span></>
+              )}
+            </strong>
             <span>{metricTitles[id]}</span>
             <small>{detail}</small>
           </Card>

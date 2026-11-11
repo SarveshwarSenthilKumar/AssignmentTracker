@@ -114,5 +114,6 @@
 
 .home-stats .home-stat-overdue {
   color: var(--danger);
-  font-size: inherit;
+  font-size: 0.6em;
+  white-space: nowrap;
 }
