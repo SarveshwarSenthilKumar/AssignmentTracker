@@ -18,7 +18,8 @@
   max-width: 100%;
 }
 
-.document-folder-navigation select {
+.document-folder-navigation select,
+.document-folder-navigation button {
   min-width: 0;
   max-width: min(22rem, 60vw);
   padding: 0.25rem 0.5rem;
@@ -27,4 +28,8 @@
   background: #1e293b;
   color: inherit;
   text-overflow: ellipsis;
+}
+
+.document-folder-navigation button:hover {
+  background: #334155;
 }

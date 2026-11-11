@@ -2,8 +2,28 @@ import { useState } from 'react'
 import { folderTree } from '../lib/folderHierarchy'
 import './DocumentFolderNavigation.css'
 
+const visibilityKey = 'document-folder-navigation-hidden'
+
 export default function DocumentFolderNavigation({ documentId, documents, folders, disabled, onOpenDocument, onOpenFolder }) {
   const [navigating, setNavigating] = useState(false)
+  const [hidden, setHidden] = useState(() => {
+    try {
+      return localStorage.getItem(visibilityKey) === 'true'
+    } catch {
+      return false
+    }
+  })
+
+  const toggleVisibility = () => {
+    const next = !hidden
+    setHidden(next)
+    try {
+      localStorage.setItem(visibilityKey, String(next))
+    } catch {
+      // The toggle remains usable when storage is unavailable.
+    }
+  }
+
   const locations = folderTree(folders)
   const document = documents.find(file => file._id === documentId)
   const folder = locations.find(location => location._id === document?.pdfFolder)
@@ -22,7 +42,7 @@ export default function DocumentFolderNavigation({ documentId, documents, folder
 
   return (
     <nav className="document-folder-navigation" aria-label="Document folder navigation">
-      <label>
+      {!hidden && <label>
         Folder
         <select value="" disabled={disabled || navigating} onChange={event => {
           const id = event.target.value
@@ -33,8 +53,8 @@ export default function DocumentFolderNavigation({ documentId, documents, folder
           <option value="unfiled">Unfiled</option>
           {locations.map(location => <option key={location._id} value={location._id}>{location.path}</option>)}
         </select>
-      </label>
-      {siblings.length > 0 && (
+      </label>}
+      {!hidden && siblings.length > 0 && (
         <label>
           Open another document
           <select value="" disabled={disabled || navigating} onChange={event => {
@@ -45,6 +65,9 @@ export default function DocumentFolderNavigation({ documentId, documents, folder
           </select>
         </label>
       )}
+      <button type="button" aria-expanded={!hidden} onClick={toggleVisibility}>
+        {hidden ? 'Show folder navigation' : 'Hide folder navigation'}
+      </button>
     </nav>
   )
 }
