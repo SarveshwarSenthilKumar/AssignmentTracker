@@ -17,8 +17,27 @@ const metricTitles = {
   completed: 'Completed tasks',
   completion: 'Completion rate',
   undated: 'Tasks without a deadline',
+  totalTasks: 'Total tasks',
+  toDo: 'To-do tasks',
+  dueTomorrow: 'Due tomorrow',
+  dueThisWeek: 'Due in the next 7 days',
+  plannedToday: 'Work planned today',
+  plannedThisWeek: 'Work planned in the next 7 days',
+  unplanned: 'Unscheduled tasks',
+  canvasTasks: 'Open Canvas tasks',
+  eventsToday: 'Events today',
+  eventsTomorrow: 'Events tomorrow',
+  eventsThisMonth: 'Events remaining this month',
+  classesToday: 'Classes today',
+  allDayToday: 'All-day events today',
+  notes: 'Notes and notebooks',
+  pdfs: 'PDF files',
+  resumes: 'Resumes',
+  coverLetters: 'Cover letters',
+  unfiled: 'Unfiled documents',
 }
 const defaultMetrics = ['open', 'today', 'events', 'documents']
+const metricGroups = { tasks: 'Tasks', calendar: 'Calendar', documents: 'Documents' }
 
 function readMetrics(key) {
   try {
@@ -73,19 +92,43 @@ export default function HomePage({user,token,tasks,documents,folders,loading,onN
   const events=useMemo(()=>calendarItems(tasks,entries,campus.events||[]).filter(item=>!item.done&&!(campus.hiddenCalendarIds||[]).includes(item.id)&&!(campus.hideTxstEvents&&item.source==='txst')),[tasks,entries,campus])
   const agenda=itemsOnDay(events,selectedDay),week=Array.from({length:7},(_,index)=>shiftDay(today,index))
   const overdue=activeTasks.filter(task=>task.dueDate&&(task.calendarAllDay?(task.calendarAllDay&&task.calendarDate?task.calendarDate:calendarDay(task.dueDate))<today:Date.parse(task.dueDate)<now.getTime())).length
-  const dueToday=activeTasks.filter(task=>(task.calendarAllDay&&task.calendarDate?task.calendarDate:calendarDay(task.dueDate))===today).length
-  const eventCount=events.filter(item=>item.kind!=='deadline'&&item.kind!=='work'&&item.startDate<=shiftDay(today,6)&&item.endDate>=today).length
+  const tomorrow = shiftDay(today, 1)
+  const weekEnd = shiftDay(today, 6)
+  const dueDays = activeTasks.map(task => task.calendarAllDay && task.calendarDate ? task.calendarDate : calendarDay(task.dueDate))
+  const dueToday = dueDays.filter(day => day === today).length
+  const calendarEvents = events.filter(item => item.kind !== 'deadline' && item.kind !== 'work')
+  const countEvents = (start, end = start) => calendarEvents.filter(item => item.startDate <= end && item.endDate >= start).length
+  const eventsToday = calendarEvents.filter(item => item.startDate <= today && item.endDate >= today)
+  const countTagged = tag => activeDocuments.filter(file => file.tags?.includes(tag)).length
   const completed=taskRecords.length-activeTasks.length,progress=taskRecords.length?Math.round(completed/taskRecords.length*100):0
   const metrics = {
     open: [CheckCircle2, activeTasks.length, 'Your current to-do list', 'tasks'],
     today: [Clock, dueToday, overdue ? <span className="home-stat-overdue">{overdue} overdue</span> : 'Task deadlines in your time zone', 'tasks'],
-    events: [CalendarDays, eventCount, 'Over the next seven days', 'calendar'],
+    events: [CalendarDays, countEvents(today, weekEnd), 'Over the next seven days', 'calendar'],
     documents: [FolderOpen, activeDocuments.length, 'Notes, files, resumes and letters', 'documents'],
     overdue: [AlertCircle, overdue, 'Open tasks past their deadline', 'tasks'],
     progress: [Clock, activeTasks.filter(task => task.status === 'in-progress' || task.status === 'in_progress').length, 'Tasks you’ve started', 'tasks'],
     completed: [CheckCircle2, completed, 'Finished tasks', 'tasks'],
     completion: [CheckCircle2, `${progress}%`, 'Share of all tasks completed', 'tasks'],
     undated: [CalendarDays, activeTasks.filter(task => !task.dueDate && !(task.calendarAllDay && task.calendarDate)).length, 'Open tasks without a due date', 'tasks'],
+    totalTasks: [CheckCircle2, taskRecords.length, 'Open and completed tasks', 'tasks'],
+    toDo: [CheckCircle2, activeTasks.filter(task => !task.status || task.status === 'todo').length, 'Tasks marked to do', 'tasks'],
+    dueTomorrow: [Clock, dueDays.filter(day => day === tomorrow).length, 'Open tasks with a deadline tomorrow', 'tasks'],
+    dueThisWeek: [Clock, dueDays.filter(day => day && day >= today && day <= weekEnd).length, 'Open tasks due today through six days from now', 'tasks'],
+    plannedToday: [CalendarDays, activeTasks.filter(task => task.scheduledDate === today).length, 'Open tasks scheduled for today', 'tasks'],
+    plannedThisWeek: [CalendarDays, activeTasks.filter(task => task.scheduledDate >= today && task.scheduledDate <= weekEnd).length, 'Open tasks scheduled over the next seven days', 'tasks'],
+    unplanned: [CalendarDays, activeTasks.filter(task => !task.scheduledDate).length, 'Open tasks without a planned work day', 'tasks'],
+    canvasTasks: [Layers, activeTasks.filter(task => Boolean(task.canvasType)).length, 'Open tasks imported from Canvas', 'tasks'],
+    eventsToday: [CalendarDays, eventsToday.length, 'Calendar events that overlap today', 'calendar'],
+    eventsTomorrow: [CalendarDays, countEvents(tomorrow), 'Calendar events that overlap tomorrow', 'calendar'],
+    eventsThisMonth: [CalendarDays, calendarEvents.filter(item => item.startDate.slice(0, 7) <= today.slice(0, 7) && item.endDate >= today).length, 'Calendar events from today through month end', 'calendar'],
+    classesToday: [CalendarDays, eventsToday.filter(item => item.kind === 'class').length, 'Class meetings on your calendar today', 'calendar'],
+    allDayToday: [CalendarDays, eventsToday.filter(item => item.allDay).length, 'All-day calendar events today', 'calendar'],
+    notes: [FileText, activeDocuments.filter(file => file.tags?.some(tag => tag === 'notes' || tag === 'handwritten-notebook')).length, 'Notes and handwritten notebooks', 'documents'],
+    pdfs: [FileText, activeDocuments.filter(file => file.mimeType === 'application/pdf' || /\.pdf$/i.test(file.originalName || '')).length, 'Active PDF files', 'documents'],
+    resumes: [FileText, countTagged('resume'), 'Documents tagged as resumes', 'documents'],
+    coverLetters: [FileText, countTagged('cover-letter'), 'Documents tagged as cover letters', 'documents'],
+    unfiled: [FolderOpen, activeDocuments.filter(file => !file.pdfFolder).length, 'Documents outside any folder', 'documents'],
   }
   const firstName=(user?.name||user?.username||'').trim().split(/\s+/)[0]
   const hour=Number(new Intl.DateTimeFormat('en',{timeZone:zone,hour:'numeric',hourCycle:'h23'}).format(now))
@@ -116,7 +159,13 @@ export default function HomePage({user,token,tasks,documents,folders,loading,onN
             <label key={index}>
               Card {index + 1}
               <select value={id} onChange={event => changeMetric(index, event.target.value)}>
-                {Object.entries(metricTitles).map(([value, title]) => <option key={value} value={value}>{title}</option>)}
+                {Object.entries(metricGroups).map(([route, label]) => (
+                  <optgroup key={route} label={label}>
+                    {Object.keys(metrics).filter(value => metrics[value][3] === route).map(value => (
+                      <option key={value} value={value}>{metricTitles[value]}</option>
+                    ))}
+                  </optgroup>
+                ))}
               </select>
             </label>
           ))}
@@ -135,7 +184,7 @@ export default function HomePage({user,token,tasks,documents,folders,loading,onN
       <div className="home-stats" aria-label={draftMetrics ? 'Stat card preview' : undefined}>
         {(draftMetrics || metricSlots).map(id => {
           const [Icon, value, detail, route] = metrics[id]
-          const pending = id === 'events' ? calendarLoading : loading
+          const pending = route === 'calendar' ? calendarLoading || loading : loading
           const Card = draftMetrics ? 'div' : 'button'
           return <Card className="home-stat-card" key={id} {...(!draftMetrics && { type: 'button', onClick: () => onNavigate(route) })}>
             <div><Icon size={18} aria-hidden="true" /><ArrowUpRight size={14} aria-hidden="true" /></div>
