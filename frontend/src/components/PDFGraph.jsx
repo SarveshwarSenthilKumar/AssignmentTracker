@@ -1,5 +1,5 @@
 import {downloadBlob} from '../lib/documentFormats'
-import {useEffect,useRef,useState} from 'react'
+import {useEffect,useMemo,useRef,useState} from 'react'
 import {LineChart,X} from 'lucide-react'
 import {compileGraph,drawGraph} from '../lib/pdfGraph'
 import './PDFCalculator.css'
@@ -8,6 +8,14 @@ import './PDFGraph.css'
 export default function PDFGraph({open,onClose,selection,onInsert,canInsert}) {
   const [expression,setExpression]=useState(''),[limits,setLimits]=useState(['-10','10','-10','10']),[error,setError]=useState(''),[notice,setNotice]=useState(''),[valid,setValid]=useState(false)
   const canvas=useRef(null)
+  const [xValue,setXValue]=useState('')
+  const graph=useMemo(()=>{
+    if(!expression.trim())return null
+    try{return {compiled:compileGraph(expression)}}
+    catch(error){return {error:error.message}}
+  },[expression])
+  const x=xValue.trim() ? Number(xValue) : NaN
+  const y=graph?.compiled && !selection?.pending && Number.isFinite(x) ? graph.compiled.evaluate(x) : null
 
   useEffect(()=>{
     if(!selection)return
@@ -21,15 +29,18 @@ export default function PDFGraph({open,onClose,selection,onInsert,canInsert}) {
     setValid(false)
     if(!open||!expression||selection?.pending)return
     try{
-      const compiled=compileGraph(expression)
-      const visible=drawGraph(canvas.current,compiled,limits.map(v=>v.trim()===''?NaN:Number(v)))
+      if(!graph?.compiled){
+        setError(graph?.error||'')
+        return
+      }
+      const visible=drawGraph(canvas.current,graph.compiled,limits.map(v=>v.trim()===''?NaN:Number(v)))
       setError('')
       setNotice(visible?'':'No curve is visible in these limits. Adjust the axes.')
       setValid(true)
     }catch(e){
       setError(e.message)
     }
-  },[expression,limits,open,selection])
+  },[expression,graph,limits,open,selection])
 
   const asset=()=>({
     dataUrl:canvas.current.toDataURL('image/png'),
@@ -56,6 +67,16 @@ export default function PDFGraph({open,onClose,selection,onInsert,canInsert}) {
         maxLength={500}
       />
     </label>
+
+    <div className="pdf-graph-evaluation">
+      <label>
+        Evaluate at x
+        <input type="number" step="any" value={xValue} placeholder="Enter x" disabled={selection?.pending} onChange={e=>setXValue(e.target.value)} />
+      </label>
+      <output aria-live="polite">
+        {y===null ? 'y = —' : Number.isFinite(y) ? `y = ${Number(y.toPrecision(12))}` : 'y is undefined at this x'}
+      </output>
+    </div>
 
     <p>Choose More tools → Graph selected region, then hold the left mouse button and drag a box around one equation. Pen selection also works. Trigonometry uses radians.</p>
 

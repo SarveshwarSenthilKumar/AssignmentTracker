@@ -1,1 +1,16 @@
 .pdf-graph{width:370px}.pdf-graph canvas{width:100%;height:auto;border:1px solid var(--border);border-radius:8px;margin:12px 0}.pdf-graph canvas[hidden]{display:none}.pdf-graph-limits{display:grid;grid-template-columns:1fr 1fr;gap:10px}.pdf-graph-limits input{font-size:12px;padding:8px}.pdf-graph-actions{display:flex;gap:8px;margin-top:12px}.pdf-graph button:disabled{opacity:.45;cursor:not-allowed}
+.pdf-graph-evaluation {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: end;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.pdf-graph-evaluation output {
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
