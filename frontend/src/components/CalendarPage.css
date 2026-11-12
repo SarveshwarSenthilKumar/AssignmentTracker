@@ -39,12 +39,22 @@
 .calendar-day-note .calendar-day-note-primary{min-height:42px;padding:9px 14px;background:#b7d2e9;color:#182c3d;border-color:#b7d2e9;font-weight:700}
 .calendar-day-note .calendar-day-note-primary:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
 .calendar-day-note textarea{max-width:100%;font-size:1rem}
-.calendar-full-day-display .calendar-item strong {
+.calendar-full-day-display :is(.calendar-day.is-expanded, .calendar-agenda, .calendar-day-list) .calendar-item strong {
   white-space: normal;
   overflow-wrap: anywhere;
   overflow: visible;
 }
 
-.calendar-full-day-display .calendar-month-grid .calendar-item {
+.calendar-full-day-display .calendar-day.is-expanded .calendar-item {
   align-items: flex-start;
+}
+
+.calendar-page .calendar-day-display-toggle {
+  float: right;
+  padding: 3px;
+  margin-bottom: 4px;
+}
+
+.calendar-day-display-toggle + div {
+  clear: both;
 }
