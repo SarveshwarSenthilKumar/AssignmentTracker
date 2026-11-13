@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { ChevronDown, ChevronUp, Search, X } from 'lucide-react'
 import './PageFind.css'
 
@@ -89,7 +90,7 @@ export default function PageFind({ scope, disabled }) {
 
   return <div className="page-find">
     <button ref={trigger} type="button" aria-expanded={open && !disabled} aria-keyshortcuts="Control+F Meta+F" disabled={disabled} onClick={() => open ? close() : setOpen(true)}><Search size={15} aria-hidden="true"/>Find on page</button>
-    {open && !disabled && <div className="page-find-bar" role="search" aria-label="Find on this page" onKeyDown={event => {
+    {open && !disabled && createPortal(<div className="page-find-bar" role="search" aria-label="Find on this page" onKeyDown={event => {
       if (event.key === 'Escape') {
         event.preventDefault()
         event.stopPropagation()
@@ -109,6 +110,6 @@ export default function PageFind({ scope, disabled }) {
       <button type="button" aria-label="Previous match" disabled={!matches.length} onClick={() => move(-1)}><ChevronUp size={16}/></button>
       <button type="button" aria-label="Next match" disabled={!matches.length} onClick={() => move(1)}><ChevronDown size={16}/></button>
       <button type="button" aria-label="Close find" onClick={close}><X size={16}/></button>
-    </div>}
+    </div>, document.fullscreenElement || document.body)}
   </div>
 }
