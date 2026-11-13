@@ -45,7 +45,7 @@ export default function BirthdaySettings() {
     }
   }
 
-  return <section className="confirmation-settings" aria-label="Birthday" aria-busy={busy}>
+  return <section className="confirmation-settings account-birthday" aria-label="Birthday" aria-busy={busy}>
     <h3>Birthday</h3>
     <p>Save your month and day to mark your birthday on your calendar each year.</p>
     <form onSubmit={event => { event.preventDefault(); if (month && day) save(`${month}-${day}`) }}>

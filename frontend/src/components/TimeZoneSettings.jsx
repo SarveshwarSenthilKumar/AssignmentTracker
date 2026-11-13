@@ -34,7 +34,7 @@ export default function TimeZoneSettings() {
     } catch(error){setError(error.message)} finally{setBusy(false)}
   }
   return <form onSubmit={save} className="account-time-zone p-4 bg-white/5 rounded-xl border border-white/10 mb-6">
-    <label htmlFor="account-time-zone" className="block text-white font-semibold mb-2">Time zone</label>
+    <h3>Time zone</h3>
     <p className="text-slate-400 text-sm mb-3">Used for calendar times, task deadlines, and deadline charts. All-day dates stay the same.</p>
     <div className="mb-4">
       <label htmlFor="account-time-zone-city" className="block text-slate-300 text-sm mb-2">Find by city</label>
@@ -43,7 +43,8 @@ export default function TimeZoneSettings() {
       <button type="button" disabled={busy||!!looking} onClick={()=>find('ip')} className="mt-3 px-3 py-2 bg-slate-800 text-white border border-white/10 rounded-lg disabled:opacity-50">{looking==='ip'?'Detecting…':'Detect from IP'}</button>
       <p className="mt-2 text-xs text-slate-400">City searches use Open-Meteo. IP detection sends your public IP to ipapi.co when selected. VPNs and network routing may affect the result.</p>
     </div>
-    <select id="account-time-zone" value={value} disabled={busy||!!looking} onChange={event=>{setChoice(event.target.value);setMessage('');setResults([])}} className="w-full bg-slate-800 text-white border border-white/10 rounded-lg p-2">
+    <label htmlFor="account-time-zone" className="block mb-2">Preferred time zone</label>
+    <select id="account-time-zone" value={value} disabled={busy||!!looking} onChange={event=>{setChoice(event.target.value);setMessage('');setResults([])}} className="block w-full bg-slate-800 text-white border border-white/10 rounded-lg p-2">
       <option value="">Automatic · {deviceTimeZone()}</option>
       {zones.map(zone=><option key={zone} value={zone}>{zone.replaceAll('_',' ')}</option>)}
     </select>
