@@ -54,7 +54,8 @@ export default function ClassScheduleImport({ token, disabled, onReview }) {
       }
       if (extracted) body.append('scheduleText', extracted)
       else body.append('schedule', file)
-      setStage(extracted ? 'Organizing extracted text with Gemini' : 'Reading the original file with Gemini')
+      const geminiStage = extracted ? 'Organizing extracted text with Gemini' : 'Reading the original file with Gemini'
+      setStage(`${geminiStage}. If Gemini is temporarily overloaded, the importer may wait and retry once.`)
       const response = await fetch('/api/calendar/class-schedule/import', {
         method: 'POST', headers, body
       })

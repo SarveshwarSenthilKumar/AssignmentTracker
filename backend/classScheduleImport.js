@@ -106,7 +106,11 @@ module.exports = function registerClassScheduleImport(app, auth, upload, credent
         if (details.category === 'timeout') {
           return res.status(504).json({ message: 'Gemini did not finish reading this schedule within two minutes.', diagnostics: { ...details, action: 'Try a single page or crop the screenshot to the class table. You can also enter the schedule manually.' } });
         }
-        return res.status(details.providerStatus === 429 ? 429 : error.status).json({ message: details.message, diagnostics: details });
+        if (details.retryable && details.retryAfterSeconds != null) {
+          res.set('Retry-After', String(details.retryAfterSeconds));
+        }
+        const status = [429, 503].includes(details.providerStatus) ? details.providerStatus : error.status;
+        return res.status(status).json({ message: details.message, diagnostics: details });
       }
       console.error('Class schedule import failed:', error.name);
       res.status(500).json({ message: 'The backend could not finish the schedule import. Check the backend logs.' });
