@@ -225,7 +225,7 @@ function App() {
   const [pdfs, setPdfs] = useState([])
   const [pdfFolders, setPdfFolders] = useState([])
   const [selectedPDFFolder, setSelectedPDFFolder] = useState(() => {
-    const folder = window.location.hash.match(/^#\/documents\/folder\/([a-f\d]{24}|all|inbox|trash)$/i)?.[1]
+    const folder = window.location.hash.match(/^#\/documents\/folder\/([a-f\d]{24}|all|inbox|trash|starred)$/i)?.[1]
     return folder === 'inbox' ? null : folder || 'all'
   })
   const [assistantOpen,setAssistantOpen]=useState(false),[assistantGeneration,setAssistantGeneration]=useState(0),[assistantCalendarId,setAssistantCalendarId]=useState(()=>new URLSearchParams(window.location.hash.split('?')[1]).get('event'))
@@ -2573,7 +2573,7 @@ function App() {
             onClose={() => setShowPDFUploadModal(false)}
             token={token}
             onUploadSuccess={handlePDFUploadSuccess}
-            initialFolder={typeof selectedPDFFolder === 'string' && selectedPDFFolder !== 'all' && selectedPDFFolder !== 'trash' ? selectedPDFFolder : ''}
+            initialFolder={typeof selectedPDFFolder === 'string' && !['all', 'trash', 'starred'].includes(selectedPDFFolder) ? selectedPDFFolder : ''}
             pdfFolders={pdfFolders}
             onFolderCreated={folder=>setPdfFolders(previous=>previous.some(item=>item._id===folder._id)?previous:[...previous,folder])}
           />

@@ -80,3 +80,5 @@
 .library-modal-heading { margin-bottom: 12px; }
 .library-modal-footer { margin-top: 16px; }
 .library-folder-open > svg { color: var(--text-muted) !important; }
+
+.library-row-actions .library-star[aria-pressed=true] { color: #e1a52b; }

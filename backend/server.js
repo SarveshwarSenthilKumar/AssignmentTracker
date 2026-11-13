@@ -246,6 +246,7 @@ const pdfSchema = new mongoose.Schema({
     required: true,
   },
   deletedAt: { type: Date, default: null },
+  starred: { type: Boolean, default: false },
   mimeType: { type: String, default: 'application/pdf' },
   originalBackup: { type: Buffer, default: null },
   pdfData: {
@@ -1365,6 +1366,25 @@ app.post('/api/pdfs', authenticateToken, upload.single('pdfFile'), async (req, r
 });
 
 // Reuse library files across tasks without duplicating their stored contents.
+app.put('/api/pdfs/:id/star', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+  const starred = req.body?.starred;
+  if (!/^[a-f\d]{24}$/i.test(id) || typeof starred !== 'boolean') {
+    return res.status(400).json({ message: 'A document ID and a star setting are required.' });
+  }
+  try {
+    const file = await PDF.findOneAndUpdate(
+      { _id: id, user: req.user.userId, deletedAt: null },
+      { $set: { starred } },
+      { new: true }
+    ).select('starred');
+    if (!file) return res.status(404).json({ message: 'Document not found.' });
+    res.json({ starred: file.starred });
+  } catch {
+    res.status(500).json({ message: 'Could not update the document star.' });
+  }
+});
+
 app.put('/api/pdfs/:id/task-link', authenticateToken, async (req, res) => {
   try {
     const { taskId, linked } = req.body;
