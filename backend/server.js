@@ -148,6 +148,7 @@ const Folder = mongoose.model('Folder', folderSchema);
 
 // Todo Schema
 const todoSchema = new mongoose.Schema({
+  starred: { type: Boolean, default: false },
   progressTarget: { type: Number, default: null },
   restoredAt: { type: Date, default: null },
   progressMilestones: { type: [new mongoose.Schema({ day: String, target: Number }, { _id: false })], default: [] },
@@ -905,6 +906,25 @@ app.post('/api/todos/reorder',authenticateToken,async(req,res)=>{
     res.json({ids,task:await Todo.findOne({_id:movedId,user:req.user.userId})});
   }catch(error){res.status(409).json({message:error.message||'Could not save task order.'});}finally{await session.endSession();}
 });
+app.put('/api/todos/:id/star', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+  const starred = req.body?.starred;
+  if (!/^[a-f\d]{24}$/i.test(id) || typeof starred !== 'boolean') {
+    return res.status(400).json({ message: 'A task ID and a star setting are required.' });
+  }
+  try {
+    const task = await Todo.findOneAndUpdate(
+      { _id: id, user: req.user.userId },
+      { $set: { starred } },
+      { new: true }
+    ).select('starred');
+    if (!task) return res.status(404).json({ message: 'Task not found.' });
+    res.json({ starred: task.starred });
+  } catch {
+    res.status(500).json({ message: 'Could not update the task star.' });
+  }
+});
+
 app.put('/api/todos/:id', authenticateToken, async (req, res) => {
   try {
     const { status, description, links, text, dueDate } = req.body;

@@ -66,7 +66,7 @@ import ShortcutsPage from './components/ShortcutsPage'
 import './Navigation.css'
 import './components/AccountPage.css'
 import { useState, useEffect, useRef } from 'react'
-import { AlertCircle, Plus, Trash2, Check, X, Loader2, FolderPlus, Folder, LogOut, Sparkles, Link2, ChevronDown, ChevronUp, Edit2, Copy, Save, User, Trophy, Target, Calendar, ArrowUpDown, RefreshCw, Terminal, ChevronRight, FileText, Keyboard } from 'lucide-react'
+import { AlertCircle, Plus, Trash2, Check, X, Loader2, FolderPlus, Folder, LogOut, Sparkles, Link2, ChevronDown, ChevronUp, Edit2, Copy, Save, User, Trophy, Target, Calendar, ArrowUpDown, RefreshCw, Terminal, ChevronRight, FileText, Keyboard, Star } from 'lucide-react'
 import { cn } from './lib/utils'
 import { useAuth } from './contexts/AuthContext'
 import Auth from './components/Auth'
@@ -100,7 +100,49 @@ function App() {
   const bulkDeleteLock=useRef(false)
   const toggleTaskSelection=id=>setSelectedTaskIds(previous=>{const next=new Set(previous);next.has(id)?next.delete(id):next.add(id);return next})
   const [folders, setFolders] = useState([])
-  const [selectedFolder, setSelectedFolder] = useState(() => window.location.hash.match(/^#\/tasks\/folder\/([a-f\d]{24}|all)$/i)?.[1] || null)
+  const [selectedFolder, setSelectedFolder] = useState(() => window.location.hash.match(/^#\/tasks\/folder\/([a-f\d]{24}|all|starred)$/i)?.[1] || null)
+  const inStarredTasks = selectedFolder === 'starred'
+  const taskDestination = selectedFolder === 'all' || inStarredTasks ? null : selectedFolder
+  const taskStarLocks = useRef(new Set())
+  const [pendingTaskStars, setPendingTaskStars] = useState(new Set())
+  const toggleTaskStar = async task => {
+    const id = task._id
+    if (taskStarLocks.current.has(id)) return
+    taskStarLocks.current.add(id)
+    setPendingTaskStars(previous => new Set(previous).add(id))
+    try {
+      const response = await fetch(`/api/todos/${id}/star`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ starred: !task.starred })
+      })
+      const result = await readApiJson(response)
+      if (!response.ok) throw new Error(result.message || 'Could not update the task star.')
+      setTodos(previous => previous.map(item => item._id === id ? { ...item, starred: result.starred } : item))
+      setSelectedTask(previous => previous?._id === id ? { ...previous, starred: result.starred } : previous)
+      if (!result.starred && inStarredTasks) setSelectedTaskIds(previous => {
+        const next = new Set(previous)
+        next.delete(id)
+        return next
+      })
+    } catch (error) {
+      setError(error.message)
+    } finally {
+      taskStarLocks.current.delete(id)
+      setPendingTaskStars(previous => {
+        const next = new Set(previous)
+        next.delete(id)
+        return next
+      })
+    }
+  }
+  const taskStarButton = task => (
+    <button type="button" className={cn('shrink-0 rounded-lg p-2 hover:bg-white/10', task.starred ? 'text-amber-400' : 'text-slate-400')}
+      disabled={pendingTaskStars.has(task._id)} aria-label={`Star ${task.text}`} aria-pressed={!!task.starred}
+      title={task.starred ? 'Remove star' : 'Star task'} onClick={event => { event.stopPropagation(); toggleTaskStar(task) }}>
+      <Star size={17} fill={task.starred ? 'currentColor' : 'none'} aria-hidden="true"/>
+    </button>
+  )
   useEffect(()=>{setSelectedTaskIds(new Set())},[selectedFolder,token,taskSearch,taskSearchAll])
   const [input, setInput] = useState('')
   const [newProgress,setNewProgress]=useState({enabled:false,target:'',unit:'',autoComplete:false})
@@ -108,7 +150,7 @@ function App() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [showFolderModal, setShowFolderModal] = useState(false)
-  useEffect(()=>{if(showFolderModal)setNewFolderParent(selectedFolder&&selectedFolder!=='all'?selectedFolder:null)},[showFolderModal,selectedFolder])
+  useEffect(()=>{if(showFolderModal)setNewFolderParent(taskDestination)},[showFolderModal,taskDestination])
   const [showProfileModal, setShowProfileModal] = useState(false)
   const [newFolderName, setNewFolderName] = useState('')
   const [newFolderDescription,setNewFolderDescription]=useState('')
@@ -506,7 +548,7 @@ function App() {
   const addTodo=async e=>{
     e.preventDefault()
     if(!input.trim()||createTaskLock.current)return
-    const snapshot={text:input.trim(),folder:selectedFolder==='all'?null:selectedFolder,scheduledDate:scheduledDay,progress:newProgress.enabled?{progressTarget:Number(newProgress.target),progressUnit:newProgress.unit,progressAutoComplete:newProgress.autoComplete,progressMilestones:(newProgress.milestones||[]).map(item=>({day:item.day,target:Number(item.target)}))}:null}
+    const snapshot={text:input.trim(),folder:taskDestination,scheduledDate:scheduledDay,progress:newProgress.enabled?{progressTarget:Number(newProgress.target),progressUnit:newProgress.unit,progressAutoComplete:newProgress.autoComplete,progressMilestones:(newProgress.milestones||[]).map(item=>({day:item.day,target:Number(item.target)}))}:null}
     if(!dueDate){
       const suggestions=taskDateSuggestions(snapshot.text)
       if(suggestions.length){setTaskDatePrompt({...snapshot,suggestions});return}
@@ -955,6 +997,7 @@ function App() {
           </div>
 
           <div className="flex items-center gap-2">
+            {!isEditing && taskStarButton(todo)}
             {isEditing ? (
               <>
                 <button
@@ -1558,8 +1601,8 @@ function App() {
   }
 
   const taskSearchTerms=normalizeCommandText(taskSearch.trim()).split(/\s+/).filter(Boolean)
-  const folderTodos=selectedFolder==='all'?todos:selectedFolder?todos.filter(task=>(task.folder?._id||task.folder)===selectedFolder):todos.filter(task=>!task.folder)
-  const taskSearchPool=taskSearchTerms.length&&taskSearchAll?todos:folderTodos
+  const folderTodos=inStarredTasks?todos.filter(task=>task.starred):selectedFolder==='all'?todos:selectedFolder?todos.filter(task=>(task.folder?._id||task.folder)===selectedFolder):todos.filter(task=>!task.folder)
+  const taskSearchPool=taskSearchTerms.length&&taskSearchAll&&!inStarredTasks?todos:folderTodos
   const filteredTodos=getSortedTodos(taskSearchPool.filter(task=>{
     if(!taskSearchTerms.length)return true
     const folder=folders.find(folder=>folder._id===(task.folder?._id||task.folder))
@@ -1720,6 +1763,13 @@ function App() {
               </span>
             </button>
 
+            <button type="button" aria-pressed={inStarredTasks}
+              onClick={event => { if (!openInTab(event, 'tasks/folder/starred')) setSelectedFolder('starred') }}
+              className={cn('flex shrink-0 items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium', inStarredTasks ? 'bg-slate-800 text-white' : 'bg-white/10 text-slate-400 hover:bg-white/20')}>
+              <Star size={16} fill={inStarredTasks ? 'currentColor' : 'none'} aria-hidden="true"/>
+              Starred <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs">{todos.filter(task => task.starred).length}</span>
+            </button>
+
             {/* Inbox */}
             <div
               onContextMenu={(e) => handleContextMenu(e, null, true)}
@@ -1822,7 +1872,7 @@ function App() {
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder={`Add task to ${selectedFolder === 'all' ? 'Inbox' : selectedFolder ? folders.find(f => f._id === selectedFolder)?.name : 'Inbox'}...`}
+              placeholder={`Add task to ${folders.find(f => f._id === taskDestination)?.name || 'Inbox'}...`}
               className="flex-1 px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all focus: text-sm"
             />
             <div className="task-due-input"><label htmlFor="task-scheduled-day">Do on (optional)</label><input id="task-scheduled-day" type="date" disabled={creatingTask} value={scheduledDay} onChange={event=>setScheduledDay(event.target.value)} className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white text-sm"/></div>
@@ -1949,7 +1999,7 @@ function App() {
           <div className="text-center py-12">
             <FileText size={34} className="mx-auto mb-4 text-slate-400"/>
             <p className="text-slate-400 text-lg">
-              {taskSearchTerms.length ? 'No tasks match your search. Try fewer words, or search all folders.' : selectedFolder === 'all' ? 'No tasks yet. Add one above!' : selectedFolder ? 'No tasks in this folder yet' : 'No todos yet. Add one above!'}
+              {taskSearchTerms.length ? 'No tasks match your search. Try fewer words, or search all folders.' : inStarredTasks ? 'No starred tasks yet.' : selectedFolder === 'all' ? 'No tasks yet. Add one above!' : selectedFolder ? 'No tasks in this folder yet' : 'No todos yet. Add one above!'}
             </p>
           </div>
         ) : (
@@ -2407,6 +2457,7 @@ function App() {
                     ? taskDueLabel(selectedTask,true)
                     : 'No due date'}
                 </p>
+                {taskStarButton(todos.find(task => task._id === selectedTask._id) || selectedTask)}
                 {overdueWarning(todos.find(task => task._id === selectedTask._id) || selectedTask)}
               </div>
 
