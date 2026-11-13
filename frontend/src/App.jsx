@@ -105,28 +105,42 @@ function App() {
   const taskDestination = selectedFolder === 'all' || inStarredTasks ? null : selectedFolder
   const taskStarLocks = useRef(new Set())
   const [pendingTaskStars, setPendingTaskStars] = useState(new Set())
+  const [taskStarError, setTaskStarError] = useState(null)
+  const applyTaskStar = (id, starred) => {
+    setTodos(previous => previous.map(item => item._id === id ? { ...item, starred } : item))
+    setSelectedTask(previous => previous?._id === id ? { ...previous, starred } : previous)
+  }
   const toggleTaskStar = async task => {
     const id = task._id
     if (taskStarLocks.current.has(id)) return
     taskStarLocks.current.add(id)
     setPendingTaskStars(previous => new Set(previous).add(id))
+    setTaskStarError(null)
+    const starred = !task.starred
+    // Keep the row visible until the server confirms an unstar in Starred.
+    const optimistic = !inStarredTasks || starred
+    if (optimistic) applyTaskStar(id, starred)
     try {
       const response = await fetch(`/api/todos/${id}/star`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ starred: !task.starred })
+        body: JSON.stringify({ starred })
       })
+      if (response.status === 404 && !response.headers.get('content-type')?.includes('application/json')) {
+        throw new Error('This backend does not have the task star endpoint. Restart the backend and try again.')
+      }
       const result = await readApiJson(response)
       if (!response.ok) throw new Error(result.message || 'Could not update the task star.')
-      setTodos(previous => previous.map(item => item._id === id ? { ...item, starred: result.starred } : item))
-      setSelectedTask(previous => previous?._id === id ? { ...previous, starred: result.starred } : previous)
+      if (typeof result.starred !== 'boolean') throw new Error('The server did not confirm the task star.')
+      applyTaskStar(id, result.starred)
       if (!result.starred && inStarredTasks) setSelectedTaskIds(previous => {
         const next = new Set(previous)
         next.delete(id)
         return next
       })
     } catch (error) {
-      setError(error.message)
+      if (optimistic) applyTaskStar(id, !!task.starred)
+      setTaskStarError({ id, message: error.message })
     } finally {
       taskStarLocks.current.delete(id)
       setPendingTaskStars(previous => {
@@ -136,12 +150,15 @@ function App() {
       })
     }
   }
-  const taskStarButton = task => (
-    <button type="button" className={cn('shrink-0 rounded-lg p-2 hover:bg-white/10', task.starred ? 'text-amber-400' : 'text-slate-400')}
+  const taskStarButton = (task, showError = true) => (
+    <div className="relative shrink-0">
+    <button type="button" className={cn('rounded-lg p-2 hover:bg-white/10', task.starred ? 'text-amber-400' : 'text-slate-400')}
       disabled={pendingTaskStars.has(task._id)} aria-label={`Star ${task.text}`} aria-pressed={!!task.starred}
       title={task.starred ? 'Remove star' : 'Star task'} onClick={event => { event.stopPropagation(); toggleTaskStar(task) }}>
       <Star size={17} fill={task.starred ? 'currentColor' : 'none'} aria-hidden="true"/>
     </button>
+    {showError && taskStarError?.id === task._id && <p role="alert" className="absolute right-0 z-20 w-56 rounded-lg border border-red-400/30 bg-slate-900 p-2 text-xs text-red-200">{taskStarError.message}</p>}
+    </div>
   )
   useEffect(()=>{setSelectedTaskIds(new Set())},[selectedFolder,token,taskSearch,taskSearchAll])
   const [input, setInput] = useState('')
@@ -997,7 +1014,7 @@ function App() {
           </div>
 
           <div className="flex items-center gap-2">
-            {!isEditing && taskStarButton(todo)}
+            {!isEditing && taskStarButton(todo, selectedTask?._id !== todo._id)}
             {isEditing ? (
               <>
                 <button
