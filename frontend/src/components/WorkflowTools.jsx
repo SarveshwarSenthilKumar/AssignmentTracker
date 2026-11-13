@@ -1,7 +1,8 @@
+import DocumentFileIcon from './DocumentFileIcon'
 import {StudyPhoneButton} from './StudyPhone'
 import useCalendarColors from '../hooks/useCalendarColors'
 import { useEffect, useMemo, useState } from 'react'
-import { Search, Plus, Check, ArrowUpRight, Play, Pause, RotateCcw, FileText, MessageSquare } from 'lucide-react'
+import { Search, Plus, Check, ArrowUpRight, Play, Pause, RotateCcw, MessageSquare } from 'lucide-react'
 import { CALENDAR_LABELS, taskDueLabel, calendarItems, calendarDay, calendarTime, dayLabel } from '../lib/calendar'
 import { taskMetrics, taskStatus, STATUS_LABELS } from '../lib/taskVisualization'
 import TaskVisualization from './TaskVisualization'
@@ -66,7 +67,7 @@ function AgendaPane({tasks,entries,calendarLoading,calendarError,onRefreshCalend
 function DocumentsPane({documents,documentFolders,onOpenDocument,onUpload,onNavigate}){
   const [query,setQuery]=useState(''),[folder,setFolder]=useState('all')
   const files=documents.filter(file=>!file.deletedAt&&(folder==='all'||String(file.pdfFolder||'')===folder)&&`${file.name} ${file.originalName||''}`.toLowerCase().includes(query.toLowerCase()))
-  return <div className="workflow-tool"><div className="workflow-tool-filters"><label className="workflow-search"><Search size={13}/><input aria-label="Search window files" value={query} onChange={event=>setQuery(event.target.value)} placeholder="Search documents…"/></label><select aria-label="Document window folder" value={folder} onChange={event=>setFolder(event.target.value)}><option value="all">All folders</option><option value="">Unfiled</option>{documentFolders.map(item=><option key={item._id} value={item._id}>{item.name}</option>)}</select><button type="button" onClick={onUpload}><Plus size={13}/>Upload</button></div><div className="workflow-file-list">{files.map(file=><button type="button" key={file._id} onClick={event => onOpenDocument(file._id, event)}><FileText size={16}/><span><strong>{file.name}</strong><small>{file.mimeType||'Document'}</small></span><ArrowUpRight size={13}/></button>)}{!files.length&&<p className="workflow-empty">No matching files.</p>}</div><button type="button" onClick={event => onNavigate('documents', event)}>Manage document library ↗</button></div>
+  return <div className="workflow-tool"><div className="workflow-tool-filters"><label className="workflow-search"><Search size={13}/><input aria-label="Search window files" value={query} onChange={event=>setQuery(event.target.value)} placeholder="Search documents…"/></label><select aria-label="Document window folder" value={folder} onChange={event=>setFolder(event.target.value)}><option value="all">All folders</option><option value="">Unfiled</option>{documentFolders.map(item=><option key={item._id} value={item._id}>{item.name}</option>)}</select><button type="button" onClick={onUpload}><Plus size={13}/>Upload</button></div><div className="workflow-file-list">{files.map(file=><button type="button" key={file._id} onClick={event => onOpenDocument(file._id, event)}><DocumentFileIcon file={file}/><span><strong>{file.name}</strong><small>{file.mimeType||'Document'}</small></span><ArrowUpRight size={13}/></button>)}{!files.length&&<p className="workflow-empty">No matching files.</p>}</div><button type="button" onClick={event => onNavigate('documents', event)}>Manage document library ↗</button></div>
 }
 function NotesPane({pane,onNoteChange}){
   const [preview,setPreview]=useState(false)

@@ -1,3 +1,4 @@
+import DocumentFileIcon from './DocumentFileIcon'
 import { useId, useRef, useState } from 'react'
 import { ChevronDown, EyeOff, FilePlus, FileText, Folder, FolderOpen, Library } from 'lucide-react'
 import { folderTree } from '../lib/folderHierarchy'
@@ -122,10 +123,10 @@ export default function DocumentFolderNavigation({ documentId, documents, folder
               </summary>
               <div className="document-folder-options" aria-label="Files in folder">
                 {siblings.map(file => file._id === documentId ? (
-                  <span key={file._id} aria-current="page"><FileText size={16} aria-hidden="true" /> {file.name}</span>
+                  <span key={file._id} aria-current="page"><DocumentFileIcon file={file}/> {file.name}</span>
                 ) : (
                   <button key={file._id} type="button" disabled={unavailable} onClick={event => navigate(onOpenDocument, file._id, event)}>
-                    <FileText size={16} aria-hidden="true" /> {file.name}
+                    <DocumentFileIcon file={file}/> {file.name}
                   </button>
                 ))}
               </div>
