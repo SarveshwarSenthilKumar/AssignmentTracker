@@ -57,7 +57,7 @@ function createAssistantCredentials(User){
     });
     app.put('/api/account/ai-settings',authenticateToken,async(req,res)=>{
       const key=normalizeApiKey(req.body.apiKey);
-      if(!/^[A-Za-z0-9_-]{20,256}$/.test(key)||key.startsWith('sk-'))return res.status(400).json({message:'Enter a valid Gemini API key from Google AI Studio. Surrounding quotes, spaces and a Bearer prefix are removed automatically.'});
+      if(!/^(?:AQ\.)?[A-Za-z0-9_-]{20,256}$/.test(key)||key.startsWith('sk-'))return res.status(400).json({message:'Enter a Gemini API key from Google AI Studio. Standard keys and AQ. authorization keys are accepted. Surrounding quotes, spaces and a Bearer prefix are removed automatically.'});
       let encrypted;
       try{encrypted=encryptKey(key,req.user.userId)}catch{return res.status(503).json({message:'The backend needs AI_KEY_ENCRYPTION_KEY or JWT_SECRET configured before it can save API keys.'})}
       try{

@@ -4,7 +4,7 @@ const safeToken = value => typeof value === 'string' ? value.replace(/[^a-zA-Z0-
 function safeMessage(value, secrets=[]) {
   let text=typeof value==='string'?value:'';
   for(const secret of secrets.filter(Boolean)) text=text.split(secret).join('[redacted]');
-  return text.replace(/\bAIza[a-zA-Z0-9_-]+/g,'[redacted key]').replace(/([?&]key=)[^&\s]+/gi,'$1[redacted]').replace(/\bsk-[a-zA-Z0-9_.*-]+/g,'[redacted key]').replace(/\bBearer\s+[^\s"',;]+/gi,'Bearer [redacted]').replace(/\b(?:org|proj|project)-[a-zA-Z0-9_-]+/g,'[redacted project]').replace(/data:[^\s"']+/g,'[redacted file data]').slice(0,600);
+  return text.replace(/\b(?:AIza|AQ\.)[a-zA-Z0-9_-]+/g,'[redacted key]').replace(/([?&]key=)[^&\s]+/gi,'$1[redacted]').replace(/\bsk-[a-zA-Z0-9_.*-]+/g,'[redacted key]').replace(/\bBearer\s+[^\s"',;]+/gi,'Bearer [redacted]').replace(/\b(?:org|proj|project)-[a-zA-Z0-9_-]+/g,'[redacted project]').replace(/data:[^\s"']+/g,'[redacted file data]').slice(0,600);
 }
 function durationSeconds(value) {
   if(typeof value!=='string'||!value)return null;
