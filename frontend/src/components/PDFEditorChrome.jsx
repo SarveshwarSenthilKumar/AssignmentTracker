@@ -1,6 +1,6 @@
 import {StudyPhoneButton} from './StudyPhone'
 import { cloneElement, isValidElement, useEffect, useId, useRef, useState } from 'react'
-import { FileText, ChevronDown, ChevronLeft, ChevronRight, Pen, Highlighter, Type, Move, Eraser, Undo, Redo, Save, Download, Files, Settings, X, Maximize, Sun, Moon, LineChart, Calculator, Plus, Trash2, RotateCw, ZoomIn, ZoomOut, MessageSquare, SlidersHorizontal, Copy, PanelLeft, Loader2, Minimize2, Maximize2, TextSelect } from 'lucide-react'
+import { FileText, ChevronDown, ChevronLeft, ChevronRight, Pen, Highlighter, Type, Move, Eraser, Undo, Redo, Save, Download, Files, Settings, X, Maximize, Sun, Moon, LineChart, Calculator, Plus, Trash2, RotateCw, ZoomIn, ZoomOut, MessageSquare, SlidersHorizontal, Copy, PanelLeft, Loader2, Minimize2, Maximize2, TextSelect, Ruler } from 'lucide-react'
 import PDFEraserControls from './PDFEraserControls'
 import PDFEditorClock from './PDFEditorClock'
 import PDFStopwatch from './PDFStopwatch'
@@ -11,7 +11,7 @@ import './PDFEditorChrome.css'
 
 const annotationTools=[['read','Select text',TextSelect],['pen','Pen',Pen],['highlighter','Highlight',Highlighter],['text','Text',Type],['select','Move',Move],['eraser','Erase',Eraser]]
 
-export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,insert}){
+export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,insert,onRuler}){
   const [open,setOpen]=useState(null),root=useRef(null),trigger=useRef(null),id=useId()
   const [narrowScreen,setNarrowScreen]=useState(()=>window.matchMedia('(max-width:760px), (max-height:500px) and (orientation:landscape)').matches)
   useEffect(()=>{
@@ -96,6 +96,7 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
     <label className="pc-checkbox"><input type="checkbox" checked={tools.lineUndoTimer} onChange={tools.onLineUndoTimer}/>Auto-hide line undo notice after 15 seconds</label>
     <p className="pc-menu-note">Turn off to keep the notice until you choose Keep or Undo, draw another detected line, or leave the page. Saved on this device.</p><hr/>
     {action(Calculator,'Calculator',utilities.onCalculator,{active:utilities.calculator})}
+    {action(Ruler,'Ruler',onRuler,{active:tools.current==='ruler',detail:'Drag to draw a straight line and see its length in PDF points'})}
     {action(Calculator,'Calculate selected region',utilities.onCalculate,{active:tools.current==='calculate',detail:'Printed expressions or handwriting with AI'})}
     {action(Calculator,'Scan function → calculate',utilities.onScanFunction,{active:tools.current==='function',detail:'Select f(x), enter x, and calculate its value'})}
     {action(LineChart,'Graph selected region',utilities.onGraph,{active:tools.current==='graph',detail:'Plot a printed or handwritten function of x'})}

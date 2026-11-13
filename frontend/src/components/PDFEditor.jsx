@@ -616,6 +616,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const [pdfError, setPdfError] = useState(null)
   const [drawingPaths, setDrawingPaths] = useState([])
   const [, setCurrentPath] = useState([])
+  const [rulerGuide, setRulerGuide] = useState(null)
   const liveInkRef=useRef(null)
   const [usePressure, setUsePressure] = useState(true)
   const [saveStatus, setSaveStatus] = useState('saved') // saved | dirty | saving | error
@@ -1188,9 +1189,18 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
 
   const paintInkPreview=()=>{
     if(inkFrameRef.current)return
-    inkFrameRef.current=requestAnimationFrame(()=>{inkFrameRef.current=0;liveInkRef.current?.draw({points:currentPathRef.current,color:currentColor,strokeWidth,tool:currentTool},usePressure)})
+    inkFrameRef.current=requestAnimationFrame(()=>{inkFrameRef.current=0;liveInkRef.current?.draw({points:currentPathRef.current,color:currentColor,strokeWidth,tool:currentTool==='ruler'?'pen':currentTool},usePressure)})
   }
   const stopInkPreview=()=>{cancelAnimationFrame(inkFrameRef.current);inkFrameRef.current=0;liveInkRef.current?.clear()}
+
+  const rulerPoint = event => {
+    const point = toLocal(event)
+    return {
+      x: Math.max(0, Math.min(pageBase.w, point.x)),
+      y: Math.max(0, Math.min(pageBase.h, point.y)),
+      pressure: 0.5
+    }
+  }
 
   const toggleArrowCopy=()=>{
     const active=['arrow-copy','arrow-paste'].includes(currentTool)
@@ -1262,7 +1272,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       return
     }
 
-    const pt = toLocal(e)
+    const pt = currentTool === 'ruler' ? rulerPoint(e) : toLocal(e)
     annotationPointerRef.current=e.pointerId
     overlayRef.current.setPointerCapture?.(e.pointerId)
 
@@ -1277,6 +1287,10 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
 
     isDrawingRef.current = true
     currentPathRef.current = [{ x: pt.x, y: pt.y, pressure: getPressure(e.nativeEvent) }]
+    if (currentTool === 'ruler') {
+      currentPathRef.current = [pt]
+      setRulerGuide(null)
+    }
     paintInkPreview()
   }
 
@@ -1292,6 +1306,14 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       return
     }
     if (!isDrawingRef.current) return
+    if (currentTool === 'ruler') {
+      const start = currentPathRef.current[0]
+      const end = rulerPoint(e)
+      currentPathRef.current = [start, end]
+      setRulerGuide({ page: pageNumber, start, end })
+      paintInkPreview()
+      return
+    }
     const events = e.nativeEvent.getCoalescedEvents?.() || []
     const list = events.length ? events : [e.nativeEvent]
     const path = currentPathRef.current
@@ -1399,6 +1421,20 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     if (!isDrawingRef.current) return
     isDrawingRef.current = false
     const points = currentPathRef.current
+    if (currentTool === 'ruler') {
+      setRulerGuide(null)
+      currentPathRef.current = []
+      if (e.type === 'pointercancel' || !points.length) return
+      const start = points[0]
+      const end = rulerPoint(e)
+      if (Math.hypot(end.x - start.x, end.y - start.y) < 2 / scale) return
+      pushHistory()
+      updatePaths(previous => [...previous, {
+        id: uid(), points: [start, end], color: currentColor, strokeWidth,
+        tool: 'pen', straightLine: true, page: pageNumber, inkCreatedAt: Date.now()
+      }])
+      return
+    }
     if(e.type!=='pointercancel'){
       const end=toLocal(e),last=points[points.length-1]
       if(!last||Math.hypot(end.x-last.x,end.y-last.y)>.1/scale)points.push({...end,pressure:last?.pressure||.5})
@@ -1836,7 +1872,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const {handlers:touchInput,activity:inputActivity}=usePDFTouchInput({
     ...pinchHandlers,
     viewer:viewerRef,overlay:overlayRef,tool:currentTool,scrollWithFinger:fingerScroll,scrollSettings,resetKey:`${pdfId}:${pageNumber}:${currentTool}:${focusMode}:${loading}`,
-    canDrawTouch:event=>overlayRef.current?.contains(event.target)&&['pen','highlighter','eraser','calculate','function','graph','number-line','snippet','arrow-copy','arrow-paste'].includes(currentTool),
+    canDrawTouch:event=>overlayRef.current?.contains(event.target)&&['pen','highlighter','eraser','calculate','function','graph','number-line','snippet','arrow-copy','arrow-paste','ruler'].includes(currentTool),
     onDrawEnd:handlePointerUp,
     beginTouchAnnotation:id=>{
       commitText()
@@ -2031,7 +2067,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
                   onPointerDownCapture={e => {
                     // Own mouse region selection before any annotation child can
                     // intercept the press or start the browser's native drag.
-                    if(e.pointerType==='mouse'&&e.button===0&&['graph','calculate','function','number-line','snippet','arrow-copy','arrow-paste'].includes(currentTool)){
+                    if(e.pointerType==='mouse'&&e.button===0&&['graph','calculate','function','number-line','snippet','arrow-copy','arrow-paste','ruler'].includes(currentTool)){
                       handlePointerDown(e)
                       e.stopPropagation()
                     }
@@ -2041,6 +2077,13 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
                   onPointerUp={handlePointerUp}
                   onPointerCancel={handlePointerUp}
                   onLostPointerCapture={e => {
+                    if (currentTool === 'ruler' && annotationPointerRef.current === e.pointerId) {
+                      annotationPointerRef.current = null
+                      isDrawingRef.current = false
+                      currentPathRef.current = []
+                      stopInkPreview()
+                      setRulerGuide(null)
+                    }
                     if(calculationDrag.current?.pointerId!==e.pointerId)return
                     calculationDrag.current=null
                     annotationPointerRef.current=null
@@ -2052,6 +2095,11 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
                   {currentTool==='text'&&existingRuns.page===pageNumber&&existingRuns.items.filter(run=>!pageItems.some(item=>item.sourceText?.key===run.key)).map(run=><div key={`source-${run.key}`} aria-hidden style={{position:'absolute',left:run.x*scale,top:run.y*scale,width:run.width*scale,height:run.height*scale,borderBottom:'1px dotted #718ea855',pointerEvents:'none'}}/>)}
                   <PDFInkLayer items={pageItems} width={pageBase.w} height={pageBase.h} scale={scale} usePressure={usePressure}/>
                   <PDFLiveInk ref={liveInkRef} width={pageBase.w} height={pageBase.h} scale={scale}/>
+                  {currentTool === 'ruler' && rulerGuide?.page === pageNumber && isDrawingRef.current &&
+                    <span className="pdf-ruler-measurement" style={{
+                      left: Math.max(0, Math.min(pageBase.w * scale - 64, rulerGuide.end.x * scale + 8)),
+                      top: Math.max(0, Math.min(pageBase.h * scale - 24, rulerGuide.end.y * scale + 8))
+                    }}>{Math.hypot(rulerGuide.end.x - rulerGuide.start.x, rulerGuide.end.y - rulerGuide.start.y).toFixed(1)} pt</span>}
                   {currentTool==='select'&&<PDFDottedLineHandles items={pageItems} width={pageBase.w} height={pageBase.h} scale={scale} onStart={()=>{pushHistory();setLineSuggestion(null)}} onChange={replacements=>{const byId=new Map(replacements.map(item=>[item.id,item]));updatePaths(previous=>previous.map(item=>byId.get(item.id)||item))}} onCancel={originals=>{const byId=new Map(originals.map(item=>[item.id,item]));updatePaths(previous=>previous.map(item=>byId.get(item.id)||item))}}/>}
                   <svg
                     viewBox={`0 0 ${pageBase.w} ${pageBase.h}`}
@@ -2132,6 +2180,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       {showStylusStudio&&<PDFStylusSettings barrel={stylusBarrel} onBarrel={setStylusBarrel} tip={stylusEraser?stylusExtra.tip:'none'} onTip={tip=>{setStylusEraser(tip!=='none');setStylusExtra(previous=>({...previous,tip}))}} extra={stylusExtra} onExtra={setStylusExtra} onReset={()=>{setStylusBarrel('eraser');setStylusEraser(true);setStylusExtra({secondary:'none',tip:'eraser',mode:'precision',size:20,shape:'round'})}} onClose={()=>setShowStylusStudio(false)}/>}
 
       <PDFEditorChrome
+        onRuler={()=>{commitText();setRulerGuide(null);setCurrentTool(currentTool==='ruler'?'select':'ruler')}}
         doc={{name:pdfData?.name,exportImage,saveStatus,history:historyCount,onUndo:undo,onRedo:redo,onSave:handleSave,onDownload:handleDownload,downloading,onCleanCopy:onCleanCopy?handleCleanCopy:null,copying:copyingClean,onClose:handleClose,copyParagraphs,onCopyParagraphs:setCopyParagraphs,onCleanup:exportImage?null:()=>{commitText();setCurrentTool('text');setShowCalculator(false);setShowGraph(false);setShowCleanup(true)}}}
         tools={{autoNumberLines,onAutoNumberLines:()=>setAutoNumberLines(previous=>!previous),autoDashedLines,onAutoDashedLines:()=>setAutoDashedLines(previous=>!previous),autoDottedLines,onAutoDottedLines:()=>setAutoDottedLines(previous=>!previous),lineUndoTimer,onLineUndoTimer:()=>setLineUndoTimer(previous=>!previous),autoStraightLines,onAutoStraightLines:()=>setAutoStraightLines(previous=>!previous),current:currentTool,onTool:tool=>{commitText();setCurrentTool(tool)},color:currentColor,onColor:handleColorChange,colors:COLORS,colorNames:COLOR_NAMES,fontSize,onFontSize:handleFontSizeChange,strokeWidth,onWidth:setStrokeWidth,usePressure,onPressure:()=>setUsePressure(previous=>!previous),eraser:{mode:eraserMode,onMode:setEraserMode,size:eraserSize,onSize:setEraserSize,shape:eraserShape,onShape:setEraserShape,target:eraserTarget,onTarget:setEraserTarget}}}
         pages={{count:numPages,current:pageNumber,showThumbnails:showPages,onToggleThumbnails:()=>{if(focusMode){exitFocusMode();setShowPages(true)}else setShowPages(previous=>!previous)},onNavigate:goToPage,onAddBlank:()=>handleAddPages({mode:'blank',placement:'after'}),onDelete:()=>handleDeletePage(),busy:deletingPage||inserting,canAdd:!!numPages&&!!pageBase&&pageBase.page===pageNumber&&!loading&&!deletingPage&&!inserting}}
