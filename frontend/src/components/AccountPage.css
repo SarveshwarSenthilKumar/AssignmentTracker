@@ -1,0 +1,106 @@
+.account-page {
+  --account-card-padding: clamp(16px, 3vw, 28px);
+  display: grid;
+  gap: 32px;
+  max-width: 1100px;
+  margin-inline: auto;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.account-settings-group,
+.account-settings-grid {
+  display: grid;
+  align-items: start;
+  gap: 16px;
+  min-width: 0;
+}
+
+.account-settings-grid,
+.account-page .account-connection-grid,
+.account-page .ai-access-groups {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.account-page :is(.account-card, .account-settings-grid > *, .account-settings-group > :not(h2, .account-settings-grid)) {
+  min-width: 0;
+  margin: 0;
+  padding: var(--account-card-padding);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-panel);
+}
+
+.account-page h2 { font-size: 20px; font-weight: 650; line-height: 1.3; }
+.account-page h3,
+.account-page .account-time-zone > label:first-child { font-size: 17px; font-weight: 600; line-height: 1.35; }
+.account-page :is(p, label, li, dd, small) { line-height: 1.6; }
+.account-page :is(section, form) > p { max-width: 76ch; }
+.account-page :is(.confirmation-settings, .account-ai-settings, .account-ai-access, .account-connections) p { font-size: 14px; }
+.account-page :is(.confirmation-settings, .account-ai-settings, .account-ai-access, .account-connections) :is(small, legend) { font-size: 13px; }
+.account-page :is(.confirmation-settings, .account-ai-settings, .account-ai-access, .account-connections) h3 + p {
+  margin-top: 8px;
+  margin-bottom: 12px;
+}
+.account-page .account-connection-card { padding: clamp(12px, 2vw, 20px); }
+.account-page .ai-access-groups fieldset { padding: 8px 16px 12px; }
+.account-page .account-ai-report :is(dt, dd) { overflow-wrap: anywhere; }
+.account-page .account-profile-stats > div > div { color: var(--text-secondary); }
+.account-page .account-profile-stats > div > p { color: var(--text-primary); }
+.account-page .account-completion span { color: var(--text-primary); }
+
+.account-overview { display: grid; gap: 18px; }
+.account-identity { display: flex; align-items: center; gap: 14px; }
+.account-identity > div:last-child { min-width: 0; }
+.account-identity strong { font-size: 18px; }
+.account-identity p { margin-top: 2px; color: var(--text-secondary); }
+.account-profile-avatar {
+  display: grid;
+  place-items: center;
+  flex: 0 0 52px;
+  height: 52px;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  background: var(--surface-raised);
+  font-size: 22px;
+  font-weight: 650;
+}
+.account-profile-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.account-profile-stats > div { min-width: 0; }
+.account-profile-stats svg { flex-shrink: 0; }
+.account-completion { padding: 12px 0 0; border-top: 1px solid var(--border); }
+.account-completion progress { display: block; width: 100%; height: 10px; accent-color: var(--accent-solid); }
+
+.account-page .confirmation-settings label,
+.account-page .ai-access-option {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px 18px;
+  padding-block: 12px;
+}
+.account-page :is(.confirmation-settings label, .ai-access-option) > span { flex: 1 1 auto; min-width: 0; }
+.account-page :is(.confirmation-settings, .ai-access-option) input[type="checkbox"] { flex-shrink: 0; margin-top: 3px; }
+.account-page .confirmation-settings :is(select, input[type="number"]) { max-width: 100%; }
+.account-page .confirmation-settings form + h3 { margin-top: 22px; padding-top: 20px; border-top: 1px solid var(--border); }
+.account-page :is(.calendar-detail-actions, .account-ai-actions, .account-connection-actions) { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.account-page :is(.account-ai-key-input, .account-connection-card, .github-token-form, .github-files, .account-ai-report dd) { min-width: 0; }
+.account-page :is(.account-ai-key-input, .github-token-form) input { min-width: 0; }
+.account-page .account-ai-remove button { margin: 8px 8px 0 0; }
+.account-page .account-time-zone :is(input, select) { max-width: 100%; }
+.account-page .account-reset { border-color: var(--danger, #bb5b59); }
+
+@media (max-width: 720px) {
+  .account-settings-grid,
+  .account-page .account-connection-grid,
+  .account-page .ai-access-groups { grid-template-columns: minmax(0, 1fr); }
+  .account-profile-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 420px) {
+  .account-page .confirmation-settings label:has(select, input[type="number"]) { flex-direction: column; }
+  .account-page .confirmation-settings label select { width: 100%; }
+  .account-page .account-time-zone .flex { flex-wrap: wrap; }
+  .account-page .account-time-zone .flex input { flex-basis: 100%; }
+}

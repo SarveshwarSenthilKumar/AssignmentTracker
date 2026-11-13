@@ -33,7 +33,7 @@ export default function TimeZoneSettings() {
       updatePreferences(data);setChoice(null);setMessage('Time zone saved.')
     } catch(error){setError(error.message)} finally{setBusy(false)}
   }
-  return <form onSubmit={save} className="p-4 bg-white/5 rounded-xl border border-white/10 mb-6">
+  return <form onSubmit={save} className="account-time-zone p-4 bg-white/5 rounded-xl border border-white/10 mb-6">
     <label htmlFor="account-time-zone" className="block text-white font-semibold mb-2">Time zone</label>
     <p className="text-slate-400 text-sm mb-3">Used for calendar times, task deadlines, and deadline charts. All-day dates stay the same.</p>
     <div className="mb-4">

@@ -64,6 +64,7 @@ import InlineConfirmation from './components/InlineConfirmation'
 import useShortcuts from './hooks/useShortcuts'
 import ShortcutsPage from './components/ShortcutsPage'
 import './Navigation.css'
+import './components/AccountPage.css'
 import { useState, useEffect, useRef } from 'react'
 import { AlertCircle, Plus, Trash2, Check, X, Loader2, FolderPlus, Folder, LogOut, Sparkles, Link2, ChevronDown, ChevronUp, Edit2, Copy, Save, User, Trophy, Target, Calendar, ArrowUpDown, RefreshCw, Terminal, ChevronRight, FileText, Keyboard } from 'lucide-react'
 import { cn } from './lib/utils'
@@ -2130,31 +2131,23 @@ function App() {
 
         {/* Profile Modal */}
         {page === 'account' && (
-          <div className="app-inline-panel">
-            <div className="bg-slate-900 border border-white/10 rounded-2xl p-6 w-full max-w-md">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-2xl font-bold text-white">Your Profile</h3>
-                <button
-                  onClick={() => navigate('tasks')}
-                  className="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition-all"
-                >
-                  <X size={20} />
-                </button>
-              </div>
+          <div className="account-page">
+            <section className="account-overview account-card" aria-labelledby="account-profile-title">
+              <h2 id="account-profile-title">Your profile</h2>
 
               {/* User Info */}
-              <div className="flex items-center gap-4 mb-6 p-4 bg-slate-800   rounded-xl">
-                <div className="w-16 h-16 bg-slate-800   rounded-full flex items-center justify-center text-white text-2xl font-bold">
+              <div className="account-identity">
+                <div className="account-profile-avatar" aria-hidden="true">
                   {user?.username?.charAt(0).toUpperCase()}
                 </div>
                 <div>
-                  <h4 className="text-xl font-bold text-white">{user?.username}</h4>
-                  <p className="text-slate-400 text-sm">{user?.email}</p>
+                  <strong>{user?.username}</strong>
+                  <p>{user?.email}</p>
                 </div>
               </div>
 
               {/* Stats */}
-              <div className="grid grid-cols-2 gap-4 mb-6">
+              <div className="account-profile-stats">
                 <div className="p-4 bg-white/5 rounded-xl border border-white/10">
                   <div className="flex items-center gap-2 text-slate-400 text-sm mb-1">
                     <Target size={16} />
@@ -2186,28 +2179,35 @@ function App() {
               </div>
 
               {/* Completion Rate */}
-              <div className="p-4 bg-white/5 rounded-xl border border-white/10 mb-6">
+              <div className="account-completion">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-slate-400 text-sm">Completion Rate</span>
                   <span className="text-white font-bold">{getUserStats().completionRate}%</span>
                 </div>
-                <div className="w-full bg-white/10 rounded-full h-3">
-                  <div
-                    className="bg-slate-800   h-3 rounded-full transition-all duration-500"
-                    style={{ width: `${getUserStats().completionRate}%` }}
-                  />
-                </div>
+                <progress aria-label="Task completion rate" value={getUserStats().completionRate} max={100}/>
               </div>
+            </section>
 
-              <AppearanceSettings/>
-              <BirthdaySettings/>
-              <TaskCleanupSettings/>
+            <section className="account-settings-group" aria-labelledby="account-preferences-title">
+              <h2 id="account-preferences-title">Preferences</h2>
+              <div className="account-settings-grid">
+                <AppearanceSettings/>
+                <BirthdaySettings/>
+                <TimeZoneSettings/>
+                <StudyPhoneSettings/>
+                <TaskDisplaySettings/>
+                <ConfirmationSettings/>
+              </div>
+            </section>
+            <section className="account-settings-group" aria-labelledby="account-integrations-title">
+              <h2 id="account-integrations-title">Connections and AI</h2>
               <AccountConnections token={token}/>
-              <TimeZoneSettings /><StudyPhoneSettings/>
-              <TaskDisplaySettings />
-              <ConfirmationSettings />
               <AccountAISettings token={token}/>
               <AccountAIAccess token={token}/>
+            </section>
+            <section className="account-settings-group" aria-labelledby="account-data-title">
+              <h2 id="account-data-title">Data management</h2>
+              <TaskCleanupSettings/>
               <AccountReset token={token} disabled={syncing || testing || !!selectedPDF} onReset={() => {
                 window.dispatchEvent(new CustomEvent('workspace-reset',{detail:user?.id}));setAssistantOpen(false);setAssistantGeneration(previous=>previous+1);setAssistantCalendarId(null)
                 try { pdfs.forEach(file => sessionStorage.removeItem(`document-draft:${file._id}`)) } catch { /* Storage may be unavailable. */ }
@@ -2221,13 +2221,7 @@ function App() {
                 setCommandInput(''); setShowCommandMenu(false); pendingLibraryTask.current = null
               }} />
 
-              <button
-                onClick={() => navigate('tasks')}
-                className="w-full px-4 py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-xl transition-all font-medium"
-              >
-                Close
-              </button>
-            </div>
+            </section>
           </div>
         )}
 

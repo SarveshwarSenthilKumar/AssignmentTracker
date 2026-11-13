@@ -18,7 +18,7 @@ export default function AccountReset({ token, onReset, disabled = false }) {
     } catch (error) { setError(error.message); setPassword('') }
     finally { lock.current = false; setBusy(false) }
   }
-  return <section className="mt-6 rounded-xl border border-slate-600 bg-slate-800/40 p-4" aria-label="Clean account reset">
+  return <section className="account-reset mt-6 rounded-xl border border-slate-600 bg-slate-800/40 p-4" aria-label="Clean account reset">
     <h4 className="text-base font-semibold text-slate-100 flex gap-2 items-center"><RotateCcw size={17}/>Clean account reset</h4>
     <p className="text-sm text-slate-300 mt-2 leading-relaxed">Start with an empty workspace. Permanently removes all tasks, descriptions, links, uploaded files, document edits, original backups, Trash, both sets of folders, personal calendar appointments and date markers, all saved AI conversations (including archived chats), and your custom workspace tabs, layouts, and notes. Also removes your saved Gemini API key, disconnects Canvas, and clears its sync history and local document drafts.</p>
     <p className="text-xs text-slate-400 mt-2">Your username, email, password, and login remain. This cannot be undone.</p>
