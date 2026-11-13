@@ -10,7 +10,7 @@ async function recognizeWithRetry(payload,options){
       const details=error instanceof AssistantAPIError?error.diagnostics:null;
       const retryable=details?.retryable&&['provider_unavailable','network','invalid_response','rate_limit'].includes(details.category);
       const wait=details?.category==='rate_limit'?(details.retryAfterSeconds??60):2**attempt;
-      if(!retryable||attempt>=2||options.signal.aborted||wait>5)throw error;
+      if(!retryable||details.providerStatus===503||attempt>=2||options.signal.aborted||wait>5)throw error;
       await delay(Math.max(1000,wait*1000)+Math.random()*250,undefined,{signal:options.signal});
     }
   }

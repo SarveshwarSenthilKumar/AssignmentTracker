@@ -1,4 +1,5 @@
 const { randomUUID } = require('node:crypto');
+const { setTimeout: delay } = require('node:timers/promises');
 const safeToken = value => typeof value === 'string' ? value.replace(/[^a-zA-Z0-9_.:\[\]-]/g,'').slice(0,150)||null : null;
 function safeMessage(value, secrets=[]) {
   let text=typeof value==='string'?value:'';
@@ -15,7 +16,8 @@ function durationSeconds(value) {
 function retrySeconds(headers,now=Date.now(),data={}) {
   const raw=headers?.get?.('retry-after');
   if(raw){const seconds=durationSeconds(raw);if(seconds!==null)return Math.max(0,seconds);const date=Date.parse(raw);if(Number.isFinite(date))return Math.max(0,Math.ceil((date-now)/1000));}
-  const retry=(data?.error?.details||[]).find(item=>item['@type']?.endsWith('RetryInfo'));
+  const details=Array.isArray(data?.error?.details)?data.error.details:[];
+  const retry=details.find(item=>item?.['@type']?.endsWith('RetryInfo'));
   return durationSeconds(retry?.retryDelay);
 }
 function diagnostic(category,message,action,extra={}) {
@@ -45,15 +47,27 @@ class AssistantAPIError extends Error {
 }
 async function callAssistantAPI(payload,{apiKey,signal,fetcher=fetch,traceId=randomUUID(),metadata={}}={}) {
   const {model,...body}=payload,started=Date.now(),base={traceId,model:safeMessage(model,[apiKey]),stage:'gemini',...metadata};
+  const url=`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model.replace(/^models\//,''))}:generateContent`;
+  const request={method:'POST',headers:{'x-goog-api-key':apiKey.trim(),'Content-Type':'application/json'},body:JSON.stringify(body),signal};
   let response;
+  let data;
+  let attempts=0;
   try {
-    response=await fetcher(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model.replace(/^models\//,''))}:generateContent`,{method:'POST',headers:{'x-goog-api-key':apiKey.trim(),'Content-Type':'application/json'},body:JSON.stringify(body),signal});
+    for (;;) {
+      attempts++;
+      response=await fetcher(url,request);
+      data=await response.json().catch(()=>null);
+      if(response.status!==503||attempts===2||metadata.kind==='connection_test')break;
+      const wait=retrySeconds(response.headers,Date.now(),data)??15;
+      if(wait>15)break;
+      await delay(Math.max(1000,wait*1000)+Math.random()*250,undefined,{signal});
+    }
   } catch(error) {
     const stopped=signal?.aborted;
     throw new AssistantAPIError(diagnostic(stopped?'timeout':'network',stopped?'The AI request timed out or was stopped.':'The backend could not reach Gemini.',stopped?'Retry the question, or reduce the included context.':'Check the backend’s internet access, DNS, proxy and TLS connection.',{...base,source:'network',retryable:true,elapsedMs:Date.now()-started,networkCode:safeToken(error.cause?.code||error.code)}));
   }
-  let data;
-  try {data=await response.json();} catch {
+  base.attempts=attempts;
+  if(data==null){
     if(!response.ok)throw new AssistantAPIError(providerDiagnostic(response.status,null,response.headers,{...base,elapsedMs:Date.now()-started},[apiKey]));
     throw new AssistantAPIError(diagnostic('invalid_response','Gemini returned an unreadable response.','Try again and check the backend connection if this continues.',{...base,source:'gemini',providerStatus:response.status,elapsedMs:Date.now()-started,retryable:true}));
   }
