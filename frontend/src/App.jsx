@@ -33,6 +33,7 @@ import HomePage from './components/HomePage'
 import AppNavigation from './components/AppNavigation'
 import GlobalSearch from './components/GlobalSearch'
 import PageFind from './components/PageFind'
+import { documentRoute, openInTab } from './lib/openInTab'
 import {closeEditorForNavigation} from './lib/editorBridge'
 import {folderTree} from './lib/folderHierarchy'
 import FolderHierarchyControls from './components/FolderHierarchyControls'
@@ -88,7 +89,7 @@ function App() {
   const [page, setPage] = useState(readPage)
   const [editorAssistantHost,setEditorAssistantHost]=useState(null)
   const [assistantRouteId,setAssistantRouteId]=useState(()=>window.location.hash.match(/^#\/assistant\/([a-f\d]{24})$/i)?.[1]||null)
-  const navigate = next => { if(next==='assistant')setAssistantRouteId(null); window.location.hash = `/${next}`; setPage(next.split('/')[0]); setShowCommandMenu(false); window.scrollTo({top:0}) }
+  const navigate = (next, event) => { if(openInTab(event,next))return; if(next==='assistant')setAssistantRouteId(null); window.location.hash = `/${next}`; setPage(next.split('/')[0]); setShowCommandMenu(false); window.scrollTo({top:0}) }
   useEffect(() => { const change = () => { setPage(readPage()); setAssistantRouteId(window.location.hash.match(/^#\/assistant\/([a-f\d]{24})$/i)?.[1]||null); setShowCommandMenu(false); setContextMenu(null); setSelectedTask(pendingLibraryTask.current); pendingLibraryTask.current = null; setShowFolderModal(false); window.scrollTo({top:0}) }; window.addEventListener('hashchange',change); return () => window.removeEventListener('hashchange',change) }, [])
   const [todos, setTodos] = useState([])
   const [taskSearch,setTaskSearch]=useState(''),[taskSearchAll,setTaskSearchAll]=useState(true)
@@ -98,7 +99,7 @@ function App() {
   const bulkDeleteLock=useRef(false)
   const toggleTaskSelection=id=>setSelectedTaskIds(previous=>{const next=new Set(previous);next.has(id)?next.delete(id):next.add(id);return next})
   const [folders, setFolders] = useState([])
-  const [selectedFolder, setSelectedFolder] = useState(null)
+  const [selectedFolder, setSelectedFolder] = useState(() => window.location.hash.match(/^#\/tasks\/folder\/([a-f\d]{24}|all)$/i)?.[1] || null)
   useEffect(()=>{setSelectedTaskIds(new Set())},[selectedFolder,token,taskSearch,taskSearchAll])
   const [input, setInput] = useState('')
   const [newProgress,setNewProgress]=useState({enabled:false,target:'',unit:'',autoComplete:false})
@@ -120,6 +121,22 @@ function App() {
   const [editData, setEditData] = useState({})
   const editRefs = useRef({})
   const [selectedTask, setSelectedTask] = useState(null)
+  useEffect(() => {
+    if (!token) return
+    const id = window.location.hash.match(/^#\/tasks\/([a-f\d]{24})$/i)?.[1]
+    if (!id) return
+    const controller = new AbortController()
+    fetch(`/api/search/tasks/${id}`, { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal })
+      .then(async response => {
+        if (!response.ok) throw new Error('Could not open this task.')
+        const task = await readApiJson(response)
+        if (!controller.signal.aborted && window.location.hash === `#/tasks/${id}`) setSelectedTask(task)
+      })
+      .catch(error => {
+        if (!controller.signal.aborted && window.location.hash === `#/tasks/${id}`) setError(error.message)
+      })
+    return () => controller.abort()
+  }, [token])
   const [deadlineTime, setDeadlineTime] = useState(Date.now)
   const showTaskDeadlines = page === 'tasks' || Boolean(selectedTask)
   useEffect(() => {
@@ -133,7 +150,7 @@ function App() {
       window.removeEventListener('focus', refresh)
     }
   }, [showTaskDeadlines])
-  const [searchJobId,setSearchJobId]=useState(null),[searchCategoryId,setSearchCategoryId]=useState(null),[searchShortcutsQuery,setSearchShortcutsQuery]=useState('')
+  const [searchJobId,setSearchJobId]=useState(()=>window.location.hash.match(/^#\/jobs\/([a-f\d]{24})$/i)?.[1]||null),[searchCategoryId,setSearchCategoryId]=useState(()=>window.location.hash.match(/^#\/calendar\/category\/([a-f\d]{24})$/i)?.[1]||null),[searchShortcutsQuery,setSearchShortcutsQuery]=useState('')
   const [searchLibraryTarget,setSearchLibraryTarget]=useState(null)
   const inputRef = useRef(null)
   const commandInputRef = useRef(null)
@@ -181,7 +198,11 @@ function App() {
   const [errorDetails, setErrorDetails] = useState(null)
   const [showErrorDetails, setShowErrorDetails] = useState(false)
   const [showPDFUploadModal, setShowPDFUploadModal] = useState(false)
-  const [selectedPDF, setSelectedPDF] = useState(null)
+  const [selectedPDF, setSelectedPDF] = useState(() => window.location.hash.match(/^#\/documents\/([a-f\d]{24})$/i)?.[1] || null)
+  useEffect(() => {
+    if (selectedPDF || !/^#\/documents\/[a-f\d]{24}$/i.test(window.location.hash)) return
+    window.history.replaceState(window.history.state, '', '#/documents')
+  }, [selectedPDF])
   useEffect(() => {
     if (!selectedPDF) return
     const confirmExit = event => {
@@ -191,7 +212,8 @@ function App() {
     window.addEventListener('beforeunload', confirmExit)
     return () => window.removeEventListener('beforeunload', confirmExit)
   }, [selectedPDF])
-  const openDocument = async id => {
+  const openDocument = async (id, event) => {
+    if (openInTab(event, documentRoute(id))) return
     if (id === selectedPDF) return
     if (selectedPDF) {
       await closeEditorForNavigation(selectedPDF, () => setSelectedPDF(id))
@@ -201,8 +223,11 @@ function App() {
   }
   const [pdfs, setPdfs] = useState([])
   const [pdfFolders, setPdfFolders] = useState([])
-  const [selectedPDFFolder, setSelectedPDFFolder] = useState('all')
-  const [assistantOpen,setAssistantOpen]=useState(false),[assistantGeneration,setAssistantGeneration]=useState(0),[assistantCalendarId,setAssistantCalendarId]=useState(null)
+  const [selectedPDFFolder, setSelectedPDFFolder] = useState(() => {
+    const folder = window.location.hash.match(/^#\/documents\/folder\/([a-f\d]{24}|all|inbox|trash)$/i)?.[1]
+    return folder === 'inbox' ? null : folder || 'all'
+  })
+  const [assistantOpen,setAssistantOpen]=useState(false),[assistantGeneration,setAssistantGeneration]=useState(0),[assistantCalendarId,setAssistantCalendarId]=useState(()=>new URLSearchParams(window.location.hash.split('?')[1]).get('event'))
   useEffect(()=>{
     if(!isAuthenticated){setAssistantOpen(false);return}
     const shortcut=SHORTCUTS.find(item=>item.id==='assistant-toggle')
@@ -1541,7 +1566,17 @@ function App() {
     return taskSearchTerms.every(term=>text.includes(term))
   }))
 
-  const openSearchResult=async result=>{
+  const openSearchResult=async (result,event)=>{
+    if (result.type === 'tasks' && openInTab(event, `tasks/${result.id}`)) return
+    if (result.type === 'taskFolders' && openInTab(event, `tasks/folder/${result.id}`)) return
+    if (result.type === 'events' && openInTab(event, `calendar/?event=${encodeURIComponent(result.id)}`)) return
+    if (result.type === 'categories' && openInTab(event, `calendar/category/${result.id}`)) return
+    if (result.type === 'jobs' && openInTab(event, `jobs/${result.id}`)) return
+    if (result.type === 'documents' && openInTab(event, result.trashed ? 'documents/folder/trash' : documentRoute(result.id))) return
+    if (result.type === 'documentFolders' && openInTab(event, `documents/folder/${result.id}`)) return
+    if (result.type === 'study' && openInTab(event, `study/${result.id}`)) return
+    if (result.type === 'chats' && openInTab(event, `assistant/${result.id}`)) return
+    if (result.route && openInTab(event, result.route)) return
     if(result.type==='campus'){
       const url=new URL(result.url)
       if(!['http:','https:'].includes(url.protocol))throw new Error('The event link is unavailable. Open it from Calendar instead.')
@@ -1592,8 +1627,8 @@ function App() {
         <PageFind key={page} scope={pageFindScope} disabled={!!(selectedPDF || assistantOpen)}/>
         {page!=='home'&&<div className="platform-page-title"><h1>{page==='admin'?'Admin portal':page==='suggest-feature'?'Feature suggestions':page==='report-bug'?'Report a bug':page==='roadmap'?'Site roadmap':page==='analytics'?'Analytics':page==='handbook'?'Product handbook':page==='logbook'?'Update logbook':page==='prep'?'Prep':page==='study'?'Question bank':page==='workspace'?'Workspace':page==='tasks'?'Tasks':page==='calendar'?'Calendar':page==='documents'?'Document library':page==='jobs'?'Jobs':page==='cover-letters'?'Cover letters':page==='resumes'?'Resumes':page==='visualization'?'Task visualization':page==='canvas'?'Canvas integration':page==='account'?'Account':page==='assistant'?'AI assistant':'Keyboard shortcuts'}</h1><p>{page==='admin'?'Review bug reports and feature suggestions from users.':page==='suggest-feature'?'Share ideas for improving the platform and follow their progress.':page==='report-bug'?'Report section-specific issues and follow their status.':page==='roadmap'?'Explore ideas, planned improvements and features in progress.':page==='analytics'?'Storage, activity, progress and your complete account inventory.':page==='handbook'?'Feature instructions and technical reference.':page==='logbook'?'Numbered platform changes, fixes and implementation history.':page==='prep'?'Prepare your resumes, cover letters and interview answers in one place.':page==='study'?'Save questions and topics, review answers, and track what you have studied.':page==='cover-letters'?'Store cover letters for your applications and keep versions ready to edit or download.':page==='jobs'?'Save job links and details alongside your resumes.':page==='resumes'?'Upload and keep your resumes ready for your next opportunity.':page==='workspace'?'Build a personal workflow with tabs, tools, and movable windows.':page==='tasks'?'Plan your work and track progress.':page==='calendar'?'Plan deadlines, assignments, and personal events in one place.':page==='documents'?'Organize and edit your files.':page==='visualization'?'Explore relationships, deadlines, and progress across your workspace.':page==='canvas'?'Manage your course connection and imports.':page==='account'?'Review your profile and workspace activity.':page==='assistant'?'Think, write, learn, and work with your files in a dedicated conversation workspace.':'A searchable reference for navigation and actions.'}</p></div>}
         <InlineConfirmation {...taskConfirmation} reveal />
-        {page==='home'&&<HomePage user={user} token={token} tasks={todos} documents={pdfs} folders={folders} loading={loading} canvasStatus={canvasStatus} onNavigate={navigate} onOpenTask={task=>setSelectedTask(task)} onOpenDocument={openDocument} onOpenCalendar={entry=>{setAssistantCalendarId(entry._id);navigate('calendar')}} onNewTask={()=>{setSelectedFolder('all');navigate('tasks');setTimeout(()=>inputRef.current?.focus(),0)}} onUpload={()=>{setSelectedPDFFolder('all');setShowPDFUploadModal(true)}} onRefresh={()=>Promise.all([fetchTodos(false),fetchPDFs()])}/>}
-        <WorkflowWorkspace key={'workspace:'+user?.id+':'+assistantGeneration} open={page==='workspace'} token={token} userId={user?.id} tasks={todos} folders={folders} documents={pdfs} documentFolders={pdfFolders} onTasksChange={setTodos} onOpenTask={task=>setSelectedTask(task)} onStatusChange={updateTodoStatus} onOpenDocument={openDocument} onUpload={()=>{setSelectedPDFFolder('all');setShowPDFUploadModal(true)}} onNavigate={navigate} onOpenCalendarEntry={entry=>{setAssistantCalendarId(entry._id);navigate('calendar')}} onOpenAssistant={()=>setAssistantOpen(true)} keyboardEnabled={!selectedPDF&&!assistantOpen&&!selectedTask&&!showPDFUploadModal&&!showCommandMenu}/>
+        {page==='home'&&<HomePage user={user} token={token} tasks={todos} documents={pdfs} folders={folders} loading={loading} canvasStatus={canvasStatus} onNavigate={navigate} onOpenTask={(task,event)=>{if(!openInTab(event, `tasks/${task._id}`))setSelectedTask(task)}} onOpenDocument={openDocument} onOpenCalendar={(entry,event)=>{if(openInTab(event,`calendar/?event=${encodeURIComponent(entry._id)}`))return;setAssistantCalendarId(entry._id);navigate('calendar')}} onNewTask={()=>{setSelectedFolder('all');navigate('tasks');setTimeout(()=>inputRef.current?.focus(),0)}} onUpload={()=>{setSelectedPDFFolder('all');setShowPDFUploadModal(true)}} onRefresh={()=>Promise.all([fetchTodos(false),fetchPDFs()])}/>}
+        <WorkflowWorkspace key={'workspace:'+user?.id+':'+assistantGeneration} open={page==='workspace'} token={token} userId={user?.id} tasks={todos} folders={folders} documents={pdfs} documentFolders={pdfFolders} onTasksChange={setTodos} onOpenTask={(task,event)=>{if(!openInTab(event, `tasks/${task._id}`))setSelectedTask(task)}} onStatusChange={updateTodoStatus} onOpenDocument={openDocument} onUpload={()=>{setSelectedPDFFolder('all');setShowPDFUploadModal(true)}} onNavigate={navigate} onOpenCalendarEntry={entry=>{setAssistantCalendarId(entry._id);navigate('calendar')}} onOpenAssistant={()=>setAssistantOpen(true)} keyboardEnabled={!selectedPDF&&!assistantOpen&&!selectedTask&&!showPDFUploadModal&&!showCommandMenu}/>
         {page==='calendar' && <CalendarPage onTaskCreated={task=>setTodos(previous=>[...previous.filter(item=>item._id!==task._id),task])} focusCategoryId={searchCategoryId} onCategoryFocused={()=>setSearchCategoryId(null)} focusEntryId={assistantCalendarId} onEntryFocused={()=>setAssistantCalendarId(null)} documents={pdfs} documentFolders={pdfFolders} onDocumentsChange={setPdfs} onOpenDocument={openDocument} tasks={todos} token={token} keyboardEnabled={!selectedPDF&&!assistantOpen} onOpenTask={task=>{pendingLibraryTask.current=task;setSelectedFolder('all');navigate('tasks')}} onRefreshTasks={fetchTodos} onSyncCanvas={syncCanvas} onCanvasSettings={()=>navigate('canvas')} canvasStatus={canvasStatus} syncing={syncing} />}
         {canvasNotice && <div role="status" className="calendar-feedback">{canvasNotice}<button onClick={()=>setCanvasNotice('')} aria-label="Dismiss Canvas sync notice"><X size={15}/></button></div>}
         {page==='cover-letters' && <CoverLettersPage token={token} documents={pdfs} onDocumentsChange={setPdfs} onOpen={openDocument}/>}
@@ -1664,7 +1699,7 @@ function App() {
           <div className="flex gap-3 overflow-x-auto pb-2">
             {/* All Tasks */}
             <button
-              onClick={() => setSelectedFolder('all')}
+              onClick={event => { if (!openInTab(event, `tasks/folder/all`)) setSelectedFolder('all') }}
               className={cn(
                 "flex-shrink-0 px-4 py-2 rounded-xl transition-all flex items-center gap-2 group text-sm",
                 selectedFolder === 'all'
@@ -1690,7 +1725,7 @@ function App() {
               className="flex-shrink-0"
             >
               <button
-                onClick={() => setSelectedFolder(null)}
+                onClick={event => { if (!openInTab(event, `tasks/folder/inbox`)) setSelectedFolder(null) }}
                 className={cn(
                   "flex-shrink-0 px-4 py-2 rounded-xl transition-all flex items-center gap-2 group text-sm",
                   selectedFolder === null
@@ -1739,7 +1774,7 @@ function App() {
                   </div>
                 ) : (
                   <button
-                    onClick={() => setSelectedFolder(folder._id)}
+                    onClick={event => { if (!openInTab(event, `tasks/folder/${folder._id}`)) setSelectedFolder(folder._id) }}
                     className={cn(
                       "flex-shrink-0 px-4 py-2 rounded-xl transition-all flex items-center gap-2 group text-sm",
                       selectedFolder === folder._id
@@ -2570,15 +2605,20 @@ function App() {
                 documents={pdfs}
                 folders={pdfFolders}
                 disabled={disabled}
-                onOpenDocument={id => leave(() => setSelectedPDF(id))}
+                onOpenDocument={(id, event) => {
+                  if (!openInTab(event, documentRoute(id))) return leave(() => setSelectedPDF(id))
+                }}
                 token={token}
                 onFileCreated={file => setPdfs(previous => [file, ...previous.filter(item => item._id !== file._id)])}
-                onOpenFolder={id => leave(() => {
+                onOpenFolder={(id,event) => {
+                  if (openInTab(event, `documents/folder/${id || 'inbox'}`)) return
+                  return leave(() => {
                   setSelectedPDFFolder(id)
                   setSelectedPDF(null)
                   navigate('documents')
                   fetchPDFs()
-                })}
+                  })
+                }}
               />
             )}
             pdfId={selectedPDF}

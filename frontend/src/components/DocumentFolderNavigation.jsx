@@ -40,10 +40,10 @@ export default function DocumentFolderNavigation({ documentId, documents, folder
     .filter(file => !file.deletedAt && (file.pdfFolder || null) === (document.pdfFolder || null))
     .sort((a, b) => a.name.localeCompare(b.name)) : []
 
-  const navigate = async (open, id) => {
+  const navigate = async (open, id, event) => {
     setNavigating(true)
     try {
-      await open(id)
+      await open(id, event)
     } finally {
       setNavigating(false)
     }
@@ -94,7 +94,7 @@ export default function DocumentFolderNavigation({ documentId, documents, folder
         </button>
       ) : (
         <>
-          <button type="button" className="document-folder-control" disabled={unavailable} onClick={() => navigate(onOpenFolder, 'all')}>
+          <button type="button" className="document-folder-control" disabled={unavailable} onClick={event => navigate(onOpenFolder, 'all', event)}>
             <Library size={16} aria-hidden="true" /> Documents
           </button>
           <span className="document-folder-divider" aria-hidden="true">/</span>
@@ -105,11 +105,11 @@ export default function DocumentFolderNavigation({ documentId, documents, folder
               <ChevronDown size={14} aria-hidden="true" />
             </summary>
             <div className="document-folder-options" aria-label="Folders">
-              <button type="button" disabled={unavailable} onClick={() => navigate(onOpenFolder, null)}>
+              <button type="button" disabled={unavailable} onClick={event => navigate(onOpenFolder, null, event)}>
                 <Folder size={16} aria-hidden="true" /> Unfiled
               </button>
               {locations.map(location => (
-                <button key={location._id} type="button" disabled={unavailable} onClick={() => navigate(onOpenFolder, location._id)}>
+                <button key={location._id} type="button" disabled={unavailable} onClick={event => navigate(onOpenFolder, location._id, event)}>
                   <Folder size={16} aria-hidden="true" /> {location.path}
                 </button>
               ))}
@@ -124,7 +124,7 @@ export default function DocumentFolderNavigation({ documentId, documents, folder
                 {siblings.map(file => file._id === documentId ? (
                   <span key={file._id} aria-current="page"><FileText size={16} aria-hidden="true" /> {file.name}</span>
                 ) : (
-                  <button key={file._id} type="button" disabled={unavailable} onClick={() => navigate(onOpenDocument, file._id)}>
+                  <button key={file._id} type="button" disabled={unavailable} onClick={event => navigate(onOpenDocument, file._id, event)}>
                     <FileText size={16} aria-hidden="true" /> {file.name}
                   </button>
                 ))}
@@ -146,7 +146,7 @@ export default function DocumentFolderNavigation({ documentId, documents, folder
       )}
       {created && !hidden && <div className="document-folder-created">
         <span role="status">Created {created.name}</span>
-        <button type="button" className="document-folder-control" disabled={unavailable} onClick={() => navigate(onOpenDocument, created._id)}>Open file</button>
+        <button type="button" className="document-folder-control" disabled={unavailable} onClick={event => navigate(onOpenDocument, created._id, event)}>Open file</button>
         <button type="button" className="document-folder-control" onClick={() => setCreated(null)}>Dismiss</button>
       </div>}
       <dialog ref={dialog} className="document-file-dialog" aria-labelledby={`${menuGroup}-create-title`}
