@@ -1,5 +1,5 @@
 {
-  "edition_date": "November 4, 2026",
+  "edition_date": "November 13, 2026",
   "verification": "PDF generated; visual verification left to user per repository instructions.",
   "chapters": [
     {
@@ -7,190 +7,194 @@
       "page": 4
     },
     {
-      "title": "November 4 edition: current features and setup",
+      "title": "November 13 edition",
       "page": 5
     },
     {
+      "title": "November 4 edition: features and setup",
+      "page": 7
+    },
+    {
       "title": "Earlier features: October 28 reference",
-      "page": 9
+      "page": 11
     },
     {
       "title": "Product overview",
-      "page": 14
-    },
-    {
-      "title": "Architecture: the whole system",
-      "page": 15
-    },
-    {
-      "title": "Data model and persistence",
       "page": 16
     },
     {
-      "title": "Setup, configuration and deployment boundaries",
+      "title": "Architecture: the whole system",
       "page": 17
     },
     {
-      "title": "Home, navigation and global search",
+      "title": "Data model and persistence",
       "page": 18
     },
     {
-      "title": "Tasks: everyday planning",
+      "title": "Setup, configuration and deployment boundaries",
       "page": 19
     },
     {
-      "title": "Task relationships and attached evidence",
+      "title": "Home, navigation and global search",
       "page": 20
     },
     {
-      "title": "Folders, descriptions and folder media",
+      "title": "Tasks: everyday planning",
       "page": 21
     },
     {
-      "title": "Calendar: a unified view of several sources",
+      "title": "Task relationships and attached evidence",
       "page": 22
     },
     {
-      "title": "Calendar: recurrence, colors, categories and undo",
+      "title": "Folders, descriptions and folder media",
       "page": 23
     },
     {
-      "title": "Public TXST events and the scraper",
+      "title": "Calendar: a unified view of several sources",
       "page": 24
     },
     {
-      "title": "Sports and F1 season import",
+      "title": "Calendar: recurrence, colors, categories and undo",
       "page": 25
     },
     {
-      "title": "Canvas synchronization and ICS import",
+      "title": "Public TXST events and the scraper",
       "page": 26
     },
     {
-      "title": "Document library and supported formats",
+      "title": "Sports and F1 season import",
       "page": 27
     },
     {
-      "title": "Typed notes and the writing studio",
+      "title": "Canvas synchronization and ICS import",
       "page": 28
     },
     {
-      "title": "Document creation: blank, Markdown and AI",
+      "title": "Document library and supported formats",
       "page": 29
     },
     {
-      "title": "PDF editor: annotation fundamentals",
+      "title": "Typed notes and the writing studio",
       "page": 30
     },
     {
-      "title": "PDF text: editing, fonts and copying",
+      "title": "Document creation: blank, Markdown and AI",
       "page": 31
     },
     {
-      "title": "PDF pages, views and productivity tools",
+      "title": "PDF editor: annotation fundamentals",
       "page": 32
     },
     {
-      "title": "Pen, touch, mouse and rendering performance",
+      "title": "PDF text: editing, fonts and copying",
       "page": 33
     },
     {
-      "title": "Mathematics, calculator, function scanning and graphs",
+      "title": "PDF pages, views and productivity tools",
       "page": 34
     },
     {
-      "title": "OneNote imports and preserving handwriting",
+      "title": "Pen, touch, mouse and rendering performance",
       "page": 35
     },
     {
-      "title": "AI assistant: conversations and user experience",
+      "title": "Mathematics, calculator, function scanning and graphs",
       "page": 36
     },
     {
-      "title": "AI context, credentials, access and diagnostics",
+      "title": "OneNote imports and preserving handwriting",
       "page": 37
     },
     {
-      "title": "AI document editing and PDF cleanup",
+      "title": "AI assistant: conversations and user experience",
       "page": 38
     },
     {
-      "title": "Jobs: links, screenshots, PDFs and local extraction",
+      "title": "AI context, credentials, access and diagnostics",
       "page": 39
     },
     {
-      "title": "Cover letters: reference voice and template fidelity",
+      "title": "AI document editing and PDF cleanup",
       "page": 40
     },
     {
-      "title": "Resumes and company-specific tailoring",
+      "title": "Jobs: links, screenshots, PDFs and local extraction",
       "page": 41
     },
     {
-      "title": "Custom workspace and task visualization",
+      "title": "Cover letters: reference voice and template fidelity",
       "page": 42
     },
     {
-      "title": "Study stars and learning workflows",
+      "title": "Resumes and company-specific tailoring",
       "page": 43
     },
     {
-      "title": "Account, authentication and security boundaries",
+      "title": "Custom workspace and task visualization",
       "page": 44
     },
     {
-      "title": "Downloads, recovery and the meaning of Save",
+      "title": "Study stars and learning workflows",
       "page": 45
     },
     {
-      "title": "Separate daily-events site and QR poster",
+      "title": "Account, authentication and security boundaries",
       "page": 46
     },
     {
-      "title": "Guided end-to-end workflow",
+      "title": "Downloads, recovery and the meaning of Save",
+      "page": 47
+    },
+    {
+      "title": "Separate daily-events site and QR poster",
       "page": 48
     },
     {
-      "title": "Technical questions: architecture and data",
-      "page": 49
-    },
-    {
-      "title": "Technical questions: PDF, input and performance",
+      "title": "Guided end-to-end workflow",
       "page": 50
     },
     {
-      "title": "Technical questions: AI, extraction and trust",
+      "title": "Technical questions: architecture and data",
       "page": 51
     },
     {
-      "title": "Engineering case studies",
+      "title": "Technical questions: PDF, input and performance",
       "page": 52
     },
     {
-      "title": "Limitations, testing plan and roadmap",
+      "title": "Technical questions: AI, extraction and trust",
       "page": 53
     },
     {
-      "title": "Troubleshooting and operational recovery",
+      "title": "Engineering case studies",
       "page": 54
     },
     {
-      "title": "Source map and feature inventory",
+      "title": "Limitations, testing plan and roadmap",
       "page": 55
     },
     {
-      "title": "Keyboard shortcut reference",
+      "title": "Troubleshooting and operational recovery",
       "page": 56
     },
     {
+      "title": "Source map and feature inventory",
+      "page": 57
+    },
+    {
+      "title": "Keyboard shortcut reference",
+      "page": 58
+    },
+    {
       "title": "API implementation inventory",
-      "page": 61
+      "page": 63
     },
     {
       "title": "Technical quick reference",
-      "page": 70
+      "page": 73
     }
   ],
   "shortcut_count": 88,
-  "route_declaration_count": 136
+  "route_declaration_count": 147
 }

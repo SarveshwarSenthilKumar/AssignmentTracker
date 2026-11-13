@@ -1,6 +1,6 @@
 # How to use this handbook
 
-This is a source-based guide to Sarveshwar Senthil Kumar's AssignmentTracker, updated on November 4, 2026. It combines a complete product manual, an architecture reference, guided workflows and engineering notes. It describes the implementation without assuming that every feature has passed runtime testing or works with every external service. This Markdown powers the in-app handbook; the accompanying PDF is the downloadable edition.
+This is a source-based guide to Sarveshwar Senthil Kumar's AssignmentTracker, updated on November 13, 2026. It combines a complete product manual, an architecture reference, guided workflows and engineering notes. It describes the implementation without assuming that every feature has passed runtime testing or works with every external service. This Markdown powers the in-app handbook; the accompanying PDF is the downloadable edition.
 
 ## Three ways to read it
 - Getting started: read Product overview, Architecture and Setup, then follow the guided end-to-end workflow.
@@ -21,9 +21,52 @@ Code takes precedence over older documentation. For example, the assistant can e
 
 Sources: README.md; frontend/src/App.jsx; frontend/src/components/DocumentEditor.jsx; backend/assistantEditor.js.
 
-# November 4 edition: current features and setup
+# November 13 edition
 
-This edition includes the current feature breakdown and application changes through Update 398 in LOGBOOK.md. Update 399 records the separate logbook refresh. Update numbers identify history entries, not product versions. The current instructions below supersede earlier descriptions where behavior has changed. No application tests, builds, provider probes, browser QA or PDF visual verification were run for this edition, per repository instructions.
+This chapter covers application changes since the November 4 edition. The chapters that follow retain the full product walkthrough and technical reference.
+
+## Home and overdue tasks
+
+Home shows an Overdue count and previews for dashboard items. Select **Customize stats** to choose and arrange up to eight cards. Review the live preview before saving your layout. Available metrics include overdue and open work, completed tasks, tasks without a planned work day, calendar activity and documents. Tasks also flags overdue items in the task interface.
+
+## Daily progress, milestones and streaks
+
+Open a progress task to log an amount for a date, add a note and review daily history. Add dated milestones to set intermediate targets. When you enable automatic completion, reaching the progress target can complete the task. Use the task streak calendar to review recent completion activity and inspect individual days for completed tasks.
+
+## Completed tasks and Recently deleted
+
+Use **Account → Task cleanup** to set an age for automatically moving completed tasks into Recently deleted. Set the recovery period separately to control when new deletions expire permanently. Each timer can be turned off independently. In Recently deleted, you can restore a recoverable task or permanently delete its recovery record. Use **Recreate task** on a completed or eligible deleted task when you want a fresh task for the same work.
+
+## Calendar views, planning and reminders
+
+- Select **Open in new tab** in the Calendar header to open Calendar in a separate browser tab.
+- In Month view, turn on **Full day display** to show all entries in each day cell. Use **Shrink day** or **Expand day** on individual cells. The compact view shows up to three entries and a count of the rest.
+- When creating a timed entry, **All work day (9 AM–5 PM)** fills in working hours. **All day** creates a date-based entry.
+- Select a date to add or edit its day note. A dot beside the date marks saved notes. Set your birthday in Account to display it annually on Calendar.
+- For eligible events, select **Interested in going** and use **Interested events only** to filter the calendar. Use **Log attendance** after attending.
+- Set a reminder on a timed event to receive a notice while the signed-in app is running. Use the notice to open the calendar entry.
+
+## Class schedules
+
+Open **Class schedule** in Calendar to enter classes as recurring meetings or import them from a schedule file. The import attempts local text extraction and uses Gemini to organize the text or read the original file when needed. Review the extracted course names, meeting days, times and locations. Use **Fill class form** to review and save each course separately. Use the schedule PDF option to download a copy.
+
+## Documents and PDF editor
+
+- Use the folder navigation inside the editor to browse documents, switch files or start a new file. Hide the sidebar when you need more page space. The editor prompts before switching or leaving when edits need attention.
+- Use **Download annotated PDF** to export the current text boxes, ink and inserts in the PDF. The editor opens in Select text mode and exposes viewing controls there.
+- Use **Arrow copy** to drag around a region, draw an arrow to position the copy, review the translucent preview and select **Paste copy**. The arrow shaft and head can be drawn together or in separate strokes.
+- Adjust pen and highlighter sizes with the size controls. The eraser can remove shapes. Touch scrolling settings include **Glide after release** and related movement controls.
+- Open the calculator from the graph workspace to calculate without leaving the graph. The calculator and math recognition handle common multiplication symbols, including × and ·.
+
+Sources: frontend/src/App.jsx, HomePage.jsx, TaskProgress.jsx, TaskStreaks.jsx, TaskCleanupSettings.jsx, CalendarPage.jsx, ClassScheduleImport.jsx, DocumentFolderNavigation.jsx, PDFEditorChrome.jsx and PDFGraph.jsx. Backend implementation includes taskProgress.js, completedTaskCleanup.js, taskDeletionRecovery.js, calendarEntries.js and classScheduleImport.js.
+
+## Feedback and roadmap
+
+Use **Report a bug** to submit a section-specific issue and follow its status. Use **Feature suggestions** to submit ideas and track their progress. Open **Site roadmap** for ideas, planned work and features in progress. Authorized administrators can review submissions in the Admin portal.
+
+# November 4 edition: features and setup
+
+This edition includes the current feature breakdown and application changes through Update 398 in LOGBOOK.md. Update 399 records the separate logbook refresh. Update numbers identify history entries, not product versions. See the November 13 edition for subsequent changes. No application tests, builds, provider probes, browser QA or PDF visual verification were run for this edition, per repository instructions.
 
 ## Find the right workspace
 
@@ -43,7 +86,7 @@ In Tasks, enter Apply to jobs, enable Track progress over multiple days, set a t
 - Multiple entries on one day add together. Daily history groups entries and shows today's amount.
 - Remove an incorrect entry to recalculate totals. Edit target changes the target/unit without deleting history.
 - Amounts and targets are positive whole numbers. Progress can exceed the target; actual totals remain visible while the bar caps at 100%.
-- Task status remains manual even when the target is reached.
+- Task status stays manual unless you enable automatic completion for the progress task.
 
 Progress saves with the main platform's account-owned tasks, not Daily Events. Entry dates follow the account time zone when entered and keep their calendar labels if the zone changes. Stable entry IDs prevent the same retried request from counting twice; the backend allows up to 10,000 entries per task. Restart the backend for the progress routes; no new package is needed.
 

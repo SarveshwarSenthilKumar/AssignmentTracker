@@ -14,8 +14,8 @@ ROOT=Path(__file__).resolve().parents[2]
 OUT=ROOT/'output/pdf'
 SOURCE=OUT/'AssignmentTracker-Product-and-Technical-Handbook.md'
 PDF=OUT/'AssignmentTracker-Product-and-Technical-Handbook.pdf'
-EDITION_DATE='November 4, 2026'
-EDITION_FOOTER='04 NOV 2026'
+EDITION_DATE='November 13, 2026'
+EDITION_FOOTER='13 NOV 2026'
 NAVY=colors.HexColor('#142B45'); ACCENT=colors.HexColor('#247C86'); INK=colors.HexColor('#21364A'); MUTED=colors.HexColor('#647888'); LINE=colors.HexColor('#D9E3E8'); PALE=colors.HexColor('#EFF5F6')
 for name,file in [('Body','calibri.ttf'),('Body-Bold','calibrib.ttf'),('Body-Italic','calibrii.ttf'),('Body-BoldItalic','calibriz.ttf')]:
     pdfmetrics.registerFont(TTFont(name,str(Path('C:/Windows/Fonts')/file)))
