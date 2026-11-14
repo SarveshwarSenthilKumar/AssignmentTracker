@@ -925,6 +925,27 @@ app.put('/api/todos/:id/star', authenticateToken, async (req, res) => {
   }
 });
 
+app.put('/api/todos/:id/attachment-link', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+  const { url, linked } = req.body || {};
+  if (!/^[a-f\d]{24}$/i.test(id) || typeof url !== 'string' || url.length > 2048 || typeof linked !== 'boolean') {
+    return res.status(400).json({ message: 'Enter a valid web address.' });
+  }
+  let parsed;
+  try { parsed = new URL(url.trim()); } catch { /* Existing invalid links can still be removed. */ }
+  if (linked && (!parsed || !['https:', 'http:'].includes(parsed.protocol) || parsed.username || parsed.password)) {
+    return res.status(400).json({ message: 'Enter an HTTP or HTTPS web address.' });
+  }
+  try {
+    const update = linked ? { $addToSet: { links: parsed.href } } : { $pull: { links: url } };
+    const task = await Todo.findOneAndUpdate({ _id: id, user: req.user.userId }, update, { new: true }).select('links');
+    if (!task) return res.status(404).json({ message: 'Task not found.' });
+    res.json({ links: task.links });
+  } catch {
+    res.status(500).json({ message: 'Could not save the task link.' });
+  }
+});
+
 app.put('/api/todos/:id', authenticateToken, async (req, res) => {
   try {
     const { status, description, links, text, dueDate } = req.body;

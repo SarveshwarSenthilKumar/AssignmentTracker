@@ -182,6 +182,11 @@ function App() {
   const [editData, setEditData] = useState({})
   const editRefs = useRef({})
   const [selectedTask, setSelectedTask] = useState(null)
+  const updateTaskLinks = (id, links) => {
+    setTodos(previous => previous.map(task => task._id === id ? { ...task, links } : task))
+    setSelectedTask(previous => previous?._id === id ? { ...previous, links } : previous)
+    setEditData(previous => previous[id] ? { ...previous, [id]: { ...previous[id], links: links.join('\n') } } : previous)
+  }
   useEffect(() => {
     if (!token) return
     const id = window.location.hash.match(/^#\/tasks\/([a-f\d]{24})$/i)?.[1]
@@ -1105,26 +1110,6 @@ function App() {
                 {todo.description && (
                   <TaskDescription text={todo.description} documents={pdfs} onOpen={openDocument} />
                 )}
-                {todo.links && todo.links.length > 0 && (
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2 text-slate-400 text-xs">
-                      <Link2 size={12} />
-                      <span>Links</span>
-                    </div>
-                    {todo.links.map((link, idx) => (
-                      <a
-                        key={idx}
-                        href={link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2 text-primary-400 hover:text-primary-300 text-xs transition-colors hover:underline"
-                      >
-                        <Link2 size={10} />
-                        {link}
-                      </a>
-                    ))}
-                  </div>
-                )}
                 {todo.dueDate && (
                   <div className="flex items-center gap-2 text-slate-400 text-xs">
                     <Calendar size={12} />
@@ -1136,7 +1121,7 @@ function App() {
             {todo.canvasType!=='calendar_event'&&<TaskSchedule task={todo} token={token} onSaved={updated=>setTodos(previous=>previous.map(task=>task._id===updated._id?updated:task))}/>}
             {!todo.progressTarget && <TaskProgress key={`progress:${todo._id}`} task={todo} token={token} onSaved={saveProgressTask}/>}
             <TaskDependencies taskId={todo._id} tasks={todos} token={token} onTasksChange={setTodos} onOpenTask={setSelectedTask} />
-            <TaskAttachments taskId={todo._id} documents={pdfs} folders={pdfFolders} token={token} onDocumentsChange={setPdfs} onOpen={openDocument} onLibrary={() => { setSelectedPDFFolder('all'); navigate('documents') }} onInsert={isEditing ? reference => {
+            <TaskAttachments taskId={todo._id} links={todo.links} onLinksChange={links=>updateTaskLinks(todo._id, links)} documents={pdfs} folders={pdfFolders} token={token} onDocumentsChange={setPdfs} onOpen={openDocument} onLibrary={() => { setSelectedPDFFolder('all'); navigate('documents') }} onInsert={isEditing ? reference => {
               const field = document.getElementById(`task-description-${todo._id}`)
               const current = editData[todo._id]?.description || ''
               const start = field?.selectionStart ?? current.length, end = field?.selectionEnd ?? start
@@ -2474,7 +2459,7 @@ function App() {
                 <label className="block text-slate-400 text-sm mb-2">Description</label>
                 <TaskDescription text={selectedTask.description || 'No description'} documents={pdfs} onOpen={openDocument} />
                 <TaskDependencies key={`dependencies:${selectedTask._id}`} taskId={selectedTask._id} tasks={todos} token={token} onTasksChange={setTodos} onOpenTask={setSelectedTask} />
-                <TaskAttachments key={selectedTask._id} taskId={selectedTask._id} documents={pdfs} folders={pdfFolders} token={token} onDocumentsChange={setPdfs} onOpen={openDocument} onLibrary={() => { setSelectedPDFFolder('all'); navigate('documents') }} />
+                <TaskAttachments key={selectedTask._id} taskId={selectedTask._id} links={selectedTask.links} onLinksChange={links=>updateTaskLinks(selectedTask._id, links)} documents={pdfs} folders={pdfFolders} token={token} onDocumentsChange={setPdfs} onOpen={openDocument} onLibrary={() => { setSelectedPDFFolder('all'); navigate('documents') }} />
               </div>
 
               {selectedTask.canvasType!=='calendar_event'&&<TaskSchedule task={selectedTask} token={token} onSaved={updated=>{setTodos(previous=>previous.map(task=>task._id===updated._id?updated:task));setSelectedTask(updated)}}/>}
@@ -2490,26 +2475,6 @@ function App() {
                 {overdueWarning(todos.find(task => task._id === selectedTask._id) || selectedTask)}
               </div>
 
-              {/* Links */}
-              {selectedTask.links && selectedTask.links.length > 0 && (
-                <div className="mb-6">
-                  <label className="block text-slate-400 text-sm mb-2">Links</label>
-                  <div className="space-y-2">
-                    {selectedTask.links.map((link, idx) => (
-                      <a
-                        key={idx}
-                        href={link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2 text-primary-400 hover:text-primary-300 text-sm transition-colors hover:underline"
-                      >
-                        <Link2 size={14} />
-                        {link}
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              )}
 
               {/* Created Date */}
               <div className="mb-6">

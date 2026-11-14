@@ -35,7 +35,8 @@ export function MediaPreview({ file, token }) {
   return <video src={url} controls preload="metadata"/>
 }
 
-export default function TaskAttachments({ taskId, documents, folders, token, onDocumentsChange, onOpen, onLibrary, onInsert }) {
+export default function TaskAttachments({ taskId, links = [], onLinksChange, documents, folders, token, onDocumentsChange, onOpen, onLibrary, onInsert }) {
+  const [addingLink, setAddingLink] = useState(false), [url, setUrl] = useState('')
   const [picker, setPicker] = useState(false), [query, setQuery] = useState(''), [folder, setFolder] = useState('')
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState(''), [preview, setPreview] = useState(null)
   const input = useRef(null), lock = useRef(false)
@@ -58,6 +59,14 @@ export default function TaskAttachments({ taskId, documents, folders, token, onD
     onDocumentsChange(prev => prev.map(item => item._id === data._id ? data : item))
     setNotice(linked ? 'Document linked. Edit the task to insert a reference in its description.' : 'Attachment link removed. The file remains in Documents; any inline description references are preserved.'); if (!linked && preview === file._id) setPreview(null)
   })
+  const changeWebLink = (address, linked) => run(async () => {
+    const data = await request(`/api/todos/${taskId}/attachment-link`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: address, linked })
+    })
+    onLinksChange(data.links)
+    if (linked) { setUrl(''); setAddingLink(false) }
+    setNotice(linked ? 'Link attached.' : 'Link removed.')
+  })
   const upload = files => run(async () => {
     let count = 0; const failures = []
     for (const file of Array.from(files)) {
@@ -74,9 +83,22 @@ export default function TaskAttachments({ taskId, documents, folders, token, onD
   return <section className="task-attachments" aria-label="Task files and media" aria-busy={busy} onDragOver={event => { if (event.dataTransfer.types.includes('Files')) event.preventDefault() }} onDrop={event => { if (event.dataTransfer.files.length) { event.preventDefault(); event.stopPropagation(); upload(event.dataTransfer.files) } }}>
     <header><div><strong><Paperclip size={15}/> Files & media <span>{linked.length}</span></strong><small>Stored in Documents · drop files here · up to 10 MB each</small></div><button type="button" onClick={onLibrary}>Documents ↗</button></header>
     <div className="task-attachment-toolbar"><button type="button" disabled={busy} onClick={() => input.current?.click()}>{busy ? <Loader2 size={14}/> : <Upload size={14}/>}Upload files</button><button type="button" disabled={busy} onClick={() => setPicker(!picker)}><Link2 size={14}/>Link existing</button><select aria-label="Upload destination folder" value={folder} disabled={busy} onChange={event => setFolder(event.target.value)}><option value="">Store in Unfiled</option>{folders.map(folder => <option key={folder._id} value={folder._id}>{folder.name}</option>)}</select><input ref={input} aria-label="Upload task attachments" type="file" multiple hidden onChange={event => { upload(event.target.files); event.target.value = '' }}/></div>
+    {onLinksChange && <div className="task-attachment-toolbar">
+      <button type="button" disabled={busy} aria-expanded={addingLink} onClick={() => setAddingLink(!addingLink)}><Link2 size={14}/>Attach web link</button>
+      {addingLink && <input type="url" aria-label="Web address" placeholder="https://example.com" value={url} maxLength={2048} onChange={event => setUrl(event.target.value)} onKeyDown={event => {
+        if (event.key === 'Enter') { event.preventDefault(); if (url.trim()) changeWebLink(url, true) }
+      }}/>}
+      {addingLink && <button type="button" disabled={busy || !url.trim()} onClick={() => changeWebLink(url, true)}>Save link</button>}
+    </div>}
     {picker && <div className="task-attachment-picker"><input aria-label="Find existing documents" placeholder="Search the document library…" value={query} onChange={event => setQuery(event.target.value)}/><div>{available.map(file => <button key={file._id} type="button" disabled={busy} onClick={() => link(file, true)}><DocumentFileIcon file={file} size={14}/><span>{file.name}<small>{file.originalName}</small></span><Link2 size={14}/></button>)}{!available.length && <small>No available documents match.</small>}</div></div>}
     {error && <p role="alert" className="task-attachment-error">{error}</p>}{notice && <p role="status">{notice}</p>}
     <div className="task-attachment-grid">{linked.map(file => <article key={file._id}><div className="task-attachment-title"><DocumentFileIcon file={file} size={18}/><button type="button" onClick={event => onOpen(file._id, event)}>{file.name}<small>{file.originalName}</small></button></div><small>{file.mimeType || 'File'} · {folders.find(folder => folder._id === file.pdfFolder)?.name || 'Unfiled'}</small><div className="task-attachment-actions"><button type="button" onClick={event => onOpen(file._id, event)}>Open</button>{['image','audio','video'].includes(file.mimeType?.split('/')[0]) && <button type="button" onClick={() => setPreview(preview === file._id ? null : file._id)}>{preview === file._id ? 'Hide preview' : 'Preview'}</button>}{onInsert && <button type="button" onClick={() => onInsert(`[[document:${file._id}]]`)}>Insert in description</button>}<button type="button" disabled={busy} aria-label={`Unlink ${file.name}`} onClick={() => link(file, false)}><X size={13}/>Unlink</button></div>{preview === file._id && <MediaPreview file={file} token={token}/>}</article>)}</div>
-    {!linked.length && <small>Attach source material, images, recordings, spreadsheets, or other files.</small>}
+    {links.length > 0 && <div className="task-attachment-grid">{[...new Set(links)].map(address => {
+      const safe = /^https?:\/\//i.test(address)
+      return <article key={address} className="task-web-attachment"><div className="task-attachment-title"><Link2 size={16}/>{safe ? <a href={address} target="_blank" rel="noopener noreferrer">{address}</a> : <span>{address}</span>}</div>
+        {onLinksChange && <div className="task-attachment-actions"><button type="button" disabled={busy} onClick={() => changeWebLink(address, false)}>Remove link</button></div>}
+      </article>
+    })}</div>}
+    {!linked.length && !links.length && <small>Attach files or web links.</small>}
   </section>
 }
