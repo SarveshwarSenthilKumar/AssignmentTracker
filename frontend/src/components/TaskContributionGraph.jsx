@@ -47,7 +47,8 @@ export default function TaskContributionGraph({ today, days }) {
       </button>
       </div>
     </header>
-    <div id={contentId} hidden={collapsed}>
+    <div id={contentId} hidden={collapsed} className="task-contribution-content" data-short-range={range <= 90}>
+    <div className="task-contribution-chart">
     <div className="task-contribution-scroll" ref={scroller}>
       <div className="task-contribution-grid" style={{ '--task-weeks': columns }}>
         {Array.from({ length: columns }, (_, week) => {
@@ -77,6 +78,7 @@ export default function TaskContributionGraph({ today, days }) {
     </div>
     <div className="task-contribution-legend" aria-label="Color scale from less to more activity">
       Less {[0, 1, 2, 3, 4].map(level => <span key={level} className="task-contribution-cell" data-level={level} aria-hidden="true"/>)} More
+    </div>
     </div>
     <div className="task-contribution-details" aria-live="polite">
       <strong>{dateLabel.format(dateOf(active))}</strong>
