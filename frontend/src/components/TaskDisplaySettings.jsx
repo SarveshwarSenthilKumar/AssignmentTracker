@@ -21,7 +21,8 @@ export default function TaskDisplaySettings(){
     <h3>Task display</h3>
     <p>Customize the layout of your Tasks page. Changes save to your account.</p>
     <label><span><strong>Show In Progress column</strong><small>Turn off to use two columns. In-progress tasks remain visible with To Do tasks and keep their status.</small></span><input type="checkbox" role="switch" checked={user?.showInProgressColumn!==false} disabled={busy} onChange={event=>change('showInProgressColumn',event.target.checked)}/></label>
-    <label><span><strong>Show task streaks</strong><small>Display your streak counter, activity graph, and milestones on the Tasks page.</small></span><input type="checkbox" role="switch" checked={user?.showTaskStreaks!==false} disabled={busy} onChange={event=>change('showTaskStreaks',event.target.checked)}/></label>
+    <label><span><strong>Show task streaks</strong><small>Display your streak counter, weekly activity, and milestones on the Tasks page.</small></span><input type="checkbox" role="switch" checked={user?.showTaskStreaks!==false} disabled={busy} onChange={event=>change('showTaskStreaks',event.target.checked)}/></label>
+    <label><span><strong>Show task contribution graph</strong><small>Show the 365-day activity graph when Task Streaks is visible.</small></span><input type="checkbox" role="switch" checked={user?.showTaskContributionGraph!==false} disabled={busy} onChange={event=>change('showTaskContributionGraph',event.target.checked)}/></label>
     {error&&<p role="alert">{error}</p>}{notice&&<p role="status">{notice}</p>}
   </section>
 }

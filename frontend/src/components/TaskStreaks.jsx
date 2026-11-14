@@ -13,7 +13,7 @@ function localDay(value) {
   return Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / DAY_MS
 }
 
-export default function TaskStreaks({ tasks }) {
+export default function TaskStreaks({ tasks, showContributionGraph }) {
   const [today, setToday] = useState(() => localDay(Date.now()))
   const [pinnedDay, setPinnedDay] = useState(null)
   const detailsId = useId()
@@ -93,6 +93,6 @@ export default function TaskStreaks({ tasks }) {
       <progress value={current} max={next} aria-label={`Progress toward a ${next}-day streak`}/>
       <ul aria-label="Streak milestones">{milestones.map(goal => <li key={goal} data-earned={longest >= goal}>{longest >= goal && <Check size={12} aria-label="Earned"/>}{goal} days</li>)}</ul>
     </div>
-    <TaskContributionGraph today={today} days={days}/>
+    {showContributionGraph && <TaskContributionGraph today={today} days={days}/>}
   </section>
 }
