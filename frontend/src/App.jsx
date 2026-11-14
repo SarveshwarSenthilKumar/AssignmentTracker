@@ -1986,30 +1986,32 @@ function App() {
           </p>
         </section>
         {/* Sort Controls */}
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-          <div className="flex items-center gap-2">
+        <div className="task-sort-toolbar">
+          <div className="task-sort-controls">
             <ArrowUpDown size={16} className="text-slate-400" />
-            <span className="text-slate-400 text-sm">Sort by:</span>
+            <label htmlFor="task-sort-field">Sort by</label>
             <select
+              id="task-sort-field"
               value={sortBy}
               disabled={savingSort||reordering}
               onChange={e=>saveTaskSort(e.target.value,e.target.value==='dueDate'?'asc':sortOrder)}
-              className="bg-white/10 border border-white/10 rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="task-sort-select"
             >
-              <option value="manual">Custom order · drag to arrange</option>
-              <option value="createdAt">Date Created</option>
-              <option value="dueDate">Due date, then newest created · default</option>
-              <option value="completedAt">Date Completed</option>
+              <option value="manual">Custom order</option>
+              <option value="createdAt">Date created</option>
+              <option value="dueDate">Due date</option>
+              <option value="completedAt">Date completed</option>
               <option value="text">Name</option>
               <option value="status">Status</option>
             </select>
-            <button
+            <button type="button"
               disabled={sortBy==='manual'||savingSort||reordering}
               onClick={()=>saveTaskSort(sortBy,sortOrder==='asc'?'desc':'asc')}
               className="p-1.5 bg-white/10 hover:bg-white/20 rounded-lg transition-all text-slate-400 hover:text-white"
-              title="Toggle sort order"
+              aria-label={sortOrder === 'asc' ? 'Switch to descending sort' : 'Switch to ascending sort'}
             >
               {sortOrder === 'asc' ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+              {sortBy === 'manual' ? 'Manual' : sortOrder === 'asc' ? 'Ascending' : 'Descending'}
             </button>
           </div>
           <label className="task-title-toggle"><input type="checkbox" checked={showFullTaskTitles} onChange={event=>setShowFullTaskTitles(event.target.checked)}/>Show full titles</label>
@@ -2102,12 +2104,12 @@ function App() {
                 <span className="w-2 h-2 bg-green-500 rounded-full "></span>
                 Completed ({filteredTodos.filter(t => t.status === 'completed').length})
               </h2>
-              <label className="mb-3 flex flex-wrap items-center gap-2 text-sm text-slate-400">
+              <label className="task-completed-sort">
                 Sort completed:
                 <select
                   value={completedSort}
                   onChange={event=>setCompletedSort(event.target.value)}
-                  className="min-w-0 max-w-full bg-white/10 border border-white/10 rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="task-sort-select"
                 >
                   <option value="completedAt:desc">Recently completed · default</option>
                   <option value="main">Follow main sort</option>
