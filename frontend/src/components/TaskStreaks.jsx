@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useState } from 'react'
 import { Check, Flame, Target, Trophy } from 'lucide-react'
 import './TaskStreaks.css'
+import TaskContributionGraph from './TaskContributionGraph'
 
 const DAY_MS = 86400000
 const milestones = [3, 7, 14, 30, 60, 100, 365]
@@ -92,5 +93,6 @@ export default function TaskStreaks({ tasks }) {
       <progress value={current} max={next} aria-label={`Progress toward a ${next}-day streak`}/>
       <ul aria-label="Streak milestones">{milestones.map(goal => <li key={goal} data-earned={longest >= goal}>{longest >= goal && <Check size={12} aria-label="Earned"/>}{goal} days</li>)}</ul>
     </div>
+    <TaskContributionGraph today={today} days={days}/>
   </section>
 }
