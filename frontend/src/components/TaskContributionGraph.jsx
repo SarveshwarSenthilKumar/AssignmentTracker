@@ -10,30 +10,42 @@ const dateOf = day => new Date(day * dayMs)
 export default function TaskContributionGraph({ today, days }) {
   const [selected, setSelected] = useState(today)
   const [collapsed, setCollapsed] = useState(false)
+  const [range, setRange] = useState(365)
   const contentId = useId()
   const scroller = useRef(null)
-  const first = today - 364
+  const first = today - range + 1
   const start = first - dateOf(first).getUTCDay()
   const columns = Math.ceil((today - start + 1) / 7)
   const active = Math.max(first, Math.min(today, selected))
   const completions = day => days.get(day)?.completed.length ?? 0
   const activity = day => completions(day) + (days.get(day)?.progress.length ?? 0)
   const describe = day => `${dateLabel.format(dateOf(day))}, ${completions(day)} completed, ${activity(day) - completions(day)} with progress logged`
-  const total = Array.from({ length: 365 }, (_, index) => activity(first + index)).reduce((sum, count) => sum + count, 0)
+  const total = Array.from({ length: range }, (_, index) => activity(first + index)).reduce((sum, count) => sum + count, 0)
   const details = days.get(active)
 
   useLayoutEffect(() => {
     const element = scroller.current
     if (element) element.scrollLeft = element.scrollWidth
-  }, [collapsed])
+  }, [collapsed, range])
 
   return <section className="task-contributions" aria-label="Task contributions">
     <header>
-      <div><h3>Task contributions</h3><p>{total} {total === 1 ? 'contribution' : 'contributions'} in the last 365 days</p></div>
+      <div><h3>Task contributions</h3><p>{total} {total === 1 ? 'contribution' : 'contributions'} in the last {range} days</p></div>
+      <div className="task-contribution-controls">
+      <label>Time range
+        <select className="task-contribution-toggle" value={range} onChange={event => {
+          const next = Number(event.target.value)
+          setRange(next)
+          if (selected < today - next + 1) setSelected(today)
+        }}>
+          {[30, 90, 180, 365].map(days => <option key={days} value={days}>Last {days} days</option>)}
+        </select>
+      </label>
       <button type="button" className="task-contribution-toggle" aria-expanded={!collapsed} aria-controls={contentId} onClick={() => setCollapsed(previous => !previous)}>
         {collapsed ? <ChevronDown size={16} aria-hidden="true"/> : <ChevronUp size={16} aria-hidden="true"/>}
         {collapsed ? 'Expand graph' : 'Collapse graph'}
       </button>
+      </div>
     </header>
     <div id={contentId} hidden={collapsed}>
     <div className="task-contribution-scroll" ref={scroller}>
@@ -44,7 +56,7 @@ export default function TaskContributionGraph({ today, days }) {
           return monthStart !== undefined && <span key={week} className="task-contribution-month" style={{ gridColumn: week + 2 }}>{monthLabel.format(dateOf(monthStart))}</span>
         })}
         {['Mon', 'Wed', 'Fri'].map((label, index) => <span key={label} className="task-contribution-weekday" style={{ gridRow: index * 2 + 3 }}>{label}</span>)}
-        {Array.from({ length: 365 }, (_, index) => {
+        {Array.from({ length: range }, (_, index) => {
           const day = first + index
           const offset = day - start
           return <button key={day} type="button" className="task-contribution-cell"
