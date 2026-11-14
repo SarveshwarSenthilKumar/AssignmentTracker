@@ -15,6 +15,18 @@
 }
 
 .task-contributions h3 { font-size: .95rem; font-weight: 650; }
+.task-contribution-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface-input);
+  color: var(--text-primary);
+  font-size: .8rem;
+}
+.task-contribution-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .task-contributions p, .task-contribution-legend { font-size: .8rem; color: var(--text-secondary); }
 .task-contribution-scroll { overflow-x: auto; padding: 4px; }
 .task-contribution-grid {

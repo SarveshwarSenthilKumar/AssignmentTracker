@@ -1,4 +1,5 @@
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useId, useLayoutEffect, useRef, useState } from 'react'
+import { ChevronDown, ChevronUp } from 'lucide-react'
 import './TaskContributionGraph.css'
 
 const dayMs = 86400000
@@ -8,6 +9,8 @@ const dateOf = day => new Date(day * dayMs)
 
 export default function TaskContributionGraph({ today, days }) {
   const [selected, setSelected] = useState(today)
+  const [collapsed, setCollapsed] = useState(false)
+  const contentId = useId()
   const scroller = useRef(null)
   const first = today - 364
   const start = first - dateOf(first).getUTCDay()
@@ -21,11 +24,18 @@ export default function TaskContributionGraph({ today, days }) {
 
   useLayoutEffect(() => {
     const element = scroller.current
-    element.scrollLeft = element.scrollWidth
-  }, [])
+    if (element) element.scrollLeft = element.scrollWidth
+  }, [collapsed])
 
   return <section className="task-contributions" aria-label="Task contributions">
-    <header><h3>Task contributions</h3><p>{total} {total === 1 ? 'contribution' : 'contributions'} in the last 365 days</p></header>
+    <header>
+      <div><h3>Task contributions</h3><p>{total} {total === 1 ? 'contribution' : 'contributions'} in the last 365 days</p></div>
+      <button type="button" className="task-contribution-toggle" aria-expanded={!collapsed} aria-controls={contentId} onClick={() => setCollapsed(previous => !previous)}>
+        {collapsed ? <ChevronDown size={16} aria-hidden="true"/> : <ChevronUp size={16} aria-hidden="true"/>}
+        {collapsed ? 'Expand graph' : 'Collapse graph'}
+      </button>
+    </header>
+    <div id={contentId} hidden={collapsed}>
     <div className="task-contribution-scroll" ref={scroller}>
       <div className="task-contribution-grid" style={{ '--task-weeks': columns }}>
         {Array.from({ length: columns }, (_, week) => {
@@ -61,6 +71,7 @@ export default function TaskContributionGraph({ today, days }) {
       {!details && <p>No activity logged.</p>}
       {[['Completed tasks', details?.completed], ['Progress logged', details?.progress]].map(([label, titles]) => titles?.length > 0 &&
         <div key={label}><p>{label}</p><ul>{titles.map((title, index) => <li key={index}>{title}</li>)}</ul></div>)}
+    </div>
     </div>
   </section>
 }
