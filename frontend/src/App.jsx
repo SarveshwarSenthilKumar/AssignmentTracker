@@ -94,6 +94,7 @@ function App() {
   useEffect(() => { const change = () => { setPage(readPage()); setAssistantRouteId(window.location.hash.match(/^#\/assistant\/([a-f\d]{24})$/i)?.[1]||null); setShowCommandMenu(false); setContextMenu(null); setSelectedTask(pendingLibraryTask.current); pendingLibraryTask.current = null; setShowFolderModal(false); window.scrollTo({top:0}) }; window.addEventListener('hashchange',change); return () => window.removeEventListener('hashchange',change) }, [])
   const [todos, setTodos] = useState([])
   const [taskSearch,setTaskSearch]=useState(''),[taskSearchAll,setTaskSearchAll]=useState(true)
+  const [taskStarFilter, setTaskStarFilter] = useState('all')
   const taskSearchRef=useRef(null)
   const [selectedTaskIds,setSelectedTaskIds]=useState(new Set())
   const [bulkDeleting,setBulkDeleting]=useState(false)
@@ -160,7 +161,7 @@ function App() {
     {showError && taskStarError?.id === task._id && <p role="alert" className="absolute right-0 z-20 w-56 rounded-lg border border-red-400/30 bg-slate-900 p-2 text-xs text-red-200">{taskStarError.message}</p>}
     </div>
   )
-  useEffect(()=>{setSelectedTaskIds(new Set())},[selectedFolder,token,taskSearch,taskSearchAll])
+  useEffect(()=>{setSelectedTaskIds(new Set())},[selectedFolder,token,taskSearch,taskSearchAll,taskStarFilter])
   const [input, setInput] = useState('')
   const [newProgress,setNewProgress]=useState({enabled:false,target:'',unit:'',autoComplete:false})
   const saveProgressTask=updated=>{setTodos(previous=>previous.map(task=>task._id===updated._id?updated:task));setSelectedTask(previous=>previous?._id===updated._id?updated:previous)}
@@ -1621,6 +1622,7 @@ function App() {
   const folderTodos=inStarredTasks?todos.filter(task=>task.starred):selectedFolder==='all'?todos:selectedFolder?todos.filter(task=>(task.folder?._id||task.folder)===selectedFolder):todos.filter(task=>!task.folder)
   const taskSearchPool=taskSearchTerms.length&&taskSearchAll&&!inStarredTasks?todos:folderTodos
   const filteredTodos=getSortedTodos(taskSearchPool.filter(task=>{
+    if (!inStarredTasks && taskStarFilter !== 'all' && !!task.starred !== (taskStarFilter === 'starred')) return false
     if(!taskSearchTerms.length)return true
     const folder=folders.find(folder=>folder._id===(task.folder?._id||task.folder))
     const text=normalizeCommandText([task.text,typeof task.description==='string'?task.description.replace(/<[^>]*>/g,' '):'',folder?.name,task.status,task._id].join(' '))
@@ -1968,6 +1970,14 @@ function App() {
             <select value={taskSearchAll?'all':'current'} onChange={event=>setTaskSearchAll(event.target.value==='all')}>
               <option value="all">All folders</option>
               <option value="current">Selected folder</option>
+            </select>
+          </label>
+          <label className="task-page-search-scope">
+            Stars
+            <select value={inStarredTasks ? 'starred' : taskStarFilter} disabled={inStarredTasks} onChange={event=>setTaskStarFilter(event.target.value)}>
+              <option value="all">Any star status</option>
+              <option value="starred">Starred only</option>
+              <option value="unstarred">Unstarred only</option>
             </select>
           </label>
           {taskSearch&&<button type="button" onClick={()=>{setTaskSearch('');taskSearchRef.current?.focus()}}>Clear search</button>}
