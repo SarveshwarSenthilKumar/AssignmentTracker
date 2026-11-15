@@ -1386,6 +1386,14 @@ app.post('/api/pdfs', authenticateToken, upload.single('pdfFile'), async (req, r
 
     if (req.file.size > 10 * 1024 * 1024) return res.status(400).json({ message: 'Files must be smaller than 10 MB.' });
     const { name, todoId, pdfFolderId, tags } = req.body;
+    let documentTags = [];
+    if (tags) {
+      try { documentTags = JSON.parse(tags); }
+      catch { return res.status(400).json({ message: 'The document tags could not be read.' }); }
+      if (!Array.isArray(documentTags) || documentTags.some(tag => typeof tag !== 'string')) {
+        return res.status(400).json({ message: 'Document tags must be a list of text labels.' });
+      }
+    }
     if (todoId && (!mongoose.isValidObjectId(todoId) || !await Todo.exists({ _id: todoId, user: req.user.userId }))) return res.status(400).json({ message: 'Choose one of your tasks.' });
     if (pdfFolderId && (typeof pdfFolderId !== 'string' || !mongoose.isValidObjectId(pdfFolderId) || !await PDFFolder.exists({ _id: pdfFolderId, user: req.user.userId }))) return res.status(400).json({ message: 'Choose one of your document folders.' });
     const pdf = new PDF({
@@ -1397,13 +1405,20 @@ app.post('/api/pdfs', authenticateToken, upload.single('pdfFile'), async (req, r
       todo: todoId || null,
       taskIds: todoId ? [todoId] : [],
       pdfFolder: pdfFolderId || null,
-      tags: tags ? JSON.parse(tags) : [],
+      tags: documentTags,
     });
     await pdf.save();
     const metadata = pdf.toObject(); delete metadata.pdfData; delete metadata.originalBackup;
     res.status(201).json(metadata);
   } catch (error) {
-    res.status(500).json({ message: 'Error uploading PDF', error: error.message });
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({ message: `The document could not be saved. Check the following fields: ${Object.keys(error.errors).join(', ')}.` });
+    }
+    if (error.name === 'MongooseServerSelectionError' || error.name === 'MongoServerSelectionError' || error.name === 'MongoNetworkError') {
+      return res.status(503).json({ message: 'The document database is unavailable. Try again when the backend reconnects.' });
+    }
+    console.error('Document upload failed:', error.name, error.code);
+    res.status(500).json({ message: 'The server could not save the document.', error: error.message });
   }
 });
 
