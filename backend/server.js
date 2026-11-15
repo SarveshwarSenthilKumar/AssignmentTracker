@@ -659,7 +659,8 @@ app.get('/api/account/section-locks', authenticateToken, async (req, res) => {
 app.put('/api/account/section-locks', authenticateToken, async (req, res) => {
   const { section, action, password, customPassword } = req.body || {};
   const folderLock = typeof section === 'string' && /^(tasks|documents):([a-f\d]{24})$/i.exec(section);
-  if (typeof section !== 'string' || (!folderLock && !/^[a-z-]{1,32}$/.test(section)) ||
+  const fileLock = typeof section === 'string' && /^file:([a-f\d]{24})$/i.exec(section);
+  if (typeof section !== 'string' || (!folderLock && !fileLock && !/^[a-z-]{1,32}$/.test(section)) ||
       !['lock', 'unlock', 'remove', 'use-account', 'use-custom'].includes(action) ||
       typeof password !== 'string' || !password || password.length > 1024) {
     return res.status(400).json({ message: 'Enter your account password to continue.' });
@@ -688,6 +689,9 @@ app.put('/api/account/section-locks', authenticateToken, async (req, res) => {
       if (!await FolderModel.exists({ _id: folderLock[2], user: id })) {
         return res.status(404).json({ message: 'Folder not found.' });
       }
+    }
+    if (fileLock && action === 'lock' && !await PDF.exists({ _id: fileLock[1], user: id, deletedAt: null })) {
+      return res.status(404).json({ message: 'Document not found.' });
     }
     const describe = account => ({ lockedSections: account.lockedSections, passwordMode: account.sectionLockPasswordHash ? 'custom' : 'account' });
     if (action === 'unlock') return res.json(describe(user));

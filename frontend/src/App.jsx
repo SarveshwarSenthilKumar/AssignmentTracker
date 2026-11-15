@@ -1673,6 +1673,7 @@ function App() {
       <div ref={pageFindScope} className="app-shell w-full max-w-[1440px] mx-auto">
         <AppNavigation page={page} user={user} onSignOut={() => selectedPDF ? closeEditorForNavigation(selectedPDF, logout) : logout()}/>
         <SectionLock key={token} section={page} token={token}
+          fileId={selectedPDF} onLeaveFile={() => setSelectedPDF(null)}
           folderId={page === 'tasks' ? selectedFolder : page === 'documents' ? selectedPDFFolder : null}
           folders={page === 'tasks' ? folders : page === 'documents' ? pdfFolders : undefined}
           onLeaveFolder={() => {

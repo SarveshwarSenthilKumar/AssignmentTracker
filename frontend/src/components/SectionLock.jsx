@@ -34,7 +34,18 @@ export function SectionLockSettings() {
   </section>
 }
 
-export default function SectionLock({ section, token, folderId, folders = [], onLeaveFolder, children }) {
+export function FileLockButton({ file, disabled }) {
+  const { locks, selectSection, busy } = useContext(SectionLockContext)
+  const id = `file:${file._id}`
+  const locked = locks.includes(id)
+  const label = locked ? 'Remove file lock' : 'Lock file'
+  const Icon = locked ? Lock : Unlock
+  return <button type="button" aria-label={`${label}: ${file.name}`} title={label} disabled={busy || disabled} onClick={() => selectSection(id, file.name, locked)}>
+    <Icon size={16} aria-hidden="true"/>
+  </button>
+}
+
+export default function SectionLock({ section, token, folderId, folders = [], onLeaveFolder, fileId, onLeaveFile, children }) {
   const [locks, setLocks] = useState(null)
   const [unlocked, setUnlocked] = useState([])
   const [action, setAction] = useState(null)
@@ -58,8 +69,10 @@ export default function SectionLock({ section, token, folderId, folders = [], on
   const folder = folderPath.at(-1)
   const lockedFolder = folderPath.find(item => locks?.includes(item.id) && !unlocked.includes(item.id))
   const blockedSection = locked && !unlocked.includes(section)
-  const blocked = blockedSection || !!lockedFolder
-  const unlockId = blockedSection ? section : lockedFolder?.id
+  const fileKey = fileId ? `file:${fileId}` : null
+  const blockedFile = locks?.includes(fileKey) && !unlocked.includes(fileKey)
+  const blocked = blockedSection || !!lockedFolder || blockedFile
+  const unlockId = blockedSection ? section : lockedFolder?.id || (blockedFile ? fileKey : null)
   const headers = { Authorization: `Bearer ${token}` }
 
   useLayoutEffect(() => {
@@ -78,6 +91,11 @@ export default function SectionLock({ section, token, folderId, folders = [], on
     setPassword('')
     setError('')
   }, [folderId, section])
+
+  useLayoutEffect(() => {
+    setUnlocked(previous => previous.filter(id => !id.startsWith('file:') || id === fileKey))
+    setPassword('')
+  }, [fileKey])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -154,7 +172,7 @@ export default function SectionLock({ section, token, folderId, folders = [], on
         </button>
       </div>}
       {(blocked || action) && <form onSubmit={submit} className="mx-auto grid max-w-md gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-panel)] p-5">
-        <h2 className="font-semibold">{blocked ? blockedSection ? 'This section is locked' : `${lockedFolder.label} is locked` : action === 'use-custom' ? 'Set a custom section-lock password' : action === 'use-account' ? 'Use your account password for section locks' : target ? `${action === 'lock' ? 'Lock' : 'Remove lock from'} ${target.label}` : action === 'lock' ? 'Lock this section' : 'Remove section lock'}</h2>
+        <h2 className="font-semibold">{blocked ? blockedSection ? 'This section is locked' : lockedFolder ? `${lockedFolder.label} is locked` : 'This file is locked' : action === 'use-custom' ? 'Set a custom section-lock password' : action === 'use-account' ? 'Use your account password for section locks' : target ? `${action === 'lock' ? 'Lock' : 'Remove lock from'} ${target.label}` : action === 'lock' ? 'Lock this section' : 'Remove section lock'}</h2>
         <label className="grid gap-2 text-sm">{blocked && passwordMode === 'custom' ? 'Custom section-lock password' : 'Account password'}
           <input key={target?.id || section} autoFocus className={control} type="password" autoComplete="current-password" required maxLength={1024} value={password} onChange={event => setPassword(event.target.value)}/>
         </label>
@@ -164,8 +182,9 @@ export default function SectionLock({ section, token, folderId, folders = [], on
         </label>}
         {error && <p role="alert" className="text-sm text-red-400">{error}</p>}
         <div className="flex flex-wrap gap-2">
-          <button className={control} type="submit" disabled={busy || !password}>{blocked ? 'Unlock section' : action.startsWith('use-') ? 'Save password choice' : action === 'lock' ? 'Lock section' : 'Remove lock'}</button>
+          <button className={control} type="submit" disabled={busy || !password}>{blocked ? blockedSection ? 'Unlock section' : lockedFolder ? 'Unlock folder' : 'Unlock file' : action.startsWith('use-') ? 'Save password choice' : action === 'lock' ? 'Save lock' : 'Remove lock'}</button>
           {!blockedSection && lockedFolder && <button className={control} type="button" disabled={busy} onClick={onLeaveFolder}>Back to all</button>}
+          {blockedFile && !blockedSection && !lockedFolder && <button className={control} type="button" disabled={busy} onClick={onLeaveFile}>Close file</button>}
           {!blocked && <button className={control} type="button" disabled={busy} onClick={() => { setAction(null); setTarget(null); setPassword(''); setCustomPassword(''); setError('') }}>Cancel</button>}
         </div>
       </form>}
