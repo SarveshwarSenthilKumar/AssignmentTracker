@@ -1,5 +1,5 @@
 import './TermsPage.css'
-import { TERMS_VERSION, LEGAL_UPDATED_DATE } from '../lib/legalPolicy'
+import { TERMS_VERSION, TERMS_UPDATED_DATE } from '../lib/legalPolicy'
 import { THIRD_PARTY_DISCLOSURES } from '../lib/legalThirdParties'
 export { TERMS_VERSION } from '../lib/legalPolicy'
 
@@ -16,6 +16,10 @@ const sections=[
   ['use','Acceptable use',[
     'Use the platform lawfully and respect other people’s privacy and intellectual property. Do not upload malicious software, attempt to access another account, disrupt the service, bypass access controls, or use integrations without permission.',
     'Follow your school’s or employer’s rules for assignments, confidential information and AI use. You remain responsible for the accuracy and integrity of material you submit elsewhere.'
+  ]],
+  ['section-locks','Password locks for pages, folders and files',[
+    'You can require a password before opening selected signed-in pages, task or document folders and subfolders, or individual documents in the editor. You can use your account password or a single custom password for locked views. Changing lock settings or replacing the custom password requires your account password. The platform stores a hash of the custom password.',
+    'These locks control access to the corresponding views in the app. They do not encrypt the underlying content or restrict access through the API. Records and file names can still appear in other views, such as search or shared workspace lists, and downloads, exported copies and external links remain outside the lock. Use the deployment’s account controls and applicable organizational safeguards for sensitive material.'
   ]],
   ['content','Your documents and other content',[
     'You retain your rights in content you provide. You authorize the platform operator to store, process, display and transmit that content as needed to provide features you use, including processing selected material through enabled integrations.',
@@ -34,7 +38,8 @@ const sections=[
   ]],
   ['tasks-progress','Tasks, progress goals and workspace tools',[
     'You can create and organize tasks, folders, dependencies, descriptions, links, attachments, deadlines, scheduled days and supported recurring or calendar records. Custom ordering, board status, search, visualizations, home summaries and workflow windows reflect the records and preferences available to the feature. Dependency connections describe planned order; they do not independently verify prerequisites or prevent all status changes.',
-    'Progress tasks let you set a numerical target and record dated amounts over time. Totals, remaining amounts, progress bars and daily histories are calculated from your entries, not independent evidence that work was performed. You can remove incorrect entries and change targets; reaching a target does not automatically complete the task. Logging dates use the selected account time zone when entered and retain their calendar labels if that preference changes.',
+    'Progress tasks let you set numerical targets and dated milestones, record amounts and notes, and optionally mark the task complete when its target is reached. Totals, histories, streaks and contribution graphs summarize recorded completions and progress. They do not independently verify that work was performed. Logging dates use the selected account time zone when entered and retain their calendar labels if that preference changes.',
+    'Stars, filters and dashboard statistics help organize and display existing tasks and documents. A star does not change permissions, move an item or exempt it from deletion or retention settings. Find on page searches visible text within the current app page. Other search tools can have broader coverage.',
     'Calendar links, attendance records, study metrics, account analytics and other summaries are organizational aids. They are not official school, employer, attendance or performance records. Device layouts, local preferences and unsaved work may not synchronize across devices. Review confirmations and the effect of bulk actions before using them.'
   ]],
   ['career','Resumes, applications and interview preparation',[
@@ -67,6 +72,7 @@ const sections=[
     'The operator must assess suspected incidents, take appropriate steps to contain and remediate them, and provide notices to affected people and authorities when required by applicable law. Investigation and notice timing depend on the facts and applicable requirements. Liability limitations elsewhere in these Terms apply only where enforceable and do not remove non-waivable incident-response, security or notification duties.'
   ]],
   ['ai','AI features and generated material',[
+    'The platform accepts supported Gemini standard and authorization keys. The platform may retry a temporarily unavailable request using the same material and credentials. Provider quotas and charges depend on your provider account.',
     'AI is used extensively throughout the platform. By explicitly agreeing to these Terms when creating an account and proceeding with enabled AI features, you authorize us to process your data and documents using AI for the platform purposes described here and in the Privacy Policy. These purposes include analyzing, extracting, summarizing, transforming and generating content, answering questions, providing document and editing assistance, and supporting study, planning and career-preparation tasks. We may choose the AI methods used to carry out these purposes, subject to the supported access controls and applicable law.',
     'This authorization can cover personal data in uploaded files, document text, notes, tasks, calendar information, resumes, cover letters, prompts and saved conversations when supplied to an enabled feature. Processing may involve transmitting that information to an external AI provider, currently Gemini. It is not an unrestricted permission to use information for unrelated purposes, disregard your supported settings or waive privacy rights. Training models on private workspace content or introducing materially different data uses would require additional disclosure and any legally required permission before that processing begins.',
     'We use AI across many platform tasks, including chat assistance, document-related work, resume and cover-letter preparation, quizzes, project practice and other supported assistance. AI processing can involve your uploaded documents and personal data, including information contained in resumes, notes, task descriptions, calendar entries, conversations and other permitted workspace context. Documents can also contain personal data about other people.',
@@ -88,10 +94,12 @@ const sections=[
     'Embedded and desktop browsing do not guarantee access to any website or sign-in flow. A website can restrict embedding or desktop clients. Opening external links may leave the platform and place your interaction under another operator’s terms.'
   ]],
   ['deadlines','Scheduling and records',[
+    'Class schedule imports can send locally extracted text or your original file to Gemini. Review dates, days, times and locations before saving each class. Day notes, birthdays, event interests and reminders can appear in your workspace calendar. Calendar opened in another tab uses the same account data.',
     'Review task deadlines, time zones, imported calendars and suggested dates. Natural-language detection proposes an interpretation for your confirmation; it does not establish an official deadline. Public events may change or be canceled.',
     'Attendance logs and completion records reflect information entered or recorded in your account. They are not independent verification of attendance, credentials or performance. Keep your own records for important obligations.'
   ]],
   ['files','Editing, exports and backups',[
+    'Blank notes, notebooks and PDFs are saved documents. Rulers and alignment guides use document coordinates. Verify measurements and exported layouts before relying on them. Attached web links point to content controlled by their destinations.',
     'Document tools support the formats and operations shown in the interface, including PDF and image annotation, supported Word and spreadsheet files, text and notes, Markdown conversion, templates, media viewing and selected local imports. A preview, annotation, covered area or temporary editor change is not a guarantee that the original file has been changed or that every feature is available for that format. Save and inspect the exported result before relying on it.',
     'AI document creation, text edits, handwriting recognition and calculation can process the selected text, images or document regions through the configured provider. Handwriting recognition and calculated interpretations can be wrong, and large or complex documents can exceed feature limits. View-only options such as dark pages do not necessarily alter the saved or exported document. Source files, fonts, licenses and template attribution remain relevant to your use.',
     'File conversions and exports can change formatting, pagination or fonts. Covering text in a PDF is not secure redaction. Review exported files before sharing them, and retain originals and separate backups of important work.',
@@ -103,7 +111,7 @@ const sections=[
     'Desktop website sessions can retain cookies independently of your Assignment Tracker login. Signing out or disconnecting a platform integration does not necessarily sign you out of those websites. Use the relevant website’s sign-out and device-storage controls, and do not use embedded browsing or imports to bypass another service’s access restrictions.'
   ]],
   ['deletion','Deletion and account reset',[
-    'Deleted tasks are removed from active task views and kept in Recently deleted for a seven-day recovery window. You can restore a deletion or a group of deleted tasks during that window. Expired deletions are no longer recoverable through the platform; database cleanup may occur after the expiry time.',
+    'If you enable automatic task deletion, completed tasks, including existing completed tasks that meet the configured age, can move to Recently deleted. The separate recovery setting controls expiry for new deletions. Existing recovery records keep their assigned expiry. You can restore eligible tasks during their recovery period or permanently delete recovery records sooner. Expired or permanently deleted records cannot be restored through Recently deleted.',
     'Removing an item, moving a document to Trash and performing a full account reset are different operations. Read the confirmation shown by each action. A full workspace reset removes the supported account records described in that flow and is not a routine troubleshooting step.',
     'A workspace reset is not necessarily account closure, deletion of third-party copies, or immediate erasure from every infrastructure backup. Retention and account-closure procedures must be specified by the operator for the particular deployment.'
   ]],
@@ -133,7 +141,7 @@ export function TermsContent(){
 }
 
 export default function TermsPage({signedIn=false}){
-  return <main className="platform-viewport terms-page"><div className="terms-wrap"><a className="terms-back" href="#/home">← {signedIn?'Back to workspace':'Back to sign in'}</a><header><p>ASSIGNMENT TRACKER</p><h1>Terms and Conditions</h1><span>Draft · Version {TERMS_VERSION} · Last updated {LEGAL_UPDATED_DATE}</span></header><p className="terms-draft">Draft for review. Operator identity, contact details and deployment-specific policies have not yet been finalized.</p><nav aria-label="Terms sections">{sections.map(([id,title])=><button type="button" key={id} onClick={()=>document.getElementById(`terms-${id}`)?.scrollIntoView({behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'})}>{title}</button>)}</nav><TermsContent/><footer><a href="#/privacy">Privacy Policy</a><span aria-hidden="true"> · </span><a href="#/home">{signedIn?'Return to workspace':'Return to sign in'}</a></footer></div></main>
+  return <main className="platform-viewport terms-page"><div className="terms-wrap"><a className="terms-back" href="#/home">← {signedIn?'Back to workspace':'Back to sign in'}</a><header><p>ASSIGNMENT TRACKER</p><h1>Terms and Conditions</h1><span>Draft · Version {TERMS_VERSION} · Last updated {TERMS_UPDATED_DATE}</span></header><p className="terms-draft">Draft for review. Operator identity, contact details and deployment-specific policies have not yet been finalized.</p><nav aria-label="Terms sections">{sections.map(([id,title])=><button type="button" key={id} onClick={()=>document.getElementById(`terms-${id}`)?.scrollIntoView({behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'})}>{title}</button>)}</nav><TermsContent/><footer><a href="#/privacy">Privacy Policy</a><span aria-hidden="true"> · </span><a href="#/home">{signedIn?'Return to workspace':'Return to sign in'}</a></footer></div></main>
 }
 
 
