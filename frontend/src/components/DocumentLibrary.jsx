@@ -12,7 +12,6 @@ import { createDocument } from '../lib/createDocument'
 import AIDocumentCreator from './AIDocumentCreator'
 import MarkdownPDFCreator from './MarkdownPDFCreator'
 import OneNoteImport from './OneNoteImport'
-import { PDFDocument } from 'pdf-lib'
 import './DocumentLibrary.css'
 import {folderTree} from '../lib/folderHierarchy'
 import FolderHierarchyControls from './FolderHierarchyControls'
@@ -103,20 +102,17 @@ export default function DocumentLibrary({ tasks = [], onOpenTask, documents, fol
     if (!name) throw new Error('Enter a name.')
     if(modal.type==='new-notes'||modal.type==='new-notebook'){
       const notebook=modal.type==='new-notebook'
-      let content=(NOTE_TEMPLATES.find(template=>template.id===noteTemplate)||NOTE_TEMPLATES[0]).content(name),mime='text/plain',extension='md'
+      const folderId = selectedFolder && !['all', 'trash', 'starred'].includes(selectedFolder) ? selectedFolder : null
+      let file
       if(notebook){
         const count=Number(notebookPages)
         if(!Number.isInteger(count)||count<1||count>500)throw new Error('Choose a whole number of pages between 1 and 500.')
-        const pdf=await PDFDocument.create()
-        for(let index=0;index<count;index++)pdf.addPage(notebookSize==='a4'?[595.28,841.89]:[612,792])
-        pdf.setTitle(name);pdf.setCreator('Assignment Tracker')
-        content=await pdf.save();mime='application/pdf';extension='pdf'
+        file = await request('/api/pdfs/blank-notebook', 'POST', { name, folderId, pageCount: count, pageSize: notebookSize })
+        if (!file._id) throw new Error('The server did not return the new notebook. Refresh the library before retrying.')
+      } else {
+        const content = (NOTE_TEMPLATES.find(template=>template.id===noteTemplate)||NOTE_TEMPLATES[0]).content(name)
+        file = await createDocument({ token, name, folderId, content, mime: 'text/plain', extension: 'md', tags: ['notes'] })
       }
-      const file = await createDocument({
-        token, name, content, mime, extension,
-        folderId: selectedFolder && !['all', 'trash', 'starred'].includes(selectedFolder) ? selectedFolder : null,
-        tags: notebook ? ['notes', 'handwritten-notebook'] : ['notes'],
-      })
       onDocumentsChange(previous=>[file,...previous]);setSearch('');setSelected(new Set());setModal(null);setNotice({text:notebook?'Blank notebook created.':'Notes created.'});onOpen(file._id);return
     }
     if (modal.type === 'new-folder') {

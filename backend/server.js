@@ -1378,10 +1378,50 @@ app.post('/api/pdfs/:id/clean-copy', authenticateToken, async (req, res) => {
 });
 
 // Upload a new PDF
+app.post('/api/pdfs/blank-notebook', authenticateToken, async (req, res) => {
+  const { name, pageCount, pageSize, folderId } = req.body || {};
+  if (typeof name !== 'string' || !name.trim() || name.length > 120 ||
+      !Number.isInteger(pageCount) || pageCount < 1 || pageCount > 500 ||
+      !['a4', 'letter'].includes(pageSize)) {
+    return res.status(400).json({ message: 'Enter a notebook name, select a page size, and choose 1–500 pages.' });
+  }
+  try {
+    const user = req.user.userId;
+    if (folderId && (typeof folderId !== 'string' || !mongoose.isValidObjectId(folderId) || !await PDFFolder.exists({ _id: folderId, user }))) {
+      return res.status(400).json({ message: 'Choose one of your document folders.' });
+    }
+    const { PDFDocument, PageSizes } = require('pdf-lib');
+    const notebook = await PDFDocument.create();
+    const size = pageSize === 'a4' ? PageSizes.A4 : PageSizes.Letter;
+    for (let index = 0; index < pageCount; index++) notebook.addPage(size);
+    notebook.setTitle(name.trim());
+    notebook.setCreator('Assignment Tracker');
+    const file = await PDF.create({
+      name: name.trim(),
+      originalName: `${name.trim().replace(/[<>:"/\\|?*]/g, '-').replace(/\.pdf$/i, '') || 'Notebook'}.pdf`,
+      pdfData: Buffer.from(await notebook.save()),
+      mimeType: 'application/pdf',
+      user,
+      pdfFolder: folderId || null,
+      tags: ['notes', 'handwritten-notebook']
+    });
+    const metadata = file.toObject();
+    delete metadata.pdfData;
+    delete metadata.originalBackup;
+    res.status(201).json(metadata);
+  } catch (error) {
+    console.error('Blank notebook creation failed:', error.name, error.code);
+    res.status(500).json({ message: 'The server could not create the blank notebook.' });
+  }
+});
+
 app.post('/api/pdfs', authenticateToken, upload.single('pdfFile'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ message: 'No file uploaded' });
+    }
+    if (!Buffer.isBuffer(req.file.buffer) || !req.file.buffer.length) {
+      return res.status(400).json({ message: 'No file bytes were received. Choose a non-empty file and try again.' });
     }
 
     if (req.file.size > 10 * 1024 * 1024) return res.status(400).json({ message: 'Files must be smaller than 10 MB.' });
