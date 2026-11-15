@@ -33,7 +33,7 @@ import HomePage from './components/HomePage'
 import AppNavigation from './components/AppNavigation'
 import GlobalSearch from './components/GlobalSearch'
 import PageFind from './components/PageFind'
-import SectionLock from './components/SectionLock'
+import SectionLock, { SectionLockSettings } from './components/SectionLock'
 import { documentRoute, openInTab } from './lib/openInTab'
 import {closeEditorForNavigation} from './lib/editorBridge'
 import {folderTree} from './lib/folderHierarchy'
@@ -2273,6 +2273,7 @@ function App() {
             </section>
             <section className="account-settings-group" aria-labelledby="account-data-title">
               <h2 id="account-data-title">Data management</h2>
+              <SectionLockSettings/>
               <TaskCleanupSettings/>
               <AccountReset token={token} disabled={syncing || testing || !!selectedPDF} onReset={() => {
                 window.dispatchEvent(new CustomEvent('workspace-reset',{detail:user?.id}));setAssistantOpen(false);setAssistantGeneration(previous=>previous+1);setAssistantCalendarId(null)
