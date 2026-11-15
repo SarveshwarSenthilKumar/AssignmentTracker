@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronDown, ChevronUp, Search, X } from 'lucide-react'
+import { ChevronDown, ChevronUp, X } from 'lucide-react'
 import './PageFind.css'
 
 function findMatches(root, query) {
@@ -28,7 +28,7 @@ export default function PageFind({ scope, disabled }) {
   const [matches, setMatches] = useState([])
   const [index, setIndex] = useState(0)
   const input = useRef(null)
-  const trigger = useRef(null)
+  const previousFocus = useRef(null)
 
   useEffect(() => {
     if (disabled) return
@@ -36,6 +36,7 @@ export default function PageFind({ scope, disabled }) {
       if (event.defaultPrevented || !(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey || event.key.toLowerCase() !== 'f') return
       if (event.target instanceof Element && event.target.closest('[role="dialog"], [aria-modal="true"]')) return
       event.preventDefault()
+      if (!input.current) previousFocus.current = document.activeElement
       setOpen(true)
       input.current?.select()
     }
@@ -85,11 +86,10 @@ export default function PageFind({ scope, disabled }) {
     setOpen(false)
     setMatches([])
     setIndex(0)
-    trigger.current?.focus()
+    previousFocus.current?.focus({ preventScroll: true })
   }
 
   return <div className="page-find">
-    <button ref={trigger} type="button" aria-expanded={open && !disabled} aria-keyshortcuts="Control+F Meta+F" disabled={disabled} onClick={() => open ? close() : setOpen(true)}><Search size={15} aria-hidden="true"/>Find on page</button>
     {open && !disabled && createPortal(<div className="page-find-bar" role="search" aria-label="Find on this page" onKeyDown={event => {
       if (event.key === 'Escape') {
         event.preventDefault()
