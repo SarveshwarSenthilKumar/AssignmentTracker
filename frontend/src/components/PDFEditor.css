@@ -28,6 +28,10 @@
 .pdf-insert-controls { position: absolute; left: 0; top: 100%; display: flex; align-items: center; gap: 8px; padding: 6px 8px; white-space: nowrap; background: var(--surface-panel); color: white; border-radius: 6px; box-shadow: 0 2px 8px #0005; }
 .pdf-insert-controls button { padding: 4px; border-radius: 4px; }
 .pdf-insert-controls button:hover { background: var(--border); }
+.pdf-insert-guides { position: absolute; inset: 0; z-index: 30; pointer-events: none; }
+.pdf-insert-guides span { position: absolute; background: #fb477b; box-shadow: 0 0 2px #fff9; }
+.pdf-insert-guide-x { top: 0; bottom: 0; width: 1px; }
+.pdf-insert-guide-y { left: 0; right: 0; height: 1px; }
 .insert-trigger { min-height: 42px; white-space: nowrap; display: flex; align-items: center; gap: 7px; padding: 9px 12px; border: 1px solid #8fa5b966; border-radius: 8px; background: var(--accent-solid); color: #fff; font-size: 14px; font-weight: 600; }
 .insert-trigger:hover, .insert-trigger[aria-expanded="true"] { background: #6d879e; }
 .pdf-insert-popover { position: fixed; z-index: 100; width: min(440px, calc(100vw - 24px)); display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--border-strong); border-radius: 16px; background: var(--surface-elevated); color: var(--text-primary); box-shadow: 0 18px 60px #0009; font: 14px/1.5 Inter, ui-sans-serif, system-ui, sans-serif; color-scheme: dark; }

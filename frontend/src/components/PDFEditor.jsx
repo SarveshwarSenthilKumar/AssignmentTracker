@@ -43,7 +43,7 @@ import { PDFDocument, rgb, degrees, StandardFonts, LineCapStyle, pushGraphicsSta
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.js?url'
 import './PDFEditor.css'
 import InsertHandles from './InsertHandles'
-import { moveInsert, resizeFromCorner } from '../lib/insertGeometry'
+import { moveInsert, resizeFromCorner, snapInsert } from '../lib/insertGeometry'
 import { PDF_TEXT_FONT, pdfTextLines } from '../lib/pdfTextBox'
 import InsertPanel, { imageFromFile, makeInsert } from './PDFInsertPanel'
 import { cn } from '../lib/utils'
@@ -630,6 +630,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const [missingFont,setMissingFont]=useState(null)
   const [inserting, setInserting] = useState(false)
   const [selectedInsertId, setSelectedInsertId] = useState(null)
+  const [insertGuides, setInsertGuides] = useState(null)
   const insertingRef = useRef(false)
   const viewerRef = useRef(null)
   useEffect(()=>{
@@ -1081,6 +1082,12 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       changes = text ? { x: result.x, y: result.y, fontSize: size * result.ratio } : { x: result.x, y: result.y, width: result.width, height: result.height }
     } else {
       changes = moveInsert(drag.item, drag.size, pt, { x: drag.origin.x - drag.item.x, y: drag.origin.y - drag.item.y }, pageBase)
+      if (drag.item.tool === 'image') {
+        const neighbors = drag.snapshot.filter(item => item.id !== drag.id && item.tool === 'image' && item.page === pageNumber)
+        const snapped = e.altKey ? null : snapInsert(changes, drag.size, pageBase, neighbors, 7 / scale)
+        if (snapped) changes = snapped.position
+        setInsertGuides(snapped ? { ...snapped.guides, page: pageNumber } : null)
+      }
     }
     drag.moved = true
     updatePaths(prev => prev.map(item => item.id === drag.id ? { ...item, ...changes } : item))
@@ -1090,6 +1097,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     const drag = dragRef.current
     if (!drag) return
     dragRef.current = null
+    setInsertGuides(null)
     if (!drag.moved) return
     if (cancelled) { updatePaths(drag.snapshot); return }
     if (activeTextIdRef.current !== drag.id) pushHistoryRaw(drag.snapshot)
@@ -2117,6 +2125,10 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
                   {currentTool==='text'&&existingRuns.page===pageNumber&&existingRuns.items.filter(run=>!pageItems.some(item=>item.sourceText?.key===run.key)).map(run=><div key={`source-${run.key}`} aria-hidden style={{position:'absolute',left:run.x*scale,top:run.y*scale,width:run.width*scale,height:run.height*scale,borderBottom:'1px dotted #718ea855',pointerEvents:'none'}}/>)}
                   <PDFInkLayer items={pageItems} width={pageBase.w} height={pageBase.h} scale={scale} usePressure={usePressure}/>
                   <PDFLiveInk ref={liveInkRef} width={pageBase.w} height={pageBase.h} scale={scale}/>
+                  {currentTool === 'select' && insertGuides?.page === pageNumber && <div className="pdf-insert-guides" aria-hidden="true">
+                    {insertGuides.x !== null && <span className="pdf-insert-guide-x" style={{ left: insertGuides.x * scale }}/>}
+                    {insertGuides.y !== null && <span className="pdf-insert-guide-y" style={{ top: insertGuides.y * scale }}/>}
+                  </div>}
                   {currentTool === 'ruler' && rulerGuide?.page === pageNumber && isDrawingRef.current &&
                     <span className="pdf-ruler-measurement" style={{
                       left: Math.max(0, Math.min(pageBase.w * scale - 64, rulerGuide.end.x * scale + 8)),
