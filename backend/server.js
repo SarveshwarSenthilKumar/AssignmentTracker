@@ -658,7 +658,8 @@ app.get('/api/account/section-locks', authenticateToken, async (req, res) => {
 
 app.put('/api/account/section-locks', authenticateToken, async (req, res) => {
   const { section, action, password, customPassword } = req.body || {};
-  if (typeof section !== 'string' || !/^[a-z-]{1,32}$/.test(section) ||
+  const folderLock = typeof section === 'string' && /^(tasks|documents):([a-f\d]{24})$/i.exec(section);
+  if (typeof section !== 'string' || (!folderLock && !/^[a-z-]{1,32}$/.test(section)) ||
       !['lock', 'unlock', 'remove', 'use-account', 'use-custom'].includes(action) ||
       typeof password !== 'string' || !password || password.length > 1024) {
     return res.status(400).json({ message: 'Enter your account password to continue.' });
@@ -681,6 +682,12 @@ app.put('/api/account/section-locks', authenticateToken, async (req, res) => {
     const useCustom = action === 'unlock' && !!user?.sectionLockPasswordHash;
     if (!user || !await bcrypt.compare(password, useCustom ? user.sectionLockPasswordHash : user.password)) {
       return res.status(403).json({ message: useCustom ? 'Incorrect section-lock password.' : 'Incorrect account password.' });
+    }
+    if (folderLock && action === 'lock') {
+      const FolderModel = folderLock[1] === 'tasks' ? Folder : PDFFolder;
+      if (!await FolderModel.exists({ _id: folderLock[2], user: id })) {
+        return res.status(404).json({ message: 'Folder not found.' });
+      }
     }
     const describe = account => ({ lockedSections: account.lockedSections, passwordMode: account.sectionLockPasswordHash ? 'custom' : 'account' });
     if (action === 'unlock') return res.json(describe(user));
