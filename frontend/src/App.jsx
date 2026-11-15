@@ -1671,8 +1671,8 @@ function App() {
   return (
     <div className="platform-viewport min-h-screen py-8 px-4">
       <div ref={pageFindScope} className="app-shell w-full max-w-[1440px] mx-auto">
-        <AppNavigation page={page} user={user} onSignOut={() => selectedPDF ? closeEditorForNavigation(selectedPDF, logout) : logout()}/>
         <SectionLock key={token} section={page} token={token}
+          renderNavigation={lockActions => <AppNavigation page={page} user={user} lockActions={lockActions} onSignOut={() => selectedPDF ? closeEditorForNavigation(selectedPDF, logout) : logout()}/>}
           fileId={selectedPDF} onLeaveFile={() => setSelectedPDF(null)}
           folderId={page === 'tasks' ? selectedFolder : page === 'documents' ? selectedPDFFolder : null}
           folders={page === 'tasks' ? folders : page === 'documents' ? pdfFolders : undefined}

@@ -45,7 +45,7 @@ export function FileLockButton({ file, disabled }) {
   </button>
 }
 
-export default function SectionLock({ section, token, folderId, folders = [], onLeaveFolder, fileId, onLeaveFile, children }) {
+export default function SectionLock({ section, token, folderId, folders = [], onLeaveFolder, fileId, onLeaveFile, renderNavigation, children }) {
   const [locks, setLocks] = useState(null)
   const [unlocked, setUnlocked] = useState([])
   const [action, setAction] = useState(null)
@@ -141,9 +141,9 @@ export default function SectionLock({ section, token, folderId, folders = [], on
   }
 
   const control = 'rounded-lg border border-[var(--border-strong)] bg-[var(--surface-input)] px-3 py-2 text-sm'
-  if (!locks) return <section className="py-4">
+  if (!locks) return <>{renderNavigation()}<section className="py-4">
     {error ? <><p role="alert">{error}</p><button type="button" className={control} onClick={() => { setError(''); setReload(value => value + 1) }}>Retry</button></> : <p role="status">Loading section access…</p>}
-  </section>
+  </section></>
 
   const selectSection = (id, label, isLocked) => {
     setTarget({ id, label })
@@ -159,19 +159,15 @@ export default function SectionLock({ section, token, folderId, folders = [], on
     setCustomPassword('')
     setAction(mode === 'custom' ? 'use-custom' : 'use-account')
   }
+  const menuActions = blocked || action ? [] : [
+    { label: locked ? 'Remove section lock' : 'Lock this section', icon: locked ? Unlock : Lock, onClick: () => selectSection(section, 'this section', locked) },
+    ...(locked ? [{ label: 'Lock section now', icon: Lock, onClick: () => setUnlocked([]) }] : []),
+    ...(folder ? [{ label: locks.includes(folder.id) ? 'Remove folder lock' : 'Lock this folder', icon: locks.includes(folder.id) ? Unlock : Lock, onClick: () => selectSection(folder.id, folder.label, locks.includes(folder.id)) }] : [])
+  ]
   return <SectionLockContext.Provider value={{ locks, selectSection, busy, passwordMode, selectPasswordMode }}>
-    <section aria-label="Section lock" className="mb-4">
-      {!blocked && !action && <div className="flex flex-wrap justify-end gap-2">
-        {locked && <button type="button" className={control} onClick={() => setUnlocked([])}>Lock now</button>}
-        {folder && <button type="button" className={control} onClick={() => selectSection(folder.id, folder.label, locks.includes(folder.id))}>
-          {locks.includes(folder.id) ? 'Remove folder lock' : 'Lock this folder'}
-        </button>}
-        <button type="button" className={`${control} inline-flex items-center gap-2`} onClick={() => setAction(locked ? 'remove' : 'lock')}>
-          {locked ? <Unlock size={15} aria-hidden="true"/> : <Lock size={15} aria-hidden="true"/>}
-          {locked ? 'Remove section lock' : 'Lock this section'}
-        </button>
-      </div>}
-      {(blocked || action) && <form onSubmit={submit} className="mx-auto grid max-w-md gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-panel)] p-5">
+    {renderNavigation(menuActions)}
+    {(blocked || action) && <section aria-label="Section lock" className="mb-4">
+      <form onSubmit={submit} className="mx-auto grid max-w-md gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-panel)] p-5">
         <h2 className="font-semibold">{blocked ? blockedSection ? 'This section is locked' : lockedFolder ? `${lockedFolder.label} is locked` : 'This file is locked' : action === 'use-custom' ? 'Set a custom section-lock password' : action === 'use-account' ? 'Use your account password for section locks' : target ? `${action === 'lock' ? 'Lock' : 'Remove lock from'} ${target.label}` : action === 'lock' ? 'Lock this section' : 'Remove section lock'}</h2>
         <label className="grid gap-2 text-sm">{blocked && passwordMode === 'custom' ? 'Custom section-lock password' : 'Account password'}
           <input key={target?.id || section} autoFocus className={control} type="password" autoComplete="current-password" required maxLength={1024} value={password} onChange={event => setPassword(event.target.value)}/>
@@ -187,8 +183,8 @@ export default function SectionLock({ section, token, folderId, folders = [], on
           {blockedFile && !blockedSection && !lockedFolder && <button className={control} type="button" disabled={busy} onClick={onLeaveFile}>Close file</button>}
           {!blocked && <button className={control} type="button" disabled={busy} onClick={() => { setAction(null); setTarget(null); setPassword(''); setCustomPassword(''); setError('') }}>Cancel</button>}
         </div>
-      </form>}
-    </section>
+      </form>
+    </section>}
     {!blocked && children}
   </SectionLockContext.Provider>
 }
