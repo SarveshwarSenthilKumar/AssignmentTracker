@@ -92,3 +92,6 @@
 
 .library-live-editor { display: grid; gap: 8px; margin-top: 14px; }
 .library-live-editor textarea { display: block; width: 100%; padding: 10px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--surface-input); color: var(--text-primary); }
+
+.library-sharing-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.library-sharing-actions button { display: inline-flex; align-items: center; gap: 7px; }

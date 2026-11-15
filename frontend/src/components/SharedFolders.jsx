@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
-import { Download, Users } from 'lucide-react'
+import { Download, FolderOpen, Users } from 'lucide-react'
 import { downloadBlob } from '../lib/documentFormats'
 import SharedTextEditor from './SharedTextEditor'
 
 const base = '/api/shared-folders'
 
-export default function SharedFolders({ token, selectedFolder }) {
-  const [show, setShow] = useState(false)
+export default function SharedFolders({ token, selectedFolder, folderName }) {
+  const [panel, setPanel] = useState(null)
   const [folders, setFolders] = useState([])
   const [active, setActive] = useState(null)
   const [members, setMembers] = useState(null)
@@ -30,7 +30,7 @@ export default function SharedFolders({ token, selectedFolder }) {
   }
 
   useEffect(() => {
-    if (!show) return
+    if (!panel) return
     const controller = new AbortController()
     setMembers(null)
     setError('')
@@ -39,10 +39,11 @@ export default function SharedFolders({ token, selectedFolder }) {
       const data = await response.json()
       if (!controller.signal.aborted) update(data)
     }
-    Promise.all([load('', setFolders), ownerFolder && load(`/${ownerFolder}/members`, setMembers)])
+    const pending = panel === 'share' && ownerFolder ? load(`/${ownerFolder}/members`, setMembers) : load('', setFolders)
+    pending
       .catch(error => { if (!controller.signal.aborted) setError(error.message) })
     return () => controller.abort()
-  }, [show, ownerFolder, token])
+  }, [panel, ownerFolder, token])
 
   const run = async operation => {
     if (busy) return
@@ -72,11 +73,18 @@ export default function SharedFolders({ token, selectedFolder }) {
     })
   }
 
+  const togglePanel = next => {
+    setActive(null)
+    setPanel(previous => previous === next ? null : next)
+  }
   return <section className="library-sharing" aria-label="Document folder sharing">
-    <button type="button" disabled={!!editing} aria-expanded={show} onClick={() => setShow(!show)}><Users size={16} aria-hidden="true"/> Shared folders</button>
-    {show && <div className="library-sharing-panel">
-      {ownerFolder && <section aria-label="Share selected folder">
-        <h3>Share this folder</h3>
+    <div className="library-sharing-actions">
+      {ownerFolder && <button type="button" className="library-primary" disabled={!!editing} aria-expanded={panel === 'share'} onClick={() => togglePanel('share')}><Users size={16} aria-hidden="true"/> Share folder</button>}
+      <button type="button" disabled={!!editing} aria-expanded={panel === 'received'} onClick={() => togglePanel('received')}><FolderOpen size={16} aria-hidden="true"/> Shared with me</button>
+    </div>
+    {panel && <div className="library-sharing-panel">
+      {panel === 'share' && ownerFolder && <section aria-label="Share selected folder">
+        <h3>Share {folderName}</h3>
         <p>Members can download files. Editors can also edit Markdown and plain-text files live. Share subfolders individually.</p>
         <button type="button" disabled={busy || !!editing} onClick={() => openFolder(ownerFolder)}>Open collaborative files</button>
         <form onSubmit={event => {
@@ -105,10 +113,11 @@ export default function SharedFolders({ token, selectedFolder }) {
           })}>Revoke</button>
         </li>)}</ul>}
       </section>}
-      <section aria-label="Folders shared with me">
+      {panel === 'received' && <section aria-label="Folders shared with me">
         <h3>Shared with me</h3>
         {!folders.length && <p>No folders shared with you.</p>}
         <ul>{folders.map(folder => <li key={folder._id}><button type="button" disabled={busy || !!editing} onClick={() => openFolder(folder._id)}>{folder.name}</button></li>)}</ul>
+      </section>}
         {active && <div>
           <h4>{active.name}</h4>
           {!active.files.length && <p>No available documents in this folder.</p>}
@@ -118,7 +127,6 @@ export default function SharedFolders({ token, selectedFolder }) {
           })}><Download size={15} aria-hidden="true"/> Download</button></li>)}</ul>
           {editing && <SharedTextEditor token={token} name={editing.name} url={`${base}/${active.id}/files/${editing._id}/text`} onClose={() => setEditing(null)}/>}
         </div>}
-      </section>
       {error && <p role="alert" className="library-error">{error}</p>}
     </div>}
   </section>
