@@ -316,6 +316,7 @@ async function copyName(source, suffix) {
 // PDF Folder Schema
 const pdfFolderSchema = new mongoose.Schema({
   sharedWith: { type: [mongoose.Schema.Types.ObjectId], default: [], select: false, index: true },
+  sharedEditors: { type: [mongoose.Schema.Types.ObjectId], default: [], select: false },
   attachmentIds:[{type:mongoose.Schema.Types.ObjectId,ref:'PDF'}],
   parentId:{type:mongoose.Schema.Types.ObjectId,ref:'PDFFolder',default:null,index:true},
   name: {
