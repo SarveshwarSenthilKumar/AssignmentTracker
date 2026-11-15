@@ -1,5 +1,6 @@
 import { FileLockButton } from './SectionLock'
 import DocumentFileIcon from './DocumentFileIcon'
+import SharedFolders from './SharedFolders'
 import { hasDuplicateName } from '../lib/duplicateName'
 import { openInTab } from '../lib/openInTab'
 import {FolderDescriptionInput} from './FolderDescription'
@@ -186,6 +187,7 @@ export default function DocumentLibrary({ tasks = [], onOpenTask, documents, fol
   }, keyboardEnabled && !busy && !modal && !aiCreator && !markdownCreator && !oneNoteCreator)
   const modalTitle = modal?.type === 'move' ? `Move ${modal.ids.length === 1 ? 'document' : `${modal.ids.length} documents`}` : modal?.type === 'new-folder' ? 'New folder' : modal?.type === 'delete-folder' ? 'Remove folder' : 'Rename'
   return <section className="document-library" aria-label="Document library" aria-busy={busy}>
+    <SharedFolders key={selectedFolder || 'unfiled'} token={token} selectedFolder={selectedFolder}/>
     <FolderHierarchyControls folders={folders} selected={selectedFolder} token={token} base="/api/pdf-folders" documents={documents} onDocumentsChange={onDocumentsChange} onOpenDocument={onOpen} onFoldersChange={onFoldersChange} onSelect={onSelectFolder} onCreate={parentId=>{setValue('');setModal({type:'new-folder',parentId})}} disabled={busy}/>
     {oneNoteCreator&&<OneNoteImport token={token} folderId={oneNoteCreator.folderId} onClose={()=>setOneNoteCreator(null)} onCreated={file=>{onDocumentsChange(previous=>[file,...previous]);setOneNoteCreator(null);setSearch('');setNotice({text:'OneNote notebook imported as notes.'});onOpen(file._id)}}/>}
     {markdownCreator&&<MarkdownPDFCreator token={token} folderId={markdownCreator.folderId} onClose={()=>setMarkdownCreator(null)} onCreated={file=>{onDocumentsChange(previous=>[file,...previous]);setMarkdownCreator(null);setSearch('');setNotice({text:'Markdown converted and saved as a PDF.'});onOpen(file._id)}}/>}

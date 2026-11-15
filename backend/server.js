@@ -315,6 +315,7 @@ async function copyName(source, suffix) {
 
 // PDF Folder Schema
 const pdfFolderSchema = new mongoose.Schema({
+  sharedWith: { type: [mongoose.Schema.Types.ObjectId], default: [], select: false, index: true },
   attachmentIds:[{type:mongoose.Schema.Types.ObjectId,ref:'PDF'}],
   parentId:{type:mongoose.Schema.Types.ObjectId,ref:'PDFFolder',default:null,index:true},
   name: {
@@ -1124,6 +1125,7 @@ app.delete('/api/todos/clear-inbox', authenticateToken, async (req, res) => {
 
 // Folder Routes
 require('./folderHierarchy')(app,authenticateToken,{mongoose,User,Folder,PDFFolder,Todo,PDF});
+require('./sharedFolders')(app,authenticateToken,{User,PDF,PDFFolder});
 require('./folderAttachments')(app,authenticateToken,{mongoose,User,Folder,PDFFolder,PDF,upload});
 // Get all folders
 app.get('/api/folders', authenticateToken, async (req, res) => {
