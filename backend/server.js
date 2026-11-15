@@ -1420,6 +1420,38 @@ app.get('/api/pdfs/:id', authenticateToken, async (req, res) => {
 });
 
 // A clean copy has independent storage and no editor annotation history.
+app.post('/api/pdfs/:id/copy', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+  if (!mongoose.isValidObjectId(id)) return res.status(400).json({ message: 'Invalid document ID.' });
+  try {
+    const user = req.user.userId;
+    const account = await User.findById(user).select('lockedSections');
+    if (!account) return res.sendStatus(401);
+    if (account.lockedSections.includes(`file:${id.toLowerCase()}`)) {
+      return res.status(403).json({ message: 'Remove the file lock before making a copy.' });
+    }
+    const source = await PDF.findOne({ _id: id, user, deletedAt: null });
+    if (!source) return res.status(404).json({ message: 'Document not found.' });
+    const copy = await PDF.create({
+      user,
+      name: `${source.name} (copy)`,
+      originalName: source.originalName,
+      mimeType: source.mimeType,
+      pdfData: source.pdfData,
+      originalBackup: source.originalBackup,
+      annotations: source.annotations,
+      tags: source.tags,
+      pdfFolder: source.pdfFolder
+    });
+    const metadata = copy.toObject();
+    delete metadata.pdfData;
+    delete metadata.originalBackup;
+    res.status(201).json(metadata);
+  } catch {
+    res.status(500).json({ message: 'Could not make a copy of this document.' });
+  }
+});
+
 app.post('/api/pdfs/:id/clean-copy', authenticateToken, async (req, res) => {
   try {
     const source = await PDF.findOne({ _id: req.params.id, user: req.user.userId, deletedAt: null });
