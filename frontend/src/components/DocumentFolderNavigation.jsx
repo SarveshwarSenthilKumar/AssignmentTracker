@@ -3,6 +3,7 @@ import { useId, useRef, useState } from 'react'
 import { ChevronDown, EyeOff, FilePlus, FileText, Folder, FolderOpen, Library } from 'lucide-react'
 import { folderTree } from '../lib/folderHierarchy'
 import { createDocument } from '../lib/createDocument'
+import { hasDuplicateName } from '../lib/duplicateName'
 import { NOTE_TEMPLATES } from '../lib/noteTemplates'
 import './DocumentFolderNavigation.css'
 
@@ -58,6 +59,10 @@ export default function DocumentFolderNavigation({ documentId, documents, folder
     const name = fields.get('name').trim()
     if (!name) {
       setError('Enter a file name.')
+      return
+    }
+    if (hasDuplicateName(documents, name, 'pdfFolder', folder?._id)) {
+      setError('A document with this name already exists here.')
       return
     }
     const template = NOTE_TEMPLATES.find(item => item.id === fields.get('template')) || NOTE_TEMPLATES[0]
