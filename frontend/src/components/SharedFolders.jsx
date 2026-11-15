@@ -57,6 +57,20 @@ export default function SharedFolders({ token, selectedFolder }) {
     const response = await request(`/${id}`)
     setActive({ ...await response.json(), id })
   })
+  async function saveAccess(memberEmail, permission) {
+    const response = await request(`/${ownerFolder}/members`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: memberEmail, role: permission })
+    })
+    const member = await response.json()
+    setMembers(previous => {
+      const list = previous || []
+      return list.some(item => item._id === member._id)
+        ? list.map(item => item._id === member._id ? member : item)
+        : [...list, member]
+    })
+  }
 
   return <section className="library-sharing" aria-label="Document folder sharing">
     <button type="button" disabled={!!editing} aria-expanded={show} onClick={() => setShow(!show)}><Users size={16} aria-hidden="true"/> Shared folders</button>
@@ -68,20 +82,23 @@ export default function SharedFolders({ token, selectedFolder }) {
         <form onSubmit={event => {
           event.preventDefault()
           run(async () => {
-            const response = await request(`/${ownerFolder}/members`, {
-              method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, role })
-            })
-            const member = await response.json()
-            setMembers(previous => [...(previous || []).filter(item => item._id !== member._id), member])
+            await saveAccess(email, role)
             setEmail('')
           })
         }}>
           <label>Account email <input type="email" required maxLength={254} value={email} onChange={event => setEmail(event.target.value)}/></label>
-          <label>Permission <select value={role} onChange={event => setRole(event.target.value)}><option value="view">Can view</option><option value="edit">Can edit text</option></select></label>
+          <label>Permission <select value={role} onChange={event => setRole(event.target.value)}><option value="view">Viewer</option><option value="edit">Editor</option></select></label>
           <button type="submit" disabled={busy || members === null}>Save access</button>
         </form>
         {members?.length > 0 && <ul>{members.map(member => <li key={member._id}>
-          <span>{member.username} ({member.email}) · {member.role === 'edit' ? 'Can edit text' : 'Can view'}</span>
+          <span>{member.username} ({member.email})</span>
+          <select aria-label={`Permission for ${member.email}`} value={member.role} disabled={busy} onChange={event => {
+            const permission = event.target.value
+            run(() => saveAccess(member.email, permission))
+          }}>
+            <option value="view">Viewer</option>
+            <option value="edit">Editor</option>
+          </select>
           <button type="button" disabled={busy} aria-label={`Revoke access for ${member.email}`} onClick={() => run(async () => {
             await request(`/${ownerFolder}/members/${member._id}`, { method: 'DELETE' })
             setMembers(previous => previous?.filter(item => item._id !== member._id))
