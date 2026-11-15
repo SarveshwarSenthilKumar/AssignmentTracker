@@ -79,6 +79,7 @@ const userSchema = new mongoose.Schema({
   confirmOtherActions: { type: Boolean, default: true },
   showInProgressColumn: { type: Boolean, default: true },
   showTaskStreaks: { type: Boolean, default: true },
+  lockedSections: { type: [String], default: [] },
   showTaskContributionGraph: { type: Boolean, default: true },
   taskSortBy:{type:String,enum:['dueDate','manual','createdAt','completedAt','text','status'],default:'dueDate'},
   taskSortOrder:{type:String,enum:['asc','desc'],default:'asc'},
@@ -642,6 +643,49 @@ app.post('/api/assistant/chat', authenticateToken, async (req, res) => {
     }
   } finally { if(turn&&!turnFinished){try{await finishConversation(turn,null,'The reply was interrupted. Retry your question.');}catch{}} clearTimeout(timeout); res.off('close',disconnected); state.busy=false; if (res.destroyed && !res.writableEnded) res.end(); }
 });
+const sectionPasswordAttempts = new Map();
+app.get('/api/account/section-locks', authenticateToken, async (req, res) => {
+  try {
+    res.set('Cache-Control', 'no-store');
+    const user = await User.findById(req.user.userId).select('lockedSections');
+    if (!user) return res.sendStatus(401);
+    res.json({ lockedSections: user.lockedSections });
+  } catch {
+    res.status(503).json({ message: 'Could not load section locks.' });
+  }
+});
+
+app.put('/api/account/section-locks', authenticateToken, async (req, res) => {
+  const { section, action, password } = req.body || {};
+  if (typeof section !== 'string' || !/^[a-z-]{1,32}$/.test(section) ||
+      !['lock', 'unlock', 'remove'].includes(action) ||
+      typeof password !== 'string' || !password || password.length > 1024) {
+    return res.status(400).json({ message: 'Enter your account password to continue.' });
+  }
+  const id = String(req.user.userId);
+  let attempts = sectionPasswordAttempts.get(id);
+  if (!attempts) {
+    attempts = { count: 0 };
+    sectionPasswordAttempts.set(id, attempts);
+    setTimeout(() => sectionPasswordAttempts.delete(id), 60000).unref();
+  }
+  if (attempts.count >= 8) return res.status(429).json({ message: 'Too many attempts. Try again in a minute.' });
+  attempts.count++;
+  try {
+    const user = await User.findById(id).select('password lockedSections');
+    if (!user || !await bcrypt.compare(password, user.password)) {
+      return res.status(403).json({ message: 'Incorrect account password.' });
+    }
+    if (action === 'unlock') return res.json({ lockedSections: user.lockedSections });
+    const update = action === 'lock' ? { $addToSet: { lockedSections: section } } : { $pull: { lockedSections: section } };
+    const updated = await User.findByIdAndUpdate(id, update, { new: true }).select('lockedSections');
+    if (!updated) return res.sendStatus(401);
+    res.json({ lockedSections: updated.lockedSections });
+  } catch {
+    res.status(503).json({ message: 'Could not update the section lock.' });
+  }
+});
+
 app.get('/api/account/preferences', authenticateToken, async (req, res) => {
   try {
     const user = await User.findById(req.user.userId).select('themeMode timeZone confirmTaskDeletion confirmOtherActions showInProgressColumn showTaskStreaks showTaskContributionGraph studyPhoneEnabled taskSortBy taskSortOrder completedTaskRetentionDays deletedTaskRetentionDays +birthday');
