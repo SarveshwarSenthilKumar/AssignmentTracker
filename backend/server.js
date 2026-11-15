@@ -1379,10 +1379,10 @@ app.post('/api/pdfs/:id/clean-copy', authenticateToken, async (req, res) => {
 
 // Upload a new PDF
 app.post('/api/pdfs/blank-notebook', authenticateToken, async (req, res) => {
-  const { name, pageCount, pageSize, folderId } = req.body || {};
+  const { name, pageCount, pageSize, folderId, plainPdf = false } = req.body || {};
   if (typeof name !== 'string' || !name.trim() || name.length > 120 ||
       !Number.isInteger(pageCount) || pageCount < 1 || pageCount > 500 ||
-      !['a4', 'letter'].includes(pageSize)) {
+      !['a4', 'letter'].includes(pageSize) || typeof plainPdf !== 'boolean') {
     return res.status(400).json({ message: 'Enter a notebook name, select a page size, and choose 1–500 pages.' });
   }
   try {
@@ -1403,7 +1403,7 @@ app.post('/api/pdfs/blank-notebook', authenticateToken, async (req, res) => {
       mimeType: 'application/pdf',
       user,
       pdfFolder: folderId || null,
-      tags: ['notes', 'handwritten-notebook']
+      tags: plainPdf ? [] : ['notes', 'handwritten-notebook']
     });
     const metadata = file.toObject();
     delete metadata.pdfData;

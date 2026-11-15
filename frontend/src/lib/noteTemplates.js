@@ -1,5 +1,5 @@
 export const NOTE_TEMPLATES=[
-  {id:'blank',name:'Blank page',description:'A clean space for your ideas.',content:()=>''},
+  {id:'blank',name:'Blank page',description:'A clean space for your ideas.',content:()=>'\n'},
   {id:'lecture',name:'Lecture notes',description:'Concepts, examples, questions and a recap.',content:title=>`# ${title}\n\n**Course:**  \n**Date:** ${new Date().toLocaleDateString()}\n\n## Key concepts\n\n- \n\n## Examples & explanations\n\n\n\n## Questions to revisit\n\n- [ ] \n\n## Summary\n\n`},
   {id:'cornell',name:'Cornell study notes',description:'Cues, detailed notes and an active-recall summary.',content:title=>`# ${title}\n\n## Cues & questions\n\n- What are the main ideas?\n- How would I explain this without my notes?\n\n## Detailed notes\n\n### Main idea\n\n\n\n### Examples\n\n\n\n## Summary in my own words\n\n\n\n## Review checklist\n\n- [ ] Recall the main ideas without looking\n- [ ] Work through an example\n- [ ] Revisit difficult questions\n`},
   {id:'meeting',name:'Meeting notes',description:'Agenda, decisions and action items.',content:title=>`# ${title}\n\n**Date:** ${new Date().toLocaleDateString()}  \n**Attendees:**\n\n## Agenda\n\n1. \n\n## Discussion\n\n\n\n## Decisions\n\n- \n\n## Action items\n\n| Action | Owner | Due |\n| --- | --- | --- |\n| | | |\n\n## Next steps\n\n- [ ] \n`},

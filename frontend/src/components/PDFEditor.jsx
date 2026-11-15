@@ -1711,12 +1711,34 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     if(item.tool==='image')resizeInsert(item.id,factor)
     else if(item.tool==='text'){pushHistory();handleFontDelta(item.id,factor>1?2:-2)}
   }
+  const positionInsert = (item, point) => {
+    if (pageBase?.page !== item.page) return
+    const changes = moveInsert(item, insertSize(item), point, { x: 0, y: 0 }, pageBase)
+    if (changes.x === item.x && changes.y === item.y) return
+    pushHistory()
+    updatePaths(previous => previous.map(value => value.id === item.id ? { ...value, ...changes } : value))
+  }
+
+  const alignInsert = (item, alignment) => {
+    if (!pageBase) return
+    const { width, height } = insertSize(item)
+    const center = (pageBase.w - width) / 2
+    const positions = {
+      left: { x: 0, y: item.y },
+      horizontal: { x: center, y: item.y },
+      right: { x: pageBase.w - width, y: item.y },
+      top: { x: item.x, y: 0 },
+      vertical: { x: item.x, y: (pageBase.h - height) / 2 },
+      bottom: { x: item.x, y: pageBase.h - height },
+      page: { x: center, y: (pageBase.h - height) / 2 }
+    }
+    positionInsert(item, positions[alignment])
+  }
+
   const nudgeSelected = (dx,dy) => {
     const item=pathsRef.current.find(item=>item.id===selectedInsertId)
     if(!item||!pageBase||currentTool!=='select')return
-    const changes=moveInsert(item,insertSize(item),{x:item.x+dx,y:item.y+dy},{x:0,y:0},pageBase)
-    if(changes.x===item.x&&changes.y===item.y)return
-    pushHistory();updatePaths(prev=>prev.map(value=>value.id===item.id?{...value,...changes}:value))
+    positionInsert(item, { x: item.x + dx, y: item.y + dy })
   }
   useShortcuts('Visual editor', {
     'pdf-save': handleSave, 'pdf-download': handleDownload, undo, redo, 'redo-y': redo,
@@ -2136,7 +2158,16 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
                       <img src={item.dataUrl} alt={item.label || 'Inserted image'} draggable={false} style={{ width: '100%', height: '100%', display: 'block' }} />
                       {currentTool === 'select' && selectedInsertId === item.id && <InsertHandles item={item} onStart={handleResizeStart} onMove={handleTextDragMove} onEnd={handleTextDragEnd} />}
                       {currentTool === 'select' && selectedInsertId === item.id && <div className="pdf-insert-controls" onPointerDown={e => e.stopPropagation()}>
-                        <span className="text-xs">Drag to move</span>
+                        <select aria-label="Align insert to page" value="" onChange={event => alignInsert(item, event.target.value)}>
+                          <option value="" disabled>Align</option>
+                          <option value="left">Left edge</option>
+                          <option value="horizontal">Center horizontally</option>
+                          <option value="right">Right edge</option>
+                          <option value="top">Top edge</option>
+                          <option value="vertical">Center vertically</option>
+                          <option value="bottom">Bottom edge</option>
+                          <option value="page">Center on page</option>
+                        </select>
                         <button aria-label="Shrink insert" title="Shrink insert" onClick={() => resizeInsert(item.id, 0.8)}><Minus size={16} /></button>
                         <button aria-label="Enlarge insert" title="Enlarge insert" onClick={() => resizeInsert(item.id, 1.25)}><Plus size={16} /></button>
                         <button aria-label="Delete insert" title="Delete insert" onClick={() => handleDeleteText(item.id)}><Trash2 size={16} /></button>
