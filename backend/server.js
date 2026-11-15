@@ -80,6 +80,7 @@ const userSchema = new mongoose.Schema({
   showInProgressColumn: { type: Boolean, default: true },
   showTaskStreaks: { type: Boolean, default: true },
   lockedSections: { type: [String], default: [] },
+  sectionLockPasswordHash: { type: String, default: '', select: false },
   showTaskContributionGraph: { type: Boolean, default: true },
   taskSortBy:{type:String,enum:['dueDate','manual','createdAt','completedAt','text','status'],default:'dueDate'},
   taskSortOrder:{type:String,enum:['asc','desc'],default:'asc'},
@@ -647,20 +648,24 @@ const sectionPasswordAttempts = new Map();
 app.get('/api/account/section-locks', authenticateToken, async (req, res) => {
   try {
     res.set('Cache-Control', 'no-store');
-    const user = await User.findById(req.user.userId).select('lockedSections');
+    const user = await User.findById(req.user.userId).select('lockedSections +sectionLockPasswordHash');
     if (!user) return res.sendStatus(401);
-    res.json({ lockedSections: user.lockedSections });
+    res.json({ lockedSections: user.lockedSections, passwordMode: user.sectionLockPasswordHash ? 'custom' : 'account' });
   } catch {
     res.status(503).json({ message: 'Could not load section locks.' });
   }
 });
 
 app.put('/api/account/section-locks', authenticateToken, async (req, res) => {
-  const { section, action, password } = req.body || {};
+  const { section, action, password, customPassword } = req.body || {};
   if (typeof section !== 'string' || !/^[a-z-]{1,32}$/.test(section) ||
-      !['lock', 'unlock', 'remove'].includes(action) ||
+      !['lock', 'unlock', 'remove', 'use-account', 'use-custom'].includes(action) ||
       typeof password !== 'string' || !password || password.length > 1024) {
     return res.status(400).json({ message: 'Enter your account password to continue.' });
+  }
+  if (action === 'use-custom' && (typeof customPassword !== 'string' || !customPassword.trim() ||
+      customPassword.length < 8 || Buffer.byteLength(customPassword, 'utf8') > 72)) {
+    return res.status(400).json({ message: 'Use a custom password with at least 8 characters and at most 72 UTF-8 bytes.' });
   }
   const id = String(req.user.userId);
   let attempts = sectionPasswordAttempts.get(id);
@@ -672,15 +677,19 @@ app.put('/api/account/section-locks', authenticateToken, async (req, res) => {
   if (attempts.count >= 8) return res.status(429).json({ message: 'Too many attempts. Try again in a minute.' });
   attempts.count++;
   try {
-    const user = await User.findById(id).select('password lockedSections');
-    if (!user || !await bcrypt.compare(password, user.password)) {
-      return res.status(403).json({ message: 'Incorrect account password.' });
+    const user = await User.findById(id).select('password lockedSections +sectionLockPasswordHash');
+    const useCustom = action === 'unlock' && !!user?.sectionLockPasswordHash;
+    if (!user || !await bcrypt.compare(password, useCustom ? user.sectionLockPasswordHash : user.password)) {
+      return res.status(403).json({ message: useCustom ? 'Incorrect section-lock password.' : 'Incorrect account password.' });
     }
-    if (action === 'unlock') return res.json({ lockedSections: user.lockedSections });
-    const update = action === 'lock' ? { $addToSet: { lockedSections: section } } : { $pull: { lockedSections: section } };
-    const updated = await User.findByIdAndUpdate(id, update, { new: true }).select('lockedSections');
+    const describe = account => ({ lockedSections: account.lockedSections, passwordMode: account.sectionLockPasswordHash ? 'custom' : 'account' });
+    if (action === 'unlock') return res.json(describe(user));
+    const update = action.startsWith('use-')
+      ? { $set: { sectionLockPasswordHash: action === 'use-custom' ? await bcrypt.hash(customPassword, 12) : '' } }
+      : action === 'lock' ? { $addToSet: { lockedSections: section } } : { $pull: { lockedSections: section } };
+    const updated = await User.findByIdAndUpdate(id, update, { new: true }).select('lockedSections +sectionLockPasswordHash');
     if (!updated) return res.sendStatus(401);
-    res.json({ lockedSections: updated.lockedSections });
+    res.json(describe(updated));
   } catch {
     res.status(503).json({ message: 'Could not update the section lock.' });
   }

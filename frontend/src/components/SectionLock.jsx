@@ -14,10 +14,17 @@ const sections = [
 ]
 
 export function SectionLockSettings() {
-  const { locks, selectSection, busy } = useContext(SectionLockContext)
+  const { locks, selectSection, busy, passwordMode, selectPasswordMode } = useContext(SectionLockContext)
   return <section className="confirmation-settings">
     <h3>Section locks</h3>
-    <p>Choose which pages ask for your account password. Confirm each change with your password.</p>
+    <p>Choose which pages require a password. Confirm changes with your account password.</p>
+    <label><span><strong>Password for locked sections</strong><small>Applies to all locked sections.</small></span>
+      <select value={passwordMode} disabled={busy} onChange={event => selectPasswordMode(event.target.value)}>
+        <option value="account">Account password</option>
+        <option value="custom">Custom password</option>
+      </select>
+    </label>
+    {passwordMode === 'custom' && <button type="button" disabled={busy} onClick={() => selectPasswordMode('custom')}>Change custom password</button>}
     <div className="grid grid-cols-1 gap-x-6 sm:grid-cols-2">
       {sections.map(([id, label]) => {
         const locked = locks.includes(id)
@@ -33,6 +40,8 @@ export default function SectionLock({ section, token, children }) {
   const [action, setAction] = useState(null)
   const [target, setTarget] = useState(null)
   const [password, setPassword] = useState('')
+  const [passwordMode, setPasswordMode] = useState('account')
+  const [customPassword, setCustomPassword] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [reload, setReload] = useState(0)
@@ -45,6 +54,7 @@ export default function SectionLock({ section, token, children }) {
     setAction(null)
     setTarget(null)
     setPassword('')
+    setCustomPassword('')
     setError('')
   }, [section])
 
@@ -54,7 +64,10 @@ export default function SectionLock({ section, token, children }) {
       .then(async response => {
         const data = await readApiJson(response)
         if (!response.ok || !Array.isArray(data.lockedSections)) throw new Error(data.message || 'Could not load section locks.')
-        if (!controller.signal.aborted) setLocks(data.lockedSections)
+        if (!controller.signal.aborted) {
+          setLocks(data.lockedSections)
+          setPasswordMode(data.passwordMode === 'custom' ? 'custom' : 'account')
+        }
       })
       .catch(error => { if (!controller.signal.aborted) setError(error.message) })
     return () => controller.abort()
@@ -69,18 +82,20 @@ export default function SectionLock({ section, token, children }) {
     try {
       const response = await fetch('/api/account/section-locks', {
         method: 'PUT', headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ section: target?.id || section, action: next, password })
+        body: JSON.stringify({ section: target?.id || section, action: next, password, ...(next === 'use-custom' ? { customPassword } : {}) })
       })
       const data = await readApiJson(response)
       if (!response.ok || !Array.isArray(data.lockedSections)) throw new Error(data.message || 'Could not update the section lock.')
       setLocks(data.lockedSections)
-      if (!target || target.id === section) setUnlocked(next === 'unlock' ? section : false)
+      setPasswordMode(data.passwordMode === 'custom' ? 'custom' : 'account')
+      if (!next.startsWith('use-') && (!target || target.id === section)) setUnlocked(next === 'unlock' ? section : false)
       setAction(null)
       setTarget(null)
     } catch (error) {
       setError(error.message)
     } finally {
       setPassword('')
+      setCustomPassword('')
       setBusy(false)
     }
   }
@@ -94,9 +109,17 @@ export default function SectionLock({ section, token, children }) {
     setTarget({ id, label })
     setError('')
     setPassword('')
+    setCustomPassword('')
     setAction(isLocked ? 'remove' : 'lock')
   }
-  return <SectionLockContext.Provider value={{ locks, selectSection, busy }}>
+  const selectPasswordMode = mode => {
+    setTarget(null)
+    setError('')
+    setPassword('')
+    setCustomPassword('')
+    setAction(mode === 'custom' ? 'use-custom' : 'use-account')
+  }
+  return <SectionLockContext.Provider value={{ locks, selectSection, busy, passwordMode, selectPasswordMode }}>
     <section aria-label="Section lock" className="mb-4">
       {!blocked && !action && <div className="flex flex-wrap justify-end gap-2">
         {locked && <button type="button" className={control} onClick={() => setUnlocked(false)}>Lock now</button>}
@@ -106,14 +129,18 @@ export default function SectionLock({ section, token, children }) {
         </button>
       </div>}
       {(blocked || action) && <form onSubmit={submit} className="mx-auto grid max-w-md gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-panel)] p-5">
-        <h2 className="font-semibold">{blocked ? 'This section is locked' : target ? `${action === 'lock' ? 'Lock' : 'Unlock'} ${target.label}` : action === 'lock' ? 'Lock this section' : 'Remove section lock'}</h2>
-        <label className="grid gap-2 text-sm">Account password
+        <h2 className="font-semibold">{blocked ? 'This section is locked' : action === 'use-custom' ? 'Set a custom section-lock password' : action === 'use-account' ? 'Use your account password for section locks' : target ? `${action === 'lock' ? 'Lock' : 'Unlock'} ${target.label}` : action === 'lock' ? 'Lock this section' : 'Remove section lock'}</h2>
+        <label className="grid gap-2 text-sm">{blocked && passwordMode === 'custom' ? 'Custom section-lock password' : 'Account password'}
           <input key={target?.id || section} autoFocus className={control} type="password" autoComplete="current-password" required maxLength={1024} value={password} onChange={event => setPassword(event.target.value)}/>
         </label>
+        {!blocked && action === 'use-custom' && <label className="grid gap-2 text-sm">New custom password
+          <input className={control} type="password" autoComplete="new-password" required minLength={8} maxLength={72} value={customPassword} onChange={event => setCustomPassword(event.target.value)}/>
+          <small>Use at least 8 characters.</small>
+        </label>}
         {error && <p role="alert" className="text-sm text-red-400">{error}</p>}
         <div className="flex flex-wrap gap-2">
-          <button className={control} type="submit" disabled={busy || !password}>{blocked ? 'Unlock section' : action === 'lock' ? 'Lock section' : 'Remove lock'}</button>
-          {!blocked && <button className={control} type="button" disabled={busy} onClick={() => { setAction(null); setTarget(null); setPassword(''); setError('') }}>Cancel</button>}
+          <button className={control} type="submit" disabled={busy || !password}>{blocked ? 'Unlock section' : action.startsWith('use-') ? 'Save password choice' : action === 'lock' ? 'Lock section' : 'Remove lock'}</button>
+          {!blocked && <button className={control} type="button" disabled={busy} onClick={() => { setAction(null); setTarget(null); setPassword(''); setCustomPassword(''); setError('') }}>Cancel</button>}
         </div>
       </form>}
     </section>
