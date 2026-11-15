@@ -1,3 +1,5 @@
+const { checkNames, sameFolder, nameKey } = require('./uniqueNames');
+
 module.exports=function registerFolderHierarchy(app,auth,{mongoose,User,Folder,PDFFolder,Todo,PDF}){
   for(const [base,Model,Items,field]of [['/api/folders',Folder,Todo,'folder'],['/api/pdf-folders',PDFFolder,PDF,'pdfFolder']]){
     const write=mode=>async(req,res)=>{
@@ -20,6 +22,9 @@ module.exports=function registerFolderHierarchy(app,auth,{mongoose,User,Folder,P
             if(parent!==null&&(typeof parent!=='string'||!known.has(parent)))throw new Error('Choose a parent folder from your account.');
             data.parentId=parent;
             const id=current?String(current._id):String(new mongoose.Types.ObjectId());
+            if (!current || nameKey(data.name ?? current.name) !== nameKey(current.name) || !sameFolder(parent, current.parentId)) {
+              checkNames(folders.filter(folder => String(folder._id) !== id), [{ name: data.name ?? current.name, parentId: parent }], 'parentId', 'folder');
+            }
             known.set(id,{...current,...data,_id:id});
             for(const folder of known.values()){
               const seen=new Set();let next=String(folder._id),depth=0;
@@ -29,6 +34,14 @@ module.exports=function registerFolderHierarchy(app,auth,{mongoose,User,Folder,P
             else result=await Model.findOneAndUpdate({_id:current._id,user:owner},{$set:data},{new:true,runValidators:true,session});
           }else{
             const parentId=current.parentId&&known.has(String(current.parentId))?String(current.parentId):null;
+            checkNames(folders.filter(folder => !sameFolder(folder._id, current._id) && !sameFolder(folder.parentId, current._id)),
+              folders.filter(folder => sameFolder(folder.parentId, current._id)).map(folder => ({ ...folder, parentId })), 'parentId', 'folder');
+            if (Items === PDF) {
+              const files = await PDF.find({ user: owner, deletedAt: null, pdfFolder: { $in: [current._id, parentId ? known.get(parentId)._id : null] } })
+                .select('name pdfFolder').session(session).lean();
+              checkNames(files.filter(file => !sameFolder(file.pdfFolder, current._id)),
+                files.filter(file => sameFolder(file.pdfFolder, current._id)).map(file => ({ ...file, pdfFolder: parentId })), 'pdfFolder', 'document');
+            }
             await Model.updateMany({user:owner,parentId:current._id},{$set:{parentId}},{session});
             await Items.updateMany({user:owner,[field]:current._id},{$set:{[field]:parentId}},{session});
             await Model.deleteOne({_id:current._id,user:owner},{session});

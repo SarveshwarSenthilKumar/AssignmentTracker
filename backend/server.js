@@ -291,7 +291,27 @@ const pdfSchema = new mongoose.Schema({
   },
 });
 
+const { nameKey, sameFolder, checkNames, DuplicateNameError } = require('./uniqueNames');
+async function documentNames(Model, user, folder, exclude = [], session = null) {
+  return Model.find({ user, pdfFolder: folder ?? null, deletedAt: null, _id: { $nin: exclude } })
+    .select('name pdfFolder').session(session).lean();
+}
+
+pdfSchema.pre('save', async function () {
+  if (this.deletedAt || (!this.isNew && !this.isModified('name') && !this.isModified('pdfFolder'))) return;
+  const existing = await documentNames(this.constructor, this.user, this.pdfFolder, [this._id], this.$session());
+  checkNames(existing, [this], 'pdfFolder', 'document');
+});
 const PDF = mongoose.model('PDF', pdfSchema);
+
+async function copyName(source, suffix) {
+  const names = new Set((await documentNames(PDF, source.user, source.pdfFolder)).map(file => nameKey(file.name)));
+  for (let index = 1; ; index++) {
+    const ending = ` (${suffix}${index === 1 ? '' : ` ${index}`})`;
+    const candidate = source.name.slice(0, 120 - ending.length).trimEnd() + ending;
+    if (!names.has(nameKey(candidate))) return candidate;
+  }
+}
 
 // PDF Folder Schema
 const pdfFolderSchema = new mongoose.Schema({
@@ -1384,9 +1404,23 @@ app.post('/api/documents/actions', authenticateToken, async (req, res) => {
     if (action === 'move' && folderId !== null && !await PDFFolder.exists({ _id: folderId, user: req.user.userId })) return res.status(404).json({ message: 'The destination folder no longer exists.' });
     const query = { _id: { $in: ids }, user: req.user.userId, deletedAt: action === 'restore' ? { $ne: null } : null };
     if (await PDF.countDocuments(query) !== ids.length) return res.status(409).json({ message: 'Some selected documents are unavailable. Refresh the library and try again.' });
+    if (action === 'move' || action === 'restore') {
+      const files = await PDF.find(query).select('name pdfFolder').lean();
+      const incoming = action === 'move'
+        ? files.filter(file => !sameFolder(file.pdfFolder, folderId)).map(file => ({ ...file, pdfFolder: folderId }))
+        : files;
+      const destinations = [...new Set(incoming.map(file => String(file.pdfFolder ?? '')))];
+      for (const destination of destinations) {
+        const existing = await documentNames(PDF, req.user.userId, destination || null);
+        checkNames(existing, incoming.filter(file => sameFolder(file.pdfFolder, destination)), 'pdfFolder', 'document');
+      }
+    }
     await PDF.updateMany(query, { $set: update });
     res.json({ ids, action, folderId: folderId ?? null, deletedAt: update.deletedAt ?? null });
-  } catch (error) { res.status(500).json({ message: 'Could not update the selected documents. Please try again.' }); }
+  } catch (error) {
+    if (error instanceof DuplicateNameError) return res.status(409).json({ message: error.message });
+    res.status(500).json({ message: 'Could not update the selected documents. Please try again.' });
+  }
 });
 
 // Get all documents for user
@@ -1434,7 +1468,7 @@ app.post('/api/pdfs/:id/copy', authenticateToken, async (req, res) => {
     if (!source) return res.status(404).json({ message: 'Document not found.' });
     const copy = await PDF.create({
       user,
-      name: `${source.name} (copy)`,
+      name: await copyName(source, 'copy'),
       originalName: source.originalName,
       mimeType: source.mimeType,
       pdfData: source.pdfData,
@@ -1447,7 +1481,8 @@ app.post('/api/pdfs/:id/copy', authenticateToken, async (req, res) => {
     delete metadata.pdfData;
     delete metadata.originalBackup;
     res.status(201).json(metadata);
-  } catch {
+  } catch (error) {
+    if (error instanceof DuplicateNameError) return res.status(409).json({ message: error.message });
     res.status(500).json({ message: 'Could not make a copy of this document.' });
   }
 });
@@ -1458,7 +1493,7 @@ app.post('/api/pdfs/:id/clean-copy', authenticateToken, async (req, res) => {
     if (!source) return res.status(404).json({ message: 'Document not found' });
     const copy = await PDF.create({
       user: req.user.userId,
-      name: `${source.name.slice(0, 107)} (clean copy)`,
+      name: await copyName(source, 'clean copy'),
       originalName: source.originalName,
       mimeType: source.mimeType,
       pdfData: Buffer.from(source.originalBackup || source.pdfData),
@@ -1507,6 +1542,7 @@ app.post('/api/pdfs/blank-notebook', authenticateToken, async (req, res) => {
     res.status(201).json(metadata);
   } catch (error) {
     console.error('Blank notebook creation failed:', error.name, error.code);
+    if (error instanceof DuplicateNameError) return res.status(409).json({ message: error.message });
     res.status(500).json({ message: 'The server could not create the blank notebook.' });
   }
 });
@@ -1547,6 +1583,7 @@ app.post('/api/pdfs', authenticateToken, upload.single('pdfFile'), async (req, r
     const metadata = pdf.toObject(); delete metadata.pdfData; delete metadata.originalBackup;
     res.status(201).json(metadata);
   } catch (error) {
+    if (error instanceof DuplicateNameError) return res.status(409).json({ message: error.message });
     if (error.name === 'ValidationError') {
       return res.status(400).json({ message: `The document could not be saved. Check the following fields: ${Object.keys(error.errors).join(', ')}.` });
     }
@@ -1694,9 +1731,18 @@ app.put('/api/pdfs/:id', authenticateToken, async (req, res) => {
       updateData.pdfFolder = pdfFolder;
     }
     updateData.updatedAt = new Date();
+    const filter = { _id: req.params.id, user: req.user.userId };
+    if (name !== undefined || pdfFolder !== undefined) {
+      const current = await PDF.findOne(filter).select('name pdfFolder deletedAt').lean();
+      if (!current) return res.status(404).json({ message: 'PDF not found' });
+      const next = { name: updateData.name ?? current.name, pdfFolder: pdfFolder === undefined ? current.pdfFolder : pdfFolder };
+      if (!current.deletedAt && (nameKey(next.name) !== nameKey(current.name) || !sameFolder(next.pdfFolder, current.pdfFolder))) {
+        checkNames(await documentNames(PDF, req.user.userId, next.pdfFolder, [current._id]), [next], 'pdfFolder', 'document');
+      }
+    }
 
     const pdf = await PDF.findOneAndUpdate(
-      { _id: req.params.id, user: req.user.userId },
+      filter,
       updateData,
       { new: true }
     );
@@ -1705,6 +1751,7 @@ app.put('/api/pdfs/:id', authenticateToken, async (req, res) => {
     }
     res.json(pdf);
   } catch (error) {
+    if (error instanceof DuplicateNameError) return res.status(409).json({ message: error.message });
     res.status(500).json({ message: 'Error updating PDF', error: error.message });
   }
 });
