@@ -7,7 +7,7 @@ A modern, full-stack todo application built with React, Express, MongoDB, and Ta
 - **Frontend**: React 18, Vite, TailwindCSS, Lucide Icons
 - **Backend**: Node.js, Express
 - **Database**: MongoDB Atlas (cloud-hosted MongoDB)
-- **Deployment**: Vercel (frontend), Render (backend)
+- **Deployment**: Render (frontend and API), MongoDB Atlas (database)
 
 ---
 
@@ -128,92 +128,19 @@ npm install
 
 ## 🌐 Deployment Guide
 
-### Deploy Backend to Render
+### Deploy AssignmentTracker to Render
 
-Render offers a free tier for Node.js applications with PostgreSQL, but we'll use it for our Express + MongoDB setup.
+The root `render.yaml` configures a free Node web service. Render builds the Vite frontend, generates the downloadable handbook PDF, and starts Express. The frontend and API use the same HTTPS address.
 
-1. **Prepare Backend for Deployment**
-   
-   Create a `Procfile` in the backend directory:
-   ```bash
-   cd backend
-   echo "web: node server.js" > Procfile
-   ```
+1. Create a MongoDB Atlas Free cluster and a database user with read/write access to the app database. Copy the Node driver connection string and fill in the database name and credentials.
+2. Push the repository to GitHub. Keep real credentials in Render environment settings.
+3. In Render, select **New → Blueprint**, connect the repository, and enter the Atlas connection string for `MONGODB_URI`. The Blueprint generates `JWT_SECRET` and `AI_KEY_ENCRYPTION_KEY` for a new deployment. If you are reusing an existing database, carry over its existing JWT_SECRET and any AI_KEY_ENCRYPTION_KEY so previously saved credentials remain decryptable.
+4. In the service's **Connect → Outbound** tab, copy its outbound ranges into the Atlas project IP access list. Redeploy if the initial deployment could not connect.
+5. Open the service's `onrender.com` address after Render reports a healthy deployment. If you want a shared AI credential, set `GEMINI_API_KEY` in Render. Users can also provide their own Gemini key in Account settings.
 
-2. **Push Code to GitHub**
-   ```bash
-   git add .
-   git commit -m "Initial commit"
-   git push origin main
-   ```
+The repository's Markdown handbook is the source for the downloadable PDF. Render builds the PDF from that source, so it does not need to be committed. Free services can sleep when idle. Atlas stores uploaded files and their saved backups, which count against its storage limit.
 
-3. **Deploy to Render**
-   - Go to [Render.com](https://render.com)
-   - Sign up/login with GitHub
-   - Click "New +" → "Web Service"
-   - Connect your GitHub repository
-   - Select the repository
-   - Configure:
-     - **Name**: todo-app-backend
-     - **Root Directory**: backend
-     - **Build Command**: `npm install`
-     - **Start Command**: `node server.js`
-   - Click "Advanced" → "Add Environment Variable"
-     - `MONGODB_URI`: Your MongoDB Atlas connection string
-     - `PORT`: 5000
-   - Click "Create Web Service"
-   - Wait for deployment (2-3 minutes)
-   - Copy the deployed URL (e.g., `https://todo-app-backend.onrender.com`)
-
-4. **Update Frontend API URL**
-   
-   In `frontend/src/App.jsx`, update the fetch URLs:
-   ```javascript
-   // Replace all '/api' with your backend URL
-   const API_URL = 'https://todo-app-backend.onrender.com/api';
-   
-   // Update fetch calls:
-   const response = await fetch(`${API_URL}/todos`);
-   const response = await fetch(`${API_URL}/todos`, { ... });
-   const response = await fetch(`${API_URL}/todos/${id}`, { ... });
-   ```
-
-### Deploy Frontend to Vercel
-
-1. **Prepare Frontend for Deployment**
-   
-   The frontend is already configured for Vercel deployment.
-
-2. **Deploy to Vercel**
-   - Go to [Vercel.com](https://vercel.com)
-   - Sign up/login with GitHub
-   - Click "Add New Project"
-   - Import your GitHub repository
-   - Configure:
-     - **Framework Preset**: Vite
-     - **Root Directory**: frontend
-     - **Build Command**: `npm run build`
-     - **Output Directory**: dist
-   - Click "Deploy"
-   - Wait for deployment (1-2 minutes)
-   - Your app will be live at `https://your-project.vercel.app`
-
----
-
-## 🔧 Environment Variables Summary
-
-### Backend (.env)
-```
-MONGODB_URI=mongodb+srv://<username>:<password>@cluster.mongodb.net/todoapp?retryWrites=true&w=majority
-PORT=5000
-```
-
-### Frontend (Update in App.jsx after deployment)
-```javascript
-const API_URL = 'https://your-backend-url.onrender.com';
-```
-
----
+[Render Blueprint reference](https://render.com/docs/blueprint-spec) · [Render outbound IP ranges](https://render.com/docs/outbound-ip-addresses) · [Atlas IP access list](https://www.mongodb.com/docs/atlas/security/add-ip-address-to-list/)
 
 ## 📱 Alternative Deployment Options
 

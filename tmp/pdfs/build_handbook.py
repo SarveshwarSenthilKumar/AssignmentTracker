@@ -9,6 +9,7 @@ from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.enums import TA_LEFT
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
+from reportlab import __file__ as reportlab_path
 
 ROOT=Path(__file__).resolve().parents[2]
 OUT=ROOT/'output/pdf'
@@ -17,8 +18,16 @@ PDF=OUT/'AssignmentTracker-Product-and-Technical-Handbook.pdf'
 EDITION_DATE='November 13, 2026'
 EDITION_FOOTER='13 NOV 2026'
 NAVY=colors.HexColor('#142B45'); ACCENT=colors.HexColor('#247C86'); INK=colors.HexColor('#21364A'); MUTED=colors.HexColor('#647888'); LINE=colors.HexColor('#D9E3E8'); PALE=colors.HexColor('#EFF5F6')
-for name,file in [('Body','calibri.ttf'),('Body-Bold','calibrib.ttf'),('Body-Italic','calibrii.ttf'),('Body-BoldItalic','calibriz.ttf')]:
-    pdfmetrics.registerFont(TTFont(name,str(Path('C:/Windows/Fonts')/file)))
+font_names = ('Body', 'Body-Bold', 'Body-Italic', 'Body-BoldItalic')
+windows_fonts = Path('C:/Windows/Fonts')
+calibri = ('calibri.ttf', 'calibrib.ttf', 'calibrii.ttf', 'calibriz.ttf')
+if all((windows_fonts / filename).is_file() for filename in calibri):
+    font_paths = [windows_fonts / filename for filename in calibri]
+else:
+    bundled_fonts = Path(reportlab_path).parent / 'fonts'
+    font_paths = [bundled_fonts / filename for filename in ('Vera.ttf', 'VeraBd.ttf', 'VeraIt.ttf', 'VeraBI.ttf')]
+for name, path in zip(font_names, font_paths):
+    pdfmetrics.registerFont(TTFont(name, str(path)))
 pdfmetrics.registerFontFamily('Body',normal='Body',bold='Body-Bold',italic='Body-Italic',boldItalic='Body-BoldItalic')
 styles={
  'chapter':ParagraphStyle('Chapter',fontName='Body-Bold',fontSize=23,leading=27,textColor=NAVY,spaceAfter=18,keepWithNext=True),

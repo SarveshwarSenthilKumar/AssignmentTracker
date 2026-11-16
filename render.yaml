@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: assignmenttracker
+    runtime: node
+    plan: free
+    healthCheckPath: /api/health
+    buildCommand: >-
+      npm --prefix backend ci --omit=dev &&
+      npm --prefix frontend ci --include=dev &&
+      npm --prefix frontend run build &&
+      python3 -m pip install --target /tmp/assignmenttracker-handbook -r tmp/pdfs/requirements.txt &&
+      PYTHONPATH=/tmp/assignmenttracker-handbook python3 tmp/pdfs/build_handbook.py
+    startCommand: npm --prefix backend start
+    envVars:
+      - key: NODE_VERSION
+        value: '22'
+      - key: NODE_ENV
+        value: production
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: AI_KEY_ENCRYPTION_KEY
+        generateValue: true

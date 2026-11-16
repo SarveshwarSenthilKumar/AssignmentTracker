@@ -1949,6 +1949,7 @@ require('./featureSuggestions')(app,authenticateToken,mongoose);
 require('./adminPortal')(app,authenticateToken,mongoose);
 
 app.use('/api', (req,res)=>res.status(404).json({message:'API endpoint not found. Restart or redeploy the backend after updating the app.'}));
+app.use(express.static(require('node:path').join(__dirname, '..', 'frontend', 'dist')));
 app.use((error,req,res,next)=>{
   if(res.headersSent)return next(error);
   const status=Number(error.status||error.statusCode);
