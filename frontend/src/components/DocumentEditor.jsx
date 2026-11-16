@@ -1,3 +1,4 @@
+import useDocumentTabTitle from '../hooks/useDocumentTabTitle'
 import {StudyPhoneButton} from './StudyPhone'
 import NoteStudio from './NoteStudio'
 import MarkdownPDFCreator from './MarkdownPDFCreator'
@@ -175,6 +176,8 @@ export default function DocumentEditor({ pdfId, token, onClose, onCleanCopy, ass
     if ((kind === 'pdf' && !loading && !error) || (kind === 'image' && imageDocument && !error)) return
     return registerEditor(pdfId,{snapshot:()=>liveAssistantEditor.current.snapshot(),apply:actions=>liveAssistantEditor.current.apply(actions),close,leave})
   },[pdfId,kind,dirty,saving,loading,error,imageDocument,onClose])
+  const usesVisualEditor = !error && ((kind === 'pdf' && !loading) || (kind === 'image' && imageDocument))
+  useDocumentTabTitle(usesVisualEditor || error ? null : data?.name)
   if (kind === 'pdf' && !loading && !error) return <PDFEditor assistantOpen={assistantOpen} onToggleAssistant={onToggleAssistant} onAssistantHost={onAssistantHost} onCleanCopy={onCleanCopy} pdfId={pdfId} token={token} onClose={onClose} renderFolderNavigation={renderFolderNavigation} />
   if (kind === 'image' && imageDocument && !error) return <PDFEditor assistantOpen={assistantOpen} onToggleAssistant={onToggleAssistant} onAssistantHost={onAssistantHost} onCleanCopy={onCleanCopy} pdfId={pdfId} token={token} onClose={onClose} renderFolderNavigation={renderFolderNavigation} initialDocument={imageDocument} exportImage />
   const editable = ['text','word','table','workbook'].includes(kind) && !loading && !loadFailed

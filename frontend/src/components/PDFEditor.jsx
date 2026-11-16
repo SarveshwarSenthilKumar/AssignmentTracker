@@ -1,3 +1,4 @@
+import useDocumentTabTitle from '../hooks/useDocumentTabTitle'
 import {detectNumberLine} from '../lib/pdfNumberLine'
 import {detectCopyArrowStrokes} from '../lib/pdfArrowCopy'
 import {matchingFontAsset,replacementFontBytes,replacementFontFace} from '../lib/pdfReplacementFonts'
@@ -474,6 +475,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const [copyingClean,setCopyingClean]=useState(false)
   const cleanCopyLock=useRef(false)
   const [pdfData, setPdfData] = useState(null)
+  useDocumentTabTitle(pdfData?.name)
   const [pdfFile, setPdfFile] = useState(null)
   const [numPages, setNumPages] = useState(null)
   const [pageNumber, setPageNumber] = useState(1)
