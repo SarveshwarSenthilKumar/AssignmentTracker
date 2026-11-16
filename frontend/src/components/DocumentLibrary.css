@@ -95,3 +95,23 @@
 
 .library-sharing-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .library-sharing-actions button { display: inline-flex; align-items: center; gap: 7px; }
+
+.library-share-link-panel {
+  display: grid;
+  gap: 12px;
+  width: min(100%, 460px);
+  padding: 18px;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: var(--surface-panel);
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+.library-share-link-panel label { display: grid; gap: 6px; }
+.library-share-link-panel input {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface-input);
+}

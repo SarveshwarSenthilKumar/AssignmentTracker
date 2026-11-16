@@ -241,6 +241,7 @@ const CalendarEntry = mongoose.model('CalendarEntry', new mongoose.Schema({
 
 // Document storage (legacy PDF collection remains compatible).
 const pdfSchema = new mongoose.Schema({
+  shareLinkHash: { type: String, select: false, index: { sparse: true } },
   name: {
     type: String,
     required: true,
@@ -1127,6 +1128,7 @@ app.delete('/api/todos/clear-inbox', authenticateToken, async (req, res) => {
 // Folder Routes
 require('./folderHierarchy')(app,authenticateToken,{mongoose,User,Folder,PDFFolder,Todo,PDF});
 require('./sharedFolders')(app,authenticateToken,{User,PDF,PDFFolder});
+require('./documentShareLinks')(app,authenticateToken,{User,PDF,PDFFolder});
 require('./folderAttachments')(app,authenticateToken,{mongoose,User,Folder,PDFFolder,PDF,upload});
 // Get all folders
 app.get('/api/folders', authenticateToken, async (req, res) => {
