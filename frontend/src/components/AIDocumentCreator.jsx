@@ -3,17 +3,22 @@ import { Sparkles, X, Loader2, FileText } from 'lucide-react'
 import { readApiJson } from '../lib/apiResponse'
 import './AIDocumentCreator.css'
 
-export default function AIDocumentCreator({token,folderId,onClose,onCreated}){
+export default function AIDocumentCreator({token,folderId,sourceFolder,onClose,onCreated}){
   const [prompt,setPrompt]=useState(''),[title,setTitle]=useState(''),[text,setText]=useState(''),[stage,setStage]=useState(''),[error,setError]=useState('')
   const controller=useRef(null),locked=useRef(false),panel=useRef(null)
+  const [coverage,setCoverage]=useState(null)
   useEffect(()=>{const previous=document.activeElement;panel.current?.scrollIntoView({block:'nearest'});panel.current?.querySelector('textarea')?.focus();return()=>{controller.current?.abort();if(previous?.isConnected)previous.focus({preventScroll:true})}},[])
   const generate=async()=>{
-    if(locked.current||!prompt.trim())return
+    if(locked.current||(!sourceFolder&&!prompt.trim()))return
     locked.current=true;setStage('generating');setError('')
     controller.current=new AbortController();const timer=setTimeout(()=>controller.current?.abort(),70000)
     try{
-      const response=await fetch('/api/documents/generate',{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({prompt}),signal:controller.current.signal})
+      const request = sourceFolder
+        ? { prompt: prompt.trim() || 'Write 15 mixed-difficulty practice problems with a separate answer key.', sourceFolderId: sourceFolder._id }
+        : { prompt }
+      const response=await fetch('/api/documents/generate',{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify(request),signal:controller.current.signal})
       const draft=await readApiJson(response)
+      if (sourceFolder) setCoverage({ sources: draft.sources || [], skipped: draft.skipped || [] })
       if(!response.ok)throw new Error(draft.message||'Could not generate a document.')
       if(typeof draft.title!=='string'||typeof draft.text!=='string')throw new Error('The server returned an invalid draft.')
       setTitle(draft.title);setText(draft.text)
@@ -32,10 +37,15 @@ export default function AIDocumentCreator({token,folderId,onClose,onCreated}){
     }catch(error){setError(error.message)}finally{locked.current=false;setStage('')}
   }
   return <div className="library-modal-backdrop"><section ref={panel} className="ai-document-creator" role="region" aria-labelledby="ai-document-title" onKeyDown={event=>{event.stopPropagation();if(event.key==='Escape'&&stage!=='creating'){event.preventDefault();onClose()}}}>
-    <header><div><Sparkles size={19}/><h3 id="ai-document-title">Create with AI</h3></div><button type="button" disabled={stage==='creating'} onClick={onClose} aria-label="Close AI document generator"><X size={18}/></button></header>
-    <p>Turn an idea into notes, a study guide, a worksheet, or a template. Review the draft before creating your document.</p>
-    <label htmlFor="ai-document-prompt">What would you like to create?</label><textarea id="ai-document-prompt" rows={3} maxLength={6000} value={prompt} disabled={!!stage} onChange={event=>setPrompt(event.target.value)} placeholder="Create a study guide on related rates, with key formulas, worked examples, and practice questions…"/>
-    <div className="ai-document-generate"><small>Uses your configured Gemini key. Only this description is sent; library files are not included.</small><button type="button" disabled={!!stage||!prompt.trim()} onClick={generate}>{stage==='generating'?<Loader2 size={15} className="animate-spin"/>:<Sparkles size={15}/>} {stage==='generating'?'Generating…':text?'Regenerate draft':'Generate draft'}</button>{stage==='generating'&&<button type="button" onClick={()=>controller.current?.abort()}>Stop</button>}</div>
+    <header><div><Sparkles size={19}/><h3 id="ai-document-title">{sourceFolder ? 'Create practice packet' : 'Create with AI'}</h3></div><button type="button" disabled={stage==='creating'} onClick={onClose} aria-label="Close AI document generator"><X size={18}/></button></header>
+    <p>{sourceFolder ? `Generate practice problems and an answer key from files directly in ${sourceFolder.name}.` : 'Turn an idea into notes, a study guide, a worksheet, or a template. Review the draft before creating your document.'}</p>
+    <label htmlFor="ai-document-prompt">{sourceFolder ? 'Topics, difficulty, or number of problems (optional)' : 'What would you like to create?'}</label><textarea id="ai-document-prompt" rows={3} maxLength={6000} value={prompt} disabled={!!stage} onChange={event=>setPrompt(event.target.value)} placeholder={sourceFolder ? 'For example, 20 problems with extra practice on related rates' : 'Create a study guide on related rates, with key formulas, worked examples, and practice questions…'}/>
+    <div className="ai-document-generate"><small>{sourceFolder ? 'Sends supported file contents and saved text annotations to Gemini. Up to 20 files in this folder.' : 'Uses your configured Gemini key. Only this description is sent.'}</small><button type="button" disabled={!!stage||(!sourceFolder&&!prompt.trim())} onClick={generate}>{stage==='generating'?<Loader2 size={15} className="animate-spin"/>:<Sparkles size={15}/>} {stage==='generating'?'Generating…':text?'Regenerate draft':'Generate draft'}</button>{stage==='generating'&&<button type="button" onClick={()=>controller.current?.abort()}>Stop</button>}</div>
+    {coverage && <details open={coverage.skipped.length > 0}>
+      <summary>{coverage.sources.length} sources included · {coverage.skipped.length} skipped</summary>
+      <ul>{coverage.sources.map((source,index)=><li key={index}>{source.name}{source.notice ? ` — ${source.notice}` : ''}</li>)}
+      {coverage.skipped.map((source,index)=><li key={`skipped-${index}`}>Skipped: {source}</li>)}</ul>
+    </details>}
     {(text||title)&&<div className="ai-document-draft"><label htmlFor="ai-document-name">Document name</label><input id="ai-document-name" value={title} maxLength={120} disabled={!!stage} onChange={event=>setTitle(event.target.value)}/><label htmlFor="ai-document-text">Review and edit your draft</label><textarea id="ai-document-text" rows={14} maxLength={20000} value={text} disabled={!!stage} onChange={event=>setText(event.target.value)}/><small>{text.length.toLocaleString()} / 20,000 characters · AI content may need corrections.</small></div>}
     {error&&<p className="ai-document-error" role="alert">{error}</p>}
     <footer><p>The PDF opens with editable text blocks. Add highlights and annotations, save your edits, and use Download in the PDF editor to export the finished document.</p><button type="button" disabled={stage==='creating'} onClick={onClose}>Cancel</button><button className="library-primary" type="button" disabled={!!stage||!title.trim()||!text.trim()} onClick={create}>{stage==='creating'?<Loader2 size={16} className="animate-spin"/>:<FileText size={16}/>} {stage==='creating'?'Creating PDF…':'Create PDF & open editor'}</button></footer>
