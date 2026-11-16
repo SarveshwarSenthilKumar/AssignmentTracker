@@ -18,7 +18,7 @@ export default function SharedTextEditor({ url, token, name, onClose }) {
         const writing = state.revision && draft !== state.saved && !state.conflict
         const response = await fetch(url, {
           method: writing ? 'PUT' : 'GET', cache: 'no-store', signal: controller.signal,
-          headers: { Authorization: `Bearer ${token}`, ...(writing && { 'Content-Type': 'application/json' }) },
+          headers: { ...(token && { Authorization: `Bearer ${token}` }), ...(writing && { 'Content-Type': 'application/json' }) },
           ...(writing && { body: JSON.stringify({ text: draft, baseRevision: state.revision }) })
         })
         const data = await response.json()

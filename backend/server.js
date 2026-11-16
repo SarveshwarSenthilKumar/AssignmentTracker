@@ -242,6 +242,7 @@ const CalendarEntry = mongoose.model('CalendarEntry', new mongoose.Schema({
 // Document storage (legacy PDF collection remains compatible).
 const pdfSchema = new mongoose.Schema({
   shareLinkHash: { type: String, select: false, index: { sparse: true } },
+  shareLinkRole: { type: String, enum: ['view', 'edit'], default: 'view', select: false },
   name: {
     type: String,
     required: true,

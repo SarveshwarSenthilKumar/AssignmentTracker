@@ -108,7 +108,7 @@
   overflow-wrap: anywhere;
 }
 .library-share-link-panel label { display: grid; gap: 6px; }
-.library-share-link-panel input {
+.library-share-link-panel :is(input, select) {
   width: 100%;
   padding: 8px;
   border: 1px solid var(--border-strong);
