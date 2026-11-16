@@ -5,3 +5,4 @@ backend/exports/
 
 backend/.venv-onenote/
 __pycache__/
+/output/pdf/AssignmentTracker-Product-and-Technical-Handbook.pdf
