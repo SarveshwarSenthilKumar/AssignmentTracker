@@ -27,7 +27,7 @@ export default function Auth() {
     try {
       const endpoint = isLogin ? '/api/auth/login' : '/api/auth/register'
       const body = isLogin
-        ? { email:email.trim().toLowerCase(), password }
+        ? { identifier:email.trim(), password }
         : { username:username.trim(), email:email.trim().toLowerCase(), password,termsReviewed,termsAccepted,termsVersion:TERMS_VERSION }
 
       const response = await fetch(endpoint, {
@@ -89,13 +89,15 @@ export default function Auth() {
             )}
 
             <div>
-              <label htmlFor="auth-email" className="block text-slate-400 mb-2 text-sm">Email</label>
+              <label htmlFor="auth-email" className="block text-slate-400 mb-2 text-sm">{isLogin ? 'Username or email' : 'Email'}</label>
               <input
-                type="email"
-                id="auth-email" autoComplete="email"
+                type={isLogin ? 'text' : 'email'}
+                id="auth-email" autoComplete={isLogin ? 'username' : 'email'}
+                autoCapitalize="none"
+                spellCheck={false}
                   value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="your@email.com"
+                placeholder={isLogin ? 'Username or email' : 'your@email.com'}
                 className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
                 required
               />

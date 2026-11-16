@@ -473,13 +473,16 @@ app.post('/api/auth/register', async (req, res) => {
 // Login
 app.post('/api/auth/login', async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { identifier, email, password } = req.body || {};
+    const login = identifier ?? email;
 
-    if (!email || !password) {
-      return res.status(400).json({ message: 'Email and password are required' });
+    if (typeof login !== 'string' || !login.trim() || typeof password !== 'string' || !password) {
+      return res.status(400).json({ message: 'Enter your username or email and your password.' });
     }
 
-    const user = await User.findOne({ email });
+    const value = login.trim();
+    const user = await User.findOne({ email: value.toLowerCase() }) ||
+      (identifier !== undefined ? await User.findOne({ username: value }) : null);
     if (!user) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
