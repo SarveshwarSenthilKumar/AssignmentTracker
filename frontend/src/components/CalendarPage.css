@@ -58,3 +58,6 @@
 .calendar-day-display-toggle + div {
   clear: both;
 }
+
+.calendar-university { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.calendar-university select { max-width: 100%; padding: 6px 8px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--surface-input); color: var(--text-primary); }

@@ -185,7 +185,6 @@ export default function CalendarPage({ tasks, documents=[], documentFolders=[], 
   const remove=async entry=>{if(!await confirmation.ask(`Delete “${entry.title}” from your personal calendar? You can restore it with Undo.`,'Delete entry'))return;run(async()=>{await request(`/api/calendar-entries/${entry._id}`,{method:'DELETE'});setEntries(prev=>prev.filter(item=>item._id!==entry._id));setSelectedId(null);setDraft(null);setNotice('Calendar entry deleted.')})}
   const toggleDone=entry=>run(async()=>{const result=await request(`/api/calendar-entries/${entry._id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(entryPayload({...entryDraft(selectedDay,entry.kind,entry),done:!entry.done}))});setEntries(prev=>prev.map(item=>item._id===entry._id?result:item))})
   const removeExternal=item=>run(async()=>{await changeVisibility('hide',item.id);setSelectedId(null);setNotice('Only the selected event was removed. Similar events were kept. Use Undo to restore it.')})
-  const removeTxst=()=>run(async()=>{await changeVisibility('hide-txst');setSelectedId(null);setNotice('All TXST events removed. Use Restore removed events to bring them back.')})
   useShortcuts('Calendar',{'calendar-new':()=>openForm(),'calendar-marker':()=>openForm('marker'),'calendar-today':showToday,'calendar-prev':()=>navigate(-1),'calendar-next':()=>navigate(1),'calendar-search':()=>search.current?.focus(),'calendar-dismiss':()=>{setDraft(null);setSelectedId(null)}},keyboardEnabled&&!loading&&!busy&&!attachmentBusy&&!confirmation.pending)
   useEffect(()=>()=>{if(detailsScroll.current!==null)cancelAnimationFrame(detailsScroll.current)},[])
   const focusEventDetails=()=>{
@@ -206,10 +205,26 @@ export default function CalendarPage({ tasks, documents=[], documentFolders=[], 
     <CalendarUndo token={token} enabled={keyboardEnabled&&!busy&&!attachmentBusy&&!confirmation.pending&&!similarTarget} globalShortcut/>
     {similarTarget&&<SimilarEvents key={similarTarget.id} target={similarTarget} items={all.filter(item=>item.kind!=='birthday')} onClose={()=>setSimilarTarget(null)} onRemove={async ids=>{await changeVisibility('hide-many',ids);setSelectedId(null);setNotice(`${ids.length} events removed from your calendar.`)}}/>}
     <div className={`calendar-feedback ${campus.warning?'is-error':''}`} role={campus.warning?'alert':'status'}>
-      <span>{campus.syncing ? campus.progress || 'Loading TXST events…' : campus.warning || `${campus.hideTxstEvents?0:campus.events.filter(event=>!(campus.hiddenCalendarIds||[]).includes(`txst:${event.id}`)).length} TXST events in your calendar`}{campus.updatedAt && ` · Last synced ${new Date(campus.updatedAt).toLocaleString(undefined,{timeZone:zone})}`}</span>
-      <button type="button" onClick={refreshCampus} disabled={campus.syncing}><RefreshCw size={14}/>{campus.syncing?'Loading…':'Refresh TXST'}</button>
-      <button type="button" disabled={busy||loading||campus.hideTxstEvents} onClick={removeTxst}><Trash2 size={14}/>Remove all TXST events</button>
-      {(campus.hideTxstEvents||campus.hiddenCalendarIds?.length>0)&&<button type="button" disabled={busy||loading} onClick={()=>run(async()=>{await changeVisibility('restore');setNotice('Removed calendar items restored.')})}>Restore removed events</button>}
+      <label className="calendar-university">University events
+        <select value={campus.calendarUniversity || 'none'} disabled={busy || loading} onChange={event => {
+          const university = event.target.value
+          run(async () => {
+            await changeVisibility('set-university', university)
+            if (university === 'txst') setSources(previous => new Set([...previous, 'txst']))
+            else setSelectedId(previous => previous?.startsWith('txst:') ? null : previous)
+            setNotice(university === 'txst' ? 'Texas State University events enabled.' : 'University events turned off.')
+          })
+        }}>
+          <option value="none">None</option>
+          <option value="txst">Texas State University</option>
+        </select>
+      </label>
+      {campus.warning && <span>{campus.warning}</span>}
+      {!campus.hideTxstEvents && <>
+        <span>{campus.syncing ? campus.progress || 'Loading TXST events…' : `${campus.events.filter(event=>!(campus.hiddenCalendarIds||[]).includes(`txst:${event.id}`)).length} TXST events in your calendar`}</span>
+        <button type="button" onClick={refreshCampus} disabled={campus.syncing}><RefreshCw size={14}/>{campus.syncing?'Loading…':'Refresh TXST'}</button>
+      </>}
+      {campus.hiddenCalendarIds?.length>0&&<button type="button" disabled={busy||loading} onClick={()=>run(async()=>{await changeVisibility('restore');setNotice('Removed calendar items restored.')})}>Restore removed events</button>}
     </div>
     {error&&<div className="calendar-feedback is-error" role="alert">{error}<button onClick={()=>setError('')} aria-label="Dismiss calendar error"><X size={15}/></button></div>}{notice&&<div className="calendar-feedback" role="status">{notice}<button onClick={()=>setNotice('')} aria-label="Dismiss calendar notice"><X size={15}/></button></div>}
     <CalendarCategories categories={categories} token={token} disabled={busy||loading||attachmentBusy} onChange={setCategories} onCreated={category=>setDraft(previous=>previous?{...previous,categoryId:category.id}:previous)} onAdd={categoryId=>{openForm();setDraft({...entryDraft(selectedDay),categoryId})}}/>

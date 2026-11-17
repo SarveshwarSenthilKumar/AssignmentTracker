@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 
 export default function useTxstEvents(token, active=true) {
-  const [campus,setCampus]=useState({events:[],syncing:true,progress:'Loading TXST events…',warning:'',updatedAt:null})
+  const [campus,setCampus]=useState({events:[],syncing:false,progress:'',warning:'',updatedAt:null,calendarUniversity:'none',hideTxstEvents:true})
   const [revision,setRevision]=useState(0)
   const requested=useRef(false)
   const visibilityVersion=useRef(0)
@@ -53,10 +53,11 @@ export default function useTxstEvents(token, active=true) {
     if(mutation.current)throw new Error('A calendar change is still saving. Try again in a moment.')
     mutation.current=true
     visibilityVersion.current++
-    const previousPreferences={hiddenCalendarIds:campus.hiddenCalendarIds||[],hideTxstEvents:!!campus.hideTxstEvents}
+    const previousPreferences={hiddenCalendarIds:campus.hiddenCalendarIds||[],hideTxstEvents:!!campus.hideTxstEvents,calendarUniversity:campus.calendarUniversity}
     setCampus(previous=>({...previous,
       hiddenCalendarIds:action==='restore'?[]:['hide','hide-many'].includes(action)?[...new Set([...(previous.hiddenCalendarIds||[]),...(action==='hide-many'?id:[id])])]:previous.hiddenCalendarIds||[],
-      hideTxstEvents:action==='restore'?false:action==='hide-txst'?true:!!previous.hideTxstEvents,
+      calendarUniversity:action==='set-university'?id:action==='hide-txst'?'none':previous.calendarUniversity,
+      hideTxstEvents:action==='set-university'?id!=='txst':action==='hide-txst'?true:!!previous.hideTxstEvents,
     }))
     try {
       const response=await fetch('/api/calendar/visibility',{method:'PUT',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify(action==='hide-many'?{action,ids:id}:{action,id}),signal:AbortSignal.timeout(20000)})

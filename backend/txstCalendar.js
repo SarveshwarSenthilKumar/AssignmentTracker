@@ -1,4 +1,10 @@
 const { scrapeTxstEvents } = require('./scrapeTxstEvents');
+const visibility = user => ({
+  hiddenCalendarIds: user.hiddenCalendarIds || [],
+  hideTxstEvents: !!user.hideTxstEvents,
+  calendarUniversity: user.calendarUniversity === 'txst' ? 'txst' : 'none'
+});
+const publicVisibility = user => ({ ...visibility(user), hideTxstEvents: user.calendarUniversity !== 'txst' });
 
 // Shared public data: no personal calendar records or credentials are involved.
 function registerTxstCalendar(app, authenticateToken, User, history) {
@@ -38,14 +44,18 @@ function registerTxstCalendar(app, authenticateToken, User, history) {
   const respond = async (req, res) => {
     let preferences;
     try {
-      preferences = await User.findById(req.user.userId).select('hiddenCalendarIds hideTxstEvents').lean();
+      preferences = await User.findById(req.user.userId).select('hiddenCalendarIds hideTxstEvents calendarUniversity').lean();
       if (!preferences) return res.status(404).json({message:'Account not found.'});
     } catch { return res.status(500).json({message:'Could not load calendar preferences.'}); }
+    res.set('Cache-Control', 'no-store');
+    if (preferences.calendarUniversity !== 'txst') {
+      return res.json({ events: [], syncing: false, progress: '', warning: '', updatedAt: null, ...publicVisibility(preferences) });
+    }
     const interval = complete ? 60 * 60 * 1000 : 5 * 60 * 1000;
     const refreshRequested = req.method === 'POST';
     if (!syncing && Date.now() - attemptedAt >= (refreshRequested ? 60000 : interval)) refresh();
     res.set('Cache-Control', 'no-store');
-    res.json({ events: events.map(({ raw, ...event }) => event), syncing, progress, warning, complete, updatedAt, hiddenCalendarIds:preferences.hiddenCalendarIds||[], hideTxstEvents:!!preferences.hideTxstEvents });
+    res.json({ events: events.map(({ raw, ...event }) => event), syncing, progress, warning, complete, updatedAt, ...publicVisibility(preferences) });
   };
   app.get('/api/calendar/txst-events', authenticateToken, respond);
   app.post('/api/calendar/txst-events/refresh', authenticateToken, respond);
@@ -56,17 +66,19 @@ function registerTxstCalendar(app, authenticateToken, User, history) {
     let update;
     if(action==='hide' && typeof id==='string' && /^(?:txst:[\w-]{1,100}|(?:task|planned):[a-f\d]{24})$/i.test(id)) update={$addToSet:{hiddenCalendarIds:id}};
     else if(action==='hide-many' && Array.isArray(ids) && ids.length>0 && ids.length<=10000 && ids.every(value=>typeof value==='string'&&/^(?:txst:[\w-]{1,100}|(?:task|planned|entry):[a-f\d]{24})$/i.test(value))) update={$addToSet:{hiddenCalendarIds:{$each:[...new Set(ids)]}}};
-    else if(action==='hide-txst') update={$set:{hideTxstEvents:true}};
-    else if(action==='restore') update={$set:{hiddenCalendarIds:[],hideTxstEvents:false}};
+    else if(action==='hide-txst') update={$set:{calendarUniversity:'none',hideTxstEvents:true}};
+    else if(action==='set-university' && ['none','txst'].includes(id)) update={$set:{calendarUniversity:id,hideTxstEvents:id!=='txst'}};
+    else if(action==='restore') update={$set:{hiddenCalendarIds:[]}};
     else return res.status(400).json({message:'Choose a valid calendar item or action.'});
     try {
       const user=await history.mutate(req.user.userId,action==='restore'?'restore removed events':action==='hide-many'?'remove matching events':action==='hide-txst'?'remove all TXST events':'remove event',async session=>{
         const previous=await User.findById(req.user.userId).session(session).lean();
-        const saved=await User.findByIdAndUpdate(req.user.userId,update,{new:true,runValidators:true,session}).select('hiddenCalendarIds hideTxstEvents').lean();
-        return {value:saved,kind:'visibility',before:{hiddenCalendarIds:previous.hiddenCalendarIds||[],hideTxstEvents:!!previous.hideTxstEvents},after:{hiddenCalendarIds:saved.hiddenCalendarIds||[],hideTxstEvents:!!saved.hideTxstEvents}};
+        if(!previous)throw new Error('Account not found.');
+        const saved=await User.findByIdAndUpdate(req.user.userId,update,{new:true,runValidators:true,session}).select('hiddenCalendarIds hideTxstEvents calendarUniversity').lean();
+        return {value:saved,kind:'visibility',before:visibility(previous),after:visibility(saved)};
       });
       if(!user)return res.status(404).json({message:'Account not found.'});
-      res.json({hiddenCalendarIds:user.hiddenCalendarIds||[],hideTxstEvents:!!user.hideTxstEvents});
+      res.json(publicVisibility(user));
     } catch { res.status(500).json({message:'Could not save calendar visibility.'}); }
   });
 }

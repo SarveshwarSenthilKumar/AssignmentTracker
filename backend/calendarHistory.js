@@ -61,6 +61,7 @@ function createCalendarHistory({ mongoose, User, CalendarEntry }) {
           }else if(change.kind==='visibility'){
             const current=await User.findById(req.user.userId).session(session).lean();
             const currentPrefs={hiddenCalendarIds:current.hiddenCalendarIds||[],hideTxstEvents:!!current.hideTxstEvents};
+            if (change.after.calendarUniversity !== undefined) currentPrefs.calendarUniversity = current.calendarUniversity === 'txst' ? 'txst' : 'none';
             if(JSON.stringify(currentPrefs)!==JSON.stringify(change.after))throw new Error('Calendar visibility changed elsewhere. Refresh before undoing.');
             await User.updateOne({_id:req.user.userId},{$set:change.before},{session});
           }else if(change.kind==='series'||change.kind==='calendar_import'){

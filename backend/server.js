@@ -69,6 +69,7 @@ const userSchema = new mongoose.Schema({
   folderHierarchyRevision:{type:Number,default:0},
   searchIndexRevision:{type:Number,default:0},
   hideTxstEvents: { type: Boolean, default: false },
+  calendarUniversity: { type: String, enum: ['none', 'txst'], default: 'none' },
   workflowLayout: { type: mongoose.Schema.Types.Mixed, select: false },
   workflowRevision: { type: Number, default: 0, select: false },
   geminiApiKeyEncrypted: { type: String, select: false },
