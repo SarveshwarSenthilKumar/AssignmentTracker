@@ -157,6 +157,7 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
       <div className="pc-annotation-group" role="group" aria-label="Annotation tools">{annotationTools.map(([key,label,Icon])=><button key={key} type="button" className={`pc-button pc-tool${tools.current===key?' is-active':''}`} aria-pressed={tools.current===key} title={label} aria-label={label} onClick={()=>{close();tools.onTool(key)}}><Icon size={18}/><span>{label}</span></button>)}</div>
       <div className="pc-brush-group">{colorMenu}{sizeMenu}</div>
       <div className="pc-insert-slot">{isValidElement(insert)?cloneElement(insert,{onOpen:close,closeSignal:`${open||''}:${compact}`}):insert}</div>
+      <button type="button" className="pc-button" title="Add Post-it note" aria-label="Add Post-it note" disabled={!pages.canAdd} onClick={()=>{close();onStickyNote()}}><FileText size={18} aria-hidden="true"/><span>Post-it note</span></button>
       <div className="pc-tool-menus">{pagesMenu}{viewMenu}{utilityMenu}</div>
       <PDFFingerMode {...input}/>
       {menu('scroll','Scroll & glide',SlidersHorizontal,<PDFScrollSettings value={input.scrollSettings} onChange={input.onScrollSettings} scrollMode={input.scroll} currentTool={tools.current} onEnableScroll={()=>{input.onChange(true);if(tools.current==='read')tools.onTool('select')}}/>,{custom:<span className="pdf-scroll-trigger"><SlidersHorizontal size={18}/><span><strong>Scroll &amp; glide</strong><small>Adjust speed &amp; stopping</small></span></span>})}
