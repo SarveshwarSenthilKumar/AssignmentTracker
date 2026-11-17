@@ -23,7 +23,7 @@ module.exports=(app,auth,mongoose)=>{
     res.set({'Cache-Control':'no-store','X-Robots-Tag':'noindex, nofollow'});
     try{
       const capabilities=await access(mongoose,req.user.userId);
-      if(!capabilities.bugs&&!capabilities.features)return res.status(403).json({message:'This account does not have bug-report or feature-suggestion review access.'});
+      if(!capabilities.stats)return res.status(404).json({message:'API endpoint not found.'});
       const [bugs,features]=await Promise.all([capabilities.bugs?summary('BugReport','bugs'):null,capabilities.features?summary('FeatureSuggestion','features'):null]);
       res.json({capabilities,bugs,features,generatedAt:new Date().toISOString()});
     }catch{res.status(503).json({message:'Could not load the admin overview. Please retry.'})}

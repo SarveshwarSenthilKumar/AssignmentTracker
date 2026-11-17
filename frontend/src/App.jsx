@@ -79,6 +79,21 @@ import PDFUploadModal from './components/PDFUploadModal'
 
 function App() {
   const { isAuthenticated, token, logout, user, updatePreferences, loading: authLoading } = useAuth()
+  const [adminToken, setAdminToken] = useState(null)
+  const isAdmin = !!token && adminToken === token
+  const hiddenPages = HIDDEN_PAGES.filter(item => !item.adminOnly || isAdmin)
+  useEffect(() => {
+    if (!token) return
+    const controller = new AbortController()
+    const check = () => fetch('/api/account/admin-status', {
+      headers: { Authorization: `Bearer ${token}` }, cache: 'no-store', signal: controller.signal
+    }).then(response => response.ok ? response.json() : null).then(data => {
+      if (!controller.signal.aborted) setAdminToken(data?.administrator === true ? token : null)
+    }).catch(() => { if (!controller.signal.aborted) setAdminToken(null) })
+    check()
+    window.addEventListener('focus', check)
+    return () => { controller.abort(); window.removeEventListener('focus', check) }
+  }, [token])
   const showInProgressColumn=user?.showInProgressColumn!==false
   const taskConfirmation = useInlineConfirm('tasks')
   const deletingTaskIds=useRef(new Set())
@@ -90,7 +105,8 @@ function App() {
   }
   const pendingLibraryTask = useRef(null)
   const pageFindScope = useRef(null)
-  const [page, setPage] = useState(readPage)
+  const [requestedPage, setPage] = useState(readPage)
+  const page = requestedPage === 'admin' && !isAdmin ? 'home' : requestedPage
   const [editorAssistantHost,setEditorAssistantHost]=useState(null)
   const [assistantRouteId,setAssistantRouteId]=useState(()=>window.location.hash.match(/^#\/assistant\/([a-f\d]{24})$/i)?.[1]||null)
   const navigate = (next, event) => { if(openInTab(event,next))return; if(next==='assistant')setAssistantRouteId(null); window.location.hash = `/${next}`; setPage(next.split('/')[0]); setShowCommandMenu(false); window.scrollTo({top:0}) }
@@ -817,18 +833,18 @@ function App() {
     const command = parts[0].toLowerCase()
     const args = parts.slice(1)
 
-    if((command==='admin'&&['stats','statistics'].includes(args[0]?.toLowerCase()))||command==='admin-stats'){
+    if(isAdmin&&((command==='admin'&&['stats','statistics'].includes(args[0]?.toLowerCase()))||command==='admin-stats')){
       setCommandNotice('');setCommandInput('');navigate('admin/stats');return
     }
     if(['search','find','task'].includes(command)){
       setCommandInput(cmd.trim());setCommandNotice(args.join(' ').trim()?'Select a matching task below to open its details.':'Type search followed by a task name, description or folder.')
       setShowCommandMenu(true);requestAnimationFrame(()=>commandInputRef.current?.focus());return
     }
-    const hiddenPage=HIDDEN_PAGES.find(item=>item.route===command)
+    const hiddenPage=hiddenPages.find(item=>item.route===command)
     if(command==='open'||hiddenPage){
       const target=hiddenPage?.route||args.join(' ').toLowerCase().replace(/^\/?#?\/?/,'').replace(/\/$/,'')
-      const page=HIDDEN_PAGES.find(item=>item.route===target)
-      if(!page){setCommandNotice('Choose an available hidden page: '+HIDDEN_PAGES.map(item=>item.route).join(', '));setShowCommandMenu(true);return}
+      const page=hiddenPages.find(item=>item.route===target)
+      if(!page){setCommandNotice('Choose an available hidden page: '+hiddenPages.map(item=>item.route).join(', '));setShowCommandMenu(true);return}
       setCommandNotice('');setCommandInput('');navigate(page.route);return
     }
     switch (command) {
@@ -2212,7 +2228,7 @@ function App() {
             <section className="account-overview account-card" aria-labelledby="account-profile-title">
               <div className="account-profile-heading">
                 <h2 id="account-profile-title">Your profile</h2>
-                <AccountAdminBadge token={token}/>
+                {isAdmin && <AccountAdminBadge/>}
               </div>
 
               {/* User Info */}
@@ -2287,7 +2303,7 @@ function App() {
             </section>
             <section className="account-settings-group" aria-labelledby="account-data-title">
               <h2 id="account-data-title">Data management</h2>
-              <SectionLockSettings/>
+              <SectionLockSettings isAdmin={isAdmin}/>
               <TaskCleanupSettings/>
               <AccountReset token={token} disabled={syncing || testing || !!selectedPDF} onReset={() => {
                 window.dispatchEvent(new CustomEvent('workspace-reset',{detail:user?.id}));setAssistantOpen(false);setAssistantGeneration(previous=>previous+1);setAssistantCalendarId(null)
@@ -2378,7 +2394,7 @@ function App() {
               </div>
 
               {commandNotice&&<p role="status" className="mb-4 text-sm text-slate-300">{commandNotice}</p>}
-              <section aria-label="Hidden pages" className="mb-5 space-y-2"><h4 className="text-sm font-medium text-slate-300">Hidden pages</h4>{HIDDEN_PAGES.map(item=><button key={item.route} type="button" onClick={()=>executeCommand(`open ${item.route}`)} className="w-full rounded-lg border border-white/10 bg-white/5 p-3 text-left text-slate-200 hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-slate-400"><strong className="block text-sm">{item.label}</strong><span className="block text-xs text-slate-400">{item.description}</span><code className="mt-1 block text-xs">open {item.route} · /#/{item.route}</code></button>)}</section>
+              <section aria-label="Hidden pages" className="mb-5 space-y-2"><h4 className="text-sm font-medium text-slate-300">Hidden pages</h4>{hiddenPages.map(item=><button key={item.route} type="button" onClick={()=>executeCommand(`open ${item.route}`)} className="w-full rounded-lg border border-white/10 bg-white/5 p-3 text-left text-slate-200 hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-slate-400"><strong className="block text-sm">{item.label}</strong><span className="block text-xs text-slate-400">{item.description}</span><code className="mt-1 block text-xs">open {item.route} · /#/{item.route}</code></button>)}</section>
               <form onSubmit={handleCommandSubmit} className="space-y-4">
                 <div>
                   <label className="block text-slate-400 text-sm mb-2">Enter Command</label>
@@ -2398,7 +2414,7 @@ function App() {
                   <p className="text-slate-400 text-xs mb-2 font-medium">Available Commands:</p>
                   <ul className="text-slate-300 text-xs space-y-1">
                     <li><code className="text-slate-200">search [text]</code> - Find and open a task (also: find, task)</li>
-                    <li><code className="text-slate-200">admin stats</code> - Open advanced statistics (full administrators only; also: admin-stats)</li>
+                    {isAdmin && <li><code className="text-slate-200">admin stats</code> - Open advanced statistics (also: admin-stats)</li>}
                     <li><code className="text-slate-200">help</code> - Show all commands</li>
                     <li><code className="text-slate-200">pages / hidden</code> - List hidden pages</li>
                     <li><code className="text-slate-200">open [page]</code> - Open a hidden page</li>

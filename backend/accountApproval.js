@@ -7,7 +7,7 @@ module.exports = function registerAccountApproval(app, auth, mongoose) {
     res.set('Cache-Control', 'no-store');
     try {
       if (!(await adminAccess(mongoose, req.user.userId)).stats) {
-        return res.status(403).json({ message: 'Only full administrators can approve accounts.' });
+        return res.status(404).json({ message: 'API endpoint not found.' });
       }
       next();
     } catch {

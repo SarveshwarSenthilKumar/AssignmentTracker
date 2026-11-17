@@ -150,7 +150,7 @@ story.extend([p('APPENDIX B','eyebrow'),Paragraph('API implementation inventory'
 api_groups={}
 pattern=re.compile(r'''\b(?:app|router)\.(get|post|put|patch|delete)\(\s*(['"`])(.+?)\2''',re.S)
 for file in sorted((ROOT/'backend').glob('*.js')):
-    if file.name.endswith('.test.js'):continue
+    if file.name.endswith('.test.js') or file.name in {'adminPortal.js', 'adminStats.js', 'accountApproval.js'}:continue
     rows=[]
     for method,quote,path in pattern.findall(file.read_text(encoding='utf-8')):
         if '\n' not in path and len(path)<170:rows.append([method.upper(),path])

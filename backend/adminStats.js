@@ -8,7 +8,7 @@ module.exports=(app,auth,mongoose)=>{
   app.get('/api/admin/stats',auth,async(req,res)=>{
     res.set({'Cache-Control':'no-store','X-Robots-Tag':'noindex, nofollow'});
     try{
-      if(!(await access(mongoose,req.user.userId)).stats)return res.status(403).json({message:'Advanced statistics are available only to configured full administrators.'});
+      if(!(await access(mongoose,req.user.userId)).stats)return res.status(404).json({message:'API endpoint not found.'});
       const days=Number(req.query.days??30);
       if(![7,30,90].includes(days))return res.status(400).json({message:'Choose a 7, 30 or 90 day window.'});
       const now=new Date(),since=new Date(now);since.setUTCHours(0,0,0,0);since.setUTCDate(since.getUTCDate()-days+1);

@@ -62,7 +62,7 @@ Sources: frontend/src/App.jsx, HomePage.jsx, TaskProgress.jsx, TaskStreaks.jsx, 
 
 ## Feedback and roadmap
 
-Use **Report a bug** to submit a section-specific issue and follow its status. Use **Feature suggestions** to submit ideas and track their progress. Open **Site roadmap** for ideas, planned work and features in progress. Authorized administrators can review submissions in the Admin portal.
+Use **Report a bug** to submit a section-specific issue and follow its status. Use **Feature suggestions** to submit ideas and track their progress. Open **Site roadmap** for ideas, planned work and features in progress.
 
 # November 4 edition: features and setup
 

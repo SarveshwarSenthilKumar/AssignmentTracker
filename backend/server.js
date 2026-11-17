@@ -689,12 +689,20 @@ app.post('/api/assistant/chat', authenticateToken, async (req, res) => {
   } finally { if(turn&&!turnFinished){try{await finishConversation(turn,null,'The reply was interrupted. Retry your question.');}catch{}} clearTimeout(timeout); res.off('close',disconnected); state.busy=false; if (res.destroyed && !res.writableEnded) res.end(); }
 });
 const sectionPasswordAttempts = new Map();
+const adminAccess = require('./adminAccess');
+async function describeSectionLocks(user) {
+  let lockedSections = user.lockedSections;
+  if (lockedSections.includes('admin') && !(await adminAccess(mongoose, user._id)).stats) {
+    lockedSections = lockedSections.filter(section => section !== 'admin');
+  }
+  return { lockedSections, passwordMode: user.sectionLockPasswordHash ? 'custom' : 'account' };
+}
 app.get('/api/account/section-locks', authenticateToken, async (req, res) => {
   try {
     res.set('Cache-Control', 'no-store');
     const user = await User.findById(req.user.userId).select('lockedSections +sectionLockPasswordHash');
     if (!user) return res.sendStatus(401);
-    res.json({ lockedSections: user.lockedSections, passwordMode: user.sectionLockPasswordHash ? 'custom' : 'account' });
+    res.json(await describeSectionLocks(user));
   } catch {
     res.status(503).json({ message: 'Could not load section locks.' });
   }
@@ -723,6 +731,9 @@ app.put('/api/account/section-locks', authenticateToken, async (req, res) => {
   if (attempts.count >= 8) return res.status(429).json({ message: 'Too many attempts. Try again in a minute.' });
   attempts.count++;
   try {
+    if (section === 'admin' && !(await adminAccess(mongoose, id)).stats) {
+      return res.status(404).json({ message: 'Section not found.' });
+    }
     const user = await User.findById(id).select('password lockedSections +sectionLockPasswordHash');
     const useCustom = action === 'unlock' && !!user?.sectionLockPasswordHash;
     if (!user || !await bcrypt.compare(password, useCustom ? user.sectionLockPasswordHash : user.password)) {
@@ -737,14 +748,13 @@ app.put('/api/account/section-locks', authenticateToken, async (req, res) => {
     if (fileLock && action === 'lock' && !await PDF.exists({ _id: fileLock[1], user: id, deletedAt: null })) {
       return res.status(404).json({ message: 'Document not found.' });
     }
-    const describe = account => ({ lockedSections: account.lockedSections, passwordMode: account.sectionLockPasswordHash ? 'custom' : 'account' });
-    if (action === 'unlock') return res.json(describe(user));
+    if (action === 'unlock') return res.json(await describeSectionLocks(user));
     const update = action.startsWith('use-')
       ? { $set: { sectionLockPasswordHash: action === 'use-custom' ? await bcrypt.hash(customPassword, 12) : '' } }
       : action === 'lock' ? { $addToSet: { lockedSections: section } } : { $pull: { lockedSections: section } };
     const updated = await User.findByIdAndUpdate(id, update, { new: true }).select('lockedSections +sectionLockPasswordHash');
     if (!updated) return res.sendStatus(401);
-    res.json(describe(updated));
+    res.json(await describeSectionLocks(updated));
   } catch {
     res.status(503).json({ message: 'Could not update the section lock.' });
   }
@@ -826,11 +836,26 @@ require('./f1Calendar')(app,authenticateToken,{CalendarEntry,history:calendarHis
 registerTxstCalendar(app, authenticateToken, User, calendarHistory);
 require('./eventAttendance')(app,authenticateToken,mongoose);
 // The hidden update-history page reads the maintained numbered change log.
-app.get('/api/logbook',authenticateToken,(req,res)=>{
+app.get('/api/logbook',authenticateToken,async(req,res)=>{
   res.set({'Cache-Control':'no-store','X-Robots-Tag':'noindex, nofollow','Content-Type':'text/markdown; charset=utf-8'});
-  res.sendFile(require('node:path').join(__dirname,'..','LOGBOOK.md'),error=>{
-    if(error&&!res.headersSent)res.status(error.code==='ENOENT'?404:500).type('application/json').json({message:'The update logbook is unavailable. Include LOGBOOK.md in the server deployment.'});
-  });
+  try {
+    let book = await require('node:fs/promises').readFile(require('node:path').join(__dirname,'..','LOGBOOK.md'), 'utf8');
+    if (!(await adminAccess(mongoose, req.user.userId)).stats) {
+      const hidden = new Set();
+      book = book.replace(/^## Update (\d+)[^\n]*\n[\s\S]*?(?=^## |(?![\s\S]))/gm, (entry, number) => {
+        if (!/\badmins?\b|admin(?:Portal|Access|Stats|Approval)|administrator-only/i.test(entry)) return entry;
+        hidden.add(Number(number));
+        return '';
+      });
+      book = book.split(/\r?\n/).filter(line => {
+        const update = line.match(/\(#update-(\d+)\)/i);
+        return !update || !hidden.has(Number(update[1]));
+      }).join('\n');
+    }
+    res.send(book);
+  } catch (error) {
+    res.status(error.code==='ENOENT'?404:503).type('application/json').json({message:'The update logbook is unavailable.'});
+  }
 });
 
 // Unlisted, authenticated documentation. Serve only these fixed repository files.

@@ -13,7 +13,7 @@ const sections = [
   ['account', 'Account settings'], ['admin', 'Admin portal']
 ]
 
-export function SectionLockSettings() {
+export function SectionLockSettings({ isAdmin }) {
   const { locks, selectSection, busy, passwordMode, selectPasswordMode } = useContext(SectionLockContext)
   return <section className="confirmation-settings">
     <h3>Section locks</h3>
@@ -26,7 +26,7 @@ export function SectionLockSettings() {
     </label>
     {passwordMode === 'custom' && <button type="button" disabled={busy} onClick={() => selectPasswordMode('custom')}>Change custom password</button>}
     <div className="grid grid-cols-1 gap-x-6 sm:grid-cols-2">
-      {sections.map(([id, label]) => {
+      {sections.filter(([id]) => id !== 'admin' || isAdmin).map(([id, label]) => {
         const locked = locks.includes(id)
         return <label key={id}><span>{label}</span><input type="checkbox" role="switch" checked={locked} disabled={busy} onChange={() => selectSection(id, label, locked)}/></label>
       })}
