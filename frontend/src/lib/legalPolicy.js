@@ -1,4 +1,4 @@
-export const TERMS_VERSION = '1.13'
+export const TERMS_VERSION = '1.14'
 export const TERMS_UPDATED_DATE = 'November 17, 2026'
 export const PRIVACY_VERSION = '1.13'
 export const LEGAL_UPDATED_DATE = 'November 15, 2026'
