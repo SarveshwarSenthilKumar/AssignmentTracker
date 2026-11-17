@@ -6,6 +6,8 @@ import BugReportsPage from './BugReportsPage'
 import FeatureSuggestionsPage from './FeatureSuggestionsPage'
 import './AdminPortal.css'
 
+const canOpen = (capabilities, section) => section === 'approvals' ? capabilities.stats : section === 'contacts' ? capabilities.bugs : !!capabilities[section]
+
 export default function AdminPortal({token,user}){
   const [data,setData]=useState(null),[loading,setLoading]=useState(true),[error,setError]=useState(''),[revision,setRevision]=useState(0),[active,setActive]=useState(''),[visited,setVisited]=useState([])
   useEffect(()=>{
@@ -17,15 +19,15 @@ export default function AdminPortal({token,user}){
         setData(result)
         setActive(previous=>{
           const requested=window.location.hash.match(/^#\/admin\/([a-z-]+)$/)?.[1]
-          if(requested&&result.capabilities[requested])return requested
-          return (result.capabilities[previous]||(previous==='contacts'&&result.capabilities.bugs))?previous:result.capabilities.bugs?'bugs':'features'
+          if(requested&&canOpen(result.capabilities,requested))return requested
+          return canOpen(result.capabilities,previous)?previous:result.capabilities.bugs?'bugs':'features'
         })
       }
     }).catch(reason=>{if(!controller.signal.aborted){setError(reason.message);if(reason.status===403||reason.status===401){setData(null);setVisited([])}}}).finally(()=>{if(!controller.signal.aborted)setLoading(false)})
     return()=>controller.abort()
   },[token,revision])
   useEffect(()=>{
-    const change=()=>{const section=window.location.hash.match(/^#\/admin\/([a-z-]+)$/)?.[1];if(section&&data?.capabilities[section])setActive(section)}
+    const change=()=>{const section=window.location.hash.match(/^#\/admin\/([a-z-]+)$/)?.[1];if(section&&data&&canOpen(data.capabilities,section))setActive(section)}
     window.addEventListener('hashchange',change);return()=>window.removeEventListener('hashchange',change)
   },[data])
   useEffect(()=>{if(active)setVisited(previous=>previous.includes(active)?previous:[...previous,active])},[active])
