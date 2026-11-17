@@ -536,8 +536,9 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   useEffect(()=>{try{localStorage.setItem('pdf-editor-show-stopwatch',String(showStopwatch))}catch{}},[showStopwatch])
   const [showClock,setShowClock]=useState(()=>{try{return localStorage.getItem('pdf-editor-show-clock')==='true'}catch{return false}})
   useEffect(()=>{try{localStorage.setItem('pdf-editor-show-clock',String(showClock))}catch{}},[showClock])
-  const [continuousView,setContinuousView]=useState(()=>{try{return localStorage.getItem('pdf-editor-continuous')==='true'}catch{return false}})
-  useEffect(()=>{try{localStorage.setItem('pdf-editor-continuous',String(continuousView))}catch{}},[continuousView])
+  const [continuousPreference,setContinuousView]=useState(()=>{try{return localStorage.getItem('pdf-editor-continuous')!=='false'}catch{return true}})
+  const continuousView = !exportImage && continuousPreference
+  useEffect(()=>{if(!exportImage){try{localStorage.setItem('pdf-editor-continuous',String(continuousPreference))}catch{}}},[continuousPreference,exportImage])
   const [darkPages,setDarkPages]=useState(()=>{try{return localStorage.getItem('pdf-editor-dark-pages')!=='false'}catch{return true}})
   useEffect(()=>{try{localStorage.setItem('pdf-editor-dark-pages',String(darkPages))}catch{}},[darkPages])
   const [snippet,setSnippet]=useState(null),[copyingSnippet,setCopyingSnippet]=useState(false)
