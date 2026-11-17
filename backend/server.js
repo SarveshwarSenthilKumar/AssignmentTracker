@@ -50,6 +50,9 @@ mongoose.connect(process.env.MONGODB_URI)
 const TERMS_VERSION='1.12';
 const PRIVACY_VERSION='1.13';
 const userSchema = new mongoose.Schema({
+  approvalPending: { type: Boolean, default: false },
+  approvedAt: Date,
+  approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   termsAcceptance:{version:String,acceptedAt:Date,method:String},
   privacyAcceptance:{version:String,acceptedAt:Date,method:String},
   socialConnections: { type: mongoose.Schema.Types.Mixed, select: false, default: ()=>({}) },
@@ -454,9 +457,11 @@ app.post('/api/auth/register', async (req, res) => {
     if (usernameTaken) conflicts.push('username');
     if (conflicts.length) return registrationConflict(res, conflicts);
 
+    const approvalPending = process.env.REQUIRE_ACCOUNT_APPROVAL?.trim().toLowerCase() === 'true';
     const hashedPassword = await bcrypt.hash(password, 10);
-    const user = new User({ username, email, password: hashedPassword,termsAcceptance:{version:TERMS_VERSION,acceptedAt:new Date(),method:'signup-checkbox'} });
+    const user = new User({ username, email, password: hashedPassword, approvalPending,termsAcceptance:{version:TERMS_VERSION,acceptedAt:new Date(),method:'signup-checkbox'} });
     await user.save();
+    if (approvalPending) return res.status(201).json({ approvalPending: true, message: 'Account created. An administrator must approve it before you can sign in.' });
 
     const token = jwt.sign(
       { userId: user._id, username: user.username },
@@ -502,6 +507,7 @@ app.post('/api/auth/login', async (req, res) => {
     if (!validPassword) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
+    if (user.approvalPending) return res.status(403).json({ code: 'ACCOUNT_APPROVAL_PENDING', message: 'Your account is awaiting administrator approval.' });
 
     const token = jwt.sign(
       { userId: user._id, username: user.username },
@@ -1961,6 +1967,7 @@ require('./siteRoadmap')(app,authenticateToken,mongoose);
 require('./bugReports')(app,authenticateToken,mongoose);
 require('./featureSuggestions')(app,authenticateToken,mongoose);
 require('./adminPortal')(app,authenticateToken,mongoose);
+require('./accountApproval')(app,authenticateToken,mongoose);
 
 app.use('/api', (req,res)=>res.status(404).json({message:'API endpoint not found. Restart or redeploy the backend after updating the app.'}));
 app.use(express.static(require('node:path').join(__dirname, '..', 'frontend', 'dist')));

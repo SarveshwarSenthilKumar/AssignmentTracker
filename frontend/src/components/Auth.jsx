@@ -14,6 +14,7 @@ export default function Auth() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [fieldErrors, setFieldErrors] = useState({})
+  const [notice, setNotice] = useState('')
   const [loading, setLoading] = useState(false)
   const { login } = useAuth()
 
@@ -22,6 +23,7 @@ export default function Auth() {
     if(loading)return
     if(!isLogin&&(!termsReviewed||!termsAccepted)){setError('Review the Terms and Conditions and agree before creating your account.');return}
     setError('')
+    setNotice('')
     setFieldErrors({})
     setLoading(true)
 
@@ -42,6 +44,15 @@ export default function Auth() {
       })
 
       const data = await readApiJson(response)
+      if (!isLogin && response.ok && data.approvalPending === true) {
+        setIsLogin(true)
+        setPassword('')
+        setShowPassword(false)
+        setTermsReviewed(false)
+        setTermsAccepted(false)
+        setNotice(data.message || 'Account created. An administrator must approve it before you can sign in.')
+        return
+      }
 
       if (!response.ok) {
         if (!isLogin && response.status === 409 && data.fieldErrors) setFieldErrors(data.fieldErrors)
@@ -74,6 +85,7 @@ export default function Auth() {
         </div>
 
         <div className="auth-card bg-white/5 border border-white/10 rounded-2xl p-8">
+          {notice && <p role="status" className="mb-4 rounded-lg border border-white/10 p-3 text-sm">{notice}</p>}
           {error && (
             <div role="alert" className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-lg">
               <p className="text-red-400 text-sm">{error}</p>
@@ -165,6 +177,7 @@ export default function Auth() {
               type="button"
               onClick={() => {
                 setIsLogin(!isLogin)
+                setNotice('')
                 setFieldErrors({})
                 setShowPassword(false)
                 setError('')
