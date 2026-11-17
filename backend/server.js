@@ -13,7 +13,7 @@ const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const https = require('https');
 const { documentAction } = require('./documentActions');
-const { deletePDFPage, insertPDFPages } = require('./pdfPages');
+const { deletePDFPage, insertPDFPages, mergePDFDocuments } = require('./pdfPages');
 const { resetAccountWorkspace } = require('./accountReset');
 const { dependencyChange } = require('./taskDependencies');
 const { calendarEntry, validDay: validCalendarDay } = require('./calendarEntries');
@@ -1421,6 +1421,72 @@ app.post('/api/canvas/sync', authenticateToken, async (req, res) => {
 });
 
 // PDF Routes
+app.post('/api/documents/merge', authenticateToken, async (req, res) => {
+  const { ids, name, folderId = null } = req.body || {};
+  const validId = id => typeof id === 'string' && /^[a-f\d]{24}$/.test(id);
+  if (!Array.isArray(ids) || ids.length < 2 || ids.length > 10 || ids.some(id => !validId(id)) ||
+      new Set(ids).size !== ids.length || (folderId !== null && !validId(folderId)) ||
+      typeof name !== 'string' || !name.trim() || name.trim().length > 120) {
+    return res.status(400).json({ message: 'Select 2–10 PDFs and enter a name for the merged document.' });
+  }
+  try {
+    const user = req.user.userId;
+    const account = await User.findById(user).select('lockedSections').lean();
+    if (!account) return res.sendStatus(401);
+    const locks = new Set(account.lockedSections);
+    const folders = await PDFFolder.find({ user }).select('parentId').lean();
+    const parents = new Map(folders.map(folder => [String(folder._id), folder.parentId]));
+    const lockedFolder = id => {
+      const seen = new Set();
+      for (; id; id = parents.get(String(id))) {
+        const key = String(id);
+        if (!parents.has(key) || seen.has(key) || locks.has(`documents:${key}`)) return true;
+        seen.add(key);
+      }
+      return false;
+    };
+    const filter = { _id: { $in: ids }, user, deletedAt: null };
+    const sources = await PDF.find(filter).select('name originalName mimeType pdfFolder').lean();
+    if (sources.length !== ids.length) return res.status(404).json({ message: 'One or more selected documents are unavailable.' });
+    if (sources.some(file => file.mimeType !== 'application/pdf' && !/\.pdf$/i.test(file.originalName || ''))) {
+      return res.status(400).json({ message: 'Only PDFs can be merged.' });
+    }
+    if (locks.has('documents') || lockedFolder(folderId) ||
+        sources.some(file => locks.has(`file:${file._id}`) || lockedFolder(file.pdfFolder))) {
+      return res.status(403).json({ message: 'Remove the applicable file or folder lock before merging.' });
+    }
+    checkNames(await documentNames(PDF, user, folderId), [{ name, pdfFolder: folderId }], 'pdfFolder', 'document');
+    const files = new Map();
+    let inputSize = 0;
+    for (const id of ids) {
+      const source = sources.find(file => String(file._id) === id);
+      const file = await PDF.findOne({ _id: id, user, deletedAt: null, pdfFolder: source.pdfFolder ?? null })
+        .select('name pdfData annotations');
+      if (!file) return res.status(409).json({ message: 'A source changed folders. Refresh and try again.' });
+      inputSize += file.pdfData.length + Buffer.byteLength(JSON.stringify(file.annotations));
+      if (inputSize > 12 * 1024 * 1024) return res.status(413).json({ message: 'Selected PDFs and annotations exceed the 12 MB merge limit.' });
+      files.set(id, file);
+    }
+    let merged;
+    try { merged = await mergePDFDocuments(ids.map(id => files.get(id))); }
+    catch (error) { return res.status(422).json({ message: error.message }); }
+    if (merged.bytes.length + Buffer.byteLength(JSON.stringify(merged.annotations)) > 12 * 1024 * 1024) {
+      return res.status(413).json({ message: 'The merged PDF and annotations exceed the 12 MB storage limit.' });
+    }
+    const title = name.trim();
+    const filename = title.replace(/[<>:"/\\|?*\u0000-\u001f]/g, '-').replace(/\.pdf$/i, '') || 'Merged PDF';
+    const file = await PDF.create({ user, name: title, originalName: `${filename}.pdf`, mimeType: 'application/pdf',
+      pdfFolder: folderId, pdfData: merged.bytes, annotations: merged.annotations });
+    const metadata = file.toObject();
+    delete metadata.pdfData;
+    delete metadata.originalBackup;
+    res.status(201).json(metadata);
+  } catch (error) {
+    if (error instanceof DuplicateNameError) return res.status(409).json({ message: error.message });
+    res.status(500).json({ message: 'Could not merge the selected PDFs.' });
+  }
+});
+
 app.post('/api/documents/actions', authenticateToken, async (req, res) => {
   try {
     let operation;

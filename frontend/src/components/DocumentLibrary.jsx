@@ -26,6 +26,8 @@ export default function DocumentLibrary({ tasks = [], onOpenTask, documents, fol
   const [notebookPages,setNotebookPages]=useState(5),[notebookSize,setNotebookSize]=useState('letter')
   const [aiCreator,setAiCreator]=useState(null)
   const [shareFile, setShareFile] = useState(null)
+  const [mergeIds, setMergeIds] = useState(null)
+  const [mergeName, setMergeName] = useState('Merged PDF')
   const [noteTemplate,setNoteTemplate]=useState('blank')
   const [markdownCreator,setMarkdownCreator]=useState(null)
   const [oneNoteCreator,setOneNoteCreator]=useState(null)
@@ -76,6 +78,31 @@ export default function DocumentLibrary({ tasks = [], onOpenTask, documents, fol
     try { await callback() } catch (err) { setError(err.message) }
     finally { busyRef.current = false; setBusy(false) }
   }
+  const isPDF = file => file.mimeType === 'application/pdf' || /\.pdf$/i.test(file.originalName || '')
+  const selectedFiles = visible.filter(file => selected.has(file._id))
+  const canMerge = !inTrash && selectedFiles.length >= 2 && selectedFiles.length <= 10 && selectedFiles.every(isPDF)
+  const mergeConflict = mergeIds && hasDuplicateName(documents, mergeName, 'pdfFolder', destinationFolder)
+  const mergeDocuments = event => {
+    event.preventDefault()
+    if (!mergeName.trim() || mergeConflict) return
+    run(async () => {
+      const file = await request('/api/documents/merge', 'POST', { ids: mergeIds, name: mergeName.trim(), folderId: destinationFolder })
+      if (!file._id) throw new Error('The server did not confirm creation. Refresh the library before retrying.')
+      onDocumentsChange(previous => [file, ...previous])
+      setMergeIds(null)
+      setSearch('')
+      setSelected(new Set())
+      setNotice({ text: `Created ${file.name}.` })
+      onOpen(file._id)
+    })
+  }
+
+  const moveMergeFile = (index, direction) => setMergeIds(previous => {
+    const next = [...previous]
+    const target = index + direction
+    ;[next[index], next[target]] = [next[target], next[index]]
+    return next
+  })
   const refresh = () => run(async () => {
     const [files, locations] = await Promise.all([request('/api/pdfs?includeTrash=1', 'GET'), request('/api/pdf-folders', 'GET')])
     onDocumentsChange(files); onFoldersChange(locations); setSelected(new Set())
@@ -191,6 +218,23 @@ export default function DocumentLibrary({ tasks = [], onOpenTask, documents, fol
   return <section className="document-library" aria-label="Document library" aria-busy={busy}>
     <FolderHierarchyControls folders={folders} selected={selectedFolder} token={token} base="/api/pdf-folders" documents={documents} onDocumentsChange={onDocumentsChange} onOpenDocument={onOpen} onFoldersChange={onFoldersChange} onSelect={onSelectFolder} onCreate={parentId=>{setValue('');setModal({type:'new-folder',parentId})}} disabled={busy}/>
     {shareFile && <DocumentShareLink key={shareFile._id} file={shareFile} token={token} onClose={()=>setShareFile(null)}/>}
+    {mergeIds && <div className="library-modal-backdrop"><form onSubmit={mergeDocuments} aria-labelledby="library-merge-title" onKeyDown={event => {
+      if (event.key === 'Escape' && !busy) { event.stopPropagation(); setMergeIds(null) }
+    }}>
+      <div className="library-modal-heading"><h3 id="library-merge-title">Merge selected PDFs</h3><button type="button" disabled={busy} aria-label="Close PDF merge" onClick={()=>setMergeIds(null)}><X size={18}/></button></div>
+      <label htmlFor="library-merge-name">New PDF name</label>
+      <input id="library-merge-name" autoFocus required maxLength={120} value={mergeName} disabled={busy} onChange={event=>{setMergeName(event.target.value);setError('')}}/>
+      <p>Set the order the PDFs should appear in the merged file.</p>
+      <ol className="library-merge-list">{mergeIds.map((id, index) => {
+        const name = documents.find(file => file._id === id)?.name || 'Unavailable document'
+        return <li key={id}><span>{name}</span><div>
+          <button type="button" disabled={busy || index === 0} aria-label={`Move ${name} earlier`} onClick={()=>moveMergeFile(index,-1)}>↑</button>
+          <button type="button" disabled={busy || index === mergeIds.length - 1} aria-label={`Move ${name} later`} onClick={()=>moveMergeFile(index,1)}>↓</button>
+        </div></li>
+      })}</ol>
+      {(mergeConflict || error) && <p role="alert" className="library-modal-error">{mergeConflict ? 'A document with this name already exists here.' : error}</p>}
+      <div className="library-modal-footer"><button type="button" disabled={busy} onClick={()=>setMergeIds(null)}>Cancel</button><button type="submit" className="library-primary" disabled={busy || !!mergeConflict || !mergeName.trim()}>{busy ? 'Merging…' : 'Merge and open PDF'}</button></div>
+    </form></div>}
     {oneNoteCreator&&<OneNoteImport token={token} folderId={oneNoteCreator.folderId} onClose={()=>setOneNoteCreator(null)} onCreated={file=>{onDocumentsChange(previous=>[file,...previous]);setOneNoteCreator(null);setSearch('');setNotice({text:'OneNote notebook imported as notes.'});onOpen(file._id)}}/>}
     {markdownCreator&&<MarkdownPDFCreator token={token} folderId={markdownCreator.folderId} onClose={()=>setMarkdownCreator(null)} onCreated={file=>{onDocumentsChange(previous=>[file,...previous]);setMarkdownCreator(null);setSearch('');setNotice({text:'Markdown converted and saved as a PDF.'});onOpen(file._id)}}/>}
     {aiCreator&&<AIDocumentCreator token={token} folderId={aiCreator.folderId} sourceFolder={aiCreator.sourceFolder} onClose={()=>setAiCreator(null)} onCreated={file=>{onDocumentsChange(previous=>[file,...previous]);setAiCreator(null);setSearch('');setNotice({text:file.generationNotice||'AI document created. Open its editable text blocks to revise the content.'});onOpen(file._id)}}/>}
@@ -210,7 +254,7 @@ export default function DocumentLibrary({ tasks = [], onOpenTask, documents, fol
       {error&&<div className="library-feedback library-error" role="alert">{error}<button aria-label="Dismiss document error" onClick={()=>setError('')}><X size={15}/></button></div>}
       {notice&&<div className="library-feedback" role="status"><Check size={16}/><span>{notice.text}</span>{notice.undo&&<button disabled={busy} onClick={()=>run(()=>action('restore',notice.undo))}>Undo</button>}<button aria-label="Dismiss document notification" onClick={()=>setNotice(null)}><X size={15}/></button></div>}
       {inTrash&&<p className="library-trash-info">Documents in Trash can be restored. Removing a folder keeps its documents in Unfiled.</p>}
-      <div className="library-selection"><label><input type="checkbox" aria-label="Select all visible documents" ref={input => { if (input) input.indeterminate = selected.size > 0 && !visible.every(file => selected.has(file._id)) }} checked={visible.length>0&&visible.every(file=>selected.has(file._id))} disabled={busy||!visible.length} onChange={e=>setSelected(e.target.checked?new Set(visible.map(file=>file._id)):new Set())}/>{selected.size?`${selected.size} selected`:'Select documents'}</label>{selected.size>0&&<><button disabled={busy} onClick={()=>setSelected(new Set())}>Clear</button>{inTrash?<button disabled={busy} onClick={()=>run(()=>action('restore',[...selected]))}><RotateCcw size={15}/>Restore</button>:<><button disabled={busy} onClick={()=>openMove([...selected])}><ArrowRight size={15}/>Move</button><button className="library-danger" disabled={busy} onClick={()=>run(()=>action('trash',[...selected]))}><Trash2 size={15}/>Move to Trash</button></>}</>}{busy&&<Loader2 className="animate-spin" size={17}/>}</div>
+      <div className="library-selection"><label><input type="checkbox" aria-label="Select all visible documents" ref={input => { if (input) input.indeterminate = selected.size > 0 && !visible.every(file => selected.has(file._id)) }} checked={visible.length>0&&visible.every(file=>selected.has(file._id))} disabled={busy||!visible.length} onChange={e=>setSelected(e.target.checked?new Set(visible.map(file=>file._id)):new Set())}/>{selected.size?`${selected.size} selected`:'Select documents'}</label>{selected.size>0&&<><button disabled={busy} onClick={()=>setSelected(new Set())}>Clear</button>{inTrash?<button disabled={busy} onClick={()=>run(()=>action('restore',[...selected]))}><RotateCcw size={15}/>Restore</button>:<><button disabled={busy} onClick={()=>openMove([...selected])}><ArrowRight size={15}/>Move</button>{canMerge && <button type="button" disabled={busy} onClick={()=>{setMergeName('Merged PDF');setError('');setMergeIds(selectedFiles.map(file=>file._id))}}><Files size={15}/>Merge PDFs</button>}<button className="library-danger" disabled={busy} onClick={()=>run(()=>action('trash',[...selected]))}><Trash2 size={15}/>Move to Trash</button></>}</>}{busy&&<Loader2 className="animate-spin" size={17}/>}</div>
       <div className="library-table-scroll"><table className="library-table"><thead><tr><th className="library-check-column"></th><th>Name</th><th>Folder</th><th>Updated</th><th className="library-actions-heading">Actions</th></tr></thead><tbody>{visible.map(file=><tr key={file._id} data-library-file-id={file._id} tabIndex={-1} className={selected.has(file._id)?'is-selected':''} draggable={!inTrash&&!busy} onDragStart={e=>{const ids=selected.has(file._id)?[...selected]:[file._id];e.dataTransfer.setData('application/x-assignment-documents',JSON.stringify(ids));e.dataTransfer.effectAllowed='move'}} onDragEnd={()=>setDropTarget(null)}><td><input type="checkbox" aria-label={`Select ${file.name}`} checked={selected.has(file._id)} disabled={busy} onChange={()=>toggle(file._id)}/></td><td><button className="library-file-open" disabled={inTrash||busy} onClick={event => onOpen(file._id, event)}><DocumentFileIcon file={file} size={22}/><span><strong>{file.name}</strong><small>{file.originalName}</small>{file.tags?.length>0&&<small>{file.tags.join(' · ')}</small>}</span><em>{file.originalName?.split('.').pop()||'FILE'}</em></button><div className="flex flex-wrap gap-1 mt-1">{tasks.filter(task=>documentTaskIds(file).includes(task._id)).map(task=><button key={task._id} type="button" className="text-xs text-slate-300 border border-slate-600 rounded px-2 py-1" onClick={()=>onOpenTask?.(task)} title={`Open task: ${task.text}`}>Task: {task.text}</button>)}</div></td><td><span className="library-folder-name">{folders.find(folder=>folder._id===file.pdfFolder)?.name||'Unfiled'}</span></td><td><time dateTime={file.updatedAt||file.createdAt}>{new Date(file.updatedAt||file.createdAt).toLocaleDateString()}</time></td><td><div className="library-row-actions">{inTrash?<button disabled={busy} aria-label={`Restore ${file.name}`} onClick={()=>run(()=>action('restore',[file._id]))}><RotateCcw size={16}/><span>Restore</span></button>:<><FileLockButton file={file} disabled={busy}/><button type="button" disabled={busy} aria-label={`Share link for ${file.name}`} title="Share link" onClick={()=>setShareFile(file)}><Link2 size={16}/></button><button type="button" disabled={busy} aria-label={`Make a copy of ${file.name}`} title="Make a copy" onClick={()=>copyDocument(file)}><Copy size={16}/></button><button type="button" className="library-star" disabled={busy} aria-label={`Star ${file.name}`} aria-pressed={!!file.starred} title={file.starred ? 'Remove star' : 'Star document'} onClick={()=>toggleStar(file)}><Star size={16} fill={file.starred ? 'currentColor' : 'none'} aria-hidden="true"/></button><button disabled={busy} aria-label={`Move ${file.name}`} title="Move to folder" onClick={()=>openMove([file._id])}><ArrowRight size={16}/></button><button disabled={busy} aria-label={`Rename ${file.name}`} title="Rename" onClick={()=>{setValue(file.name);setModal({type:'rename',file})}}><Edit2 size={16}/></button><button disabled={busy} aria-label={`Download ${file.name}`} title="Download original" onClick={()=>download(file)}><Download size={16}/></button>{(file.mimeType==='application/pdf'||/\.pdf$/i.test(file.originalName||''))&&<button disabled={busy} aria-label={`Download annotated PDF of ${file.name}`} title="Download annotated PDF" onClick={()=>downloadAnnotated(file)}><FileDown size={16}/></button>}<button disabled={busy} aria-label={`Move ${file.name} to Trash`} title="Move to Trash" className="library-danger" onClick={()=>run(()=>action('trash',[file._id]))}><Trash2 size={16}/></button></>}</div></td></tr>)}</tbody></table></div>
       {!visible.length&&<div className="library-empty"><Folder size={36}/><h3>{search?'No matching documents':inTrash?'Trash is empty':inStarred?'No starred documents':'This folder is empty'}</h3><p>{search?'Try a different name, filename, or tag.':inTrash?'Deleted documents will appear here for restoration.':inStarred?'Star a document in the library to find it here.':'Create notes, upload documents, or move files from another folder.'}</p>{!inTrash&&!inStarred&&!search&&<button className="library-primary" onClick={onUpload}><Upload size={16}/>Upload documents</button>}</div>}
     </div></div>

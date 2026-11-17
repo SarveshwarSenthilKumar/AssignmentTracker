@@ -1,4 +1,34 @@
 const { PDFDocument } = require('pdf-lib');
+const { randomUUID } = require('node:crypto');
+
+async function mergePDFDocuments(files) {
+  const output = await PDFDocument.create();
+  const annotations = [];
+  for (const file of files) {
+    let source;
+    try { source = await PDFDocument.load(file.pdfData); }
+    catch { throw new Error(`Could not read “${file.name}” as a PDF.`); }
+    const offset = output.getPageCount();
+    const count = source.getPageCount();
+    if (!count || offset + count > 500) throw new Error('The merged PDF must contain 1–500 pages.');
+    const pages = await output.copyPages(source, source.getPageIndices());
+    for (const page of pages) output.addPage(page);
+    const groups = new Map();
+    for (const item of file.annotations || []) {
+      const page = item?.page ?? 1;
+      if (!item || !Number.isInteger(page) || page < 1 || page > count) continue;
+      const copy = { ...item, id: `merge_${randomUUID()}`, page: offset + page };
+      for (const field of ['dottedGroup', 'numberLineGroup']) {
+        if (!item[field]) continue;
+        const key = `${field}:${item[field]}`;
+        if (!groups.has(key)) groups.set(key, `merge_${randomUUID()}`);
+        copy[field] = groups.get(key);
+      }
+      annotations.push(copy);
+    }
+  }
+  return { bytes: Buffer.from(await output.save()), annotations };
+}
 
 async function deletePDFPage(bytes, pageNumber, annotations = []) {
   if (!Number.isInteger(pageNumber) || pageNumber < 1) {
@@ -79,4 +109,4 @@ async function insertPDFPages(bytes, { position, sources = [], range = '', mode 
   return { bytes: Buffer.from(await document.save()), annotations: remaining, numPages: count + added.length, insertedPages: added.length, firstInsertedPage: position + 1 };
 }
 
-module.exports = { deletePDFPage, insertPDFPages, parsePageRange };
+module.exports = { deletePDFPage, insertPDFPages, parsePageRange, mergePDFDocuments };
