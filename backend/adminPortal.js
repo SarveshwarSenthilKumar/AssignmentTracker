@@ -1,6 +1,14 @@
 const access=require('./adminAccess');
 module.exports=(app,auth,mongoose)=>{
   require('./adminStats')(app,auth,mongoose);
+  app.get('/api/account/admin-status', auth, async (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    try {
+      res.json({ administrator: (await access(mongoose, req.user.userId)).stats });
+    } catch {
+      res.status(503).json({ message: 'Could not check administrator access.' });
+    }
+  });
   const summary=async(name,kind)=>{
     const Model=mongoose.models[name];
     if(!Model)throw new Error('Missing model');

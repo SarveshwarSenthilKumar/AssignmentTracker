@@ -67,6 +67,7 @@ import useShortcuts from './hooks/useShortcuts'
 import ShortcutsPage from './components/ShortcutsPage'
 import './Navigation.css'
 import './components/AccountPage.css'
+import AccountAdminBadge from './components/AccountAdminBadge'
 import { useState, useEffect, useRef } from 'react'
 import { AlertCircle, Plus, Trash2, Check, X, Loader2, FolderPlus, Folder, LogOut, Sparkles, Link2, ChevronDown, ChevronUp, Edit2, Copy, Save, User, Trophy, Target, Calendar, ArrowUpDown, RefreshCw, Terminal, ChevronRight, FileText, Keyboard, Star } from 'lucide-react'
 import { cn } from './lib/utils'
@@ -2209,7 +2210,10 @@ function App() {
         {page === 'account' && (
           <div className="account-page">
             <section className="account-overview account-card" aria-labelledby="account-profile-title">
-              <h2 id="account-profile-title">Your profile</h2>
+              <div className="account-profile-heading">
+                <h2 id="account-profile-title">Your profile</h2>
+                <AccountAdminBadge token={token}/>
+              </div>
 
               {/* User Info */}
               <div className="account-identity">
