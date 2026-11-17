@@ -140,6 +140,12 @@ The root `render.yaml` configures a free Node web service. Render builds the Vit
 
 The repository's Markdown handbook is the source for the downloadable PDF. Render builds the PDF from that source, so it does not need to be committed. Free services can sleep when idle. Atlas stores uploaded files and their saved backups, which count against its storage limit.
 
+### Use the workspace offline
+
+Open the deployed HTTPS app while online and sign in before going offline. In Documents, use **Make available offline** on an unlocked PDF or text file. The browser can then open that copy, save annotations or text edits, and queue task creation and status changes. Keep the app open after reconnecting to sync those changes. The offline status panel shows pending changes and lets you review conflicts.
+
+Offline copies and queued changes are stored in this browser for the current sign-in session. Signing out removes them, including changes that have not synced. First-time sign-in, Gemini, collaboration, share links, and actions such as moving or merging files still require an online connection.
+
 [Render Blueprint reference](https://render.com/docs/blueprint-spec) · [Render outbound IP ranges](https://render.com/docs/outbound-ip-addresses) · [Atlas IP access list](https://www.mongodb.com/docs/atlas/security/add-ip-address-to-list/)
 
 ## 📱 Alternative Deployment Options

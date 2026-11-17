@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
 import PublicDocumentEditor from './components/PublicDocumentEditor'
+import { installOfflineWorkspace } from './lib/offlineWorkspace'
 import './index.css'
 import './responsive.css'
 import { AuthProvider } from './contexts/AuthContext'
@@ -21,6 +22,8 @@ function subscribeToHash(callback) {
   window.addEventListener('hashchange', callback)
   return () => window.removeEventListener('hashchange', callback)
 }
+
+installOfflineWorkspace()
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

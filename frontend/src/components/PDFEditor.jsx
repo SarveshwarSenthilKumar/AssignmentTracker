@@ -778,8 +778,9 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
           body
         })
         if (!response.ok) throw new Error('Failed to save annotations')
+        const queuedOffline = response.headers.get('X-AssignmentTracker-Offline') === 'true'
         dirtyRef.current = revisionRef.current !== revision
-        setSaveStatus(dirtyRef.current ? 'dirty' : 'saved')
+        setSaveStatus(dirtyRef.current ? 'dirty' : queuedOffline ? 'offline' : 'saved')
         return true
       } catch (err) {
 

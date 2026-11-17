@@ -968,7 +968,14 @@ app.get('/api/todos', authenticateToken, async (req, res) => {
 // Create a new todo
 app.post('/api/todos', authenticateToken, async (req, res) => {
   try {
-    const { text, folder } = req.body;
+    const { text, folder, offlineId } = req.body;
+    if (offlineId !== undefined && (typeof offlineId !== 'string' || !/^[a-f\d]{24}$/.test(offlineId))) {
+      return res.status(400).json({ message: 'Invalid offline task ID.' });
+    }
+    if (offlineId) {
+      const existing = await Todo.findOne({ _id: offlineId, user: req.user.userId });
+      if (existing) return res.json(existing);
+    }
     let deadline;try{deadline=taskDueDate(req.body)}catch(error){return res.status(400).json({message:error.message})}
     if (!text) {
       return res.status(400).json({ message: 'Text is required' });
@@ -977,10 +984,14 @@ app.post('/api/todos', authenticateToken, async (req, res) => {
     let progress = {};
     try { if(req.body.progressTarget!==undefined)progress=validateProgressConfig(req.body); }
     catch(error){return res.status(400).json({message:error.message});}
-    const todo = new Todo({ text, folder, user: req.user.userId, ...deadline,scheduledDate,...progress });
+    const todo = new Todo({ ...(offlineId && { _id: offlineId }), text, folder, user: req.user.userId, ...deadline,scheduledDate,...progress });
     await todo.save();
     res.status(201).json(todo);
   } catch (error) {
+    if (error.code === 11000 && req.body.offlineId) {
+      const existing = await Todo.findOne({ _id: req.body.offlineId, user: req.user.userId });
+      if (existing) return res.json(existing);
+    }
     res.status(500).json({ message: 'Error creating todo', error: error.message });
   }
 });
@@ -1724,13 +1735,25 @@ app.put('/api/pdfs/:id/task-link', authenticateToken, async (req, res) => {
 // Save directly editable documents; retain the uploaded original before the first edit.
 app.put('/api/pdfs/:id/content', authenticateToken, async (req, res) => {
   try {
-    const pdf = await PDF.findOne({ _id: req.params.id, user: req.user.userId });
+    const filter = { _id: req.params.id, user: req.user.userId, deletedAt: null };
+    const pdf = await PDF.findOne(filter);
     if (!pdf) return res.status(404).json({ message: 'Document not found' });
     const { data, mimeType } = req.body;
+    const base = req.get('X-Offline-Base');
+    if (base && pdf.updatedAt?.toISOString() !== base) return res.status(409).json({ message: 'This document changed online. Review the offline draft before syncing.' });
     if (typeof data !== 'string' || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(data)) return res.status(400).json({ message: 'Invalid document content.' });
     const bytes = Buffer.from(data, 'base64');
     if (bytes.length > 10 * 1024 * 1024) return res.status(400).json({ message: 'Files must be smaller than 10 MB.' });
     if (bytes.length + (pdf.originalBackup || pdf.pdfData).length > 15 * 1024 * 1024) return res.status(400).json({ message: 'The original and edited document together exceed the 15 MB storage limit. Download the edited version instead.' });
+    if (base) {
+      const updatedAt = new Date();
+      const result = await PDF.updateOne({ ...filter, updatedAt: pdf.updatedAt }, { $set: {
+        pdfData: bytes, originalBackup: pdf.originalBackup || pdf.pdfData, annotations: [], updatedAt,
+        ...(typeof mimeType === 'string' && mimeType.length < 150 && { mimeType })
+      } });
+      if (!result.matchedCount) return res.status(409).json({ message: 'This document changed online. Review the offline draft before syncing.' });
+      return res.json({ updatedAt, hasOriginalBackup: true });
+    }
     if (!pdf.originalBackup) pdf.originalBackup = pdf.pdfData;
     pdf.pdfData = bytes;
     if (typeof mimeType === 'string' && mimeType.length < 150) pdf.mimeType = mimeType;
@@ -1754,12 +1777,15 @@ app.get('/api/pdfs/:id/original', authenticateToken, async (req, res) => {
 app.put('/api/pdfs/:id/annotations', authenticateToken, async (req, res) => {
   try {
     const { annotations } = req.body;
+    const base = req.get('X-Offline-Base');
+    if (base && !Number.isFinite(Date.parse(base))) return res.status(400).json({ message: 'Invalid offline document revision.' });
     const pdf = await PDF.findOneAndUpdate(
-      { _id: req.params.id, user: req.user.userId },
+      { _id: req.params.id, user: req.user.userId, deletedAt: null, ...(base && { updatedAt: new Date(base) }) },
       { annotations, updatedAt: new Date() },
       { new: true }
     );
     if (!pdf) {
+      if (base) return res.status(409).json({ message: 'This document changed online or is unavailable.' });
       return res.status(404).json({ message: 'PDF not found' });
     }
     res.json(pdf);

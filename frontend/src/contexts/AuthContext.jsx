@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useLayoutEffect, useRef } from 'react'
 import { setTimeZone } from '../lib/timeZone'
 import PolicyGate from '../components/PolicyGate'
+import { clearOfflineWorkspace } from '../lib/offlineWorkspace'
 
 const AuthContext = createContext(null)
 
@@ -72,6 +73,7 @@ export const AuthProvider = ({ children }) => {
   }
 
   const logout = () => {
+    clearOfflineWorkspace(token).catch(() => {})
     setToken(null)
     setUser(null)
     localStorage.removeItem('token')

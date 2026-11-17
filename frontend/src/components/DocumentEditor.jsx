@@ -144,7 +144,7 @@ export default function DocumentEditor({ pdfId, token, onClose, onCleanCopy, ass
         const {openWordTemplate}=await import('../lib/wordTemplateEditor')
         wordTemplate.current=await openWordTemplate(bytesRef.current)
       }
-      setData(prev => ({ ...prev, updatedAt:result.updatedAt||prev.updatedAt, hasOriginalBackup: true }))
+      setData(prev => ({ ...prev, updatedAt:result.updatedAt||prev.updatedAt, hasOriginalBackup: true, offline: result.offline === true }))
       if (revision.current === currentRevision) setDirty(false)
       if (replacement) onClose()
     } catch (err) { setError(err.message) }
@@ -184,7 +184,7 @@ export default function DocumentEditor({ pdfId, token, onClose, onCleanCopy, ass
   const rows = kind === 'workbook' ? gridSize.rows : table.length
   const cols = kind === 'workbook' ? gridSize.cols : Math.max(1, ...table.map(row => row.length))
   return <div className="document-editor" role="region" aria-label="Document editor">
-    <header><div className="document-title"><FileText size={22} /><div><h2>{data?.name || 'Document editor'}</h2><p>{filename} · {loading ? 'Loading…' : dirty ? 'Unsaved changes' : 'Saved'}</p></div></div><div className="document-actions"><StudyPhoneButton/>
+    <header><div className="document-title"><FileText size={22} /><div><h2>{data?.name || 'Document editor'}</h2><p>{filename} · {loading ? 'Loading…' : dirty ? 'Unsaved changes' : data?.offline ? 'Saved on device' : 'Saved'}</p></div></div><div className="document-actions"><StudyPhoneButton/>
       {onToggleAssistant&&<button type="button" onClick={onToggleAssistant} aria-pressed={assistantOpen}><MessageSquare size={17}/>AI assistant</button>}
       {isNotes&&<label className="note-autosave"><input type="checkbox" checked={autoSave} onChange={e=>{autoAttempt.current=-1;setAutoSave(e.target.checked)}}/>Autosave</label>}
       {kind==='text'&&aiUndo.length>0&&<button disabled={saving} onClick={()=>{const previous=aiUndo[aiUndo.length-1];setAiUndo(history=>history.slice(0,-1));revision.current++;setText(previous);setDirty(true)}}>Undo AI edit</button>}
