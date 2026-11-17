@@ -7,8 +7,8 @@ const editable = file => /\.(md|markdown|txt)$/i.test(file.originalName || '') &
 
 module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDFFolder }) {
   async function isLocked(file) {
-    const owner = await User.findById(file.user).select('lockedSections').lean();
-    if (!owner) return true;
+    const owner = await User.findById(file.user).select('lockedSections deactivatedAt approvalPending').lean();
+    if (!owner || owner.deactivatedAt || owner.approvalPending) return true;
     const locks = new Set(owner.lockedSections);
     if (locks.has('documents') || locks.has(`file:${file._id}`)) return true;
     const seen = new Set();

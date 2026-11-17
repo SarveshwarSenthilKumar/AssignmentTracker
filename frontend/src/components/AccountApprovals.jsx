@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { readApiJson } from '../lib/apiResponse'
+import AdminAccountAccess from './AdminAccountAccess'
 
 const endpoint = '/api/admin/account-approvals'
 
-export default function AccountApprovals({ token }) {
+export default function AccountApprovals({ token, user }) {
   const [accounts, setAccounts] = useState(null)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
@@ -55,5 +56,6 @@ export default function AccountApprovals({ token }) {
         <span className="min-w-0">{account.username} · {account.email}</span>
         <div className="admin-actions"><button type="button" disabled={!!busy} onClick={() => approve(account)}>{busy === account._id ? 'Approving…' : 'Approve'}</button></div>
       </li>)}</ul>}
+    <AdminAccountAccess token={token} user={user}/>
   </section>
 }

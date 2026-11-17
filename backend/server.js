@@ -51,6 +51,8 @@ const TERMS_VERSION='1.14';
 const PRIVACY_VERSION='1.14';
 const userSchema = new mongoose.Schema({
   approvalPending: { type: Boolean, default: false },
+  deactivatedAt: { type: Date, default: null },
+  deactivatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   approvedAt: Date,
   approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   termsAcceptance:{version:String,acceptedAt:Date,method:String},
@@ -367,6 +369,14 @@ const authenticateToken = (req, res, next) => {
       return res.status(403).json({ message: 'Invalid or expired token' });
     }
     req.user = user;
+    try {
+      const account = await User.findById(user.userId).select('deactivatedAt approvalPending').lean();
+      if (!account) return res.status(401).json({ message: 'Account not found. Sign in again.' });
+      if (account.deactivatedAt) return res.status(403).json({ code: 'ACCOUNT_DEACTIVATED', message: 'This account has been deactivated. Contact the platform operator.' });
+      if (account.approvalPending) return res.status(403).json({ code: 'ACCOUNT_APPROVAL_PENDING', message: 'Your account is awaiting administrator approval.' });
+    } catch {
+      return res.status(503).json({ message: 'Could not verify account access.' });
+    }
     const policy=await policyStatus.check(user.userId);
     if(policy?.found===false)return res.status(401).json({message:'Account not found. Sign in again.'});
     req.policyCurrent=policy?.current;
@@ -508,6 +518,7 @@ app.post('/api/auth/login', async (req, res) => {
     if (!validPassword) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
+    if (user.deactivatedAt) return res.status(403).json({ code: 'ACCOUNT_DEACTIVATED', message: 'This account has been deactivated. Contact the platform operator.' });
     if (user.approvalPending) return res.status(403).json({ code: 'ACCOUNT_APPROVAL_PENDING', message: 'Your account is awaiting administrator approval.' });
 
     const token = jwt.sign(

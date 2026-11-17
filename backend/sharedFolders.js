@@ -25,6 +25,8 @@ module.exports = function registerSharedFolders(app, auth, { User, PDF, PDFFolde
     const owned = await ownedFolder(req);
     const folder = owned || await memberFolder(req);
     if (!folder) return null;
+    const owner = await User.findById(folder.user).select('deactivatedAt approvalPending').lean();
+    if (!owner || owner.deactivatedAt || owner.approvalPending) return null;
     const locks = await ownerLocks(folder.user);
     if (locks.includes('documents') || locks.includes(`documents:${folder._id}`)) return null;
     // A shared folder can be moved under a locked parent after sharing.

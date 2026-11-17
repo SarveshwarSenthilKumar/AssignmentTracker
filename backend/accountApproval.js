@@ -22,6 +22,33 @@ module.exports = function registerAccountApproval(app, auth, mongoose) {
       res.status(503).json({ message: 'Could not load pending accounts.' });
     }
   });
+  app.get('/api/admin/accounts', auth, requireAdmin, async (req, res) => {
+    const search = typeof req.query.search === 'string' ? req.query.search.trim().slice(0, 120) : '';
+    const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    try {
+      const filter = search ? { $or: [{ username: { $regex: escaped, $options: 'i' } }, { email: { $regex: escaped, $options: 'i' } }] } : {};
+      const accounts = await User.find(filter).select('username email deactivatedAt approvalPending').sort({ _id: -1 }).limit(100).lean();
+      res.json({ accounts });
+    } catch {
+      res.status(503).json({ message: 'Could not load accounts.' });
+    }
+  });
+  app.put('/api/admin/accounts/:id/access', auth, requireAdmin, async (req, res) => {
+    if (!mongoose.isValidObjectId(req.params.id) || typeof req.body?.active !== 'boolean') {
+      return res.status(400).json({ message: 'Choose an account and access setting.' });
+    }
+    if (String(req.params.id) === String(req.user.userId)) return res.status(400).json({ message: 'You cannot deactivate your own account.' });
+    try {
+      const account = await User.findByIdAndUpdate(req.params.id, { $set: {
+        deactivatedAt: req.body.active ? null : new Date(),
+        deactivatedBy: req.body.active ? null : req.user.userId
+      } }, { new: true }).select('username email deactivatedAt approvalPending').lean();
+      if (!account) return res.status(404).json({ message: 'Account not found.' });
+      res.json(account);
+    } catch {
+      res.status(503).json({ message: 'Could not update account access.' });
+    }
+  });
   app.post(`${path}/:id/approve`, auth, requireAdmin, async (req, res) => {
     if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: 'Invalid account ID.' });
     try {
