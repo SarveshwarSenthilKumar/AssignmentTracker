@@ -52,7 +52,10 @@ function registerGeneratedDocuments(app,auth,{credentials,model,PDF,PDFFolder,Us
     const disconnected=()=>{if(!res.writableEnded)controller.abort()};res.on('close',disconnected);
     try{
       const credential=await credentials.resolve(userId);
-      if(!credential.apiKey)return res.status(400).json({message:'Save a Gemini API key in Account → AI settings before generating documents.'});
+      if(!credential.apiKey)return res.status(400).json({
+        code:'PERSONAL_GEMINI_KEY_REQUIRED',
+        message:credential.needsReplacement ? 'Replace your saved Gemini API key in Account → AI settings.' : 'Add your own Gemini API key in Account → AI settings before generating documents.'
+      });
       const parts=[{text:prompt.trim()}], sources=[], skipped=[];
       if(practice){
         if(!req.aiAccess?.documentLibrary)return res.status(403).json({message:'Enable document library access in Account → AI access.'});

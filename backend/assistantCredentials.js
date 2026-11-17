@@ -40,8 +40,7 @@ function createAssistantCredentials(User){
       try{return {apiKey:decryptKey(user.geminiApiKeyEncrypted,userId),source:'account',user}}
       catch{return {apiKey:'',source:'account',needsReplacement:true,user}}
     }
-    const apiKey=process.env.GEMINI_API_KEY?.trim()||'';
-    return {apiKey,source:apiKey?'server':'none',user};
+    return {apiKey:'',source:'none',user};
   };
   const describe=credentials=>({
     configured:!!credentials.apiKey,source:credentials.source,hasPersonalKey:!!credentials.user?.geminiApiKeyEncrypted,

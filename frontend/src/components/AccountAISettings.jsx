@@ -30,7 +30,7 @@ export default function AccountAISettings({token}){
     try{
       const data=await request('/api/account/ai-settings',{method:'DELETE'})
       if(!mounted.current)return
-      setSettings(data);setKey('');setVisible(false);setConfirmRemove(false);setRetryAt(0);setNotice(data.source==='server'?'Personal API key removed. AI requests now use the shared server key.':'API key removed. Add another key to use the AI assistant.');changed()
+      setSettings(data);setKey('');setVisible(false);setConfirmRemove(false);setRetryAt(0);setNotice('API key removed. Add another key to use the AI assistant.');changed()
     }catch(error){if(mounted.current)setError(error.message)}finally{lock.current=false;if(mounted.current)setBusy('')}
   }
   const test=async()=>{
@@ -42,8 +42,8 @@ export default function AccountAISettings({token}){
   }
   return <section className="account-ai-settings" aria-labelledby="account-ai-title" aria-busy={!!busy}>
     <h4 id="account-ai-title"><Key size={17}/>AI settings</h4>
-    <p>Add your Google Gemini API key once to use it for AI chats and file questions throughout your account, on any device. Your key takes priority over a shared server key.</p>
-    <div className="account-ai-status"><strong>{busy==='loading'?'Loading connection…':settings?.hasPersonalKey?`Personal key saved · ${settings.maskedKey}`:settings?.source==='server'?'Using the shared server key':'No API key saved'}</strong>{settings?.updatedAt&&<small>Updated {new Intl.DateTimeFormat(undefined,{dateStyle:'medium'}).format(new Date(settings.updatedAt))}</small>}</div>
+    <p>Add your Google Gemini API key once to use it for AI chats and file questions throughout your account, on any device. AI requests require your saved key.</p>
+    <div className="account-ai-status"><strong>{busy==='loading'?'Loading connection…':settings?.hasPersonalKey?`Personal key saved · ${settings.maskedKey}`:'No API key saved'}</strong>{settings?.updatedAt&&<small>Updated {new Intl.DateTimeFormat(undefined,{dateStyle:'medium'}).format(new Date(settings.updatedAt))}</small>}</div>
     {settings?.needsReplacement&&<p className="account-ai-error">The saved key could not be decrypted. Replace it below to reconnect the assistant.</p>}
     {settings&&!settings.storageAvailable&&<p className="account-ai-error">The server needs credential encryption configured before keys can be saved.</p>}
     <form onSubmit={save}>
@@ -53,7 +53,7 @@ export default function AccountAISettings({token}){
       <div className="account-ai-actions"><button type="submit" disabled={!!busy||!key.trim()||!settings?.storageAvailable}>{busy==='saving'?'Saving…':settings?.hasPersonalKey?'Replace key':'Save key'}</button><button type="button" disabled={!!busy||!settings?.configured||settings?.needsReplacement||!!key.trim()||wait>0} onClick={test}>{busy==='testing'?'Checking…':wait>0?`Check in ${retryLabel(wait)}`:'Check saved connection'}</button>{settings?.hasPersonalKey&&<button type="button" disabled={!!busy} onClick={()=>setConfirmRemove(value=>!value)}>Remove key</button>}</div>
     </form>
     <p className="account-ai-help">Get a key from <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">Google AI Studio ↗</a>. Connection checks send a short request without workspace data and use API tokens. {key.trim()?'Save your changes before checking the connection.':''}</p>
-    {confirmRemove&&<div className="account-ai-remove" role="alert"><p>Remove your saved personal key? {settings?.source==='account'?'If a shared server key is configured, new requests will use it; otherwise AI will be disconnected.':''} Saved conversations remain available.</p><button type="button" disabled={!!busy} onClick={remove}>{busy==='removing'?'Removing…':'Remove personal key'}</button><button type="button" disabled={!!busy} onClick={()=>setConfirmRemove(false)}>Keep key</button></div>}
+    {confirmRemove&&<div className="account-ai-remove" role="alert"><p>Remove your saved personal key? New AI requests will require a replacement key. Saved conversations remain available.</p><button type="button" disabled={!!busy} onClick={remove}>{busy==='removing'?'Removing…':'Remove personal key'}</button><button type="button" disabled={!!busy} onClick={()=>setConfirmRemove(false)}>Keep key</button></div>}
     {notice&&<p role="status" className="account-ai-notice">{notice}</p>}
     {error&&<p role="alert" className="account-ai-error">{error}</p>}
     {report?.action&&<p>{report.action}</p>}

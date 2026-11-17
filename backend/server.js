@@ -563,7 +563,7 @@ function aiState(userId) {
   return state;
 }
 function aiFailure(res,state,status,category,message,action,extra={}) {
-  const report=diagnostic(category,message,action,{model:safeMessage(aiModel(),[process.env.GEMINI_API_KEY]),...extra,httpStatus:status});
+  const report=diagnostic(category,message,action,{model:safeMessage(aiModel()),...extra,httpStatus:status});
   if (state) state.lastResult=report;
   res.set('X-Assistant-Trace-Id',report.traceId);
   if (report.retryable && report.retryAfterSeconds) res.set('Retry-After',String(report.retryAfterSeconds));

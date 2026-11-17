@@ -136,7 +136,7 @@ The root `render.yaml` configures a free Node web service. Render builds the Vit
 2. Push the repository to GitHub. Keep real credentials in Render environment settings.
 3. In Render, select **New → Blueprint**, connect the repository, and enter the Atlas connection string for `MONGODB_URI`. The Blueprint generates `JWT_SECRET` and `AI_KEY_ENCRYPTION_KEY` for a new deployment. If you are reusing an existing database, carry over its existing JWT_SECRET and any AI_KEY_ENCRYPTION_KEY so previously saved credentials remain decryptable.
 4. In the service's **Connect → Outbound** tab, copy its outbound ranges into the Atlas project IP access list. Redeploy if the initial deployment could not connect.
-5. Open the service's `onrender.com` address after Render reports a healthy deployment. If you want a shared AI credential, set `GEMINI_API_KEY` in Render. Users can also provide their own Gemini key in Account settings.
+5. Open the service's `onrender.com` address after Render reports a healthy deployment. Users must save their own Gemini key in Account settings to use AI features.
 
 The repository's Markdown handbook is the source for the downloadable PDF. Render builds the PDF from that source, so it does not need to be committed. Free services can sleep when idle. Atlas stores uploaded files and their saved backups, which count against its storage limit.
 
