@@ -26,8 +26,9 @@ export default function Auth() {
     const timeout=setTimeout(()=>controller.abort(),20000)
     try {
       const endpoint = isLogin ? '/api/auth/login' : '/api/auth/register'
+      const identifier = email.trim()
       const body = isLogin
-        ? { identifier:email.trim(), password }
+        ? { identifier, password, ...(/^[^\s@]+@[^\s@]+$/.test(identifier) && { email: identifier.toLowerCase() }) }
         : { username:username.trim(), email:email.trim().toLowerCase(), password,termsReviewed,termsAccepted,termsVersion:TERMS_VERSION }
 
       const response = await fetch(endpoint, {
@@ -40,6 +41,9 @@ export default function Auth() {
       const data = await readApiJson(response)
 
       if (!response.ok) {
+        if (isLogin && response.status === 400 && data?.message === 'Email and password are required') {
+          throw new Error('This backend only supports email sign-in. Use your email or update and restart the backend to sign in with a username.')
+        }
         throw new Error((typeof data?.message==='string'&&data.message) || 'Authentication failed')
       }
 
