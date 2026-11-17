@@ -11,7 +11,7 @@ import './PDFEditorChrome.css'
 
 const annotationTools=[['read','Select text',TextSelect],['pen','Pen',Pen],['highlighter','Highlight',Highlighter],['text','Text',Type],['select','Move',Move],['eraser','Erase',Eraser]]
 
-export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,insert,onRuler}){
+export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,insert,onRuler,onStickyNote}){
   const [open,setOpen]=useState(null),root=useRef(null),trigger=useRef(null),id=useId()
   const [narrowScreen,setNarrowScreen]=useState(()=>window.matchMedia('(max-width:760px), (max-height:500px) and (orientation:landscape)').matches)
   useEffect(()=>{
@@ -97,6 +97,7 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
     <p className="pc-menu-note">Turn off to keep the notice until you choose Keep or Undo, draw another detected line, or leave the page. Saved on this device.</p><hr/>
     {action(Calculator,'Calculator',utilities.onCalculator,{active:utilities.calculator})}
     {action(Ruler,'Ruler',onRuler,{active:tools.current==='ruler',detail:'Drag to draw a straight line and see its length in PDF points'})}
+    {action(FileText,'Post-it note',onStickyNote,{disabled:!pages.canAdd,detail:'Add an editable yellow note to the page'})}
     {action(Calculator,'Calculate selected region',utilities.onCalculate,{active:tools.current==='calculate',detail:'Printed expressions or handwriting with AI'})}
     {action(Calculator,'Scan function → calculate',utilities.onScanFunction,{active:tools.current==='function',detail:'Select f(x), enter x, and calculate its value'})}
     {action(LineChart,'Graph selected region',utilities.onGraph,{active:tools.current==='graph',detail:'Plot a printed or handwritten function of x'})}

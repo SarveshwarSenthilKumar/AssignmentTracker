@@ -104,7 +104,7 @@ const strokeHit = (stroke, pt, radius) => {
   return false
 }
 
-const cleanForSave = (items) => items.filter(i => !(i.tool === 'text' && !i.text?.trim() && !i.sourceText))
+const cleanForSave = (items) => items.filter(i => !(i.tool === 'text' && !i.text?.trim() && !i.sourceText && !i.stickyNote))
 
 /* ------------------------------------------------------------------ */
 /* Burn annotations into the PDF (download)                            */
@@ -163,6 +163,12 @@ export async function burnAnnotations(pdfBytes, annotations, usePressure) {
     }
 
     if (item.tool === 'text') {
+      if (item.stickyNote) {
+        const height = Math.max(110, pdfTextLines(item).length * (item.fontSize || 16) * LINE_HEIGHT + TEXT_PAD_Y * 2)
+        const point = toPdf(item.x, item.y + height)
+        const fill = hexToRgb(item.noteColor || '#fff1a8')
+        page.drawRectangle({ x: point.x, y: point.y, width: item.textBoxWidth || 180, height, color: rgb(fill.r, fill.g, fill.b), rotate: degrees(angle) })
+      }
       if(item.sourceText){
         const source=item.sourceText,p=toPdf(source.x,source.y+source.height)
         const background=hexToRgb(source.background||'#ffffff')
@@ -240,6 +246,8 @@ function TextAnnotation({
   const textColor = item.color || '#000000'
   const textStyle = {
     color: textColor,
+    background: item.stickyNote ? item.noteColor || '#fff1a8' : undefined,
+    minHeight: item.stickyNote ? 110 * scale : undefined,
     fontSize: fontSize * scale,
     lineHeight: LINE_HEIGHT,
     ...replacementCss(item,scale),
@@ -414,7 +422,7 @@ function TextAnnotation({
               resize: 'none',
               overflow: 'hidden',
               outline: 'none',
-              background: 'rgba(255, 255, 255, 0.92)',
+              background: item.stickyNote ? item.noteColor || '#fff1a8' : 'rgba(255, 255, 255, 0.92)',
               boxShadow: '0 0 0 2px #8fa5b9',
               borderRadius: 3
             }}
@@ -735,7 +743,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     const before = editSnapshotRef.current
     const current = pathsRef.current
     const item = current.find(i => i.id === id)
-    const empty = !item || (!item.text?.trim() && !item.sourceText) || (item.sourceText?.originalText!==undefined&&item.text===item.sourceText.originalText)
+    const empty = !item || (!item.text?.trim() && !item.sourceText && !item.stickyNote) || (item.sourceText?.originalText!==undefined&&item.text===item.sourceText.originalText)
     const next = empty ? current.filter(i => i.id !== id) : current
     if (empty && item) updatePaths(next)
     if (before && (before.length!==next.length||before.some((item,index)=>item!==next[index]))) pushHistoryRaw(before)
@@ -1050,7 +1058,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     const size = item.fontSize || 16
     context.font = `${size}px ${FONT_STACK}`
     const lines = pdfTextLines(item, line => context.measureText(line).width)
-    return { width: item.textBoxWidth || Math.max(12, ...lines.map(line => context.measureText(line).width)) + TEXT_PAD_X * 2, height: lines.length * size * LINE_HEIGHT + TEXT_PAD_Y * 2 }
+    return { width: item.textBoxWidth || Math.max(12, ...lines.map(line => context.measureText(line).width)) + TEXT_PAD_X * 2, height: Math.max(item.stickyNote ? 110 : 0, lines.length * size * LINE_HEIGHT + TEXT_PAD_Y * 2) }
   }
 
   const beginTransform = (e, item, corner = null) => {
@@ -2227,6 +2235,20 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       {showStylusStudio&&<PDFStylusSettings barrel={stylusBarrel} onBarrel={setStylusBarrel} tip={stylusEraser?stylusExtra.tip:'none'} onTip={tip=>{setStylusEraser(tip!=='none');setStylusExtra(previous=>({...previous,tip}))}} extra={stylusExtra} onExtra={setStylusExtra} onReset={()=>{setStylusBarrel('eraser');setStylusEraser(true);setStylusExtra({secondary:'none',tip:'eraser',mode:'precision',size:20,shape:'round'})}} onClose={()=>setShowStylusStudio(false)}/>}
 
       <PDFEditorChrome
+        onStickyNote={() => {
+          if (pageBase?.page !== pageNumber || inserting || deletingPage) return
+          commitText()
+          pushHistory()
+          const id = uid()
+          const width = Math.min(180, pageBase.w)
+          updatePaths(previous => [...previous, {
+            id, tool: 'text', stickyNote: true, noteColor: '#fff1a8',
+            text: '', textBoxWidth: width, fontSize: 14, color: '#292524',
+            x: Math.max(0, (pageBase.w - width) / 2), y: Math.max(0, (pageBase.h - 110) / 2), page: pageNumber
+          }])
+          setCurrentTool('text')
+          activate(id)
+        }}
         onRuler={()=>{commitText();setRulerGuide(null);setCurrentTool(currentTool==='ruler'?'select':'ruler')}}
         doc={{name:pdfData?.name,exportImage,saveStatus,history:historyCount,onUndo:undo,onRedo:redo,onSave:handleSave,onDownload:handleDownload,downloading,onCleanCopy:onCleanCopy?handleCleanCopy:null,copying:copyingClean,onClose:handleClose,copyParagraphs,onCopyParagraphs:setCopyParagraphs,onCleanup:exportImage?null:()=>{commitText();setCurrentTool('text');setShowCalculator(false);setShowGraph(false);setShowCleanup(true)}}}
         tools={{autoNumberLines,onAutoNumberLines:()=>setAutoNumberLines(previous=>!previous),autoDashedLines,onAutoDashedLines:()=>setAutoDashedLines(previous=>!previous),autoDottedLines,onAutoDottedLines:()=>setAutoDottedLines(previous=>!previous),lineUndoTimer,onLineUndoTimer:()=>setLineUndoTimer(previous=>!previous),autoStraightLines,onAutoStraightLines:()=>setAutoStraightLines(previous=>!previous),current:currentTool,onTool:tool=>{commitText();setCurrentTool(tool)},color:currentColor,onColor:handleColorChange,colors:COLORS,colorNames:COLOR_NAMES,fontSize,onFontSize:handleFontSizeChange,strokeWidth,onWidth:setStrokeWidth,usePressure,onPressure:()=>setUsePressure(previous=>!previous),eraser:{mode:eraserMode,onMode:setEraserMode,size:eraserSize,onSize:setEraserSize,shape:eraserShape,onShape:setEraserShape,target:eraserTarget,onTarget:setEraserTarget}}}
