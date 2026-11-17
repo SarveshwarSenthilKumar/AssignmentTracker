@@ -3,7 +3,7 @@ import {TERMS_VERSION} from './TermsPage'
 import {readApiJson} from '../lib/apiResponse'
 import { useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
-import { Loader2 } from 'lucide-react'
+import { Eye, EyeOff, Loader2 } from 'lucide-react'
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true)
@@ -11,6 +11,7 @@ export default function Auth() {
   const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const { login } = useAuth()
@@ -109,16 +110,23 @@ export default function Auth() {
 
             <div>
               <label htmlFor="auth-password" className="block text-slate-400 mb-2 text-sm">Password</label>
+              <div className="relative">
               <input
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 id="auth-password" autoComplete={isLogin ? 'current-password' : 'new-password'}
                   value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
+                className="w-full pl-4 pr-12 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
                 required
                 minLength="6"
               />
+              <button type="button" aria-label={showPassword ? 'Hide password' : 'Show password'} aria-controls="auth-password"
+                title={showPassword ? 'Hide password' : 'Show password'} onClick={() => setShowPassword(previous => !previous)}
+                className="absolute inset-y-0 right-0 grid w-11 place-items-center rounded-r-xl text-slate-400 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary-500">
+                {showPassword ? <EyeOff size={18} aria-hidden="true"/> : <Eye size={18} aria-hidden="true"/>}
+              </button>
+              </div>
             </div>
 
             {!isLogin&&<SignupTermsReview reviewed={termsReviewed} accepted={termsAccepted} onReviewed={()=>setTermsReviewed(true)} onAccepted={setTermsAccepted} disabled={loading}/>}
@@ -148,6 +156,7 @@ export default function Auth() {
               type="button"
               onClick={() => {
                 setIsLogin(!isLogin)
+                setShowPassword(false)
                 setError('')
               }}
               className="text-slate-400 hover:text-white transition-colors"
