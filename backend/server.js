@@ -428,21 +428,31 @@ app.use(['/api/auth/login','/api/auth/register'], (req,res,next)=>{
   next();
 });
 
+function registrationConflict(res, fields) {
+  const errors = {};
+  if (fields.includes('username')) errors.username = 'This username is already taken.';
+  if (fields.includes('email')) errors.email = 'This email is already registered.';
+  return res.status(409).json({ message: 'Choose a different username or email.', fieldErrors: errors });
+}
+
 app.post('/api/auth/register', async (req, res) => {
   try {
-    const { username, email, password } = req.body;
+    const { username: rawUsername, email: rawEmail, password } = req.body || {};
+    const username = typeof rawUsername === 'string' ? rawUsername.trim() : '';
+    const email = typeof rawEmail === 'string' ? rawEmail.trim().toLowerCase() : '';
 
-    if (!username || !email || !password) {
+    if (!username || !email || typeof password !== 'string' || !password) {
       return res.status(400).json({ message: 'All fields are required' });
     }
 
     if(req.body.termsAccepted!==true||req.body.termsReviewed!==true)return res.status(428).json({message:'Review and agree to the Terms and Conditions before creating an account.'});
     if(req.body.termsVersion!==TERMS_VERSION)return res.status(409).json({message:'The Terms and Conditions version has changed. Refresh the page, review the current version and agree again.'});
 
-    const existingUser = await User.findOne({ $or: [{ email }, { username }] });
-    if (existingUser) {
-      return res.status(400).json({ message: 'User already exists' });
-    }
+    const [emailTaken, usernameTaken] = await Promise.all([User.exists({ email }), User.exists({ username })]);
+    const conflicts = [];
+    if (emailTaken) conflicts.push('email');
+    if (usernameTaken) conflicts.push('username');
+    if (conflicts.length) return registrationConflict(res, conflicts);
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = new User({ username, email, password: hashedPassword,termsAcceptance:{version:TERMS_VERSION,acceptedAt:new Date(),method:'signup-checkbox'} });
@@ -466,6 +476,7 @@ app.post('/api/auth/register', async (req, res) => {
       },
     });
   } catch (error) {
+    if (error.code === 11000) return registrationConflict(res, Object.keys(error.keyPattern || error.keyValue || {}));
     res.status(500).json({ message: 'Error creating user', error: error.message });
   }
 });

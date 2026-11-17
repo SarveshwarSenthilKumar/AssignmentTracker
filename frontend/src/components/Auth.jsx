@@ -13,6 +13,7 @@ export default function Auth() {
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState({})
   const [loading, setLoading] = useState(false)
   const { login } = useAuth()
 
@@ -21,6 +22,7 @@ export default function Auth() {
     if(loading)return
     if(!isLogin&&(!termsReviewed||!termsAccepted)){setError('Review the Terms and Conditions and agree before creating your account.');return}
     setError('')
+    setFieldErrors({})
     setLoading(true)
 
     const controller=new AbortController()
@@ -42,6 +44,7 @@ export default function Auth() {
       const data = await readApiJson(response)
 
       if (!response.ok) {
+        if (!isLogin && response.status === 409 && data.fieldErrors) setFieldErrors(data.fieldErrors)
         if (isLogin && response.status === 400 && data?.message === 'Email and password are required') {
           throw new Error('This backend only supports email sign-in. Use your email or update and restart the backend to sign in with a username.')
         }
@@ -84,12 +87,15 @@ export default function Auth() {
                 <input
                   type="text"
                   id="auth-username" autoComplete="username"
+                  aria-invalid={!!fieldErrors.username}
+                  aria-describedby={fieldErrors.username ? 'auth-username-error' : undefined}
                   value={username}
-                  onChange={(e) => setUsername(e.target.value)}
+                  onChange={(e) => { setUsername(e.target.value); setFieldErrors(previous => ({ ...previous, username: undefined })) }}
                   placeholder="Choose a username"
                   className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
                   required
                 />
+                {fieldErrors.username && <p id="auth-username-error" className="mt-2 text-sm text-red-400">{fieldErrors.username}</p>}
               </div>
             )}
 
@@ -98,14 +104,17 @@ export default function Auth() {
               <input
                 type={isLogin ? 'text' : 'email'}
                 id="auth-email" autoComplete={isLogin ? 'username' : 'email'}
+                aria-invalid={!!fieldErrors.email}
+                aria-describedby={fieldErrors.email ? 'auth-email-error' : undefined}
                 autoCapitalize="none"
                 spellCheck={false}
                   value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => { setEmail(e.target.value); setFieldErrors(previous => ({ ...previous, email: undefined })) }}
                 placeholder={isLogin ? 'Username or email' : 'your@email.com'}
                 className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
                 required
               />
+              {fieldErrors.email && <p id="auth-email-error" className="mt-2 text-sm text-red-400">{fieldErrors.email}</p>}
             </div>
 
             <div>
@@ -156,6 +165,7 @@ export default function Auth() {
               type="button"
               onClick={() => {
                 setIsLogin(!isLogin)
+                setFieldErrors({})
                 setShowPassword(false)
                 setError('')
               }}
