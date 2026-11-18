@@ -1,0 +1,12 @@
+.pdf-book{display:flex;flex-direction:column;flex:1;min-width:0;min-height:0;background:var(--surface-input);color:var(--text-primary)}
+.pdf-book nav{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:10px;padding:10px;border-bottom:1px solid var(--border);font-size:13px}
+.pdf-book nav button,.pdf-book select{padding:6px 9px;border:1px solid var(--border-strong);border-radius:7px;background:var(--surface-panel)}
+.pdf-book button:disabled{opacity:.4}
+.pdf-book-scroll{overflow:auto;flex:1;min-height:0;padding:20px}
+.pdf-book-spread{display:flex;gap:4px;justify-content:center;width:max-content;min-width:100%;align-items:flex-start;animation:pdf-book-turn .18s ease-out}
+.pdf-book-page{position:relative;flex-shrink:0;background:white;box-shadow:0 4px 16px #0004}
+.pdf-book-annotations{position:absolute;inset:0;pointer-events:none}
+.pdf-book-page-number{display:block;text-align:center;background:var(--surface-panel);padding:5px;font-size:11px;color:var(--text-secondary)}
+.pdf-book-empty{width:50%}
+@keyframes pdf-book-turn{from{opacity:.6;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+@media(prefers-reduced-motion:reduce){.pdf-book-spread{animation:none}}

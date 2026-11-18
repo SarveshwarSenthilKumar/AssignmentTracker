@@ -1,6 +1,7 @@
 import useDocumentTabTitle from '../hooks/useDocumentTabTitle'
 import PDFSearch from './PDFSearch'
 import PDFEditorTutorial from './PDFEditorTutorial'
+import PDFBookView from './PDFBookView'
 import {detectNumberLine} from '../lib/pdfNumberLine'
 import {detectCopyArrowStrokes} from '../lib/pdfArrowCopy'
 import {matchingFontAsset,replacementFontBytes,replacementFontFace} from '../lib/pdfReplacementFonts'
@@ -548,6 +549,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const [searchFocusRequest, setSearchFocusRequest] = useState(0)
   const searchActions = useRef([])
   const [showTutorial, setShowTutorial] = useState(false)
+  const [bookView,setBookView]=useState(false)
   useEffect(() => {
     const key = event => {
       if (!(event.ctrlKey || event.metaKey) || event.shiftKey || event.altKey || event.key.toLowerCase() !== 'f') return
@@ -2285,6 +2287,8 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       {showStylusStudio&&<PDFStylusSettings barrel={stylusBarrel} onBarrel={setStylusBarrel} tip={stylusEraser?stylusExtra.tip:'none'} onTip={tip=>{setStylusEraser(tip!=='none');setStylusExtra(previous=>({...previous,tip}))}} extra={stylusExtra} onExtra={setStylusExtra} onReset={()=>{setStylusBarrel('eraser');setStylusEraser(true);setStylusExtra({secondary:'none',tip:'eraser',mode:'precision',size:20,shape:'round'})}} onClose={()=>setShowStylusStudio(false)}/>}
 
       <PDFEditorChrome
+        bookView={bookView}
+        onBookView={()=>{handleTextDragEnd();commitText();setPageLocked(false);setBookView(previous=>!previous)}}
         searchActions={searchActions}
         onTutorial={() => setShowTutorial(previous => !previous)}
         onSearch={() => setShowSearch(previous => !previous)}
@@ -2361,7 +2365,9 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
           </aside>
         )}
       {/* PDF Viewer */}
-      <div className="pdf-viewer-region">
+      {bookView&&!exportImage&&pdfFile&&<PDFBookView file={pdfFile} count={numPages||1} page={pageNumber} onPage={goToPage}
+        onEdit={number=>{setBookView(false);goToPage(number)}} annotations={drawingPaths} usePressure={usePressure} options={PDF_OPTIONS}/>}
+      <div className="pdf-viewer-region" style={{display:bookView&&!exportImage?'none':undefined}}>
       {focusMode&&!exportImage&&numPages>1&&<nav className="pdf-focus-page-arrows" aria-label="Fullscreen page navigation">
         <button type="button" className="pdf-focus-page-arrow is-previous" title="Previous page" aria-label="Previous page" disabled={pageNumber<=1||deletingPage||inserting} onClick={()=>goToPage(pageNumber-1)}><ChevronLeft size={19}/></button>
         <button type="button" className="pdf-focus-page-arrow is-next" title="Next page" aria-label="Next page" disabled={pageNumber>=numPages||deletingPage||inserting} onClick={()=>goToPage(pageNumber+1)}><ChevronRight size={19}/></button>
