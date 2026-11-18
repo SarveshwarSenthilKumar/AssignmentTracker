@@ -161,6 +161,11 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
       <div className="pc-tool-menus">{pagesMenu}{viewMenu}{utilityMenu}</div>
       <button type="button" className="pc-button" onClick={()=>{close();onSearch()}} title="Search document (Ctrl/Cmd+F)">Find</button>
       <button type="button" className="pc-button" onClick={()=>{close();onTutorial()}} title="Learn the PDF editor">Tutorial</button>
+      <button type="button" className="pc-button pc-page-lock" aria-pressed={input.pageLocked}
+        onClick={()=>{close();input.onPageLock(!input.pageLocked)}}
+        title="Lock scrolling and draw with your finger">
+        <span>{input.pageLocked ? 'Unlock page' : 'Lock page'}</span>
+      </button>
       <PDFFingerMode {...input}/>
       {menu('scroll','Scroll & glide',SlidersHorizontal,<PDFScrollSettings value={input.scrollSettings} onChange={input.onScrollSettings} scrollMode={input.scroll} currentTool={tools.current} onEnableScroll={()=>{input.onChange(true);if(tools.current==='read')tools.onTool('select')}}/>,{custom:<span className="pdf-scroll-trigger"><SlidersHorizontal size={18}/><span><strong>Scroll &amp; glide</strong><small>Adjust speed &amp; stopping</small></span></span>})}
       {utilities.clock&&<PDFEditorClock/>}
