@@ -1,8 +1,13 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { pdfjs } from 'react-pdf'
 import { X } from 'lucide-react'
 
-export default function PDFSearch({ file, annotations, actions, onPage, onClose, image }) {
+export default function PDFSearch({ file, annotations, actions, focusRequest, onPage, onClose, image }) {
+  const searchInput = useRef(null)
+  useEffect(() => {
+    searchInput.current?.focus()
+    searchInput.current?.select()
+  }, [focusRequest])
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState('all')
   const [pages, setPages] = useState([])
@@ -64,7 +69,7 @@ export default function PDFSearch({ file, annotations, actions, onPage, onClose,
     if (event.key === 'Escape') onClose()
   }}>
     <header><h3>Find in editor</h3><button type="button" aria-label="Close document search" onClick={onClose}><X size={18}/></button></header>
-    <input autoFocus type="search" aria-label="Search PDF text, notes and editor tools" placeholder="Search text, notes or tools…" value={query} onChange={event => setQuery(event.target.value)}/>
+    <input ref={searchInput} autoFocus type="search" aria-keyshortcuts="Control+F Meta+F" aria-label="Search PDF text, notes and editor tools" placeholder="Search text, notes or tools…" value={query} onChange={event => setQuery(event.target.value)}/>
     <div className="pdf-search-filters" role="group" aria-label="Search scope">
       {[['all','All'],['file','File'],['tools','Tools']].map(([value,label])=><button key={value} type="button" aria-pressed={filter===value} onClick={()=>setFilter(value)}>{label}</button>)}
     </div>

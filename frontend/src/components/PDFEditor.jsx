@@ -545,6 +545,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const [loading, setLoading] = useState(true)
   const [showSettings, setShowSettings] = useState(false)
   const [showSearch, setShowSearch] = useState(false)
+  const [searchFocusRequest, setSearchFocusRequest] = useState(0)
   const searchActions = useRef([])
   const [showTutorial, setShowTutorial] = useState(false)
   useEffect(() => {
@@ -553,6 +554,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       event.preventDefault()
       event.stopPropagation()
       setShowSearch(true)
+      setSearchFocusRequest(previous => previous + 1)
     }
     window.addEventListener('keydown', key, true)
     return () => window.removeEventListener('keydown', key, true)
@@ -2399,7 +2401,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       </footer>}
 
       {/* Settings Modal */}
-      {showSearch && <PDFSearch file={pdfFile} image={exportImage} annotations={drawingPaths} actions={searchActions} onPage={goToPage} onClose={()=>setShowSearch(false)}/>}
+      {showSearch && <PDFSearch file={pdfFile} image={exportImage} annotations={drawingPaths} actions={searchActions} focusRequest={searchFocusRequest} onPage={goToPage} onClose={()=>setShowSearch(false)}/>}
       {showTutorial && <PDFEditorTutorial onClose={()=>setShowTutorial(false)}/>}
       {showSettings && (
         <div className="pdf-settings-panel app-inline-panel" onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setShowSettings(false) } }}>
