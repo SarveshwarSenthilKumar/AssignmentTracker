@@ -74,3 +74,28 @@
 .pc-toolbar-placement{display:flex;align-items:center;gap:6px;flex-shrink:0;font-size:11px;color:var(--text-secondary)}
 .pc-toolbar-placement select{max-width:110px;padding:6px;border:1px solid var(--border-strong);border-radius:7px;background:var(--surface-input);color:var(--text-primary)}
 .pdf-chrome:is(.is-left,.is-right) .pc-toolbar-placement{flex-direction:column;align-items:stretch}
+
+/* Side toolbars use a consistent vertical rhythm and retain room for labels. */
+.pdf-editor:has(>.pdf-chrome:is(.is-left,.is-right)){--pdf-rail-width:164px;}
+.pdf-editor:has(>.pdf-chrome.is-compact:is(.is-left,.is-right)){--pdf-rail-width:112px;}
+.pdf-chrome:is(.is-left,.is-right)>.pc-toolbar{gap:6px;padding:10px;scrollbar-gutter:stable;scroll-padding-block:12px;}
+.pdf-chrome:is(.is-left,.is-right) .pc-toolbar .pc-button{min-height:36px;min-width:0;white-space:normal;text-align:left;line-height:1.4;}
+.pdf-chrome:is(.is-left,.is-right) .pc-toolbar>.pc-button{justify-content:flex-start;}
+.pdf-chrome:is(.is-left,.is-right) .pc-toolbar .pc-button>svg{flex-shrink:0;}
+.pdf-chrome:is(.is-left,.is-right) .pc-toolbar .pc-button>span{min-width:0;overflow-wrap:anywhere;}
+.pdf-chrome:is(.is-left,.is-right) .pc-toolbar-placement{padding-bottom:10px;border-bottom:1px solid var(--border);gap:5px;}
+.pdf-chrome:is(.is-left,.is-right) .pc-toolbar-placement select{width:100%;max-width:none;min-height:34px;}
+.pdf-chrome:is(.is-left,.is-right) .pc-brush-group{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.pdf-chrome:is(.is-left,.is-right) .pc-brush-group>.pc-menu-anchor{min-width:0;}
+.pdf-chrome:is(.is-left,.is-right) .pc-brush-group .pc-button{width:100%;justify-content:center;padding-inline:4px;}
+.pdf-chrome:is(.is-left,.is-right) .pc-tool-menus{padding-block:6px;border-block:1px solid var(--border);}
+.pdf-chrome:is(.is-left,.is-right) .pdf-finger-input{padding-top:6px;border-top:1px solid var(--border);}
+.pdf-chrome:is(.is-left,.is-right) .pdf-finger-mode button{display:flex;align-items:center;justify-content:flex-start;gap:7px;min-height:34px;padding:7px 8px;}
+.pdf-chrome:is(.is-left,.is-right) .pdf-input-activity{white-space:normal;font-size:10px;line-height:1.5;padding:4px;}
+.pdf-chrome:is(.is-left,.is-right) .pdf-scroll-trigger{display:flex;align-items:center;gap:6px;min-width:0;}
+.pdf-chrome:is(.is-left,.is-right) .pdf-scroll-trigger>span{min-width:0;white-space:normal;}
+.pdf-chrome:is(.is-left,.is-right) .pdf-scroll-trigger small{display:block;line-height:1.4;}
+.pdf-chrome:is(.is-left,.is-right) .pc-scroll-menu>.pc-button{width:100%;justify-content:flex-start;}
+.pdf-chrome.is-compact:is(.is-left,.is-right) .pc-toolbar>.pc-button{justify-content:center;text-align:center;}
+.pdf-chrome.is-compact:is(.is-left,.is-right) .pc-toolbar>.pc-button>span{font-size:10px;}
+.pdf-chrome.is-focus:is(.is-left,.is-right) .pc-toolbar :is(.pc-popover,.pdf-insert-popover,.pdf-countdown-popover){top:12px;bottom:auto;max-height:calc(100dvh - 24px);}
