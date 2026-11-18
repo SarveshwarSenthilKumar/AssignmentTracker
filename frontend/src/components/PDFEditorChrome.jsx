@@ -11,7 +11,22 @@ import './PDFEditorChrome.css'
 
 const annotationTools=[['read','Select text',TextSelect],['pen','Pen',Pen],['highlighter','Highlight',Highlighter],['text','Text',Type],['select','Move',Move],['eraser','Erase',Eraser]]
 
-export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,insert,onRuler,onStickyNote,onSearch,onTutorial}){
+export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,insert,onRuler,onStickyNote,onSearch,onTutorial,searchActions}){
+  const searchable = []
+  useEffect(() => {
+    if (!searchActions) return
+    searchActions.current = [
+      ...annotationTools.map(([key,label]) => ({ label, description:'Annotation tool', run:()=>{close();tools.onTool(key)} })),
+      ...searchable,
+      ...['Insert','Pages','View','More tools','Annotation color','Brush size','Scroll & glide'].map((label,index)=>({
+        label, description:'Open controls', run:()=>setOpen(['insert','pages','view','tools','color','brush','scroll'][index])
+      })).filter(item=>item.label!=='Insert'&&!(doc.exportImage&&item.label==='Pages')),
+      {label:'Sticky note',description:'Add an editable note',run:onStickyNote,disabled:!pages.canAdd},
+      {label:'Tutorial',description:'Learn editor tools and shortcuts',run:onTutorial},
+      {label:input.pageLocked?'Unlock page':'Lock page',description:'Finger drawing without scrolling',run:()=>input.onPageLock(!input.pageLocked)},
+      ...['top','bottom','left','right'].map(position=>({label:`Toolbar ${position}`,description:'Move the toolbar',run:()=>view.onToolbarPosition(position)}))
+    ].filter((item,index,items)=>items.findIndex(candidate=>candidate.label===item.label)===index)
+  })
   const [open,setOpen]=useState(null),root=useRef(null),trigger=useRef(null),id=useId()
   const [narrowScreen,setNarrowScreen]=useState(()=>window.matchMedia('(max-width:760px), (max-height:500px) and (orientation:landscape)').matches)
   useEffect(()=>{
@@ -50,7 +65,10 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
   },[view.focus,toolbarEdge,compact])
   const run=fn=>()=>{close();fn?.()}
   const iconButton=(Icon,label,fn,disabled=false,active=false)=><button type="button" className={`pc-button pc-icon${active?' is-active':''}`} title={label} aria-label={label} disabled={disabled} onClick={fn}><Icon size={17}/></button>
-  const action=(Icon,label,fn,{disabled=false,active=false,danger=false,detail}={})=><button type="button" className={`pc-menu-action${danger?' is-danger':''}${active?' is-active':''}`} onClick={run(fn)} disabled={disabled}><Icon size={16}/><span>{label}{detail&&<small>{detail}</small>}</span>{active&&<i aria-label="Enabled"/>}</button>
+  const action=(Icon,label,fn,{disabled=false,active=false,danger=false,detail}={})=>{
+    searchable.push({label,description:detail||'',disabled,run:run(fn)})
+    return <button type="button" className={`pc-menu-action${danger?' is-danger':''}${active?' is-active':''}`} onClick={run(fn)} disabled={disabled}><Icon size={16}/><span>{label}{detail&&<small>{detail}</small>}</span>{active&&<i aria-label="Enabled"/>}</button>
+  }
   const menu=(key,label,Icon,children,{left=false,custom=null}={})=><div className={`pc-menu-anchor${left?' is-left':''}${key==='scroll'?' pc-scroll-menu':''}`}>
     <button type="button" className={`pc-button${open===key||key==='tools'&&['calculate','function','graph','number-line','snippet'].includes(tools.current)?' is-active':''}`} aria-expanded={open===key} aria-controls={open===key?`${id}-${key}`:undefined} onClick={event=>{trigger.current=event.currentTarget;setOpen(previous=>previous===key?null:key)}} title={label}>{custom||<><Icon size={16}/><span>{label}</span></>}<ChevronDown size={12}/></button>
     {open===key&&<section id={`${id}-${key}`} className={`pc-popover pc-popover-${key}`} aria-label={label}><div className="pc-popover-title">{label}</div>{children}</section>}

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { pdfjs } from 'react-pdf'
 import { X } from 'lucide-react'
 
-export default function PDFSearch({ file, annotations, onPage, onClose, image }) {
+export default function PDFSearch({ file, annotations, actions, onPage, onClose, image }) {
   const [query, setQuery] = useState('')
   const [pages, setPages] = useState([])
   const [status, setStatus] = useState('')
@@ -56,12 +56,15 @@ export default function PDFSearch({ file, annotations, onPage, onClose, image })
     return matches
   }, [query, pages, annotations])
 
-  return <aside className="pdf-search-panel" aria-label="Search document" onKeyDown={event => {
+  const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
+  const tools = terms.length ? (actions?.current || []).filter(action=>terms.every(term=>(action.label+' '+action.description).toLowerCase().includes(term))) : []
+  return <aside className="pdf-search-panel" aria-label="Search document and tools" onKeyDown={event => {
     event.stopPropagation()
     if (event.key === 'Escape') onClose()
   }}>
-    <header><h3>Search document</h3><button type="button" aria-label="Close document search" onClick={onClose}><X size={18}/></button></header>
-    <input autoFocus type="search" aria-label="Search PDF text and notes" placeholder="Search text and sticky notes…" value={query} onChange={event => setQuery(event.target.value)}/>
+    <header><h3>Find in editor</h3><button type="button" aria-label="Close document search" onClick={onClose}><X size={18}/></button></header>
+    <input autoFocus type="search" aria-label="Search PDF text, notes and editor tools" placeholder="Search text, notes or tools…" value={query} onChange={event => setQuery(event.target.value)}/>
+    {tools.length > 0 && <section aria-label="Editor tools"><h4>Tools and actions</h4><ul>{tools.map(action=><li key={action.label}><button type="button" disabled={action.disabled} onClick={()=>{onClose();action.run?.()}}><strong>{action.label}</strong>{action.description&&<span>{action.description}</span>}</button></li>)}</ul></section>}
     <p role="status">{status || (query.trim() ? `${results.length}${results.length === 500 ? '+' : ''} matches` : 'Search all pages, text annotations and sticky notes.')}</p>
     <ul>{results.map((result, index) => <li key={index}><button type="button" onClick={() => onPage(result.page)}>
       <strong>Page {result.page} · {result.kind}</strong><span>{result.snippet}</span>
