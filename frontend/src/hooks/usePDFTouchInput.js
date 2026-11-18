@@ -19,11 +19,11 @@ const flingVelocity=(pan,now=performance.now())=>{
 // attribution/license: ../lib/vendor/excalidraw/SOURCE.md and LICENSE.
 // Real pointer events flow to the annotation tools; no delayed event replay,
 // contact-size classifier, or capture-loss-triggered undo is used.
-export default function usePDFTouchInput({viewer,overlay,scrollWithFinger,scrollSettings,canDrawTouch,onDrawEnd,resetAnnotation,beginTouchAnnotation,endTouchAnnotation,resetKey,tool,onPinchStart,onPinchMove,onPinchEnd}){
+export default function usePDFTouchInput({viewer,overlay,pageLocked=false,scrollWithFinger,scrollSettings,canDrawTouch,onDrawEnd,resetAnnotation,beginTouchAnnotation,endTouchAnnotation,resetKey,tool,onPinchStart,onPinchMove,onPinchEnd}){
   const [activity,setActivity]=useState('idle')
   const state=useRef({touches:new Map(),controls:new Set(),pen:null,draw:null,pan:null,pinch:null,frame:0,momentumFrame:0,wheelFrame:0,wheelX:0,wheelY:0,blockedUntil:0,mounted:true})
   const latest=useRef(null)
-  latest.current={scrollWithFinger,scrollSettings,canDrawTouch,onDrawEnd,resetAnnotation,beginTouchAnnotation,endTouchAnnotation,tool,onPinchStart,onPinchMove,onPinchEnd}
+  latest.current={pageLocked,scrollWithFinger,scrollSettings,canDrawTouch,onDrawEnd,resetAnnotation,beginTouchAnnotation,endTouchAnnotation,tool,onPinchStart,onPinchMove,onPinchEnd}
   const report=value=>{if(state.current.mounted)setActivity(previous=>previous===value?previous:value)}
   const suppressClick=()=>{state.current.blockedUntil=performance.now()+350}
   const accepted=()=>new Map([...state.current.touches].filter(([,contact])=>contact.kind!=='ignored'))
@@ -182,6 +182,9 @@ export default function usePDFTouchInput({viewer,overlay,scrollWithFinger,scroll
       current.touches.set(id,contact)
       if(contact.kind==='ignored'){consume(event);return}
       const pointers=accepted()
+      if(latest.current.pageLocked&&(pointers.size>1||!overlay.current?.contains(event.target))){
+        contact.kind='ignored';consume(event);return
+      }
       const allow=allowOnPointerDown(latest.current.scrollWithFinger,event,latest.current.tool)
       if(latest.current.scrollWithFinger||!allow||pointers.size>1||current.pan||!overlay.current?.contains(event.target)){
         consume(event);cancelTouchInk();rebasePan();return
@@ -242,7 +245,7 @@ export default function usePDFTouchInput({viewer,overlay,scrollWithFinger,scroll
       window.removeEventListener('pointerup',outsideEnd);window.removeEventListener('pointercancel',outsideEnd)
     }
   },[])
-  useEffect(()=>{reset()},[scrollWithFinger,resetKey])
+  useEffect(()=>{reset()},[scrollWithFinger,pageLocked,resetKey])
   useEffect(()=>{
     const element=viewer.current
     if(!element)return
