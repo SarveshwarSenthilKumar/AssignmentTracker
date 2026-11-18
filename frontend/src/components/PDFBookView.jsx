@@ -9,6 +9,7 @@ function BookPage({ number, width, annotations, usePressure }) {
   const scale=base?width/base.w:1
   const items=annotations.filter(item=>(item.page||1)===number)
   return <div className="pdf-book-page" style={{width}}>
+    <div className="pdf-page-surface pdf-book-sheet">
     <Page pageNumber={number} width={width} renderTextLayer={false} renderAnnotationLayer={false}
       onLoadSuccess={page=>{const viewport=page.getViewport({scale:1});setBase({w:viewport.width,h:viewport.height})}}/>
     {base&&<div className="pdf-book-annotations" style={{height:base.h*scale}}>
@@ -22,6 +23,7 @@ function BookPage({ number, width, annotations, usePressure }) {
         lineHeight:1.2,whiteSpace:'pre',padding:`${2*scale}px ${4*scale}px`,boxSizing:'border-box'
       }}>{pdfTextLines(item).join('\n')}</div>)}
     </div>}
+    </div>
     <span className="pdf-book-page-number">{number}</span>
   </div>
 }
@@ -30,6 +32,7 @@ export default function PDFBookView({file,count,page,onPage,onEdit,annotations,u
   const root=useRef(null)
   const [width,setWidth]=useState(600)
   const [zoom,setZoom]=useState(1)
+  const swipe = useRef(null)
   const first=Math.floor((page-1)/2)*2+1
   useEffect(()=>{
     const observer=new ResizeObserver(entries=>setWidth(entries[0].contentRect.width))
@@ -47,7 +50,25 @@ export default function PDFBookView({file,count,page,onPage,onEdit,annotations,u
       </select></label>
       <button type="button" onClick={()=>onEdit(page)}>Edit current page</button>
     </nav>
-    <div className="pdf-book-scroll" tabIndex={0} onKeyDown={event=>{
+    <div className="pdf-book-reading-area">
+    <button type="button" className="pdf-book-edge is-left" disabled={first===1} aria-label="Previous book spread" onClick={()=>turn(-1)}>‹</button>
+    <div className="pdf-book-scroll" tabIndex={0} style={{touchAction:zoom===1?'pan-y pinch-zoom':'pan-x pan-y pinch-zoom'}}
+      onPointerDown={event=>{
+        if(event.pointerType!=='touch'||zoom!==1)return
+        if(swipe.current){swipe.current=null;return}
+        swipe.current={id:event.pointerId,x:event.clientX,y:event.clientY,time:Date.now()}
+      }}
+      onPointerUp={event=>{
+        const start=swipe.current
+        swipe.current=null
+        if(!start||start.id!==event.pointerId||zoom!==1)return
+        const dx=event.clientX-start.x,dy=event.clientY-start.y
+        if(Date.now()-start.time<900&&Math.abs(dx)>60&&Math.abs(dx)>Math.abs(dy)*1.5){
+          turn(dx<0?1:-1)
+        }
+      }}
+      onPointerCancel={()=>{swipe.current=null}}
+      onKeyDown={event=>{
       if(event.key==='ArrowLeft'||event.key==='ArrowRight'){event.preventDefault();event.stopPropagation();turn(event.key==='ArrowLeft'?-1:1)}
     }}>
       <Document file={file} options={options} error={<p role="alert">Could not open Book view.</p>}>
@@ -58,5 +79,12 @@ export default function PDFBookView({file,count,page,onPage,onEdit,annotations,u
         </div>
       </Document>
     </div>
+    <button type="button" className="pdf-book-edge is-right" disabled={first+1>=count} aria-label="Next book spread" onClick={()=>turn(1)}>›</button>
+    </div>
+    <footer className="pdf-book-navigation" aria-label="Turn book pages">
+      <button type="button" disabled={first===1} onClick={()=>turn(-1)}>← Previous</button>
+      <span aria-live="polite">{first}{first<count?`–${first+1}`:''} / {count}</span>
+      <button type="button" disabled={first+1>=count} onClick={()=>turn(1)}>Next →</button>
+    </footer>
   </section>
 }
