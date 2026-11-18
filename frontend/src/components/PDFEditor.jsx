@@ -238,7 +238,7 @@ export async function burnAnnotations(pdfBytes, annotations, usePressure) {
 /* ------------------------------------------------------------------ */
 function TextAnnotation({
   item, scale, isActive, tool, textareaRef,
-  onClick, onChange, onCommit, onDelete, onFontDelta, onColorChange,
+  onClick, onChange, onCommit, onDelete, onFontDelta, onColorChange, onNoteColorChange,
   onDragStart, onDragMove, onDragEnd, onResizeStart, selected, onSelect, onSave, onDownload
 }) {
   const interactive = tool === 'text' || tool === 'select' || tool==='read'
@@ -291,14 +291,14 @@ function TextAnnotation({
       onMouseDown={(e) => e.stopPropagation()}
     >
       {tool === 'select' && selected && <InsertHandles item={item} onStart={onResizeStart} onMove={onDragMove} onEnd={onDragEnd} />}
-      {tool === 'text' && (
+      {(tool === 'text' || (item.stickyNote && tool === 'select' && selected)) && (
         <div
           data-keep-text-active
           onMouseDown={(e) => e.preventDefault()}
           className={cn(
             'absolute left-0 flex items-center gap-1 bg-slate-900/95 border border-blue-500/50 rounded-lg px-1.5 py-1 shadow-xl select-none z-40 whitespace-nowrap transition-opacity',
             toolbarBelow ? 'top-full mt-1' : 'bottom-full mb-1',
-            isActive ? 'opacity-100' : 'opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto'
+            isActive || (item.stickyNote && selected) ? 'opacity-100' : 'opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto'
           )}
         >
           <div
@@ -323,6 +323,12 @@ function TextAnnotation({
           <div className="h-4 w-px bg-white/20" />
 
           {/* Quick Color Picker */}
+          {item.stickyNote && <label className="flex items-center gap-1 px-1 text-xs text-slate-200" onMouseDown={event => event.stopPropagation()}>
+            Note color
+            <input type="color" aria-label="Post-it note background color" title="Post-it note background color"
+              value={item.noteColor || '#fff1a8'} className="h-6 w-7 cursor-pointer rounded border-0 bg-transparent p-0"
+              onChange={event => onNoteColorChange(item.id, event.target.value)}/>
+          </label>}
           <div className="flex items-center gap-1">
             {['#000000', '#526c83', '#9e6464', '#62816f', '#9a835e', '#777487'].map((c) => (
               <button
@@ -986,6 +992,14 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const handleAnnotationColorChange = (id, color) => {
     setCurrentColor(color)
     updatePaths(prev => prev.map(i => (i.id === id ? { ...i, color } : i)))
+  }
+
+  const handleNoteColorChange = (id, noteColor) => {
+    if (!/^#[a-f\d]{6}$/i.test(noteColor)) return
+    const item = pathsRef.current.find(item => item.id === id && item.stickyNote)
+    if (!item || item.noteColor === noteColor) return
+    if (activeTextIdRef.current !== id) pushHistory()
+    updatePaths(previous => previous.map(item => item.id === id ? { ...item, noteColor } : item))
   }
 
   const handleFontSizeChange = (size) => {
@@ -2213,6 +2227,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
                       onDelete={handleDeleteText}
                       onFontDelta={handleFontDelta}
                       onColorChange={handleAnnotationColorChange}
+                      onNoteColorChange={handleNoteColorChange}
                       onDragStart={handleTextDragStart}
                       onDragMove={handleTextDragMove}
                       onDragEnd={handleTextDragEnd}
