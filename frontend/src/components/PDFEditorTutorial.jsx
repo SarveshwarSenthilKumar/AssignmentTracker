@@ -20,8 +20,28 @@ const lessons = [
   ['Offline editing', 'In the Documents library, make an unlocked PDF available offline before disconnecting. Offline annotations save on the device and sync when you reconnect with the app open. Review conflicts in the offline panel. Sync pending changes before signing out, which clears offline storage.', 'Return to Documents when ready and find Make available offline on the file.']
 ]
 
-export default function PDFEditorTutorial({ onClose }) {
+const lessonActions = [
+  ['View','Toolbar top','Toolbar bottom'],
+  ['Select text','Pages','Page thumbnails','Side page','Continuous scrolling','Fit page width'],
+  ['Find'],
+  ['Pen','Highlight','Annotation color','Brush size','More tools'],
+  ['Erase','Move','Undo (Ctrl+Z)','Redo (Ctrl+Shift+Z)'],
+  ['Text','Move'],
+  ['Sticky note','Text','Move'],
+  ['Insert','Move'],
+  ['Copy region','Arrow copy','Paste snippet'],
+  ['Pages','Insert','Page thumbnails'],
+  ['Ruler','Calculator','Scan function → calculate','Graph selected region','Generate number line'],
+  ['Finger drawing','Finger scrolling','Lock page','Unlock page','Scroll & glide','Stylus setup'],
+  ['Countdown timer','Stopwatch','AI assistant','Clean up PDF'],
+  ['Save','Document','Document settings','Download annotated PDF'],
+  ['Document']
+]
+
+export default function PDFEditorTutorial({ onClose, actions }) {
   const [step, setStep] = useState(0)
+  const [minimized,setMinimized]=useState(false)
+  const [notice,setNotice]=useState('')
   const title = useRef(null)
   const root = useRef(null)
   useEffect(() => {
@@ -30,23 +50,33 @@ export default function PDFEditorTutorial({ onClose }) {
   }, [])
   useEffect(() => { title.current?.focus({ preventScroll: true }); root.current?.scrollIntoView({ block: 'nearest' }) }, [step])
   const [heading, description, exercise] = lessons[step]
-  return <section ref={root} className="pdf-tutorial" role="region" aria-label="PDF editor tutorial" onKeyDown={event => {
+  const available = (actions?.current || []).filter(action => lessonActions[step].includes(action.label))
+  return <section ref={root} className={`pdf-tutorial${minimized?' is-minimized':''}`} role="region" aria-label="PDF editor tutorial" onKeyDown={event => {
     event.stopPropagation()
     if (event.key === 'Escape') { event.preventDefault(); onClose() }
   }}>
-    <header><strong>PDF editor tutorial</strong><button type="button" onClick={onClose}>Close tutorial</button></header>
-    <div className="pdf-tutorial-layout">
+    <header><strong>{minimized ? heading : 'PDF editor tutorial'}</strong><div className="pdf-tutorial-header-actions"><button type="button" onClick={()=>setMinimized(previous=>!previous)}>{minimized?'Resume lesson':'Minimize'}</button><button type="button" onClick={onClose}>Close tutorial</button></div></header>
+    {notice && <p role="status">{notice}</p>}
+    {!minimized && <div className="pdf-tutorial-layout">
       <nav aria-label="Tutorial topics">{lessons.map(([label], index) => <button type="button" key={label} aria-current={step === index ? 'step' : undefined} onClick={() => setStep(index)}>{label}</button>)}</nav>
       <article>
         <p>Step {step + 1} of {lessons.length}</p>
         <h2 tabIndex={-1} ref={title}>{heading}</h2>
         <p>{description}</p>
         <p className="pdf-tutorial-exercise">{exercise}</p>
+        <div className="pdf-tutorial-actions" role="group" aria-label="Try this lesson's tools">
+          {available.map(action=><button key={action.label} type="button" disabled={action.disabled} aria-pressed={typeof action.active==='boolean'?action.active:undefined} onClick={()=>{
+            action.run?.()
+            setNotice(`${action.label} activated. Use the editor, then resume this lesson.`)
+            setMinimized(true)
+          }}>{action.label}{action.active?' · On':''}</button>)}
+        </div>
+        <small>These controls use the open document. Undo is available for supported edits.</small>
         <details><summary>Editor keyboard shortcuts</summary><ul>{SHORTCUTS.filter(item => item.scope === 'Visual editor').map(item => <li key={item.id}><kbd>{item.keys}</kbd> {item.label}</li>)}<li><kbd>Ctrl / Cmd + F</kbd> Search this document</li></ul></details>
         <footer><button type="button" disabled={step === 0} onClick={() => setStep(value => value - 1)}>Previous</button>
           {step < lessons.length - 1 ? <button type="button" onClick={() => setStep(value => value + 1)}>Next</button> : <button type="button" onClick={onClose}>Finish tutorial</button>}
         </footer>
       </article>
-    </div>
+    </div>}
   </section>
 }

@@ -13,3 +13,8 @@
 .pdf-tutorial li { margin-top: 8px; }
 .pdf-tutorial footer { margin-top: 18px; }
 @media(max-width:600px) { .pdf-tutorial-layout { grid-template-columns: minmax(0,1fr); } .pdf-tutorial nav { display: flex; overflow: auto; } .pdf-tutorial nav button { flex-shrink: 0; } }
+
+.pdf-tutorial.is-minimized { inset:auto 16px 60px auto; width:min(460px,calc(100% - 32px)); }
+.pdf-tutorial-header-actions,.pdf-tutorial-actions { display:flex;flex-wrap:wrap;gap:6px; }
+.pdf-tutorial-actions { margin-block:12px; }
+.pdf-tutorial-actions button[aria-pressed=true] { background:var(--surface-raised);border-color:var(--accent); }

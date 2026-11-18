@@ -16,13 +16,22 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
   useEffect(() => {
     if (!searchActions) return
     searchActions.current = [
-      ...annotationTools.map(([key,label]) => ({ label, description:'Annotation tool', run:()=>{close();tools.onTool(key)} })),
+      ...annotationTools.map(([key,label]) => ({ label, description:'Annotation tool', active:tools.current===key, run:()=>{close();tools.onTool(key)} })),
       ...searchable,
       ...['Insert','Pages','View','More tools','Annotation color','Brush size','Scroll & glide'].map((label,index)=>({
-        label, description:'Open controls', run:()=>setOpen(['insert','pages','view','tools','color','brush','scroll'][index])
+        label, description:'Open controls', run:()=>{setCompact(false);setOpen(['insert','pages','view','tools','color','brush','scroll'][index])}
       })).filter(item=>item.label!=='Insert'&&!(doc.exportImage&&item.label==='Pages')),
       {label:'Sticky note',description:'Add an editable note',run:onStickyNote,disabled:!pages.canAdd},
       {label:'Tutorial',description:'Learn editor tools and shortcuts',run:onTutorial},
+      {label:'Insert',run:()=>{close();setCompact(false);requestAnimationFrame(()=>root.current?.querySelector('.insert-trigger')?.click())}},
+      {label:'Document',run:()=>{setCompact(false);setOpen('document')}},
+      {label:'Find',run:onSearch},
+      {label:'Save',run:doc.onSave,disabled:doc.saveStatus==='saving'},
+      {label:'Finger drawing',active:!input.scroll,run:()=>input.onChange(false)},
+      {label:'Finger scrolling',active:input.scroll,run:()=>input.onChange(true)},
+      {label:'Countdown timer',active:utilities.timer,run:()=>utilities.onTimer(!utilities.timer)},
+      {label:'Stopwatch',active:utilities.stopwatch,run:()=>utilities.onStopwatch(!utilities.stopwatch)},
+      ...(utilities.onAssistant?[{label:'AI assistant',active:utilities.assistantOpen,run:utilities.onAssistant}]:[]),
       {label:input.pageLocked?'Unlock page':'Lock page',description:'Finger drawing without scrolling',run:()=>input.onPageLock(!input.pageLocked)},
       ...['top','bottom','left','right'].map(position=>({label:`Toolbar ${position}`,description:'Move the toolbar',run:()=>view.onToolbarPosition(position)}))
     ].filter((item,index,items)=>items.findIndex(candidate=>candidate.label===item.label)===index)
@@ -66,7 +75,7 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
   const run=fn=>()=>{close();fn?.()}
   const iconButton=(Icon,label,fn,disabled=false,active=false)=><button type="button" className={`pc-button pc-icon${active?' is-active':''}`} title={label} aria-label={label} disabled={disabled} onClick={fn}><Icon size={17}/></button>
   const action=(Icon,label,fn,{disabled=false,active=false,danger=false,detail}={})=>{
-    searchable.push({label,description:detail||'',disabled,run:run(fn)})
+    searchable.push({label,description:detail||'',disabled,active,run:run(fn)})
     return <button type="button" className={`pc-menu-action${danger?' is-danger':''}${active?' is-active':''}`} onClick={run(fn)} disabled={disabled}><Icon size={16}/><span>{label}{detail&&<small>{detail}</small>}</span>{active&&<i aria-label="Enabled"/>}</button>
   }
   const menu=(key,label,Icon,children,{left=false,custom=null}={})=><div className={`pc-menu-anchor${left?' is-left':''}${key==='scroll'?' pc-scroll-menu':''}`}>

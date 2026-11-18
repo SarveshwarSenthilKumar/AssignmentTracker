@@ -34,7 +34,7 @@ export function SectionLockSettings({ isAdmin }) {
   </section>
 }
 
-export function FileLockButton({ file, disabled }) {
+export function FileLockButton({ file, disabled, showLabel }) {
   const { locks, selectSection, busy } = useContext(SectionLockContext)
   const id = `file:${file._id}`
   const locked = locks.includes(id)
@@ -42,6 +42,7 @@ export function FileLockButton({ file, disabled }) {
   const Icon = locked ? Lock : Unlock
   return <button type="button" aria-label={`${label}: ${file.name}`} title={label} disabled={busy || disabled} onClick={() => selectSection(id, file.name, locked)}>
     <Icon size={16} aria-hidden="true"/>
+    {showLabel && <span>{label}</span>}
   </button>
 }
 

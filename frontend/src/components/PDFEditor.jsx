@@ -2402,7 +2402,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
 
       {/* Settings Modal */}
       {showSearch && <PDFSearch file={pdfFile} image={exportImage} annotations={drawingPaths} actions={searchActions} focusRequest={searchFocusRequest} onPage={goToPage} onClose={()=>setShowSearch(false)}/>}
-      {showTutorial && <PDFEditorTutorial onClose={()=>setShowTutorial(false)}/>}
+      {showTutorial && <PDFEditorTutorial actions={searchActions} onClose={()=>setShowTutorial(false)}/>}
       {showSettings && (
         <div className="pdf-settings-panel app-inline-panel" onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setShowSettings(false) } }}>
           <div className="bg-slate-900 border border-white/10 rounded-2xl p-6 w-full max-w-md">
