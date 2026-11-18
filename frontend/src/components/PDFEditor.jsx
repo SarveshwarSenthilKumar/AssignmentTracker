@@ -164,7 +164,7 @@ export async function burnAnnotations(pdfBytes, annotations, usePressure) {
 
     if (item.tool === 'text') {
       if (item.stickyNote) {
-        const height = Math.max(110, pdfTextLines(item).length * (item.fontSize || 16) * LINE_HEIGHT + TEXT_PAD_Y * 2)
+        const height = Math.max(item.noteHeight ?? 110, pdfTextLines(item).length * (item.fontSize || 16) * LINE_HEIGHT + TEXT_PAD_Y * 2)
         const point = toPdf(item.x, item.y + height)
         const fill = hexToRgb(item.noteColor || '#fff1a8')
         page.drawRectangle({ x: point.x, y: point.y, width: item.textBoxWidth || 180, height, color: rgb(fill.r, fill.g, fill.b), rotate: degrees(angle) })
@@ -247,7 +247,7 @@ function TextAnnotation({
   const textStyle = {
     color: textColor,
     background: item.stickyNote ? item.noteColor || '#fff1a8' : undefined,
-    minHeight: item.stickyNote ? 110 * scale : undefined,
+    minHeight: item.stickyNote ? (item.noteHeight ?? 110) * scale : undefined,
     fontSize: fontSize * scale,
     lineHeight: LINE_HEIGHT,
     ...replacementCss(item,scale),
@@ -1072,7 +1072,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     const size = item.fontSize || 16
     context.font = `${size}px ${FONT_STACK}`
     const lines = pdfTextLines(item, line => context.measureText(line).width)
-    return { width: item.textBoxWidth || Math.max(12, ...lines.map(line => context.measureText(line).width)) + TEXT_PAD_X * 2, height: Math.max(item.stickyNote ? 110 : 0, lines.length * size * LINE_HEIGHT + TEXT_PAD_Y * 2) }
+    return { width: item.textBoxWidth || Math.max(12, ...lines.map(line => context.measureText(line).width)) + TEXT_PAD_X * 2, height: Math.max(item.stickyNote ? item.noteHeight ?? 110 : 0, lines.length * size * LINE_HEIGHT + TEXT_PAD_Y * 2) }
   }
 
   const beginTransform = (e, item, corner = null) => {
@@ -1092,7 +1092,22 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     const pt = toLocal(e)
     if (!drag.moved && Math.hypot(pt.x - drag.origin.x, pt.y - drag.origin.y) * scale < 3) return
     let changes
-    if (drag.corner && drag.item.tool === 'text' && !drag.item.sourceText) {
+    if (drag.corner && drag.item.stickyNote) {
+      const left = drag.corner.includes('w')
+      const top = drag.corner.includes('n')
+      const anchorX = left ? drag.item.x + drag.size.width : drag.item.x
+      const anchorY = top ? drag.item.y + drag.size.height : drag.item.y
+      const maxWidth = Math.max(1, left ? anchorX : pageBase.w - anchorX)
+      const maxHeight = Math.max(1, top ? anchorY : pageBase.h - anchorY)
+      const textBoxWidth = Math.max(Math.min(12, maxWidth), Math.min(maxWidth, (pt.x - anchorX) * (left ? -1 : 1)))
+      const noteHeight = Math.max(Math.min(12, maxHeight), Math.min(maxHeight, (pt.y - anchorY) * (top ? -1 : 1)))
+      const actualHeight = insertSize({ ...drag.item, textBoxWidth, noteHeight }).height
+      changes = {
+        textBoxWidth, noteHeight,
+        x: left ? anchorX - textBoxWidth : anchorX,
+        y: Math.max(0, Math.min(pageBase.h - actualHeight, top ? anchorY - actualHeight : anchorY))
+      }
+    } else if (drag.corner && drag.item.tool === 'text' && !drag.item.sourceText) {
       const fromLeft = drag.corner.includes('w')
       const fixedX = fromLeft ? drag.item.x + drag.size.width : drag.item.x
       const available = fromLeft ? fixedX : pageBase.w - fixedX
@@ -2258,7 +2273,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
           const width = Math.min(180, pageBase.w)
           updatePaths(previous => [...previous, {
             id, tool: 'text', stickyNote: true, noteColor: '#fff1a8',
-            text: '', textBoxWidth: width, fontSize: 14, color: '#292524',
+            text: '', textBoxWidth: width, noteHeight: 110, fontSize: 14, color: '#292524',
             x: Math.max(0, (pageBase.w - width) / 2), y: Math.max(0, (pageBase.h - 110) / 2), page: pageNumber
           }])
           setCurrentTool('text')
