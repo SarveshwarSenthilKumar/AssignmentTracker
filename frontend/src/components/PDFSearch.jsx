@@ -4,6 +4,7 @@ import { X } from 'lucide-react'
 
 export default function PDFSearch({ file, annotations, actions, onPage, onClose, image }) {
   const [query, setQuery] = useState('')
+  const [filter, setFilter] = useState('all')
   const [pages, setPages] = useState([])
   const [status, setStatus] = useState('')
   useEffect(() => {
@@ -64,11 +65,14 @@ export default function PDFSearch({ file, annotations, actions, onPage, onClose,
   }}>
     <header><h3>Find in editor</h3><button type="button" aria-label="Close document search" onClick={onClose}><X size={18}/></button></header>
     <input autoFocus type="search" aria-label="Search PDF text, notes and editor tools" placeholder="Search text, notes or tools…" value={query} onChange={event => setQuery(event.target.value)}/>
-    {tools.length > 0 && <section aria-label="Editor tools"><h4>Tools and actions</h4><ul>{tools.map(action=><li key={action.label}><button type="button" disabled={action.disabled} onClick={()=>{onClose();action.run?.()}}><strong>{action.label}</strong>{action.description&&<span>{action.description}</span>}</button></li>)}</ul></section>}
-    <p role="status">{status || (query.trim() ? `${results.length}${results.length === 500 ? '+' : ''} matches` : 'Search all pages, text annotations and sticky notes.')}</p>
-    <ul>{results.map((result, index) => <li key={index}><button type="button" onClick={() => onPage(result.page)}>
+    <div className="pdf-search-filters" role="group" aria-label="Search scope">
+      {[['all','All'],['file','File'],['tools','Tools']].map(([value,label])=><button key={value} type="button" aria-pressed={filter===value} onClick={()=>setFilter(value)}>{label}</button>)}
+    </div>
+    {filter !== 'file' && tools.length > 0 && <section aria-label="Editor tools"><h4>Tools and actions</h4><ul>{tools.map(action=><li key={action.label}><button type="button" disabled={action.disabled} onClick={()=>{onClose();action.run?.()}}><strong>{action.label}</strong>{action.description&&<span>{action.description}</span>}</button></li>)}</ul></section>}
+    <p role="status">{filter==='tools' ? query.trim() ? `${tools.length} tools found` : 'Search editor tools and actions.' : status || (query.trim() ? `${results.length}${results.length === 500 ? '+' : ''} file matches` : 'Search all pages, text annotations and sticky notes.')}</p>
+    {filter !== 'tools' && <ul>{results.map((result, index) => <li key={index}><button type="button" onClick={() => onPage(result.page)}>
       <strong>Page {result.page} · {result.kind}</strong><span>{result.snippet}</span>
-    </button></li>)}</ul>
-    <small>Scanned pages, handwriting and image contents need OCR to become searchable.</small>
+    </button></li>)}</ul>}
+    {filter !== 'tools' && <small>Scanned pages, handwriting and image contents need OCR to become searchable.</small>}
   </aside>
 }
