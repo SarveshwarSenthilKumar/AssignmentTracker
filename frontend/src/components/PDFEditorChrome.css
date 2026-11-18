@@ -70,3 +70,7 @@
 .pdf-chrome.is-compact .pc-toolbar>button.pc-page-lock[aria-pressed]{display:inline-flex}
 .pdf-chrome .pc-toolbar>.pc-page-lock>span{display:inline}
 .pdf-chrome .pc-page-lock[aria-pressed=true]{border-color:var(--accent);background:var(--surface-raised);color:var(--text-primary)}
+
+.pc-toolbar-placement{display:flex;align-items:center;gap:6px;flex-shrink:0;font-size:11px;color:var(--text-secondary)}
+.pc-toolbar-placement select{max-width:110px;padding:6px;border:1px solid var(--border-strong);border-radius:7px;background:var(--surface-input);color:var(--text-primary)}
+.pdf-chrome:is(.is-left,.is-right) .pc-toolbar-placement{flex-direction:column;align-items:stretch}

@@ -153,6 +153,15 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
     </header>}
     <div className="pc-toolbar" role="toolbar" aria-label="PDF annotation tools" aria-orientation={vertical?'vertical':'horizontal'} onMouseDown={event=>{if(event.target.closest('button')&&!event.target.closest('.pc-popover,.pdf-insert-popover'))event.preventDefault()}}>
       <button type="button" className="pc-button pc-compact-toggle" aria-label={compact?'Expand tools toolbar':'Shrink tools toolbar'} title={compact?'Expand toolbar to show all tools':'Shrink toolbar'} aria-pressed={compact} onClick={()=>{close();setCompact(previous=>!previous)}}>{compact?<Maximize2 size={16}/>:<Minimize2 size={16}/>}<span>{compact?'Expand':'Shrink'}</span></button>
+      <label className="pc-toolbar-placement">Toolbar
+        <select aria-label="Toolbar position" value={view.toolbarPosition} onChange={event=>{close();view.onToolbarPosition(event.target.value)}}>
+          <option value="auto">Automatic</option>
+          <option value="top">Top</option>
+          <option value="bottom">Bottom</option>
+          <option value="left">Left</option>
+          <option value="right">Right</option>
+        </select>
+      </label>
       {view.focus&&documentMenu}
       <div className="pc-annotation-group" role="group" aria-label="Annotation tools">{annotationTools.map(([key,label,Icon])=><button key={key} type="button" className={`pc-button pc-tool${tools.current===key?' is-active':''}`} aria-pressed={tools.current===key} title={label} aria-label={label} onClick={()=>{close();tools.onTool(key)}}><Icon size={18}/><span>{label}</span></button>)}</div>
       <div className="pc-brush-group">{colorMenu}{sizeMenu}</div>
