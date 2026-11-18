@@ -1,5 +1,6 @@
 import useDocumentTabTitle from '../hooks/useDocumentTabTitle'
 import PDFSearch from './PDFSearch'
+import PDFEditorTutorial from './PDFEditorTutorial'
 import {detectNumberLine} from '../lib/pdfNumberLine'
 import {detectCopyArrowStrokes} from '../lib/pdfArrowCopy'
 import {matchingFontAsset,replacementFontBytes,replacementFontFace} from '../lib/pdfReplacementFonts'
@@ -544,6 +545,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const [loading, setLoading] = useState(true)
   const [showSettings, setShowSettings] = useState(false)
   const [showSearch, setShowSearch] = useState(false)
+  const [showTutorial, setShowTutorial] = useState(false)
   useEffect(() => {
     const key = event => {
       if (!(event.ctrlKey || event.metaKey) || event.shiftKey || event.altKey || event.key.toLowerCase() !== 'f') return
@@ -2277,6 +2279,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       {showStylusStudio&&<PDFStylusSettings barrel={stylusBarrel} onBarrel={setStylusBarrel} tip={stylusEraser?stylusExtra.tip:'none'} onTip={tip=>{setStylusEraser(tip!=='none');setStylusExtra(previous=>({...previous,tip}))}} extra={stylusExtra} onExtra={setStylusExtra} onReset={()=>{setStylusBarrel('eraser');setStylusEraser(true);setStylusExtra({secondary:'none',tip:'eraser',mode:'precision',size:20,shape:'round'})}} onClose={()=>setShowStylusStudio(false)}/>}
 
       <PDFEditorChrome
+        onTutorial={() => setShowTutorial(previous => !previous)}
         onSearch={() => setShowSearch(previous => !previous)}
         onStickyNote={() => {
           if (pageBase?.page !== pageNumber || inserting || deletingPage) return
@@ -2392,6 +2395,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
 
       {/* Settings Modal */}
       {showSearch && <PDFSearch file={pdfFile} image={exportImage} annotations={drawingPaths} onPage={goToPage} onClose={()=>setShowSearch(false)}/>}
+      {showTutorial && <PDFEditorTutorial onClose={()=>setShowTutorial(false)}/>}
       {showSettings && (
         <div className="pdf-settings-panel app-inline-panel" onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setShowSettings(false) } }}>
           <div className="bg-slate-900 border border-white/10 rounded-2xl p-6 w-full max-w-md">

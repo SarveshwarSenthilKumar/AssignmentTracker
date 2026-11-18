@@ -11,7 +11,7 @@ import './PDFEditorChrome.css'
 
 const annotationTools=[['read','Select text',TextSelect],['pen','Pen',Pen],['highlighter','Highlight',Highlighter],['text','Text',Type],['select','Move',Move],['eraser','Erase',Eraser]]
 
-export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,insert,onRuler,onStickyNote,onSearch}){
+export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,insert,onRuler,onStickyNote,onSearch,onTutorial}){
   const [open,setOpen]=useState(null),root=useRef(null),trigger=useRef(null),id=useId()
   const [narrowScreen,setNarrowScreen]=useState(()=>window.matchMedia('(max-width:760px), (max-height:500px) and (orientation:landscape)').matches)
   useEffect(()=>{
@@ -160,6 +160,7 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
       <button type="button" className="pc-button" title="Add Sticky note" aria-label="Add Sticky note" disabled={!pages.canAdd} onClick={()=>{close();onStickyNote()}}><FileText size={18} aria-hidden="true"/><span>Sticky note</span></button>
       <div className="pc-tool-menus">{pagesMenu}{viewMenu}{utilityMenu}</div>
       <button type="button" className="pc-button" onClick={()=>{close();onSearch()}} title="Search document (Ctrl/Cmd+F)">Find</button>
+      <button type="button" className="pc-button" onClick={()=>{close();onTutorial()}} title="Learn the PDF editor">Tutorial</button>
       <PDFFingerMode {...input}/>
       {menu('scroll','Scroll & glide',SlidersHorizontal,<PDFScrollSettings value={input.scrollSettings} onChange={input.onScrollSettings} scrollMode={input.scroll} currentTool={tools.current} onEnableScroll={()=>{input.onChange(true);if(tools.current==='read')tools.onTool('select')}}/>,{custom:<span className="pdf-scroll-trigger"><SlidersHorizontal size={18}/><span><strong>Scroll &amp; glide</strong><small>Adjust speed &amp; stopping</small></span></span>})}
       {utilities.clock&&<PDFEditorClock/>}
