@@ -325,7 +325,7 @@ function TextAnnotation({
           {/* Quick Color Picker */}
           {item.stickyNote && <label className="flex items-center gap-1 px-1 text-xs text-slate-200" onMouseDown={event => event.stopPropagation()}>
             Note color
-            <input type="color" aria-label="Post-it note background color" title="Post-it note background color"
+            <input type="color" aria-label="Sticky note background color" title="Sticky note background color"
               value={item.noteColor || '#fff1a8'} className="h-6 w-7 cursor-pointer rounded border-0 bg-transparent p-0"
               onChange={event => onNoteColorChange(item.id, event.target.value)}/>
           </label>}

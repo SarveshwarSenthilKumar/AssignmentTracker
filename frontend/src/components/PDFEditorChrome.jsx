@@ -97,7 +97,7 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
     <p className="pc-menu-note">Turn off to keep the notice until you choose Keep or Undo, draw another detected line, or leave the page. Saved on this device.</p><hr/>
     {action(Calculator,'Calculator',utilities.onCalculator,{active:utilities.calculator})}
     {action(Ruler,'Ruler',onRuler,{active:tools.current==='ruler',detail:'Drag to draw a straight line and see its length in PDF points'})}
-    {action(FileText,'Post-it note',onStickyNote,{disabled:!pages.canAdd,detail:'Add an editable yellow note to the page'})}
+    {action(FileText,'Sticky note',onStickyNote,{disabled:!pages.canAdd,detail:'Add an editable yellow note to the page'})}
     {action(Calculator,'Calculate selected region',utilities.onCalculate,{active:tools.current==='calculate',detail:'Printed expressions or handwriting with AI'})}
     {action(Calculator,'Scan function → calculate',utilities.onScanFunction,{active:tools.current==='function',detail:'Select f(x), enter x, and calculate its value'})}
     {action(LineChart,'Graph selected region',utilities.onGraph,{active:tools.current==='graph',detail:'Plot a printed or handwritten function of x'})}
@@ -157,7 +157,7 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
       <div className="pc-annotation-group" role="group" aria-label="Annotation tools">{annotationTools.map(([key,label,Icon])=><button key={key} type="button" className={`pc-button pc-tool${tools.current===key?' is-active':''}`} aria-pressed={tools.current===key} title={label} aria-label={label} onClick={()=>{close();tools.onTool(key)}}><Icon size={18}/><span>{label}</span></button>)}</div>
       <div className="pc-brush-group">{colorMenu}{sizeMenu}</div>
       <div className="pc-insert-slot">{isValidElement(insert)?cloneElement(insert,{onOpen:close,closeSignal:`${open||''}:${compact}`}):insert}</div>
-      <button type="button" className="pc-button" title="Add Post-it note" aria-label="Add Post-it note" disabled={!pages.canAdd} onClick={()=>{close();onStickyNote()}}><FileText size={18} aria-hidden="true"/><span>Post-it note</span></button>
+      <button type="button" className="pc-button" title="Add Sticky note" aria-label="Add Sticky note" disabled={!pages.canAdd} onClick={()=>{close();onStickyNote()}}><FileText size={18} aria-hidden="true"/><span>Sticky note</span></button>
       <div className="pc-tool-menus">{pagesMenu}{viewMenu}{utilityMenu}</div>
       <PDFFingerMode {...input}/>
       {menu('scroll','Scroll & glide',SlidersHorizontal,<PDFScrollSettings value={input.scrollSettings} onChange={input.onScrollSettings} scrollMode={input.scroll} currentTool={tools.current} onEnableScroll={()=>{input.onChange(true);if(tools.current==='read')tools.onTool('select')}}/>,{custom:<span className="pdf-scroll-trigger"><SlidersHorizontal size={18}/><span><strong>Scroll &amp; glide</strong><small>Adjust speed &amp; stopping</small></span></span>})}
