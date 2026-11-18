@@ -325,3 +325,11 @@
 }
 
 .pdf-insert-controls select { padding: 4px 6px; border: 1px solid var(--border-strong); border-radius: 4px; background: var(--surface-input); color: var(--text-primary); font-size: 12px; }
+
+.pdf-search-panel { position: absolute; z-index: 70; top: 120px; right: 12px; width: min(340px, calc(100vw - 24px)); max-height: calc(100dvh - 150px); overflow: auto; padding: 14px; border: 1px solid var(--border-strong); border-radius: 12px; background: var(--surface-panel); color: var(--text-primary); box-shadow: 0 8px 28px #0005; }
+.pdf-search-panel header { display: flex; justify-content: space-between; align-items: center; }
+.pdf-search-panel input { width: 100%; padding: 8px 10px; margin-block: 10px; background: var(--surface-input); border: 1px solid var(--border-strong); border-radius: 8px; }
+.pdf-search-panel p, .pdf-search-panel small { font-size: 12px; color: var(--text-secondary); }
+.pdf-search-panel ul { display: grid; gap: 5px; margin-block: 10px; }
+.pdf-search-panel li button { display: grid; gap: 4px; width: 100%; padding: 8px; text-align: left; border: 1px solid var(--border); border-radius: 6px; font-size: 12px; overflow-wrap: anywhere; }
+.pdf-search-panel li button:hover { background: var(--surface-raised); }

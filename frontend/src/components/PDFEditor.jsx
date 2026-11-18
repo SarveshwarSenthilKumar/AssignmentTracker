@@ -1,4 +1,5 @@
 import useDocumentTabTitle from '../hooks/useDocumentTabTitle'
+import PDFSearch from './PDFSearch'
 import {detectNumberLine} from '../lib/pdfNumberLine'
 import {detectCopyArrowStrokes} from '../lib/pdfArrowCopy'
 import {matchingFontAsset,replacementFontBytes,replacementFontFace} from '../lib/pdfReplacementFonts'
@@ -542,6 +543,17 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const [activeTextId, setActiveTextId] = useState(null)
   const [loading, setLoading] = useState(true)
   const [showSettings, setShowSettings] = useState(false)
+  const [showSearch, setShowSearch] = useState(false)
+  useEffect(() => {
+    const key = event => {
+      if (!(event.ctrlKey || event.metaKey) || event.shiftKey || event.altKey || event.key.toLowerCase() !== 'f') return
+      event.preventDefault()
+      event.stopPropagation()
+      setShowSearch(true)
+    }
+    window.addEventListener('keydown', key, true)
+    return () => window.removeEventListener('keydown', key, true)
+  }, [])
   const [toolbarPosition,setToolbarPosition]=useState(()=>{try{const saved=localStorage.getItem('pdf-editor-toolbar-position');return ['auto','top','bottom','left','right'].includes(saved)?saved:'auto'}catch{return 'auto'}})
   useEffect(()=>{try{localStorage.setItem('pdf-editor-toolbar-position',toolbarPosition)}catch{}},[toolbarPosition])
   const [showTimer,setShowTimer]=useState(()=>{try{return localStorage.getItem('pdf-editor-show-timer')==='true'}catch{return false}})
@@ -2265,6 +2277,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       {showStylusStudio&&<PDFStylusSettings barrel={stylusBarrel} onBarrel={setStylusBarrel} tip={stylusEraser?stylusExtra.tip:'none'} onTip={tip=>{setStylusEraser(tip!=='none');setStylusExtra(previous=>({...previous,tip}))}} extra={stylusExtra} onExtra={setStylusExtra} onReset={()=>{setStylusBarrel('eraser');setStylusEraser(true);setStylusExtra({secondary:'none',tip:'eraser',mode:'precision',size:20,shape:'round'})}} onClose={()=>setShowStylusStudio(false)}/>}
 
       <PDFEditorChrome
+        onSearch={() => setShowSearch(previous => !previous)}
         onStickyNote={() => {
           if (pageBase?.page !== pageNumber || inserting || deletingPage) return
           commitText()
@@ -2378,6 +2391,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       </footer>}
 
       {/* Settings Modal */}
+      {showSearch && <PDFSearch file={pdfFile} image={exportImage} annotations={drawingPaths} onPage={goToPage} onClose={()=>setShowSearch(false)}/>}
       {showSettings && (
         <div className="pdf-settings-panel app-inline-panel" onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setShowSettings(false) } }}>
           <div className="bg-slate-900 border border-white/10 rounded-2xl p-6 w-full max-w-md">
