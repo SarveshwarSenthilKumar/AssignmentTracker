@@ -141,6 +141,8 @@ The root `render.yaml` configures a free Node web service. Render builds the Vit
 The repository's Markdown handbook is the source for the downloadable PDF. Render builds the PDF from that source, so it does not need to be committed. Free services can sleep when idle. Atlas stores uploaded files and their saved backups, which count against its storage limit.
 
 ### Use the workspace offline
+ 
+New registrations require administrator approval before sign-in. Configure `ADMIN_PORTAL_EDITOR_EMAILS` with an existing administrator account, then use Admin portal → Account approvals. Pending accounts receive no sign-in token, and authenticated endpoints also reject pending accounts. Existing accounts keep their current approval status.
 
 Open the deployed HTTPS app while online and sign in before going offline. In Documents, use **Make available offline** on an unlocked PDF or text file. The browser can then open that copy, save annotations or text edits, and queue task creation and status changes. Keep the app open after reconnecting to sync those changes. The offline status panel shows pending changes and lets you review conflicts.
 

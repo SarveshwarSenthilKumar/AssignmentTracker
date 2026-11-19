@@ -468,7 +468,7 @@ app.post('/api/auth/register', async (req, res) => {
     if (usernameTaken) conflicts.push('username');
     if (conflicts.length) return registrationConflict(res, conflicts);
 
-    const approvalPending = process.env.REQUIRE_ACCOUNT_APPROVAL?.trim().toLowerCase() === 'true';
+    const approvalPending = true;
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = new User({ username, email, password: hashedPassword, approvalPending,termsAcceptance:{version:TERMS_VERSION,acceptedAt:new Date(),method:'signup-checkbox'} });
     await user.save();

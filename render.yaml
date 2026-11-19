@@ -18,6 +18,8 @@ services:
         value: production
       - key: MONGODB_URI
         sync: false
+      - key: ADMIN_PORTAL_EDITOR_EMAILS
+        sync: false
       - key: JWT_SECRET
         generateValue: true
       - key: AI_KEY_ENCRYPTION_KEY
