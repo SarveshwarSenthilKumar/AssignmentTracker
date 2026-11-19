@@ -550,6 +550,7 @@ require('./globalSearch')(app,authenticateToken,{mongoose,User,Todo,PDF,Folder,P
 const aiRequests = new Map();
 const aiModel = () => process.env.GEMINI_MODEL?.trim() || 'gemini-3.8-flash';
 require('./accountConnections')(app,authenticateToken,{User,mongoose});
+require('./changePassword')(app,authenticateToken,User);
 require('./githubConnection')(app,authenticateToken,{User});
 const requireAIAccess=registerAIAccess(app,authenticateToken,User);
 require('./studyAnswers')(app,authenticateToken,{StudyItem,credentials:assistantCredentials,model:aiModel,requireAIAccess});

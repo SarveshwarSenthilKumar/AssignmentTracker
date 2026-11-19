@@ -68,6 +68,7 @@ import ShortcutsPage from './components/ShortcutsPage'
 import './Navigation.css'
 import './components/AccountPage.css'
 import AccountAdminBadge from './components/AccountAdminBadge'
+import ChangePasswordSettings from './components/ChangePasswordSettings'
 import { useState, useEffect, useRef } from 'react'
 import { AlertCircle, Plus, Trash2, Check, X, Loader2, FolderPlus, Folder, LogOut, Sparkles, Link2, ChevronDown, ChevronUp, Edit2, Copy, Save, User, Trophy, Target, Calendar, ArrowUpDown, RefreshCw, Terminal, ChevronRight, FileText, Keyboard, Star } from 'lucide-react'
 import { cn } from './lib/utils'
@@ -2284,6 +2285,10 @@ function App() {
               </div>
             </section>
 
+            <section className="account-settings-group" aria-labelledby="account-security-title">
+              <h2 id="account-security-title">Security</h2>
+              <ChangePasswordSettings token={token}/>
+            </section>
             <section className="account-settings-group" aria-labelledby="account-preferences-title">
               <h2 id="account-preferences-title">Preferences</h2>
               <div className="account-settings-grid">
