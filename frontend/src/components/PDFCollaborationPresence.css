@@ -1,0 +1,11 @@
+.pdf-peer-overlay{position:absolute;inset:0;pointer-events:none!important;user-select:none;z-index:40;overflow:hidden}
+.pdf-peer-overlay *{pointer-events:none!important}
+.pdf-peer-rect{position:absolute;box-sizing:border-box;border:2px solid var(--peer-color);min-width:2px;min-height:2px}
+.pdf-peer-rect.is-selection{background:var(--peer-color);opacity:.24;border:0}
+.pdf-peer-rect.is-caret{border:0;border-left:2px solid var(--peer-color);min-width:2px}
+.pdf-peer-rect.is-region{background:color-mix(in srgb,var(--peer-color) 12%,transparent);border-style:dashed}
+.pdf-peer-cursor{position:absolute;display:flex;gap:5px;align-items:flex-start;white-space:nowrap;color:var(--peer-color);font:11px/1.4 system-ui,sans-serif}
+.pdf-peer-cursor>i{width:9px;height:9px;flex-shrink:0;border-radius:50%;background:var(--peer-color);box-shadow:0 0 0 1px #fff}
+.pdf-peer-cursor.is-down>i{box-shadow:0 0 0 3px #ffffff80}
+.pdf-peer-cursor>span{margin-top:9px;padding:2px 6px;border-radius:4px;background:var(--peer-color);color:#10202c;box-shadow:0 1px 4px #0004}
+.pdf-peer-eraser{position:absolute;transform:translate(-50%,-50%);border:2px solid var(--peer-color);background:color-mix(in srgb,var(--peer-color) 10%,transparent);box-sizing:border-box}

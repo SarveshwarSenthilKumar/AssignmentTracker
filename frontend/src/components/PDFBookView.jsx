@@ -9,7 +9,7 @@ function BookPage({ number, width, annotations, usePressure }) {
   const scale=base?width/base.w:1
   const items=annotations.filter(item=>(item.page||1)===number)
   return <div className="pdf-book-page" style={{width}}>
-    <div className="pdf-page-surface pdf-book-sheet">
+    <div className="pdf-page-surface pdf-book-sheet" data-presence-page={number} data-presence-rotation="0">
     <Page pageNumber={number} width={width} renderTextLayer={false} renderAnnotationLayer={false}
       onLoadSuccess={page=>{const viewport=page.getViewport({scale:1});setBase({w:viewport.width,h:viewport.height})}}/>
     {base&&<div className="pdf-book-annotations" style={{height:base.h*scale}}>

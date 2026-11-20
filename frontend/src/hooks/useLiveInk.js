@@ -3,12 +3,14 @@ import { annotationChanges } from '../lib/liveAnnotations'
 
 export default function useLiveInk({ url, token, enabled, contentRevision, committed, onChanges }) {
   const [previews, setPreviews] = useState(new Map())
+  const [participants, setParticipants] = useState(new Map())
+  const presence = useRef(null)
   const connection = useRef(null), pending = useRef(new Map()), offsets = useRef(new Map())
   const edits = useRef(new Map()), receiver = useRef(onChanges)
   receiver.current = onChanges
   const [connected, setConnected] = useState(false)
   const known = useRef(new Set())
-  useEffect(() => { edits.current.clear(); pending.current.clear(); offsets.current.clear(); setPreviews(new Map()) }, [contentRevision])
+  useEffect(() => { edits.current.clear(); pending.current.clear(); offsets.current.clear(); presence.current = null; setPreviews(new Map()); setParticipants(new Map()) }, [contentRevision])
   known.current = new Set(committed.map(item => item.id))
   useEffect(() => {
     setPreviews(previous => [...previous.keys()].some(id => known.current.has(id)) ? new Map([...previous].filter(([id]) => !known.current.has(id))) : previous)
@@ -23,6 +25,7 @@ export default function useLiveInk({ url, token, enabled, contentRevision, commi
         offsets.current.clear()
         setPreviews(new Map(event.previews.filter(item => !known.current.has(item.id)).map(item => [item.id, { ...item, livePressure: item.pressure, updated: Date.now() }])))
         setConnected(true)
+        setParticipants(new Map((event.presences || []).map(peer => [peer.peer, { ...peer, updated: Date.now() }])))
       } else if (event.type === 'clear') {
         setPreviews(previous => { const next = new Map(previous); next.delete(event.id); return next })
       } else if (event.type === 'ink') {
@@ -32,6 +35,13 @@ export default function useLiveInk({ url, token, enabled, contentRevision, commi
           if (event.offset !== 0 && event.offset !== (before?.points.length || 0)) return previous
           const next = new Map(previous)
           next.set(event.id, { ...event, livePressure: event.pressure, updated: Date.now(), points: [...(event.offset ? before.points : []), ...event.points] })
+          return next
+        })
+      } else if (event.type === 'presence') {
+        setParticipants(previous => {
+          const next = new Map(previous)
+          if (event.data) next.set(event.peer, { ...event, updated: Date.now() })
+          else next.delete(event.peer)
           return next
         })
       } else if (event.type === 'edit') receiver.current?.(event)
@@ -62,12 +72,15 @@ export default function useLiveInk({ url, token, enabled, contentRevision, commi
         connection.current = null
         setConnected(false)
         setPreviews(new Map())
+        setParticipants(new Map())
         if (!controller.signal.aborted) reconnect = setTimeout(connect, 1200)
       }
     }
     const send = async () => {
       const session = connection.current
       if (sending || !session || controller.signal.aborted) return
+      const activity = presence.current
+      const activityField = activity ? { presence: activity.data } : {}
       if (edits.current.size) {
         sending = true
         const batch = []
@@ -79,7 +92,8 @@ export default function useLiveInk({ url, token, enabled, contentRevision, commi
         }
         const changes = batch.map(([, value]) => value)
         try {
-          const response = await fetch(`/api/document-live-ink/${session}`, { method: 'POST', cache: 'no-store', signal: controller.signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: 'changes', kind: 'edit', changes, contentRevision: changes[0].contentRevision, sequence: ++sequence }) })
+          const response = await fetch(`/api/document-live-ink/${session}`, { method: 'POST', cache: 'no-store', signal: controller.signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: 'changes', kind: 'edit', changes, contentRevision: changes[0].contentRevision, sequence: ++sequence, ...activityField }) })
+          if (response.ok && presence.current === activity) presence.current = null
           if (response.ok || [400, 409, 413].includes(response.status)) for (const [id, value] of batch) if (edits.current.get(id) === value) edits.current.delete(id)
           if (response.status === 404) connection.current = null
         } catch { /* The regular save queue also retains these edits. */ }
@@ -87,15 +101,26 @@ export default function useLiveInk({ url, token, enabled, contentRevision, commi
         return
       }
       const [id, stroke] = pending.current.entries().next().value || []
-      if (!stroke) return
+      if (!stroke) {
+        if (!activity) return
+        sending = true
+        try {
+          const response = await fetch(`/api/document-live-ink/${session}`, { method: 'POST', cache: 'no-store', signal: controller.signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: 'presence', kind: 'presence', sequence: ++sequence, ...activityField }) })
+          if (response.ok && presence.current === activity) presence.current = null
+          if (response.status === 404) connection.current = null
+        } catch { /* Keep the newest cursor/selection while reconnecting. */ }
+        finally { sending = false }
+        return
+      }
       if (Date.now() - stroke.queuedAt > 3000) { pending.current.delete(id); offsets.current.delete(id); return }
       sending = true
       const offset = stroke.replace ? 0 : offsets.current.get(id) || 0
       const points = stroke.points?.slice(offset, offset + 512) || []
       const ended = !!stroke.ended && offset + points.length >= (stroke.points?.length || 0)
       try {
-        const response = await fetch(`/api/document-live-ink/${session}`, { method: 'POST', cache: 'no-store', signal: controller.signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...stroke, points, offset, ended, sequence: ++sequence }) })
+        const response = await fetch(`/api/document-live-ink/${session}`, { method: 'POST', cache: 'no-store', signal: controller.signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...stroke, points, offset, ended, sequence: ++sequence, ...activityField }) })
         if (response.ok) {
+          if (presence.current === activity) presence.current = null
           offsets.current.set(id, offset + points.length)
           if (pending.current.get(id) === stroke && (stroke.cancel || offset + points.length >= stroke.points.length)) pending.current.delete(id)
           if (ended || stroke.cancel) offsets.current.delete(id)
@@ -107,7 +132,10 @@ export default function useLiveInk({ url, token, enabled, contentRevision, commi
     }
     connect()
     sender = setInterval(send, 50)
-    expiry = setInterval(() => setPreviews(previous => [...previous.values()].some(item => Date.now() - item.updated >= 10000) ? new Map([...previous].filter(([, item]) => Date.now() - item.updated < 10000)) : previous), 1000)
+    expiry = setInterval(() => {
+      setPreviews(previous => [...previous.values()].some(item => Date.now() - item.updated >= 10000) ? new Map([...previous].filter(([, item]) => Date.now() - item.updated < 10000)) : previous)
+      setParticipants(previous => [...previous.values()].some(item => Date.now() - item.updated >= 15000) ? new Map([...previous].filter(([, item]) => Date.now() - item.updated < 15000)) : previous)
+    }, 1000)
     return () => { controller.abort(); clearTimeout(reconnect); clearInterval(sender); clearInterval(expiry); connection.current = null; pending.current.clear(); offsets.current.clear(); edits.current.clear() }
   }, [url, token, enabled])
   const publish = stroke => {
@@ -133,5 +161,9 @@ export default function useLiveInk({ url, token, enabled, contentRevision, commi
       if (JSON.stringify(merged).length <= 128 * 1024) edits.current.set(change.id, merged)
     }
   }
-  return { connected, publish, publishChanges, strokes: [...previews.values()].filter(stroke => stroke.contentRevision === contentRevision) }
+  const publishPresence = data => {
+    if (!enabled || !contentRevision) return
+    presence.current = { data: data ? { ...data, contentRevision } : null }
+  }
+  return { connected, publish, publishChanges, publishPresence, participants: [...participants.values()].filter(peer => peer.data.contentRevision === contentRevision), strokes: [...previews.values()].filter(stroke => stroke.contentRevision === contentRevision) }
 }

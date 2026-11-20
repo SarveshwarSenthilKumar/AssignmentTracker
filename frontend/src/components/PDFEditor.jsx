@@ -24,6 +24,7 @@ import usePDFTouchInput from '../hooks/usePDFTouchInput'
 import {readScrollSettings,normalizeScrollSettings,SCROLL_SETTINGS_KEY} from '../lib/pdfScrollSettings'
 import useShortcuts from '../hooks/useShortcuts'
 import useLiveInk from '../hooks/useLiveInk'
+import PDFCollaborationPresence from './PDFCollaborationPresence'
 import useInlineConfirm from '../hooks/useInlineConfirm'
 import InlineConfirmation from './InlineConfirmation'
 import PDFCalculator from './PDFCalculator'
@@ -271,6 +272,7 @@ function TextAnnotation({
     <div
       className="group"
       data-text-annotation
+      data-pdf-annotation-id={item.id}
       style={{
         position: 'absolute',
         left: item.x * scale,
@@ -2242,6 +2244,15 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     finally{try{await task?.destroy()}catch{}finally{copyAllLock.current=false;if(generation===copyAllGeneration.current)setCopyAllBusy(false)}}
   }
 
+  const collaborationBox=useMemo(()=>{
+    if(currentTool==='arrow-paste'&&arrowDraft.detection&&snippet&&pageBase){
+      const ratio=Math.min(1,pageBase.w/snippet.width,pageBase.h/snippet.height)
+      const width=snippet.width*ratio,height=snippet.height*ratio,tip=arrowDraft.detection.tip
+      return {x:Math.max(0,Math.min(pageBase.w-width,tip.x-width/2)),y:Math.max(0,Math.min(pageBase.h-height,tip.y-height/2)),width,height}
+    }
+    return ['calculate','function','graph','number-line','snippet','arrow-copy'].includes(currentTool)?calculationBox:null
+  },[currentTool,arrowDraft.detection,snippet,pageBase,calculationBox])
+
   if (loading) {
     return (
       <div className="fixed inset-0 bg-slate-950 flex items-center justify-center z-50">
@@ -2266,6 +2277,8 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const activePageView = (
             <div
               className={`relative shrink-0 ${continuousView&&!exportImage?'pdf-editor-active-page':'pdf-page-surface'}`}
+              data-presence-page={continuousView&&!exportImage?undefined:pageNumber}
+              data-presence-rotation={rotation}
               style={ready ? { width: renderW, height: renderH } : undefined}
             >
               {(!continuousView||exportImage)&&<Document
@@ -2374,7 +2387,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
                   </svg>
 
                   {pageItems.filter(i => i.tool === 'image').map(item => (
-                    <div key={item.id} style={{ position: 'absolute', left: item.x * scale, top: item.y * scale, width: item.width * scale, height: item.height * scale, pointerEvents: currentTool === 'select' ? 'auto' : 'none', outline: currentTool === 'select' && selectedInsertId === item.id ? '2px solid #8fa5b9' : undefined, touchAction: 'none', cursor: currentTool === 'select' ? 'move' : 'pointer', zIndex: selectedInsertId === item.id ? 25 : 15 }}
+                    <div key={item.id} data-pdf-annotation-id={item.id} style={{ position: 'absolute', left: item.x * scale, top: item.y * scale, width: item.width * scale, height: item.height * scale, pointerEvents: currentTool === 'select' ? 'auto' : 'none', outline: currentTool === 'select' && selectedInsertId === item.id ? '2px solid #8fa5b9' : undefined, touchAction: 'none', cursor: currentTool === 'select' ? 'move' : 'pointer', zIndex: selectedInsertId === item.id ? 25 : 15 }}
                       onPointerDown={e => {
                         e.stopPropagation(); e.preventDefault()
                         if (currentTool === 'eraser') { handleDeleteText(item.id); return }
@@ -2441,6 +2454,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     <div ref={editorRootRef} className={cn("pdf-editor fixed inset-0 bg-slate-950 flex flex-col z-50",focusMode&&"pdf-focus-mode","pdf-touch-tracked",fingerScroll&&"pdf-finger-scroll",currentTool==='read'&&'pdf-reading-mode')} role="region" aria-label="Visual document editor" aria-busy={deletingPage} onPointerDownCapture={e => { if (deletingPage) { e.preventDefault(); e.stopPropagation() } }} onKeyDownCapture={e => { if (deletingPage) { e.preventDefault(); e.stopPropagation() } }}>
       {deletingPage && <div className="inline-operation-status" role="status"><Loader2 className="animate-spin" size={17} />Updating pages…</div>}
       <InlineConfirmation {...confirmation} />
+      <PDFCollaborationPresence root={editorRootRef} enabled={liveEnabled} participants={liveInk.participants} publish={liveInk.publishPresence} activity={()=>stylusGesture.current?.action==='eraser'?{tool:'eraser',eraserSize:stylusExtra.size,eraserShape:stylusExtra.shape}:{tool:currentTool,eraserSize,eraserShape}} tool={currentTool} selectedId={selectedInsertId} activeTextId={activeTextId} eraserSize={eraserSize} eraserShape={eraserShape} scale={scale} box={collaborationBox} page={pageNumber} pageBase={pageBase}/>
       {showStylusStudio&&<PDFStylusSettings barrel={stylusBarrel} onBarrel={setStylusBarrel} tip={stylusEraser?stylusExtra.tip:'none'} onTip={tip=>{setStylusEraser(tip!=='none');setStylusExtra(previous=>({...previous,tip}))}} extra={stylusExtra} onExtra={setStylusExtra} onReset={()=>{setStylusBarrel('eraser');setStylusEraser(true);setStylusExtra({secondary:'none',tip:'eraser',mode:'precision',size:20,shape:'round'})}} onClose={()=>setShowStylusStudio(false)}/>}
 
       <PDFEditorChrome

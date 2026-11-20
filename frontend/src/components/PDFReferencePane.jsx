@@ -28,7 +28,7 @@ export default function PDFReferencePane({file,count,page,onPage,onClose,onEdit,
     </div>
     <div ref={scroll} className="pdf-reference-scroll">
       <Document file={file} options={options} loading={<p>Loading side page…</p>} error={<p role="alert">Could not load the side page. Close and reopen it to retry.</p>}>
-        <div className="pdf-page-surface pdf-reference-surface" style={{width:renderWidth,position:'relative'}}>
+        <div className="pdf-page-surface pdf-reference-surface" data-presence-page={page} data-presence-rotation="0" style={{width:renderWidth,position:'relative'}}>
           <Page key={page} pageNumber={page} width={renderWidth} renderTextLayer={false} renderAnnotationLayer={false} loading={<p>Loading page {page}…</p>} onLoadSuccess={pdfPage=>{const viewport=pdfPage.getViewport({scale:1});setLoaded({page,file,w:viewport.width,h:viewport.height})}}/>
           {base&&<div className="pdf-reference-annotations" style={{width:renderWidth,height:base.h*scale}}>
             <PDFInkLayer items={items} width={base.w} height={base.h} scale={scale} usePressure={usePressure}/>

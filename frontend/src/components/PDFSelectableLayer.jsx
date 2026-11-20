@@ -63,13 +63,18 @@ function fallbackLayer(container,content,viewport,page){
 
 export default function PDFSelectableLayer({page,scale,rotation,annotations}){
   const root=useRef(null)
+  const textItems=annotations.filter(item=>item.tool==='text')
+  const signature=JSON.stringify(textItems.map(item=>({id:item.id,text:item.text,x:item.x,y:item.y,fontSize:item.fontSize,textBoxWidth:item.textBoxWidth,sourceKey:item.sourceText?.key,textStyle:item.textStyle&&{fontName:item.textStyle.fontName,fontFamily:item.textStyle.fontFamily,horizontalScale:item.textStyle.horizontalScale,embedded:item.textStyle.embedded,italic:item.textStyle.italic,fontWeight:item.textStyle.fontWeight,baselineRatio:item.textStyle.baselineRatio,letterSpacing:item.textStyle.letterSpacing}})))
+  const stableText=useRef({signature:null,items:[]})
+  if(stableText.current.signature!==signature)stableText.current={signature,items:textItems}
+  const selectableAnnotations=stableText.current.items
   useEffect(()=>{
     if(!page||!root.current)return
     const container=root.current,viewport=page.getViewport({scale,rotation:((page.rotate||0)+rotation)%360})
     let disposed=false,task
     container.replaceChildren()
     ;(async()=>{
-      const content=completeContent(await readContent(page),annotations,page)
+      const content=completeContent(await readContent(page),selectableAnnotations,page)
       if(disposed)return
       try{
         const textDivs=[]
@@ -88,6 +93,6 @@ export default function PDFSelectableLayer({page,scale,rotation,annotations}){
       }
     })().catch(()=>{if(!disposed)container.setAttribute('aria-label','This page has no readable text layer. Scanned or outlined text needs OCR.')})
     return()=>{disposed=true;task?.cancel();container.replaceChildren()}
-  },[page,scale,rotation,annotations])
+  },[page,scale,rotation,selectableAnnotations])
   return <div ref={root} className="textLayer pdf-complete-text-layer" style={{'--scale-factor':scale}} aria-label="Selectable PDF text"/>
 }

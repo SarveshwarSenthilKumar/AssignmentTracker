@@ -26,12 +26,12 @@ module.exports = function registerLiveInk(app, auth, { PDF, isLocked, hashToken,
       res.set({ 'Content-Type': 'text/event-stream', 'Cache-Control': 'private, no-store, no-transform', 'Connection': 'keep-alive', 'X-Accel-Buffering': 'no', 'Referrer-Policy': 'no-referrer' });
       res.flushHeaders();
       const key = randomBytes(32).toString('base64url');
-      const session = { key, room, shared, filter, res, previews: new Map(), sequence: 0, checkedAt: Date.now(), checking: null, allowed, lastPacket: 0 };
+      const session = { key, peer: randomBytes(9).toString('hex'), color: ['#38bdf8','#a78bfa','#fb923c','#34d399','#f472b6'][peers.size % 5], room, shared, filter, res, previews: new Map(), sequence: 0, checkedAt: Date.now(), checking: null, allowed, lastPacket: 0 };
       sessions.set(key, session); peers.add(session); rooms.set(room, peers);
       const previews = [];
       for (const peer of peers) for (const preview of peer.previews.values()) if (Date.now() - preview.updated < 10000) previews.push(preview);
       // A session key is a short-lived write capability. Never expose it to peers.
-      emit(session, { type: 'ready', session: key, previews });
+      emit(session, { type: 'ready', session: key, previews, presences: [...peers].filter(peer => peer !== session && peer.presence).map(peer => ({ peer: peer.peer, color: peer.color, data: peer.presence })) });
       const heartbeat = setInterval(async () => {
         try {
           if (!await allowed()) { emit(session, { type: 'unavailable' }); res.end(); return; }
@@ -43,6 +43,7 @@ module.exports = function registerLiveInk(app, auth, { PDF, isLocked, hashToken,
       res.on('close', () => {
         clearInterval(heartbeat); sessions.delete(key); peers.delete(session);
         for (const id of session.previews.keys()) broadcast(session, { type: 'clear', id });
+        broadcast(session, { type: 'presence', peer: session.peer, color: session.color, data: null });
         if (!peers.size) rooms.delete(room);
       });
     } catch { if (!res.headersSent) res.status(503).end(); else res.end(); }
@@ -61,8 +62,18 @@ module.exports = function registerLiveInk(app, auth, { PDF, isLocked, hashToken,
       }
       const { id, sequence, cancel, points = [], offset, replace, page, tool, color, strokeWidth, pressure, contentRevision, ended } = req.body || {};
       if (typeof id !== 'string' || id.length > 150 || !Number.isSafeInteger(sequence) || sequence <= session.sequence) return res.status(400).end();
-      if (cancel) { session.sequence = sequence; session.previews.delete(id); broadcast(session, { type: 'clear', id }); return res.status(204).end(); }
       if (Date.now() - session.lastPacket < 15) return res.status(429).end();
+      if (req.body.presence !== undefined) {
+        const presence = req.body.presence;
+        if (Buffer.byteLength(JSON.stringify(presence)) > 32 * 1024) return res.status(400).end();
+        const number = value => Number.isFinite(value) && Math.abs(value) <= 10;
+        const rect = item => item && Number.isInteger(item.page) && item.page > 0 && item.page <= 10000 && [item.x,item.y,item.width,item.height].every(number) && [0,90,180,270].includes(item.rotation);
+        if (presence !== null && (!presence || typeof presence.tool !== 'string' || presence.tool.length > 50 || typeof presence.contentRevision !== 'string' || !/^[a-f\d]{64}$/.test(presence.contentRevision) || !Array.isArray(presence.rects) || presence.rects.length > 80 || !presence.rects.every(item => rect(item) && ['selection','caret','object','region'].includes(item.kind)) || (presence.cursor && (!rect(presence.cursor) || typeof presence.cursor.down !== 'boolean')))) return res.status(400).end();
+        session.presence = presence;
+        broadcast(session, { type: 'presence', peer: session.peer, color: session.color, data: presence });
+      }
+      if (req.body.kind === 'presence') { session.sequence = sequence; session.lastPacket = Date.now(); return res.status(204).end(); }
+      if (cancel) { session.sequence = sequence; session.previews.delete(id); broadcast(session, { type: 'clear', id }); return res.status(204).end(); }
       if (req.body.kind === 'edit') {
         const changes = req.body.changes;
         const validKey = key => !['id', '__proto__', 'constructor', 'prototype'].includes(key);
