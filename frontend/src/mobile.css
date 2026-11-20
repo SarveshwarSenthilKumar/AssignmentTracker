@@ -1,4 +1,79 @@
 /* Final application layout layer. Keep document, ink and canvas coordinates intact. */
+/* These rules also cover editors opened directly through a shared link. */
+@media screen and (max-width:760px){
+  .account-page,.document-library,.calendar-page,.platform-tutorial{min-width:0;max-width:100%}
+  .app-shell :is(.library-header-actions,.library-selection,.calendar-actions,.calendar-controls){flex-wrap:wrap;gap:8px;min-width:0}
+  .app-shell :is(.library-header-actions,.calendar-actions)>button{flex:1 1 140px;justify-content:center;white-space:normal}
+  .app-shell .library-breadcrumb{overflow-wrap:anywhere}
+  .app-shell .library-breadcrumb strong{min-width:0}
+  .app-shell .library-sharing-panel form{display:grid;grid-template-columns:minmax(0,1fr)}
+  .app-shell .library-sharing-panel :is(input,select){width:100%;min-width:0;margin-inline:0}
+  .app-shell .library-share-link-panel{min-width:0;overflow-wrap:anywhere}
+  .app-shell .account-settings-grid{grid-template-columns:minmax(0,1fr)}
+  .account-page :is(section,article,fieldset,form){min-width:0}
+  .account-page :is(h2,h3,p,dd){overflow-wrap:anywhere}
+  .account-page :is(.account-ai-key-input,.github-token-form){flex-wrap:wrap}
+  .account-page :is(.account-ai-key-input,.github-token-form)>input{flex:1 1 100%;width:100%}
+  .app-shell .task-contribution-controls{width:100%;align-items:stretch}
+  .app-shell .task-contribution-controls label{flex:1 1 180px}
+  .app-shell .task-contribution-controls select{flex:1;min-width:0}
+  .app-shell .task-contribution-scroll{max-width:100%;overscroll-behavior-inline:contain}
+  .app-shell .calendar-inspector{max-height:none;overflow:visible}
+  .app-shell .calendar-agenda-row .calendar-item{min-width:0}
+  .platform-tutorial footer{flex-wrap:wrap;gap:10px}
+  .platform-tutorial nav{max-width:100%;overscroll-behavior-inline:contain}
+
+  .pdf-editor .pdf-search-panel{position:fixed;top:max(12px,env(safe-area-inset-top));right:max(12px,env(safe-area-inset-right));left:max(12px,env(safe-area-inset-left));width:auto;max-height:calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom));overscroll-behavior:contain}
+  .pdf-editor .pc-header .pc-file-name{min-width:0;flex:1 1 140px}
+  .pdf-editor .pc-header .pc-file-name>strong{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .pdf-editor .pdf-chrome .pc-toolbar{max-height:32dvh;overflow-y:auto;overscroll-behavior:contain;align-content:flex-start;padding-bottom:max(6px,env(safe-area-inset-bottom))}
+  .pdf-editor .pdf-chrome.is-focus{max-width:calc(100% - 16px);bottom:max(8px,env(safe-area-inset-bottom))}
+  .pdf-editor .pdf-chrome.is-focus .pc-toolbar{overflow:visible;max-height:none}
+  .pdf-editor .pdf-chrome.is-focus.is-top{top:max(8px,env(safe-area-inset-top));bottom:auto}
+  .pdf-editor .pdf-chrome .pc-toolbar :is(.pc-popover,.pdf-insert-popover,.pdf-countdown-popover){position:fixed;top:max(12px,env(safe-area-inset-top));bottom:auto;left:12px!important;right:12px!important;width:auto!important;max-width:none;max-height:calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom));overflow:auto;overscroll-behavior:contain;z-index:100}
+  /* Focus chrome is transformed, so its fixed menus use the toolbar as their containing block. */
+  .pdf-editor .pdf-chrome.is-focus .pc-toolbar :is(.pc-popover,.pdf-insert-popover,.pdf-countdown-popover){position:absolute;top:auto;bottom:calc(100% + 8px);left:0!important;right:0!important;max-height:55dvh}
+  .pdf-editor .pdf-chrome.is-focus.is-top .pc-toolbar :is(.pc-popover,.pdf-insert-popover,.pdf-countdown-popover){top:calc(100% + 8px);bottom:auto}
+  .pdf-editor .pdf-tutorial:not(.is-minimized){position:fixed;inset:max(8px,env(safe-area-inset-top)) 8px auto;width:auto;max-height:calc(100dvh - 16px - env(safe-area-inset-top) - env(safe-area-inset-bottom));overflow:auto;overscroll-behavior:contain}
+  .pdf-editor .pdf-tutorial header{flex-wrap:wrap;gap:8px}
+  .pdf-editor .pdf-tutorial-header-actions{flex-wrap:wrap}
+}
+
+@media screen and (max-width:540px){
+  /* Keep file names and actions on separate rows instead of widening the page. */
+  .document-library .library-table{table-layout:fixed}
+  .document-library .library-table thead{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+  .document-library .library-table tbody{display:block}
+  .document-library .library-table tr{display:grid;grid-template-columns:32px minmax(0,1fr);padding-block:10px;border-bottom:1px solid var(--border)}
+  .document-library .library-table td{display:block;min-width:0;border:0;padding:6px}
+  .document-library .library-table td:first-child{grid-column:1;grid-row:1;align-self:start}
+  .document-library .library-table td:nth-child(2){grid-column:2}
+  .document-library .library-table td:nth-child(3),.document-library .library-table td:nth-child(4){display:none}
+  .document-library .library-table td:last-child{grid-column:2}
+  .document-library .library-file-open{min-width:0;width:100%}
+  .document-library .library-file-open>span{min-width:0;flex:1}
+  .document-library .library-file-open strong{white-space:normal;overflow-wrap:anywhere}
+  .document-library .library-file-open em{flex-shrink:0}
+  .document-library .library-row-actions{justify-content:flex-start;flex-wrap:wrap;min-width:0;gap:8px}
+  .document-library .library-layout aside{grid-template-columns:minmax(0,1fr)}
+  .app-shell .library-modal-footer>button{flex:1 1 120px;white-space:normal}
+  .account-page .account-birthday form{grid-template-columns:minmax(0,1fr)}
+  .account-page .appearance-settings>label{flex-direction:column;align-items:stretch;gap:10px}
+  .account-page .appearance-settings select{flex-basis:auto;width:100%}
+  .account-page .account-time-zone .flex{flex-wrap:wrap}
+  .account-page .account-time-zone .flex input{min-width:0;flex-basis:100%}
+  .global-search-backdrop{padding:max(8px,env(safe-area-inset-top)) 8px max(8px,env(safe-area-inset-bottom))}
+  .global-search-dialog{max-height:calc(100dvh - 16px - env(safe-area-inset-top) - env(safe-area-inset-bottom))}
+}
+
+@media screen and (pointer:coarse){
+  .pdf-editor :is(input:not([type=checkbox]):not([type=range]):not([type=color]),textarea,select),.global-search-dialog input{font-size:16px}
+  .pdf-editor .pdf-chrome :is(.pc-button,.pc-tool,.pc-menu-action,.insert-trigger),.pdf-search-panel button,.document-actions-menu button{min-height:44px}
+  .pdf-editor .pdf-chrome .pc-tool{min-width:40px;width:auto}
+  .pdf-editor .pdf-finger-mode button{min-height:44px}
+  .app-shell .library-folder .library-icon{min-width:40px;min-height:44px}
+  .global-search-input button{min-width:44px;min-height:44px}
+}
 .app-shell :is(.prep-page,.account-connections,.interview-coach,.cold-email-generator,.task-progress,.policy-support-panel,.github-files,.github-repositories){min-width:0;max-width:100%}
 .app-shell :is(.interview-coach,.cold-email-generator,.account-connections,.task-progress) :is(fieldset,form,label,header,section,article){min-width:0}
 .app-shell :is(.interview-coach,.cold-email-generator,.account-connections,.task-progress) :is(h2,h3,h4,p,li,strong,span){overflow-wrap:anywhere}

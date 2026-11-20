@@ -31,7 +31,7 @@ export default function DocumentActionsMenu({ name, children }) {
       onClick={() => {
         const bounds = trigger.current.getBoundingClientRect()
         setPosition(previous => previous ? null : {
-          right: Math.max(8, window.innerWidth - bounds.right),
+          right: Math.max(8, Math.min(window.innerWidth - bounds.right, window.innerWidth - 248)),
           top: Math.max(8, Math.min(bounds.bottom + 6, window.innerHeight - 390))
         })
       }}><MoreHorizontal size={17}/><span>More</span></button>
