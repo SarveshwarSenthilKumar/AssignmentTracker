@@ -8,6 +8,7 @@ import PDFCountdown from './PDFCountdown'
 import PDFFingerMode from './PDFFingerMode'
 import PDFScrollSettings from './PDFScrollSettings'
 import './PDFEditorChrome.css'
+import { Share2 } from 'lucide-react'
 
 const annotationTools=[['read','Select text',TextSelect],['pen','Pen',Pen],['highlighter','Highlight',Highlighter],['text','Text',Type],['select','Move',Move],['eraser','Erase',Eraser]]
 
@@ -27,6 +28,7 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
       {label:'Document',run:()=>{setCompact(false);setOpen('document')}},
       {label:'Find',run:onSearch},
       {label:'Save',run:doc.onSave,disabled:doc.saveStatus==='saving'},
+      ...(doc.onShare?[{label:'Share document',description:'Create or manage a share link',run:doc.onShare}]:[]),
       {label:'Finger drawing',active:!input.scroll,run:()=>input.onChange(false)},
       {label:'Finger scrolling',active:input.scroll,run:()=>input.onChange(true)},
       {label:'Countdown timer',active:utilities.timer,run:()=>utilities.onTimer(!utilities.timer)},
@@ -172,6 +174,7 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
   return <div ref={root} className={`pdf-chrome is-${toolbarEdge}${view.focus?' is-focus':''}${compact?' is-compact':''}`} data-keep-text-active onKeyDown={event=>{if(open&&event.key==='Escape'){event.preventDefault();event.stopPropagation();close();trigger.current?.focus()}}}>
     {!view.focus&&<header className="pc-header">
       {documentMenu}<div className="pc-file-name"><strong title={doc.name}>{doc.name||'Document editor'}</strong><span className={`pc-save-state is-${doc.saveStatus}`} role="status"><i/>{doc.saveStatus==='saving'?'Saving…':doc.saveStatus==='saved'?'Saved':doc.saveStatus==='offline'?'Saved on device':doc.saveStatus==='error'?'Save failed':'Unsaved'}</span></div>
+      {doc.onShare&&<button type="button" className="pc-button" onClick={doc.onShare} title="Share document"><Share2 size={16}/><span>Share</span></button>}
       <div className="pc-history">{iconButton(Undo,'Undo (Ctrl+Z)',doc.onUndo,!doc.history.undo)}{iconButton(Redo,'Redo (Ctrl+Shift+Z)',doc.onRedo,!doc.history.redo)}</div>
       {!doc.exportImage&&<button type="button" className={`pc-button pc-side-button${view.reference?' is-active':''}`} onClick={view.onReference} aria-pressed={view.reference} disabled={!pages.count||pages.busy}><Files size={16}/><span>Side page</span></button>}
       <StudyPhoneButton className="pc-button"/>{utilities.onAssistant&&<button type="button" className={`pc-button${utilities.assistantOpen?' is-active':''}`} onClick={utilities.onAssistant} aria-pressed={utilities.assistantOpen}><MessageSquare size={16}/><span>AI assistant</span></button>}
@@ -212,7 +215,7 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
         {iconButton(Undo,'Undo',doc.onUndo,!doc.history.undo)}{iconButton(Redo,'Redo',doc.onRedo,!doc.history.redo)}
         {!doc.exportImage&&<button type="button" className={`pc-button pc-side-button${view.reference?' is-active':''}`} onClick={view.onReference} aria-pressed={view.reference} disabled={!pages.count||pages.busy}><Files size={16}/>Side page</button>}
         <StudyPhoneButton className="pc-button"/>{utilities.onAssistant&&<button type="button" className={`pc-button${utilities.assistantOpen?' is-active':''}`} onClick={utilities.onAssistant} aria-pressed={utilities.assistantOpen}><MessageSquare size={16}/>AI assistant</button>}
-        {iconButton(Save,'Save',doc.onSave,doc.saveStatus==='saving')}{iconButton(X,'Exit fullscreen',view.onExitFocus)}
+        {doc.onShare&&iconButton(Share2,'Share document',doc.onShare)}{iconButton(Save,'Save',doc.onSave,doc.saveStatus==='saving')}{iconButton(X,'Exit fullscreen',view.onExitFocus)}
       </>}
     </div>
   </div>

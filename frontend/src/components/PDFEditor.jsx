@@ -9,6 +9,8 @@ import {downloadBlob} from '../lib/documentFormats'
 import PDFInkLayer, { PDFLiveInk } from './PDFInkLayer'
 import { serializeAnnotations } from '../lib/annotationSerializer'
 import PDFEditorChrome from './PDFEditorChrome'
+import DocumentShareLink from './DocumentShareLink'
+import './DocumentLibrary.css'
 import { straightenStroke } from '../lib/pdfStraightLine'
 import { detectDottedLine } from '../lib/pdfDottedLine'
 import PDFDottedLineHandles from './PDFDottedLineHandles'
@@ -549,6 +551,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const [searchFocusRequest, setSearchFocusRequest] = useState(0)
   const searchActions = useRef([])
   const [showTutorial, setShowTutorial] = useState(false)
+  const [showShare, setShowShare] = useState(false)
   const [bookView,setBookView]=useState(false)
   useEffect(() => {
     const key = event => {
@@ -2307,7 +2310,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
           activate(id)
         }}
         onRuler={()=>{commitText();setRulerGuide(null);setCurrentTool(currentTool==='ruler'?'select':'ruler')}}
-        doc={{name:pdfData?.name,exportImage,saveStatus,history:historyCount,onUndo:undo,onRedo:redo,onSave:handleSave,onDownload:handleDownload,downloading,onCleanCopy:onCleanCopy?handleCleanCopy:null,copying:copyingClean,onClose:handleClose,copyParagraphs,onCopyParagraphs:setCopyParagraphs,onCleanup:exportImage?null:()=>{commitText();setCurrentTool('text');setShowCalculator(false);setShowGraph(false);setShowCleanup(true)}}}
+        doc={{name:pdfData?.name,onShare:token&&pdfId&&!exportImage?()=>{commitText();setShowShare(true)}:null,exportImage,saveStatus,history:historyCount,onUndo:undo,onRedo:redo,onSave:handleSave,onDownload:handleDownload,downloading,onCleanCopy:onCleanCopy?handleCleanCopy:null,copying:copyingClean,onClose:handleClose,copyParagraphs,onCopyParagraphs:setCopyParagraphs,onCleanup:exportImage?null:()=>{commitText();setCurrentTool('text');setShowCalculator(false);setShowGraph(false);setShowCleanup(true)}}}
         tools={{autoNumberLines,onAutoNumberLines:()=>setAutoNumberLines(previous=>!previous),autoDashedLines,onAutoDashedLines:()=>setAutoDashedLines(previous=>!previous),autoDottedLines,onAutoDottedLines:()=>setAutoDottedLines(previous=>!previous),lineUndoTimer,onLineUndoTimer:()=>setLineUndoTimer(previous=>!previous),autoStraightLines,onAutoStraightLines:()=>setAutoStraightLines(previous=>!previous),current:currentTool,onTool:tool=>{commitText();setCurrentTool(tool)},color:currentColor,onColor:handleColorChange,colors:COLORS,colorNames:COLOR_NAMES,fontSize,onFontSize:handleFontSizeChange,strokeWidth,onWidth:setStrokeWidth,usePressure,onPressure:()=>setUsePressure(previous=>!previous),eraser:{mode:eraserMode,onMode:setEraserMode,size:eraserSize,onSize:setEraserSize,shape:eraserShape,onShape:setEraserShape,target:eraserTarget,onTarget:setEraserTarget}}}
         pages={{count:numPages,current:pageNumber,showThumbnails:showPages,onToggleThumbnails:()=>{if(focusMode){exitFocusMode();setShowPages(true)}else setShowPages(previous=>!previous)},onNavigate:goToPage,onAddBlank:()=>handleAddPages({mode:'blank',placement:'after'}),onDelete:()=>handleDeletePage(),busy:deletingPage||inserting,canAdd:!!numPages&&!!pageBase&&pageBase.page===pageNumber&&!loading&&!deletingPage&&!inserting}}
         view={{toolbarPosition,onToolbarPosition:setToolbarPosition,scale,onZoomIn:handleZoomIn,onZoomOut:handleZoomOut,onFit:handleFitWidth,onRotate:handleRotate,dark:darkPages,onDark:()=>setDarkPages(previous=>!previous),continuous:continuousView,onContinuous:()=>{handleTextDragEnd();commitText();setContinuousView(previous=>!previous)},reference:showReference,onReference:toggleReference,focus:focusMode,onFocus:enterFocusMode,onExitFocus:exitFocusMode}}
@@ -2409,6 +2412,9 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       {/* Settings Modal */}
       {showSearch && <PDFSearch file={pdfFile} image={exportImage} annotations={drawingPaths} actions={searchActions} focusRequest={searchFocusRequest} onPage={goToPage} onClose={()=>setShowSearch(false)}/>}
       {showTutorial && <PDFEditorTutorial actions={searchActions} onClose={()=>setShowTutorial(false)}/>}
+      {showShare && pdfData && <div className="pdf-share-dialog" onPointerDown={event=>event.stopPropagation()} onKeyDown={event=>event.stopPropagation()}>
+        <DocumentShareLink key={pdfId} file={{...pdfData,_id:pdfId}} token={token} onClose={()=>setShowShare(false)}/>
+      </div>}
       {showSettings && (
         <div className="pdf-settings-panel app-inline-panel" onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setShowSettings(false) } }}>
           <div className="bg-slate-900 border border-white/10 rounded-2xl p-6 w-full max-w-md">
