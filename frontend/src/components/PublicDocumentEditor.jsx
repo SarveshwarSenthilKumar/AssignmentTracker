@@ -1,7 +1,23 @@
-import { useEffect, useRef, useState } from 'react'
+import { Component, useEffect, useRef, useState } from 'react'
 import SharedTextEditor from './SharedTextEditor'
 import PDFEditor from './PDFEditor'
 import './DocumentLibrary.css'
+
+class SharedEditorBoundary extends Component {
+  state = { failed: false }
+  static getDerivedStateFromError() { return { failed: true } }
+  render() {
+    if (!this.state.failed) return this.props.children
+    return <main className="platform-viewport min-h-screen px-4 py-8">
+      <h1 className="text-xl font-semibold">Could not open the shared editor</h1>
+      <p role="alert">Reload the page to try again. You can also download the saved file.</p>
+      <div className="library-sharing-actions">
+        <button type="button" onClick={() => window.location.reload()}>Reload editor</button>
+        <a className="underline" href={this.props.downloadUrl}>Download saved file</a>
+      </div>
+    </main>
+  }
+}
 
 export default function PublicDocumentEditor({ shareToken }) {
   const endpoint = `/api/shared-document/${shareToken}`
@@ -48,7 +64,7 @@ export default function PublicDocumentEditor({ shareToken }) {
     } catch (error) { setError(error.message) }
     finally { setBusy(false) }
   }
-  if (file?.editor === 'pdf') return <PDFEditor key={shareToken} pdfId={file._id} shareToken={shareToken} shareRevision={file.revision} onClose={close}/>
+  if (file?.editor === 'pdf') return <SharedEditorBoundary downloadUrl={endpoint}><PDFEditor key={shareToken} pdfId={file._id} shareToken={shareToken} shareRevision={file.revision} onClose={close}/></SharedEditorBoundary>
   return <main className="platform-viewport min-h-screen px-4 py-8">
     <div className="mx-auto max-w-4xl">
       <h1 className="text-xl font-semibold">{file?.name || 'Shared document'}</h1>

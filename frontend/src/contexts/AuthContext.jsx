@@ -5,6 +5,22 @@ import { clearOfflineWorkspace } from '../lib/offlineWorkspace'
 
 const AuthContext = createContext(null)
 
+// Public editors need preference defaults, without restoring an account session
+// or passing through the signed-in account's policy gate.
+const guestAuth = {
+  user: { studyPhoneEnabled: false },
+  token: null,
+  isAuthenticated: false,
+  loading: false,
+  updatePreferences: () => {},
+  login: () => {},
+  logout: () => {}
+}
+
+export function GuestAuthProvider({ children }) {
+  return <AuthContext.Provider value={guestAuth}>{children}</AuthContext.Provider>
+}
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null)
   const [token, setToken] = useState(null)
