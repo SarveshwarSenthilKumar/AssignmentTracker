@@ -5,4 +5,4 @@
 .an-account-action:hover{background:var(--surface-raised);color:var(--text-primary)}
 
 .an-group>.an-panel{max-height:calc(100dvh - 110px);overflow-y:auto;overscroll-behavior:contain}
-.app-navigation a.an-detail-link[href='#/tutorial']{background:var(--surface-raised);border:1px solid var(--border);margin-bottom:6px}
+.app-navigation a.an-detail-link[data-new-tutorial=true]{background:var(--surface-raised);border:1px solid var(--border);margin-bottom:6px}
