@@ -1,4 +1,5 @@
 const { createHash, randomBytes } = require('node:crypto');
+const { insertPDFPages, deletePDFPage } = require('./pdfPages');
 
 const hashToken = token => createHash('sha256').update(token).digest('hex');
 const validId = id => /^[a-f\d]{24}$/i.test(id);
@@ -38,12 +39,12 @@ module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDF
 
   const path = '/api/pdfs/:id/share-link';
   app.get(path, ...ownerRoute((res, _filter, file) => {
-    res.json({ active: !!file.shareLinkHash, role: file.shareLinkRole || 'view', canEdit: editable(file) });
+    res.json({ active: !!file.shareLinkHash, role: file.shareLinkRole || 'view', canEdit: true });
   }));
   app.post(path, ...ownerRoute(async (res, filter, file, req) => {
     const role = req.body?.role ?? 'view';
-    if (!['view', 'edit'].includes(role) || (role === 'edit' && !editable(file))) {
-      return res.status(400).json({ message: 'Editor links are available for Markdown and plain-text files.' });
+    if (!['view', 'edit'].includes(role)) {
+      return res.status(400).json({ message: 'Choose Viewer or Editor.' });
     }
     if (file.deletedAt || await isLocked(file)) {
       return res.status(403).json({ message: 'Remove the applicable lock or restore the document before creating a share link.' });
@@ -91,6 +92,58 @@ module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDF
   };
   app.get('/api/shared-document/:token/text', publicText(false));
   app.put('/api/shared-document/:token/text', publicText(true));
+
+  // Link capabilities apply only to this document; never impersonate its owner.
+  const editor = handler => async (req, res) => {
+    res.set({ 'Cache-Control': 'private, no-store', 'Referrer-Policy': 'no-referrer', 'X-Content-Type-Options': 'nosniff' });
+    if (!/^[A-Za-z0-9_-]{43}$/.test(req.params.token)) return res.status(404).json({ message: 'This editor link is unavailable.' });
+    try {
+      const filter = { shareLinkHash: hashToken(req.params.token), shareLinkRole: 'edit', deletedAt: null };
+      const file = await PDF.findOne(filter);
+      if (!file || await isLocked(file)) return res.status(404).json({ message: 'This editor link is unavailable.' });
+      const revision = createHash('sha256').update(file.pdfData).update(JSON.stringify(file.annotations || [])).digest('hex');
+      const save = async changes => {
+        if (req.get('X-Share-Revision') !== revision) {
+          res.status(409).json({ message: 'This document changed. Download your draft before reopening the latest version.' });
+          return false;
+        }
+        const result = await PDF.updateOne({ ...filter, _id: file._id, updatedAt: file.updatedAt, pdfFolder: file.pdfFolder ?? null }, { $set: { ...changes, updatedAt: new Date() } }, { runValidators: true });
+        if (!result.matchedCount) { res.status(409).json({ message: 'This document changed or its link was revoked. Reopen the link.' }); return false; }
+        const next = createHash('sha256').update(changes.pdfData || file.pdfData).update(JSON.stringify(changes.annotations || file.annotations || [])).digest('hex');
+        res.set('X-Share-Revision', next);
+        return true;
+      };
+      res.set('X-Share-Revision', revision);
+      await handler(req, res, file, save, revision);
+    } catch (error) { res.status(400).json({ message: error.message || 'Could not edit this shared file.' }); }
+  };
+  app.get('/api/shared-document/:token/editor', editor((req, res, file, save, revision) => {
+    res.json({ _id: file._id, name: file.name, originalName: file.originalName, mimeType: file.mimeType, revision,
+      editor: editable(file) && file.pdfData.length <= 1024 * 1024 && Buffer.from(file.pdfData.toString('utf8')).equals(file.pdfData) ? 'text' : file.mimeType === 'application/pdf' || /\.pdf$/i.test(file.originalName) ? 'pdf' : 'file' });
+  }));
+  app.get('/api/shared-document/:token/document', editor((req, res, file) => {
+    res.json({ _id: file._id, name: file.name, originalName: file.originalName, mimeType: file.mimeType, pdfData: file.pdfData.toString('base64'), annotations: file.annotations, tags: file.tags });
+  }));
+  app.get('/api/shared-document/:token/document/download', editor((req, res, file) => res.attachment(file.originalName).type('application/octet-stream').send(file.pdfData)));
+  app.put('/api/shared-document/:token/document/annotations', editor(async (req, res, file, save) => {
+    if (!Array.isArray(req.body.annotations) || Buffer.byteLength(JSON.stringify(req.body.annotations)) > 12 * 1024 * 1024) return res.status(400).json({ message: 'Choose annotations totaling no more than 12 MB.' });
+    if (await save({ annotations: req.body.annotations })) res.json({ saved: true });
+  }));
+  app.put('/api/shared-document/:token/document/content', editor(async (req, res, file, save) => {
+    const content = req.body?.content;
+    if (typeof content !== 'string' || !content.length || content.length > 16 * 1024 * 1024 || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(content)) return res.status(400).json({ message: 'Choose a non-empty file up to 12 MB.' });
+    const bytes = Buffer.from(content, 'base64');
+    if (await save({ pdfData: bytes, originalBackup: file.originalBackup || file.pdfData, annotations: [] })) res.json({ saved: true });
+  }));
+  const pages = remove => editor(async (req, res, file, save) => {
+    if (file.mimeType !== 'application/pdf' && !/\.pdf$/i.test(file.originalName)) return res.status(400).json({ message: 'Page editing requires a PDF.' });
+    const { sources = [], ...options } = req.body;
+    if (!Array.isArray(sources) || sources.some(source => typeof source !== 'string') || sources.reduce((size, source) => size + source.length, 0) > 14 * 1024 * 1024) return res.status(400).json({ message: 'Choose PDFs totaling no more than 10 MB.' });
+    const result = remove ? await deletePDFPage(file.pdfData, Number(req.params.pageNumber), options.annotations ?? file.annotations) : await insertPDFPages(file.pdfData, { ...options, sources: sources.map(source => Buffer.from(source, 'base64')), annotations: options.annotations ?? file.annotations });
+    if (await save({ pdfData: result.bytes, annotations: result.annotations })) res.json({ ...result, bytes: undefined, pdfData: result.bytes.toString('base64') });
+  });
+  app.post('/api/shared-document/:token/document/pages', pages(false));
+  app.delete('/api/shared-document/:token/document/pages/:pageNumber', pages(true));
 
   app.get('/api/shared-document/:token', async (req, res) => {
     res.set({ 'Cache-Control': 'private, no-store', 'Referrer-Policy': 'no-referrer', 'X-Content-Type-Options': 'nosniff' });

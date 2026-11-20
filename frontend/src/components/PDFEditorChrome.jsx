@@ -89,7 +89,7 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
     {doc.exportImage&&action(Download,'Download edited PNG',doc.onDownload,{disabled:doc.downloading})}
     {doc.onCleanCopy&&action(Copy,doc.copying?'Creating copy…':'Create clean copy',doc.onCleanCopy,{disabled:doc.copying||pages.busy,detail:'Separate document without editor annotations'})}
     {doc.onCleanup&&action(Pen,'Clean up PDF',doc.onCleanup,{disabled:pages.busy,detail:'Use your comments to prepare and review text corrections'})}
-    <hr/>{action(Settings,'Document settings',utilities.onSettings,{active:utilities.settingsOpen,detail:'Name, folder, tags and document actions'})}
+    {utilities.onSettings&&<><hr/>{action(Settings,'Document settings',utilities.onSettings,{active:utilities.settingsOpen,detail:'Name, folder, tags and document actions'})}</>}
     {action(Pen,'Stylus setup',utilities.onStylus,{detail:'Button assignments and eraser preferences'})}
     <hr/>{action(X,'Close document',doc.onClose)}
   </>,{left:true})

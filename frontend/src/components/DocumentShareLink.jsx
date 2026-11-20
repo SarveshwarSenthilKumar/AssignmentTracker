@@ -68,7 +68,7 @@ export default function DocumentShareLink({ file, token, onClose }) {
           <option value="edit" disabled={!canEdit}>Editor</option>
         </select>
       </label>
-      <p>{role === 'edit' ? 'Anyone with an Editor link can edit the original without signing in.' : 'Anyone with a Viewer link can download the saved file without signing in.'}</p>
+      <p>{role === 'edit' ? 'Anyone with an Editor link can edit the original without signing in. PDFs and text open in the editor; other formats can be downloaded, edited, and replaced.' : 'Anyone with a Viewer link can download the saved file without signing in.'}</p>
       {!canEdit && active !== null && <p>Editor links support Markdown and plain-text files.</p>}
       {active && !link && <p>A link already exists. Creating a new one revokes the old link.</p>}
       {link && <label>Share link

@@ -482,7 +482,7 @@ function PagePreview({ pageNumber }) {
 /* ------------------------------------------------------------------ */
 /* Main editor                                                         */
 /* ------------------------------------------------------------------ */
-export default function PDFEditor({ pdfId, onClose, token, initialDocument = null, exportImage = false, onCleanCopy, assistantOpen=false, onToggleAssistant, onAssistantHost, renderFolderNavigation }) {
+export default function PDFEditor({ pdfId, onClose, token, initialDocument = null, shareToken = null, shareRevision = null, exportImage = false, onCleanCopy, assistantOpen=false, onToggleAssistant, onAssistantHost, renderFolderNavigation }) {
   const [showCleanup,setShowCleanup]=useState(false)
   const [copyParagraphs,setCopyParagraphs]=useState(()=>{try{return localStorage.getItem('pdf-copy-paragraphs')!=='false'}catch{return true}})
   useEffect(()=>{try{localStorage.setItem('pdf-copy-paragraphs',String(copyParagraphs))}catch{}},[copyParagraphs])
@@ -493,6 +493,14 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const confirmation = useInlineConfirm()
   const [copyingClean,setCopyingClean]=useState(false)
   const cleanCopyLock=useRef(false)
+  const sharedRevision = useRef(shareRevision)
+  const documentRequest = async (url, options = {}) => {
+    if (!shareToken) return fetch(url, options)
+    const sharedUrl = url.replace(`/api/pdfs/${pdfId}`, `/api/shared-document/${shareToken}/document`)
+    const response = await fetch(sharedUrl, { ...options, cache: 'no-store', headers: { ...options.headers, 'X-Share-Revision': sharedRevision.current || '' } })
+    if (response.ok && (options.method || 'GET') !== 'GET') sharedRevision.current = response.headers.get('X-Share-Revision') || sharedRevision.current
+    return response
+  }
   const [pdfData, setPdfData] = useState(null)
   useDocumentTabTitle(pdfData?.name)
   const [pdfFile, setPdfFile] = useState(null)
@@ -809,12 +817,15 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         // Obsolete queued snapshots must not serialize/upload the whole document.
         if(revision!==revisionRef.current)return false
         const body=await serializeAnnotations(snapshot)
-        const response = await fetch(`/api/pdfs/${pdfId}/annotations`, {
+        const response = await documentRequest(`/api/pdfs/${pdfId}/annotations`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
           body
         })
-        if (!response.ok) throw new Error('Failed to save annotations')
+        if (!response.ok) {
+          const error = await response.json().catch(() => ({}))
+          throw new Error(error.message || 'Failed to save annotations')
+        }
         const queuedOffline = response.headers.get('X-AssignmentTracker-Offline') === 'true'
         dirtyRef.current = revisionRef.current !== revision
         setSaveStatus(dirtyRef.current ? 'dirty' : queuedOffline ? 'offline' : 'saved')
@@ -823,12 +834,13 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
 
         dirtyRef.current = true
         setSaveStatus('error')
+        if (shareToken) setActionError(err.message)
         return false
       }
     })
     saveQueueRef.current = operation
     return operation
-  }, [pdfId, token])
+  }, [pdfId, token, shareToken])
 
   // Autosave 1s after the last change (including deletions)
   useEffect(() => {
@@ -856,14 +868,14 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   useEffect(() => {
     if (pdfId) {
       fetchPDF()
-      fetchPDFFolders()
+      if (!shareToken) fetchPDFFolders()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pdfId])
 
   const fetchPDF = async () => {
     try {
-      const response = initialDocument ? { ok: true, json: async () => initialDocument } : await fetch(`/api/pdfs/${pdfId}`, {
+      const response = initialDocument ? { ok: true, json: async () => initialDocument } : await documentRequest(`/api/pdfs/${pdfId}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       if (response.ok) {
@@ -942,7 +954,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     setSavingMetadata(true)
     setActionError(null)
     try {
-      const response = await fetch(`/api/pdfs/${pdfId}`, {
+      const response = await documentRequest(`/api/pdfs/${pdfId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({
@@ -1617,7 +1629,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     try {
       // Finish older saves before changing page numbers; autosave is paused meanwhile.
       await saveQueueRef.current
-      const response = await fetch(`/api/pdfs/${pdfId}/pages/${targetPage}`, {
+      const response = await documentRequest(`/api/pdfs/${pdfId}/pages/${targetPage}`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ annotations: cleanForSave(pathsRef.current) })
@@ -1661,7 +1673,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         const reader = new FileReader(); reader.onload = () => resolve(reader.result.split(',')[1]); reader.onerror = () => reject(new Error(`Could not read ${file.name}.`)); reader.readAsDataURL(file)
       }))
       const position = mode === 'reorder' ? targetIndex : placement === 'start' ? 0 : placement === 'end' ? numPages : placement === 'before' ? pageNumber - 1 : pageNumber
-      const response = await fetch(`/api/pdfs/${pdfId}/pages`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ mode, position, range, currentPage: sourcePage, sources, annotations: cleanForSave(pathsRef.current) }) })
+      const response = await documentRequest(`/api/pdfs/${pdfId}/pages`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ mode, position, range, currentPage: sourcePage, sources, annotations: cleanForSave(pathsRef.current) }) })
       const result = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(result.message || 'Could not add pages. The combined files and edits may be too large.')
       const bytes = Uint8Array.from(atob(result.pdfData), c => c.charCodeAt(0))
@@ -1703,7 +1715,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     try{
       if (!await confirmation.ask('Create a clean copy and leave this document to open it?', 'Create and open copy', { required: true })) return
       commitText();await saveQueueRef.current;await saveAnnotations()
-      const response=await fetch(`/api/pdfs/${pdfId}/clean-copy`,{method:'POST',headers:{Authorization:`Bearer ${token}`}})
+      const response=await documentRequest(`/api/pdfs/${pdfId}/clean-copy`,{method:'POST',headers:{Authorization:`Bearer ${token}`}})
       const copy=await response.json().catch(()=>({}))
       if(!response.ok||!copy._id)throw new Error(copy.message||'Could not create a clean copy.')
       if(document.fullscreenElement===editorRootRef.current)await document.exitFullscreen().catch(()=>{})
@@ -1722,7 +1734,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       let pdfBytes
       if (initialDocument) pdfBytes = Uint8Array.from(atob(initialDocument.pdfData), c => c.charCodeAt(0))
       else {
-        const response = await fetch(`/api/pdfs/${pdfId}/download`, { headers: { Authorization: `Bearer ${token}` } })
+        const response = await documentRequest(`/api/pdfs/${pdfId}/download`, { headers: { Authorization: `Bearer ${token}` } })
         if (!response.ok) throw new Error('Failed to fetch PDF')
         pdfBytes = await response.arrayBuffer()
       }
@@ -1765,7 +1777,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const handleDelete = async () => {
     if (!await confirmation.ask('Move this document to Trash and close it? You can restore it from the library.', 'Move to Trash', { required: true })) return
     try {
-      const response = await fetch(`/api/pdfs/${pdfId}`, {
+      const response = await documentRequest(`/api/pdfs/${pdfId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       })
@@ -2310,11 +2322,11 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
           activate(id)
         }}
         onRuler={()=>{commitText();setRulerGuide(null);setCurrentTool(currentTool==='ruler'?'select':'ruler')}}
-        doc={{name:pdfData?.name,onShare:token&&pdfId&&!exportImage?()=>{commitText();setShowShare(true)}:null,exportImage,saveStatus,history:historyCount,onUndo:undo,onRedo:redo,onSave:handleSave,onDownload:handleDownload,downloading,onCleanCopy:onCleanCopy?handleCleanCopy:null,copying:copyingClean,onClose:handleClose,copyParagraphs,onCopyParagraphs:setCopyParagraphs,onCleanup:exportImage?null:()=>{commitText();setCurrentTool('text');setShowCalculator(false);setShowGraph(false);setShowCleanup(true)}}}
+        doc={{name:pdfData?.name,onShare:!shareToken&&token&&pdfId&&!exportImage?()=>{commitText();setShowShare(true)}:null,exportImage,saveStatus,history:historyCount,onUndo:undo,onRedo:redo,onSave:handleSave,onDownload:handleDownload,downloading,onCleanCopy:onCleanCopy?handleCleanCopy:null,copying:copyingClean,onClose:handleClose,copyParagraphs,onCopyParagraphs:setCopyParagraphs,onCleanup:exportImage||shareToken?null:()=>{commitText();setCurrentTool('text');setShowCalculator(false);setShowGraph(false);setShowCleanup(true)}}}
         tools={{autoNumberLines,onAutoNumberLines:()=>setAutoNumberLines(previous=>!previous),autoDashedLines,onAutoDashedLines:()=>setAutoDashedLines(previous=>!previous),autoDottedLines,onAutoDottedLines:()=>setAutoDottedLines(previous=>!previous),lineUndoTimer,onLineUndoTimer:()=>setLineUndoTimer(previous=>!previous),autoStraightLines,onAutoStraightLines:()=>setAutoStraightLines(previous=>!previous),current:currentTool,onTool:tool=>{commitText();setCurrentTool(tool)},color:currentColor,onColor:handleColorChange,colors:COLORS,colorNames:COLOR_NAMES,fontSize,onFontSize:handleFontSizeChange,strokeWidth,onWidth:setStrokeWidth,usePressure,onPressure:()=>setUsePressure(previous=>!previous),eraser:{mode:eraserMode,onMode:setEraserMode,size:eraserSize,onSize:setEraserSize,shape:eraserShape,onShape:setEraserShape,target:eraserTarget,onTarget:setEraserTarget}}}
         pages={{count:numPages,current:pageNumber,showThumbnails:showPages,onToggleThumbnails:()=>{if(focusMode){exitFocusMode();setShowPages(true)}else setShowPages(previous=>!previous)},onNavigate:goToPage,onAddBlank:()=>handleAddPages({mode:'blank',placement:'after'}),onDelete:()=>handleDeletePage(),busy:deletingPage||inserting,canAdd:!!numPages&&!!pageBase&&pageBase.page===pageNumber&&!loading&&!deletingPage&&!inserting}}
         view={{toolbarPosition,onToolbarPosition:setToolbarPosition,scale,onZoomIn:handleZoomIn,onZoomOut:handleZoomOut,onFit:handleFitWidth,onRotate:handleRotate,dark:darkPages,onDark:()=>setDarkPages(previous=>!previous),continuous:continuousView,onContinuous:()=>{handleTextDragEnd();commitText();setContinuousView(previous=>!previous)},reference:showReference,onReference:toggleReference,focus:focusMode,onFocus:enterFocusMode,onExitFocus:exitFocusMode}}
-        utilities={{onDetectNumberLine:()=>{commitText();setCurrentTool('number-line');setShowNumberLine(true);setShowGraph(false);setShowCalculator(false)},onNumberLine:()=>{setNumberLineSelection(null);commitText();setCurrentTool('select');setShowGraph(false);setShowCalculator(false);setShowNumberLine(true)},timer:showTimer,onTimer:setShowTimer,stopwatch:showStopwatch,onStopwatch:setShowStopwatch,clock:showClock,onGraph:()=>{commitText();setCurrentTool('graph');setShowGraph(true);setShowCalculator(false)},calculator:showCalculator,onCalculator:()=>{commitText();setShowGraph(false);setShowCalculator(previous=>!previous)},onScanFunction:()=>{commitText();setCurrentTool('function');setShowCalculator(true);setShowGraph(false)},onCalculate:()=>{commitText();setCurrentTool('calculate')},recognition:calculationMode,onRecognition:setCalculationMode,snippetReady:!!snippet,copying:copyingSnippet,onCopyRegion:()=>{commitText();setCurrentTool('snippet')},onArrowCopy:toggleArrowCopy,onPaste:pasteSnippet,canPaste:!!snippet&&!!pageBase&&pageBase.page===pageNumber&&!inserting&&!deletingPage,onStylus:()=>setShowStylusStudio(true),onSettings:()=>setShowSettings(previous=>!previous),settingsOpen:showSettings,assistantOpen,onAssistant:onToggleAssistant}}
+        utilities={{onDetectNumberLine:()=>{commitText();setCurrentTool('number-line');setShowNumberLine(true);setShowGraph(false);setShowCalculator(false)},onNumberLine:()=>{setNumberLineSelection(null);commitText();setCurrentTool('select');setShowGraph(false);setShowCalculator(false);setShowNumberLine(true)},timer:showTimer,onTimer:setShowTimer,stopwatch:showStopwatch,onStopwatch:setShowStopwatch,clock:showClock,onGraph:()=>{commitText();setCurrentTool('graph');setShowGraph(true);setShowCalculator(false)},calculator:showCalculator,onCalculator:()=>{commitText();setShowGraph(false);setShowCalculator(previous=>!previous)},onScanFunction:()=>{commitText();setCurrentTool('function');setShowCalculator(true);setShowGraph(false)},onCalculate:()=>{commitText();setCurrentTool('calculate')},recognition:calculationMode,onRecognition:setCalculationMode,snippetReady:!!snippet,copying:copyingSnippet,onCopyRegion:()=>{commitText();setCurrentTool('snippet')},onArrowCopy:toggleArrowCopy,onPaste:pasteSnippet,canPaste:!!snippet&&!!pageBase&&pageBase.page===pageNumber&&!inserting&&!deletingPage,onStylus:()=>setShowStylusStudio(true),onSettings:shareToken?null:()=>setShowSettings(previous=>!previous),settingsOpen:showSettings,assistantOpen,onAssistant:onToggleAssistant}}
         input={{scroll:fingerScroll,onChange:setFingerInputMode,pageLocked,onPageLock:locked=>{if(locked)setFingerInputMode(false);setPageLocked(locked)},activity:inputActivity,scrollSettings,onScrollSettings:changeScrollSettings}}
         insert={<InsertPanel onPages={exportImage?undefined:handleAddPages} pageNumber={pageNumber} onFiles={insertFiles} onInsert={insertGenerated} color={currentColor} busy={inserting||!pageBase||pageBase.page!==pageNumber||deletingPage}/>}
       />
