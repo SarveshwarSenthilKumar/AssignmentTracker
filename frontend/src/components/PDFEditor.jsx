@@ -499,6 +499,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const liveEnabled = !initialDocument && !exportImage && !!(token || shareToken)
   const liveUrl = shareToken ? `/api/shared-document/${shareToken}/live` : `/api/pdfs/${pdfId}/live`
   const liveState = useRef({ annotations: [], content: null, busy: false, ready: false })
+  const syncNowRef = useRef(null), flushEditsRef = useRef(null)
   const [liveStatus, setLiveStatus] = useState('Connecting live editor…')
   const documentRequest = async (url, options = {}) => {
     if (!shareToken) {
@@ -674,7 +675,9 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const [savingMetadata, setSavingMetadata] = useState(false)
   const [pdfError, setPdfError] = useState(null)
   const [drawingPaths, setDrawingPaths] = useState([])
-  const liveInk = useLiveInk({ url: liveUrl, token, enabled: liveEnabled, contentRevision: liveState.current.content, committed: drawingPaths })
+  const remoteChangesRef = useRef(null), publishEditsRef = useRef(null)
+  const liveInk = useLiveInk({ url: liveUrl, token, enabled: liveEnabled, contentRevision: liveState.current.content, committed: drawingPaths, onChanges: event => remoteChangesRef.current?.(event) })
+  publishEditsRef.current = (before, after) => liveInk.publishChanges(before, after, liveState.current.annotations)
   const savedInkIds = new Set(drawingPaths.map(item => item.id))
   const remoteInk = liveInk.strokes.filter(item => !savedInkIds.has(item.id))
   const displayAnnotations = remoteInk.length ? [...drawingPaths, ...remoteInk] : drawingPaths
@@ -745,15 +748,41 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
 
   /* ---------- annotation state helpers ---------- */
   const updatePaths = useCallback((updater, { silent = false } = {}) => {
+    const before = pathsRef.current
     const next = typeof updater === 'function' ? updater(pathsRef.current) : updater
     pathsRef.current = next
     setDrawingPaths(next)
     if (!silent) {
+      publishEditsRef.current?.(before, next)
       dirtyRef.current = true
       revisionRef.current += 1
       setSaveStatus(s => (s === 'saving' ? s : 'dirty'))
+      const previousIds = new Set(before.map(item => item.id))
+      if (next.some(item => item.tool === 'image' && !previousIds.has(item.id))) queueMicrotask(() => flushEditsRef.current?.())
     }
   }, [])
+
+  remoteChangesRef.current = event => {
+    if (event.type === 'refresh') { syncNowRef.current?.(); return }
+    if (event.contentRevision !== liveState.current.content || deletingPageRef.current || insertingRef.current) return
+    const base = liveState.current.annotations
+    const latest = new Map(base.map(item => [item.id, item]))
+    for (const change of event.changes) {
+      if (change.removed) latest.delete(change.id)
+      else if (latest.has(change.id) || change.set.tool) {
+        const item = { ...(latest.get(change.id) || {}), ...change.set, id: change.id }
+        change.unset.forEach(key => delete item[key])
+        latest.set(change.id, item)
+      }
+    }
+    const remote = [...latest.values()]
+    const merged = rebaseAnnotations(base, pathsRef.current, remote)
+    undoStack.current = undoStack.current.map(items => rebaseAnnotations(base, items, remote))
+    redoStack.current = redoStack.current.map(items => rebaseAnnotations(base, items, remote))
+    liveState.current.annotations = remote
+    updatePaths(merged, { silent: true })
+    setLiveStatus('Live · changes synchronized')
+  }
 
   useEffect(()=>{
     if(lineSuggestion?.dots){
@@ -878,6 +907,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     saveQueueRef.current = operation
     return operation
   }, [pdfId, token, shareToken, liveEnabled, liveUrl, updatePaths])
+  flushEditsRef.current = liveEnabled ? saveAnnotations : null
 
   // Autosave 1s after the last change (including deletions)
   useEffect(() => {
@@ -983,8 +1013,11 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   useEffect(() => {
     if (!liveEnabled) return
     const controller = new AbortController()
-    let timer
+    let timer, syncing = false
     const sync = async () => {
+      if (syncing || controller.signal.aborted) return
+      syncing = true
+      clearTimeout(timer)
       const baseline = liveState.current.annotations
       const localRevision = revisionRef.current
       try {
@@ -1023,11 +1056,13 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       } catch (error) {
         if (!controller.signal.aborted) setLiveStatus(`${error.message} Reconnecting…`)
       } finally {
+        syncing = false
         if (!controller.signal.aborted) timer = setTimeout(sync, 600)
       }
     }
+    syncNowRef.current = sync
     sync()
-    return () => { controller.abort(); clearTimeout(timer) }
+    return () => { controller.abort(); clearTimeout(timer); syncNowRef.current = null }
   }, [pdfId, token, shareToken, liveEnabled, liveUrl, updatePaths, bumpHistory, saveAnnotations])
 
   const fetchPDFFolders = async () => {

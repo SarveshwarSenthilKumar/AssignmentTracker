@@ -1,6 +1,7 @@
-const { randomBytes } = require('node:crypto');
+const { randomBytes, createHash } = require('node:crypto');
 
-// Ephemeral pen movement is pushed to peers, never stored as document content.
+// Pen previews are ephemeral; annotation changes from other tools are merged
+// into the same document before they are pushed to peers.
 module.exports = function registerLiveInk(app, auth, { PDF, isLocked, hashToken, validId }) {
   const sessions = new Map(), rooms = new Map();
   const emit = (session, event) => {
@@ -25,7 +26,7 @@ module.exports = function registerLiveInk(app, auth, { PDF, isLocked, hashToken,
       res.set({ 'Content-Type': 'text/event-stream', 'Cache-Control': 'private, no-store, no-transform', 'Connection': 'keep-alive', 'X-Accel-Buffering': 'no', 'Referrer-Policy': 'no-referrer' });
       res.flushHeaders();
       const key = randomBytes(32).toString('base64url');
-      const session = { key, room, shared, res, previews: new Map(), sequence: 0, checkedAt: Date.now(), checking: null, allowed, lastPacket: 0 };
+      const session = { key, room, shared, filter, res, previews: new Map(), sequence: 0, checkedAt: Date.now(), checking: null, allowed, lastPacket: 0 };
       sessions.set(key, session); peers.add(session); rooms.set(room, peers);
       const previews = [];
       for (const peer of peers) for (const preview of peer.previews.values()) if (Date.now() - preview.updated < 10000) previews.push(preview);
@@ -62,6 +63,35 @@ module.exports = function registerLiveInk(app, auth, { PDF, isLocked, hashToken,
       if (typeof id !== 'string' || id.length > 150 || !Number.isSafeInteger(sequence) || sequence <= session.sequence) return res.status(400).end();
       if (cancel) { session.sequence = sequence; session.previews.delete(id); broadcast(session, { type: 'clear', id }); return res.status(204).end(); }
       if (Date.now() - session.lastPacket < 15) return res.status(429).end();
+      if (req.body.kind === 'edit') {
+        const changes = req.body.changes;
+        const validKey = key => !['id', '__proto__', 'constructor', 'prototype'].includes(key);
+        if (!Array.isArray(changes) || changes.length > 64 || Buffer.byteLength(JSON.stringify(changes)) > 512 * 1024 || changes.some(change => !change || typeof change.id !== 'string' || change.id.length > 200 || !change.set || typeof change.set !== 'object' || Array.isArray(change.set) || !Array.isArray(change.unset) || !Object.keys(change.set).every(validKey) || !change.unset.every(key => typeof key === 'string' && validKey(key)))) return res.status(400).end();
+        for (let attempt = 0; attempt < 6; attempt++) {
+          const file = await PDF.findOne(session.filter);
+          if (!file || await isLocked(file)) { session.res.end(); return res.status(404).end(); }
+          const hash = createHash('sha256').update(file.pdfData).digest('hex');
+          if (contentRevision !== hash) return res.status(409).end();
+          const annotations = new Map((file.annotations || []).map((item, index) => item.id ? item : { ...item, id: `legacy-${index}-${createHash('sha256').update(JSON.stringify(item)).digest('hex').slice(0, 16)}` }).map(item => [item.id, item]));
+          for (const change of changes) {
+            if (change.removed) annotations.delete(change.id);
+            else {
+              if (!annotations.has(change.id) && !change.set.tool) return res.status(409).end();
+              const item = { ...(annotations.get(change.id) || {}), ...change.set, id: change.id };
+              for (const key of change.unset) delete item[key];
+              annotations.set(change.id, item);
+            }
+          }
+          const next = [...annotations.values()];
+          if (Buffer.byteLength(JSON.stringify(next)) > 12 * 1024 * 1024) return res.status(413).end();
+          const result = await PDF.updateOne({ ...session.filter, _id: file._id, updatedAt: file.updatedAt, annotations: file.annotations, pdfData: file.pdfData }, { $set: { annotations: next, updatedAt: new Date() } }, { runValidators: true });
+          if (!result.matchedCount) continue;
+          session.sequence = sequence; session.lastPacket = Date.now();
+          broadcast(session, { type: 'edit', changes, contentRevision: hash });
+          return res.status(204).end();
+        }
+        return res.status(409).end();
+      }
       if (!Array.isArray(points) || points.length > 512 || !Number.isInteger(offset) || offset < 0 || offset + points.length > 20000 || !Number.isInteger(page) || page < 1 || page > 10000 || !['pen', 'highlighter'].includes(tool) || typeof color !== 'string' || !/^#[\da-f]{3,8}$/i.test(color) || !Number.isFinite(strokeWidth) || strokeWidth <= 0 || strokeWidth > 1000 || typeof contentRevision !== 'string' || !/^[a-f\d]{64}$/.test(contentRevision) || points.some(point => !point || !Number.isFinite(point.x) || !Number.isFinite(point.y) || Math.abs(point.x) > 100000 || Math.abs(point.y) > 100000 || (point.pressure != null && (!Number.isFinite(point.pressure) || point.pressure < 0 || point.pressure > 1)))) return res.status(400).end();
       const previous = session.previews.get(id);
       // A successful response can be lost after broadcasting. A retried chunk is
@@ -75,7 +105,9 @@ module.exports = function registerLiveInk(app, auth, { PDF, isLocked, hashToken,
       res.status(204).end();
     } catch { res.status(503).end(); }
   });
-  return { revokeShared(documentId) {
+  return { saved(documentId) {
+    for (const session of rooms.get(String(documentId)) || []) emit(session, { type: 'refresh' });
+  }, revokeShared(documentId) {
     for (const session of rooms.get(String(documentId)) || []) if (session.shared) { emit(session, { type: 'unavailable' }); session.res.end(); }
   } };
 };

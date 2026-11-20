@@ -42,6 +42,7 @@ module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDF
           if (Buffer.byteLength(JSON.stringify(annotations)) > 12 * 1024 * 1024) return res.status(413).json({ message: 'Annotations exceed the 12 MB limit.' });
           const result = await PDF.updateOne({ ...filter, _id: file._id, updatedAt: file.updatedAt, pdfData: file.pdfData, annotations: file.annotations }, { $set: { annotations, updatedAt: new Date() } }, { runValidators: true });
           if (!result.matchedCount) continue;
+          liveInk.saved(file._id);
         }
         const revision = createHash('sha256').update(file.pdfData).update(JSON.stringify(annotations)).digest('hex');
         res.set('X-Share-Revision', revision);
@@ -164,6 +165,7 @@ module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDF
         }
         const result = await PDF.updateOne({ ...filter, _id: file._id, updatedAt: file.updatedAt, pdfFolder: file.pdfFolder ?? null, pdfData: file.pdfData, annotations: file.annotations }, { $set: { ...changes, updatedAt: new Date() } }, { runValidators: true });
         if (!result.matchedCount) { res.status(409).json({ message: 'This document changed or its link was revoked. Reopen the link.' }); return false; }
+        liveInk.saved(file._id);
         const next = createHash('sha256').update(changes.pdfData || file.pdfData).update(JSON.stringify(changes.annotations || file.annotations || [])).digest('hex');
         res.set('X-Share-Revision', next);
         return true;
