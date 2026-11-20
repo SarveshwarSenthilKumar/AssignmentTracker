@@ -8,6 +8,7 @@ import {matchingFontAsset,replacementFontBytes,replacementFontFace} from '../lib
 import {downloadBlob} from '../lib/documentFormats'
 import PDFInkLayer, { PDFLiveInk } from './PDFInkLayer'
 import { serializeAnnotations } from '../lib/annotationSerializer'
+import { annotationChanges, rebaseAnnotations } from '../lib/liveAnnotations'
 import PDFEditorChrome from './PDFEditorChrome'
 import DocumentShareLink from './DocumentShareLink'
 import './DocumentLibrary.css'
@@ -494,8 +495,17 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const [copyingClean,setCopyingClean]=useState(false)
   const cleanCopyLock=useRef(false)
   const sharedRevision = useRef(shareRevision)
+  const liveEnabled = !initialDocument && !exportImage && !!(token || shareToken)
+  const liveUrl = shareToken ? `/api/shared-document/${shareToken}/live` : `/api/pdfs/${pdfId}/live`
+  const liveState = useRef({ annotations: [], content: null, busy: false, ready: false })
+  const [liveStatus, setLiveStatus] = useState('Connecting live editor…')
   const documentRequest = async (url, options = {}) => {
-    if (!shareToken) return fetch(url, options)
+    if (!shareToken) {
+      const ownerUrl = liveEnabled ? url.replace(`/api/pdfs/${pdfId}/pages`, `/api/pdfs/${pdfId}/live/pages`) : url
+      const response = await fetch(ownerUrl, liveEnabled ? { ...options, headers: { ...options.headers, 'X-Share-Revision': sharedRevision.current || '' } } : options)
+      if (response.ok && response.headers.get('X-Share-Revision')) sharedRevision.current = response.headers.get('X-Share-Revision')
+      return response
+    }
     const sharedUrl = url.replace(`/api/pdfs/${pdfId}`, `/api/shared-document/${shareToken}/document`)
     const response = await fetch(sharedUrl, { ...options, cache: 'no-store', headers: { ...options.headers, 'X-Share-Revision': sharedRevision.current || '' } })
     if (response.ok && (options.method || 'GET') !== 'GET') sharedRevision.current = response.headers.get('X-Share-Revision') || sharedRevision.current
@@ -816,6 +826,24 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       try {
         // Obsolete queued snapshots must not serialize/upload the whole document.
         if(revision!==revisionRef.current)return false
+        if (liveEnabled) {
+          if (!liveState.current.ready) throw new Error('Waiting for live synchronization. Your changes are retained.')
+          liveState.current.busy = true
+          const delta = annotationChanges(liveState.current.annotations, snapshot)
+          const response = await fetch(liveUrl, { method: 'PUT', cache: 'no-store', headers: { 'Content-Type': 'application/json', ...(token && { Authorization: `Bearer ${token}` }) }, body: JSON.stringify({ ...delta, contentRevision: liveState.current.content }) })
+          const data = await response.json()
+          if (!response.ok) throw new Error(data.message || 'Could not synchronize changes.')
+          const merged = rebaseAnnotations(snapshot, pathsRef.current, data.annotations)
+          undoStack.current = undoStack.current.map(items => rebaseAnnotations(snapshot, items, data.annotations))
+          redoStack.current = redoStack.current.map(items => rebaseAnnotations(snapshot, items, data.annotations))
+          liveState.current.annotations = data.annotations
+          sharedRevision.current = data.revision
+          updatePaths(merged, { silent: true })
+          dirtyRef.current = annotationChanges(data.annotations, cleanForSave(merged)).upserts.length > 0 || annotationChanges(data.annotations, cleanForSave(merged)).removed.length > 0
+          setSaveStatus(dirtyRef.current ? 'dirty' : 'saved')
+          setLiveStatus('Live · changes synchronized')
+          return !dirtyRef.current
+        }
         const body=await serializeAnnotations(snapshot)
         const response = await documentRequest(`/api/pdfs/${pdfId}/annotations`, {
           method: 'PUT',
@@ -835,21 +863,24 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         dirtyRef.current = true
         setSaveStatus('error')
         if (shareToken) setActionError(err.message)
+        if (liveEnabled) setLiveStatus(err.message)
         return false
+      } finally {
+        liveState.current.busy = false
       }
     })
     saveQueueRef.current = operation
     return operation
-  }, [pdfId, token, shareToken])
+  }, [pdfId, token, shareToken, liveEnabled, liveUrl, updatePaths])
 
   // Autosave 1s after the last change (including deletions)
   useEffect(() => {
     if (!dirtyRef.current) return
     let timer
     const saveWhenIdle=()=>{if(isDrawingRef.current||isErasingRef.current||dragRef.current){timer=setTimeout(saveWhenIdle,350);return}saveAnnotations()}
-    timer=setTimeout(saveWhenIdle,1200)
+    timer=setTimeout(saveWhenIdle,liveEnabled ? 250 : 1200)
     return () => clearTimeout(timer)
-  }, [drawingPaths, saveAnnotations])
+  }, [drawingPaths, saveAnnotations, liveEnabled])
 
   const leave = async (destination) => {
     if (deletingPageRef.current || insertingRef.current || cleanCopyLock.current) return false
@@ -875,11 +906,15 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
 
   const fetchPDF = async () => {
     try {
-      const response = initialDocument ? { ok: true, json: async () => initialDocument } : await documentRequest(`/api/pdfs/${pdfId}`, {
+      const response = initialDocument ? { ok: true, json: async () => initialDocument } : await documentRequest(liveEnabled ? liveUrl : `/api/pdfs/${pdfId}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       if (response.ok) {
         const data = await response.json()
+        if (liveEnabled) {
+          liveState.current = { annotations: data.annotations || [], content: data.contentRevision, busy: false, ready: false }
+          sharedRevision.current = data.revision
+        }
         setPdfData(data)
         if(data.tags?.includes('handwritten-notebook'))setCurrentTool('pen')
 
@@ -920,6 +955,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
           }
         }
         updatePaths(loaded, { silent: true })
+        if (liveEnabled) liveState.current.ready = true
         dirtyRef.current = false
         setSaveStatus('saved')
         setEditName(data.name || '')
@@ -937,6 +973,56 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    if (!liveEnabled) return
+    const controller = new AbortController()
+    let timer
+    const sync = async () => {
+      const baseline = liveState.current.annotations
+      const localRevision = revisionRef.current
+      try {
+        if (!liveState.current.ready || liveState.current.busy || deletingPageRef.current || insertingRef.current) return
+        if (dirtyRef.current && !isDrawingRef.current && !isErasingRef.current && !dragRef.current) {
+          if (await saveAnnotations()) return
+        }
+        const response = await fetch(`${liveUrl}?contentRevision=${encodeURIComponent(liveState.current.content || '')}&revision=${encodeURIComponent(sharedRevision.current || '')}`, { cache: 'no-store', signal: controller.signal, headers: token ? { Authorization: `Bearer ${token}` } : {} })
+        if (response.status === 204) { setLiveStatus('Live · changes synchronized'); return }
+        const data = await response.json()
+        if (!response.ok) throw new Error(data.message || 'Live synchronization interrupted.')
+        if (controller.signal.aborted || liveState.current.busy || baseline !== liveState.current.annotations || localRevision !== revisionRef.current || isDrawingRef.current || isErasingRef.current || dragRef.current || deletingPageRef.current || insertingRef.current) return
+        if (data.contentRevision !== liveState.current.content) {
+          if (dirtyRef.current || activeTextIdRef.current) { setLiveStatus('Pages changed remotely. Download your local draft before reopening the latest pages.'); return }
+          const bytes = Uint8Array.from(atob(data.pdfData), c => c.charCodeAt(0))
+          setPdfFile(new File([bytes], data.originalName || 'document.pdf', { type: 'application/pdf' }))
+          setPdfData(previous => ({ ...previous, ...data }))
+          setPageBase(null)
+          setSelectedInsertId(null)
+          setNumPages(null)
+          setPageNumber(1)
+          undoStack.current = []
+          redoStack.current = []
+          bumpHistory()
+          updatePaths(data.annotations, { silent: true })
+          liveState.current.content = data.contentRevision
+        } else {
+          const merged = rebaseAnnotations(baseline, pathsRef.current, data.annotations)
+          undoStack.current = undoStack.current.map(items => rebaseAnnotations(baseline, items, data.annotations))
+          redoStack.current = redoStack.current.map(items => rebaseAnnotations(baseline, items, data.annotations))
+          updatePaths(merged, { silent: true })
+        }
+        liveState.current.annotations = data.annotations
+        sharedRevision.current = data.revision
+        setLiveStatus('Live · changes synchronized')
+      } catch (error) {
+        if (!controller.signal.aborted) setLiveStatus(`${error.message} Reconnecting…`)
+      } finally {
+        if (!controller.signal.aborted) timer = setTimeout(sync, 600)
+      }
+    }
+    sync()
+    return () => { controller.abort(); clearTimeout(timer) }
+  }, [pdfId, token, shareToken, liveEnabled, liveUrl, updatePaths, bumpHistory, saveAnnotations])
 
   const fetchPDFFolders = async () => {
     try {
@@ -1643,6 +1729,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       setNumPages(result.numPages)
       setPageNumber(Math.min(pageNumber > targetPage ? pageNumber - 1 : pageNumber, result.numPages))
       setSelectedInsertId(null)
+      if (liveEnabled) { liveState.current.annotations = result.annotations; liveState.current.content = result.contentRevision }
       updatePaths(result.annotations, { silent: true })
       dirtyRef.current = false
       setSaveStatus('saved')
@@ -1680,6 +1767,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       setPdfFile(new File([bytes], pdfData?.name || 'document.pdf', { type: 'application/pdf' }))
       setPdfData(prev => ({ ...prev, pdfData: result.pdfData }))
       setPageBase(null); setNumPages(result.numPages); setPageNumber(result.firstInsertedPage)
+      if (liveEnabled) { liveState.current.annotations = result.annotations; liveState.current.content = result.contentRevision }
       updatePaths(result.annotations, { silent: true }); dirtyRef.current = false; setSaveStatus('saved')
       undoStack.current = []; redoStack.current = []; bumpHistory()
       setSelectedInsertId(null); setCurrentPath([]); currentPathRef.current = []; isDrawingRef.current = false
@@ -1732,7 +1820,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     try {
       commitText()
       let pdfBytes
-      if (initialDocument) pdfBytes = Uint8Array.from(atob(initialDocument.pdfData), c => c.charCodeAt(0))
+      if (initialDocument || (liveEnabled && pdfData?.pdfData)) pdfBytes = Uint8Array.from(atob(initialDocument?.pdfData || pdfData.pdfData), c => c.charCodeAt(0))
       else {
         const response = await documentRequest(`/api/pdfs/${pdfId}/download`, { headers: { Authorization: `Bearer ${token}` } })
         if (!response.ok) throw new Error('Failed to fetch PDF')
@@ -2331,6 +2419,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         insert={<InsertPanel onPages={exportImage?undefined:handleAddPages} pageNumber={pageNumber} onFiles={insertFiles} onInsert={insertGenerated} color={currentColor} busy={inserting||!pageBase||pageBase.page!==pageNumber||deletingPage}/>}
       />
       {!focusMode && renderFolderNavigation?.(leave, loading || inserting || deletingPage || saveStatus === 'saving' || confirmation.pending)}
+      {liveEnabled && <p className="pdf-live-status" role="status">{liveStatus}</p>}
 
       {lineSuggestion&&<div className="pdf-line-suggestion" role="status" aria-live="polite"><span>{lineSuggestion.numberLine?'Number line detected':lineSuggestion.dashed?'Dashed line detected':lineSuggestion.dots?'Dotted line detected':'Straight line detected'}</span><button type="button" onClick={()=>{setCurrentTool('select');setLineSuggestion(null)}}>Move / resize</button><button type="button" onClick={()=>setLineSuggestion(null)} aria-label="Keep detected line"><Check size={15}/>Keep</button><button type="button" onClick={revertStraightLine} aria-label="Restore original freehand stroke"><Undo size={15}/>Undo</button></div>}
       {['arrow-copy','arrow-paste'].includes(currentTool)&&!exportImage&&<div className="pdf-existing-text-hint pdf-arrow-copy-bar">

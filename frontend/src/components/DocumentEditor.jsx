@@ -5,6 +5,7 @@ import MarkdownPDFCreator from './MarkdownPDFCreator'
 import {readApiJson} from '../lib/apiResponse'
 import {registerEditor} from '../lib/editorBridge'
 import useShortcuts from '../hooks/useShortcuts'
+import useLiveText from '../hooks/useLiveText'
 import useInlineConfirm from '../hooks/useInlineConfirm'
 import InlineConfirmation from './InlineConfirmation'
 import { useEffect, useState, useRef } from 'react'
@@ -34,6 +35,9 @@ export default function DocumentEditor({ pdfId, token, onClose, onCleanCopy, ass
   const mime = data?.mimeType || 'application/octet-stream'
   const filename = data?.originalName || 'document.txt'
   const isNotes=kind==='text'&&(data?.tags?.includes('notes')||['md','markdown'].includes(extensionOf(filename)))
+  const liveTextEnabled = kind === 'text' && !loading && !loadFailed && !!token && /\.(md|markdown|txt)$/i.test(filename) && (bytesRef.current?.length || 0) <= 1024 * 1024
+  const liveText = useLiveText({ url: `/api/pdfs/${pdfId}/text`, token, enabled: liveTextEnabled, value: text,
+    onChange: value => { setText(value); revision.current++ }, onSaved: () => setDirty(false) })
   const separator = extensionOf(filename) === 'tsv' ? '\t' : ','
 
   useEffect(() => {
@@ -103,6 +107,7 @@ export default function DocumentEditor({ pdfId, token, onClose, onCleanCopy, ass
   const markDirty = () => { revision.current++; setDirty(true) }
   const leave = async (destination) => {
     if (saveLock.current) return false
+    if (liveTextEnabled && dirty && !await liveText.sync()) { setError('Your live changes are still synchronizing. Resolve any overlapping edits before leaving.'); return false }
     if (!await confirmation.ask(
       dirty ? 'Leave this document and discard your unsaved edits?' : 'Leave this document?',
       dirty ? 'Discard and leave' : 'Leave document',
@@ -126,6 +131,7 @@ export default function DocumentEditor({ pdfId, token, onClose, onCleanCopy, ass
     return new Blob([kind === 'table' ? serializeDelimited(table, separator) : text], { type: mime })
   }
   const save = async (replacement) => {
+    if (liveTextEnabled && !replacement) { await liveText.sync(); return }
     if (saveLock.current) return
     saveLock.current=true
     if (replacement && !await confirmation.ask('Replace this file and leave the document?', 'Replace and leave', { required: true })) {
@@ -194,6 +200,7 @@ export default function DocumentEditor({ pdfId, token, onClose, onCleanCopy, ass
       <button aria-label="Close editor" disabled={saving} onClick={close}><X size={20} /></button>
     </div></header>
     {renderFolderNavigation?.(leave, loading || saving || confirmation.pending)}
+    {liveTextEnabled && <div className="library-sharing-panel"><p role="status">{liveText.status}</p>{liveText.conflict && <><p>Another editor changed the same text. Your draft is retained.</p><details><summary>Shared version</summary><pre style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{liveText.conflict.text}</pre></details><div className="library-sharing-actions"><button type="button" onClick={()=>liveText.resolve(false)}>Use shared version</button><button type="button" onClick={()=>liveText.resolve(true)}>Keep my version</button></div></>}</div>}
     <InlineConfirmation {...confirmation} />
     {error && <div role="alert" className="document-error">{error}<button onClick={() => setError('')}>Dismiss</button></div>}
     {kind === 'word' && <p className="document-notice">Text review uses the editor’s display font. Save and Download retain the original Word fonts, sizes, styles, headers, images, tables and layout settings. Keep the existing paragraph breaks. Open the downloaded DOCX in Word to see its formatted layout.</p>}

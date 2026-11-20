@@ -345,3 +345,4 @@
 .pdf-share-dialog .library-modal-heading h3{min-width:0;overflow-wrap:anywhere}
 .pdf-share-dialog :is(button,select,input){min-height:44px;max-width:100%}
 .pdf-share-dialog :is(input,select){font-size:16px}
+.pdf-live-status{flex-shrink:0;padding:5px 12px;font-size:12px;line-height:1.5;color:var(--text-secondary);background:var(--surface-panel);border-bottom:1px solid var(--border);overflow-wrap:anywhere}
