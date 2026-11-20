@@ -4,7 +4,7 @@ import { readApiJson } from '../lib/apiResponse'
 
 const SectionLockContext = createContext(null)
 const sections = [
-  ['home', 'Home'], ['workspace', 'Workspace'], ['tasks', 'Tasks'], ['calendar', 'Calendar'],
+  ['tutorial', 'Platform tutorial'], ['home', 'Home'], ['workspace', 'Workspace'], ['tasks', 'Tasks'], ['calendar', 'Calendar'],
   ['documents', 'Documents'], ['prep', 'Prep'], ['resumes', 'Resumes'], ['cover-letters', 'Cover letters'],
   ['jobs', 'Saved jobs'], ['study', 'Question bank'], ['assistant', 'AI assistant'],
   ['visualization', 'Visualization'], ['canvas', 'Canvas'], ['analytics', 'Analytics'],
