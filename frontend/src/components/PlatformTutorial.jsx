@@ -36,7 +36,7 @@ export default function PlatformTutorial({ userId }) {
   useEffect(()=>{heading.current?.focus({preventScroll:true})},[lesson.id])
   const choose=id=>setProgress(previous=>({...previous,current:id}))
   return <section className="platform-tutorial" aria-label="Platform tutorial">
-    <header><div><h2>Learn AssignmentTracker</h2><p>Explore a topic, try it in the app, and return here to continue.</p></div>
+    <header><h1>Platform tutorial</h1>
       <span>{progress.completed.length} of {lessons.length} completed</span></header>
     <progress value={progress.completed.length} max={lessons.length} aria-label="Tutorial progress"/>
     <div className="platform-tutorial-layout">
@@ -47,7 +47,7 @@ export default function PlatformTutorial({ userId }) {
         <p className="platform-tutorial-step">Lesson {index+1} of {lessons.length}</p>
         <h3 ref={heading} tabIndex={-1}>{lesson.title}</h3>
         {lesson.steps.map(text=><p key={text}>{text}</p>)}
-        <div className="platform-tutorial-practice"><p>{lesson.try}</p><a href={`#/${lesson.route}`}>Try in the app →</a><small>Return through Tools → Platform tutorial. Progress saves on this device.</small></div>
+        <div className="platform-tutorial-practice"><p>{lesson.try}</p><a href={`#/${lesson.route}`}>Open {lesson.route === 'prep' ? 'Prep' : lesson.route === 'report-bug' ? 'Report a bug' : lesson.route === 'shortcuts' ? 'Keyboard shortcuts' : lesson.route.charAt(0).toUpperCase()+lesson.route.slice(1)} →</a></div>
         <label className="platform-tutorial-complete"><input type="checkbox" checked={progress.completed.includes(lesson.id)} onChange={event=>{
           const checked=event.target.checked
           setProgress(previous=>({...previous,completed:checked?[...previous.completed,lesson.id]:previous.completed.filter(id=>id!==lesson.id)}))
@@ -57,5 +57,6 @@ export default function PlatformTutorial({ userId }) {
         </footer>
       </article>
     </div>
+    <small>Progress saves on this device. Reopen this guide from Tools → Tutorial.</small>
   </section>
 }
