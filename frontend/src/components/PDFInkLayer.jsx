@@ -32,7 +32,7 @@ export default memo(function PDFInkLayer({items,width,height,scale=1,usePressure
     const {context,resized}=surface(canvas.current,width,height,scale),strokes=items.filter(item=>item.points?.length),old=previous.current
     const appendOnly=!resized&&old.width===width&&old.height===height&&old.pressure===usePressure&&old.strokes.length<=strokes.length&&old.strokes.every((stroke,index)=>stroke===strokes[index])
     if(!appendOnly)clear(canvas.current,context)
-    for(let index=appendOnly?old.strokes.length:0;index<strokes.length;index++)paint(context,strokes[index],usePressure)
+    for(let index=appendOnly?old.strokes.length:0;index<strokes.length;index++)paint(context,strokes[index],strokes[index].livePressure ?? usePressure)
     previous.current={strokes,pressure:usePressure,width,height}
   },[items,width,height,scale,usePressure])
   return <canvas ref={canvas} style={canvasStyle} aria-hidden="true"/>

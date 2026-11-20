@@ -8,6 +8,7 @@ const editable = file => /\.(md|markdown|txt)$/i.test(file.originalName || '') &
   /^(text\/plain|text\/markdown|application\/octet-stream)(;|$)/i.test(file.mimeType || '');
 
 module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDFFolder }) {
+  const liveInk = require('./liveInk')(app, auth, { PDF, isLocked, hashToken, validId });
   const contentRevision = file => createHash('sha256').update(file.pdfData).digest('hex');
   const normalized = annotations => (annotations || []).map((item, index) => item.id ? item : { ...item, id: `legacy-${index}-${createHash('sha256').update(JSON.stringify(item)).digest('hex').slice(0, 16)}` });
   const live = shared => async (req, res) => {
@@ -100,10 +101,12 @@ module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDF
     const token = randomBytes(32).toString('base64url');
     const result = await PDF.updateOne({ ...filter, deletedAt: null }, { $set: { shareLinkHash: hashToken(token), shareLinkRole: role } });
     if (!result.matchedCount) return res.status(404).json({ message: 'Document not found.' });
+    liveInk.revokeShared(file._id);
     res.status(201).json({ path: role === 'edit' ? `#/shared-document/${token}` : `/api/shared-document/${token}`, role });
   }));
   app.delete(path, ...ownerRoute(async (res, filter) => {
     await PDF.updateOne(filter, { $unset: { shareLinkHash: 1, shareLinkRole: 1 } });
+    liveInk.revokeShared(filter._id);
     res.status(204).end();
   }));
 
