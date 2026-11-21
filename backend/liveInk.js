@@ -13,8 +13,20 @@ module.exports = function registerLiveInk(app, auth, { PDF, User, isLocked, hash
   const broadcast = (session, event) => {
     for (const peer of rooms.get(session.room) || []) if (peer !== session) emit(peer, event);
   };
-  const member = session => ({ peer: session.peer, name: session.name, color: session.color, role: session.shared ? 'Editor' : 'Owner' });
-  const roster = room => [...(rooms.get(room) || [])].filter(session => !session.res.destroyed && !session.res.writableEnded).map(member);
+  const roster = room => {
+    const people = new Map();
+    for (const session of rooms.get(room) || []) {
+      if (session.res.destroyed || session.res.writableEnded) continue;
+      let person = people.get(session.person);
+      if (!person) {
+        person = { peer: session.person, name: session.name, color: session.color, role: session.shared ? 'Editor' : 'Owner', sessions: [] };
+        people.set(session.person, person);
+      }
+      person.sessions.push(session.peer);
+      if (!session.shared) person.role = 'Owner';
+    }
+    return [...people.values()];
+  };
   const sendRoster = room => { const members = roster(room); for (const peer of rooms.get(room) || []) emit(peer, { type: 'roster', members }); };
   const connect = shared => async (req, res) => {
     if (shared ? !/^[A-Za-z0-9_-]{43}$/.test(req.params.token) : !validId(req.params.id)) return res.status(404).end();
@@ -34,18 +46,22 @@ module.exports = function registerLiveInk(app, auth, { PDF, User, isLocked, hash
       }
       const account = identity?.userId && validId(String(identity.userId)) ? await User.findById(identity.userId).select('username deactivatedAt approvalPending').lean() : null;
       const username = account && !account.deactivatedAt && !account.approvalPending ? account.username : null;
+      if (req.aborted || res.destroyed || res.writableEnded) return;
       const room = String(file._id), peers = rooms.get(room) || new Set();
+      const client = req.get('X-PDF-Client');
+      const guest = typeof client === 'string' && /^[A-Za-z0-9_-]{16,80}$/.test(client) ? client : randomBytes(16).toString('hex');
+      const person = createHash('sha256').update(`${room}:${username ? `account:${account._id}` : `guest:${guest}`}`).digest('hex').slice(0,24);
       if (peers.size >= 32) return res.status(429).json({ message: 'This live room is full.' });
       res.set({ 'Content-Type': 'text/event-stream', 'Cache-Control': 'private, no-store, no-transform', 'Connection': 'keep-alive', 'X-Accel-Buffering': 'no', 'Referrer-Policy': 'no-referrer' });
       res.flushHeaders();
       const key = randomBytes(32).toString('base64url');
-      const session = { key, peer: randomBytes(9).toString('hex'), color: ['#38bdf8','#a78bfa','#fb923c','#34d399','#f472b6'][peers.size % 5], room, shared, filter, res, previews: new Map(), sequence: 0, checkedAt: Date.now(), checking: null, allowed, lastPacket: 0 };
-      session.name = username || `Guest ${session.peer.slice(0,4).toUpperCase()}`;
+      const session = { key, person, peer: randomBytes(9).toString('hex'), color: ['#38bdf8','#a78bfa','#fb923c','#34d399','#f472b6'][parseInt(person.slice(0,4),16) % 5], room, shared, filter, res, previews: new Map(), sequence: 0, checkedAt: Date.now(), checking: null, allowed, lastPacket: 0 };
+      session.name = username || `Guest ${person.slice(0,4).toUpperCase()}`;
       sessions.set(key, session); peers.add(session); rooms.set(room, peers);
       const previews = [];
       for (const peer of peers) for (const preview of peer.previews.values()) if (Date.now() - preview.updated < 10000) previews.push(preview);
       // A session key is a short-lived write capability. Never expose it to peers.
-      emit(session, { type: 'ready', session: key, self: session.peer, members: roster(room), previews, presences: [...peers].filter(peer => peer !== session && peer.presence).map(peer => ({ peer: peer.peer, color: peer.color, data: peer.presence })) });
+      emit(session, { type: 'ready', session: key, self: session.person, members: roster(room), previews, presences: [...peers].filter(peer => peer !== session && peer.presence).map(peer => ({ peer: peer.peer, color: peer.color, data: peer.presence })) });
       const heartbeat = setInterval(async () => {
         try {
           if (!await allowed()) { emit(session, { type: 'unavailable' }); res.end(); return; }

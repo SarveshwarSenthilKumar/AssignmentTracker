@@ -6,6 +6,15 @@ export default function useLiveInk({ url, token, enabled, contentRevision, commi
   const [participants, setParticipants] = useState(new Map())
   const [members, setMembers] = useState([]), [self, setSelf] = useState(null)
   const presence = useRef(null)
+  const browserId = useRef(null)
+  if (!browserId.current) {
+    const fresh = () => globalThis.crypto?.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`
+    try {
+      const stored = localStorage.getItem('pdf-presence-browser')
+      browserId.current = /^[A-Za-z0-9_-]{16,80}$/.test(stored || '') ? stored : fresh()
+      localStorage.setItem('pdf-presence-browser', browserId.current)
+    } catch { browserId.current = fresh() }
+  }
   const connection = useRef(null), pending = useRef(new Map()), offsets = useRef(new Map())
   const edits = useRef(new Map()), receiver = useRef(onChanges)
   receiver.current = onChanges
@@ -18,9 +27,13 @@ export default function useLiveInk({ url, token, enabled, contentRevision, commi
   }, [committed])
   useEffect(() => {
     if (!enabled) return
+    setConnected(false)
+    setMembers([])
+    setSelf(null)
     const controller = new AbortController()
     let reconnect, sender, expiry, sending = false, sequence = 0
     const receive = event => {
+      if (controller.signal.aborted) return
       if (event.type === 'ready') {
         connection.current = event.session
         offsets.current.clear()
@@ -57,7 +70,7 @@ export default function useLiveInk({ url, token, enabled, contentRevision, commi
       try {
         let identityToken = token
         if (!identityToken) { try { identityToken = localStorage.getItem('token') } catch { /* Guests can still join. */ } }
-        const response = await fetch(`${url}/stream`, { cache: 'no-store', signal: controller.signal, headers: identityToken ? { Authorization: `Bearer ${identityToken}` } : {} })
+        const response = await fetch(`${url}/stream`, { cache: 'no-store', signal: controller.signal, headers: { 'X-PDF-Client': browserId.current, ...(identityToken ? { Authorization: `Bearer ${identityToken}` } : {}) } })
         if (!response.ok || !response.body) throw new Error('Live preview unavailable')
         const reader = response.body.getReader(), decoder = new TextDecoder()
         let buffer = ''
@@ -76,6 +89,7 @@ export default function useLiveInk({ url, token, enabled, contentRevision, commi
         } finally { reader.releaseLock() }
       } catch { /* Durable document synchronization continues while previews reconnect. */ }
       finally {
+        if (controller.signal.aborted) return
         connection.current = null
         setConnected(false)
         setPreviews(new Map())
@@ -174,6 +188,6 @@ export default function useLiveInk({ url, token, enabled, contentRevision, commi
     if (!enabled || !contentRevision) return
     presence.current = { data: data ? { ...data, contentRevision } : null }
   }
-  const names = new Map(members.map(member => [member.peer, member.name]))
+  const names = new Map(members.flatMap(member => (member.sessions || [member.peer]).map(peer => [peer, member.name])))
   return { connected, members, self, publish, publishChanges, publishPresence, participants: [...participants.values()].filter(peer => peer.data.contentRevision === contentRevision).map(peer => ({ ...peer, name: names.get(peer.peer) })), strokes: [...previews.values()].filter(stroke => stroke.contentRevision === contentRevision) }
 }

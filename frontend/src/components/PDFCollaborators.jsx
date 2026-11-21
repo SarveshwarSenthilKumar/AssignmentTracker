@@ -18,7 +18,7 @@ export default function PDFCollaborators({ members, self, connected, status }) {
           <span><strong>{member.name}{member.peer===self?' (you)':''}</strong><small>{member.role}</small></span>
           <span className="pdf-collaborator-online">Online</span>
         </li>)}</ul>}
-        <p className="pdf-collaborators-note">Each open editor tab appears separately. Visitors without a signed-in account appear as guests.</p>
+        <p className="pdf-collaborators-note">Each person appears once, even with multiple tabs open. Visitors without a signed-in account appear as guests.</p>
       </div>
     </details>
   </div>
