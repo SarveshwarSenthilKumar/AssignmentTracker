@@ -130,3 +130,9 @@
 .document-actions-menu .library-star[aria-pressed=true] { color:#e1a52b; }
 .document-library .library-row-actions { gap:6px; }
 .document-library .library-row-actions>button { gap:6px;padding:7px 10px;border:1px solid var(--border);border-radius:7px; }
+.library-link-expiry{display:grid;gap:10px;padding:12px;border:1px solid var(--border);border-radius:8px;min-width:0}
+.library-link-expiry legend{font-size:13px;font-weight:600;padding-inline:5px}
+.library-share-link-panel .library-link-expiry-toggle{display:flex;align-items:center;gap:9px;margin:0}
+.library-share-link-panel .library-link-expiry-toggle input[type=checkbox]{width:18px;height:18px;min-height:18px;flex-shrink:0}
+.library-link-expiry small{font-size:11px;line-height:1.6;color:var(--text-secondary)}
+.library-link-expiry input[type=datetime-local]{display:block;width:100%;min-width:0;margin-top:5px;font-size:16px}

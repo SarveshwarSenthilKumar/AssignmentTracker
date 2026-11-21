@@ -24,7 +24,7 @@ export default function DocumentEditHistory({url,token,onClose}) {
         const before=more&&cursorRef.current?`&before=${encodeURIComponent(cursorRef.current)}`:''
         const response=await sharedDocumentRequest(`${url}?limit=40${before}`,{signal:controller.signal,cache:'no-store',headers:token?{Authorization:`Bearer ${token}`}:{}})
         const data=await response.json()
-        if(!response.ok){if([401,403,404].includes(response.status))setItems([]);throw new Error(data.message||'Could not load edit history.')}
+        if(!response.ok){if([401,403,404,410].includes(response.status))setItems([]);throw new Error(data.message||'Could not load edit history.')}
         if(controller.signal.aborted)return
         setItems(previous=>{
           const merged=new Map((more?previous:[]).map(item=>[item.id,item]))

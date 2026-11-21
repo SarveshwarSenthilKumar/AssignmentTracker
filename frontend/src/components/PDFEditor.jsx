@@ -878,7 +878,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
           const delta = annotationChanges(liveState.current.annotations, snapshot)
           const response = await sharedDocumentRequest(liveUrl, { method: 'PUT', cache: 'no-store', headers: { 'Content-Type': 'application/json', ...(token && { Authorization: `Bearer ${token}` }) }, body: JSON.stringify({ ...delta, contentRevision: liveState.current.content }) })
           const data = await response.json()
-          if([401,403,404].includes(response.status))setAccessDenied(data.message||'Your document access is no longer available.')
+          if([401,403,404,410].includes(response.status))setAccessDenied(data.message||'Your document access is no longer available.')
           if (!response.ok) throw new Error(data.message || 'Could not synchronize changes.')
           const merged = rebaseAnnotations(snapshot, pathsRef.current, data.annotations)
           undoStack.current = undoStack.current.map(items => rebaseAnnotations(snapshot, items, data.annotations))
@@ -1012,7 +1012,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         if (!data.pdfData) setPdfError('This document has no PDF data. Please upload it again.')
       } else {
         const errorData = await response.json().catch(() => ({}))
-        if([401,403,404].includes(response.status))setAccessDenied(errorData.message||'This document is unavailable.')
+        if([401,403,404,410].includes(response.status))setAccessDenied(errorData.message||'This document is unavailable.')
         setPdfError(errorData.message || 'Failed to fetch PDF')
       }
     } catch (err) {
@@ -1041,7 +1041,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         const response = await sharedDocumentRequest(`${liveUrl}?contentRevision=${encodeURIComponent(liveState.current.content || '')}&revision=${encodeURIComponent(sharedRevision.current || '')}`, { cache: 'no-store', signal: controller.signal, headers: token ? { Authorization: `Bearer ${token}` } : {} })
         if (response.status === 204) { setLiveStatus('Live · changes synchronized'); return }
         const data = await response.json()
-        if([401,403,404].includes(response.status))setAccessDenied(data.message||'Your document access is no longer available.')
+        if([401,403,404,410].includes(response.status))setAccessDenied(data.message||'Your document access is no longer available.')
         if (!response.ok) throw new Error(data.message || 'Live synchronization interrupted.')
         if (controller.signal.aborted || liveState.current.busy || baseline !== liveState.current.annotations || localRevision !== revisionRef.current || isDrawingRef.current || isErasingRef.current || dragRef.current || deletingPageRef.current || insertingRef.current) return
         if (data.contentRevision !== liveState.current.content) {

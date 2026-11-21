@@ -32,7 +32,7 @@ export default function useLiveText({ url, token, enabled = true, value, onChang
         const data = await response.json()
         if (!response.ok) {
           if (response.status === 409) { session.conflict = true; setStatus('Checking overlapping edits…'); return false }
-          if ([401, 403, 404].includes(response.status)) {setReady(false);setAccessDenied(data.message||'This document is no longer available to your account.');controller.abort();return false}
+          if ([401, 403, 404, 410].includes(response.status)) {setReady(false);setAccessDenied(data.message||'This document is no longer available to your account.');controller.abort();return false}
           throw new Error(data.message || 'Could not synchronize this document.')
         }
         if (controller.signal.aborted) return false

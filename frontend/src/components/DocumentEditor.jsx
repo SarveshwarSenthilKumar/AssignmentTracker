@@ -50,7 +50,7 @@ export default function DocumentEditor({ pdfId, token, onClose, onCleanCopy, ass
       try {
         const response = await fetch(`/api/pdfs/${pdfId}`, { headers: { Authorization: `Bearer ${token}` } })
         const document = await response.json().catch(()=>({}))
-        if(!cancelled&&[401,403,404].includes(response.status))setAccessDenied(document.message||'This document is unavailable.')
+        if(!cancelled&&[401,403,404,410].includes(response.status))setAccessDenied(document.message||'This document is unavailable.')
         if (!response.ok) throw new Error(document.message || 'Could not load the document.')
         if (cancelled) return
         setData(document)
@@ -149,7 +149,7 @@ export default function DocumentEditor({ pdfId, token, onClose, onCleanCopy, ass
       const blob = replacement || await serialize()
       const response = await fetch(`/api/pdfs/${pdfId}/content`, { method: 'PUT', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ data: await blobBase64(blob), mimeType: replacement?.type || mime }) })
       const result = await readApiJson(response)
-      if([401,403,404].includes(response.status))setAccessDenied(result.message||'Your document access is no longer available.')
+      if([401,403,404,410].includes(response.status))setAccessDenied(result.message||'Your document access is no longer available.')
       if (!response.ok) throw new Error(result.message || 'Could not save this document.')
       bytesRef.current = new Uint8Array(await blob.arrayBuffer())
       if(kind==='word'){

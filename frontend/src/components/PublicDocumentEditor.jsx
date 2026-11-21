@@ -40,7 +40,7 @@ export default function PublicDocumentEditor({ shareToken }) {
     sharedDocumentRequest(`${endpoint}/editor`, { signal: controller.signal, cache: 'no-store' })
       .then(async response => {
         const data = await response.json().catch(()=>({}))
-        if([401,403,404].includes(response.status)&&!controller.signal.aborted)setDenied(data.message||'This sharing link is unavailable.')
+        if([401,403,404,410].includes(response.status)&&!controller.signal.aborted)setDenied(data.message||'This sharing link is unavailable.')
         if (!response.ok) throw new Error(data.message || 'This editor link is unavailable.')
         if (!controller.signal.aborted) setFile(data)
       }).catch(error => { if (!controller.signal.aborted) setError(error.message) })
@@ -66,7 +66,7 @@ export default function PublicDocumentEditor({ shareToken }) {
       })
       const response = await sharedDocumentRequest(`${endpoint}/document/content`, { method: 'PUT', cache: 'no-store', headers: { 'Content-Type': 'application/json', 'X-Share-Revision': file.revision }, body: JSON.stringify({ content }) })
       const data = await response.json()
-      if([401,403,404].includes(response.status))setDenied(data.message||'Your access to this document is no longer available.')
+      if([401,403,404,410].includes(response.status))setDenied(data.message||'Your access to this document is no longer available.')
       if (!response.ok) throw new Error(data.message || 'Could not save the replacement.')
       setFile(previous => ({ ...previous, revision: response.headers.get('X-Share-Revision') }))
       setStatus('Updated file saved. The document name and share link stay the same.')

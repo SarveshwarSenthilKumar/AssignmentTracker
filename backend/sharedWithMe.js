@@ -1,5 +1,6 @@
 const {createHash,createCipheriv,createDecipheriv,randomBytes}=require('node:crypto');
 const mongoose=require('mongoose');
+const {expired}=require('./shareLinkExpiry');
 
 module.exports=function registerSharedWithMe(app,auth,{PDF,User,PDFFolder,collaboratorAccess,isLocked}){
   const schema=new mongoose.Schema({user:{type:mongoose.Schema.Types.ObjectId,required:true,index:true},document:{type:mongoose.Schema.Types.ObjectId,required:true},linkHash:String,link:String,visitedAt:Date});
@@ -19,8 +20,9 @@ module.exports=function registerSharedWithMe(app,auth,{PDF,User,PDFFolder,collab
     const token=req.body?.token;
     if(typeof token!=='string'||!/^[A-Za-z0-9_-]{43}$/.test(token))return res.status(400).json({message:'Paste a valid document sharing link.'});
     try{
-      const file=await PDF.findOne({shareLinkHash:hash(token),deletedAt:null}).select('user pdfFolder +revokedCollaborators').lean();
+      const file=await PDF.findOne({shareLinkHash:hash(token),deletedAt:null}).select('user pdfFolder +revokedCollaborators +shareLinkExpiresAt').lean();
       if(!file||await isLocked(file))return res.status(404).json({message:'This document link is unavailable.'});
+      if(expired(file))return res.status(410).json({message:'This sharing link has expired. Ask the owner or a document admin to extend it.'});
       const identity=await collaboratorAccess.identify(req,res,file);
       if(collaboratorAccess.blocked(file,identity))return res.status(403).json({message:'Your access to this document was revoked.'});
       if(identity.owner)return res.status(400).json({message:'This document is already in your own library.'});
@@ -31,7 +33,7 @@ module.exports=function registerSharedWithMe(app,auth,{PDF,User,PDFFolder,collab
     res.set('Cache-Control','private, no-store');
     try{
       const receipts=await Receipt.find({user:req.user.userId}).sort({visitedAt:-1}).limit(200).lean();
-      const files=await PDF.find({deletedAt:null,user:{$ne:req.user.userId},$or:[{_id:{$in:receipts.map(item=>item.document)}},{documentAdmins:req.user.userId}]}).select('name originalName mimeType user pdfFolder updatedAt +shareLinkHash +shareLinkRole +documentAdmins +revokedCollaborators').lean();
+      const files=await PDF.find({deletedAt:null,user:{$ne:req.user.userId},$or:[{_id:{$in:receipts.map(item=>item.document)}},{documentAdmins:req.user.userId}]}).select('name originalName mimeType user pdfFolder updatedAt +shareLinkHash +shareLinkRole +shareLinkExpiresAt +documentAdmins +revokedCollaborators').lean();
       if(!files.length)return res.json([]);
       const identity=await collaboratorAccess.identify(req,res,files[0]);
       const owners=await User.find({_id:{$in:files.map(file=>file.user)}}).select('username lockedSections deactivatedAt approvalPending').lean();
@@ -53,7 +55,7 @@ module.exports=function registerSharedWithMe(app,auth,{PDF,User,PDFFolder,collab
         const admin=(file.documentAdmins||[]).some(id=>String(id)===String(req.user.userId));
         const receipt=receiptMap.get(String(file._id));
         let path=null;
-        if(receipt&&receipt.linkHash===file.shareLinkHash){try{const token=decrypt(receipt.link);if(hash(token)===file.shareLinkHash)path=`#/shared-document/${token}`;}catch{}}
+        if(!expired(file)&&receipt&&receipt.linkHash===file.shareLinkHash){try{const token=decrypt(receipt.link);if(hash(token)===file.shareLinkHash)path=`#/shared-document/${token}`;}catch{}}
         if(!admin&&!path)continue;
         result.push({_id:file._id,name:file.name,originalName:file.originalName,mimeType:file.mimeType,owner:ownerMap.get(String(file.user)).username,role:admin?'Admin':file.shareLinkRole==='edit'?'Editor':'Viewer',updatedAt:file.updatedAt,visitedAt:receipt?.visitedAt,openPath:path,canManageLinks:admin});
       }

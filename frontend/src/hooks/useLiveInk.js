@@ -66,8 +66,9 @@ export default function useLiveInk({ url, token, enabled, contentRevision, commi
           else next.delete(event.peer)
           return next
         })
-      } else if (event.type === 'revoked'||event.type === 'unavailable'||event.type==='permissions-changed') {
+      } else if (event.type === 'revoked'||event.type === 'unavailable'||event.type==='permissions-changed'||event.type==='expired') {
         if(event.type==='permissions-changed')setAccessMessage(`Your sharing permission changed to ${event.role==='edit'?'Editor':'Viewer'}. Try again to reopen the same link with its current permissions.`)
+        if(event.type==='expired')setAccessMessage(event.message||'This document sharing link has expired. Ask the owner or an admin to extend it.')
         setAccessRevoked(true);setConnected(false);setMembers([]);setParticipants(new Map());setPreviews(new Map())
         connection.current=null;edits.current.clear();pending.current.clear();presence.current=null
         controller.abort()
@@ -79,7 +80,7 @@ export default function useLiveInk({ url, token, enabled, contentRevision, commi
         let identityToken = token
         if (!identityToken) { try { identityToken = localStorage.getItem('token') } catch { /* Guests can still join. */ } }
         const response = await fetch(`${url}/stream`, { cache: 'no-store', signal: controller.signal, headers: { 'X-PDF-Client': browserId.current, ...(identityToken ? { Authorization: `Bearer ${identityToken}` } : {}) } })
-        if(response.status===403){const data=await response.json().catch(()=>({}));if(data.code==='DOCUMENT_ACCESS_REVOKED'){setAccessRevoked(true);controller.abort();return}}
+        if([403,410].includes(response.status)){const data=await response.json().catch(()=>({}));if(['DOCUMENT_ACCESS_REVOKED','DOCUMENT_LINK_EXPIRED'].includes(data.code)){setAccessRevoked(true);setAccessMessage(data.message);controller.abort();return}}
         if (!response.ok || !response.body) throw new Error('Live preview unavailable')
         const reader = response.body.getReader(), decoder = new TextDecoder()
         let buffer = ''

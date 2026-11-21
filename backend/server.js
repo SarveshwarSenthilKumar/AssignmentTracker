@@ -250,6 +250,7 @@ const CalendarEntry = mongoose.model('CalendarEntry', new mongoose.Schema({
 const pdfSchema = new mongoose.Schema({
   shareLinkHash: { type: String, select: false, index: { sparse: true } },
   shareLinkSecret: { type: String, select: false },
+  shareLinkExpiresAt: { type: Date, default: null, select: false },
   shareLinkRole: { type: String, enum: ['view', 'edit'], default: 'view', select: false },
   revokedCollaborators: { type: [String], default: [], select: false },
   documentAdmins: { type: [mongoose.Schema.Types.ObjectId], ref: 'User', default: [], select: false },
