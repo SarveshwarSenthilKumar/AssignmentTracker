@@ -1,16 +1,21 @@
 const { randomBytes, createHash } = require('node:crypto');
+const jwt = require('jsonwebtoken');
 
 // Pen previews are ephemeral; annotation changes from other tools are merged
 // into the same document before they are pushed to peers.
-module.exports = function registerLiveInk(app, auth, { PDF, isLocked, hashToken, validId }) {
+module.exports = function registerLiveInk(app, auth, { PDF, User, isLocked, hashToken, validId }) {
   const sessions = new Map(), rooms = new Map();
   const emit = (session, event) => {
+    if (session.res.writableEnded) return;
     if (session.res.destroyed || session.res.writableLength > 1024 * 1024) { session.res.destroy(); return; }
     session.res.write(`data: ${JSON.stringify(event)}\n\n`);
   };
   const broadcast = (session, event) => {
     for (const peer of rooms.get(session.room) || []) if (peer !== session) emit(peer, event);
   };
+  const member = session => ({ peer: session.peer, name: session.name, color: session.color, role: session.shared ? 'Editor' : 'Owner' });
+  const roster = room => [...(rooms.get(room) || [])].filter(session => !session.res.destroyed && !session.res.writableEnded).map(member);
+  const sendRoster = room => { const members = roster(room); for (const peer of rooms.get(room) || []) emit(peer, { type: 'roster', members }); };
   const connect = shared => async (req, res) => {
     if (shared ? !/^[A-Za-z0-9_-]{43}$/.test(req.params.token) : !validId(req.params.id)) return res.status(404).end();
     const filter = shared ? { shareLinkHash: hashToken(req.params.token), shareLinkRole: 'edit', deletedAt: null } : { _id: req.params.id, user: req.user.userId, deletedAt: null };
@@ -21,17 +26,26 @@ module.exports = function registerLiveInk(app, auth, { PDF, isLocked, hashToken,
       };
       const file = await allowed();
       if (!file) return res.status(404).end();
+      let identity = req.user;
+      if (shared) {
+        identity = null;
+        const bearer = /^Bearer (.+)$/.exec(req.get('Authorization') || '')?.[1];
+        if (bearer) { try { identity = jwt.verify(bearer, process.env.JWT_SECRET); } catch { /* Public links remain available to guests. */ } }
+      }
+      const account = identity?.userId && validId(String(identity.userId)) ? await User.findById(identity.userId).select('username deactivatedAt approvalPending').lean() : null;
+      const username = account && !account.deactivatedAt && !account.approvalPending ? account.username : null;
       const room = String(file._id), peers = rooms.get(room) || new Set();
       if (peers.size >= 32) return res.status(429).json({ message: 'This live room is full.' });
       res.set({ 'Content-Type': 'text/event-stream', 'Cache-Control': 'private, no-store, no-transform', 'Connection': 'keep-alive', 'X-Accel-Buffering': 'no', 'Referrer-Policy': 'no-referrer' });
       res.flushHeaders();
       const key = randomBytes(32).toString('base64url');
       const session = { key, peer: randomBytes(9).toString('hex'), color: ['#38bdf8','#a78bfa','#fb923c','#34d399','#f472b6'][peers.size % 5], room, shared, filter, res, previews: new Map(), sequence: 0, checkedAt: Date.now(), checking: null, allowed, lastPacket: 0 };
+      session.name = username || `Guest ${session.peer.slice(0,4).toUpperCase()}`;
       sessions.set(key, session); peers.add(session); rooms.set(room, peers);
       const previews = [];
       for (const peer of peers) for (const preview of peer.previews.values()) if (Date.now() - preview.updated < 10000) previews.push(preview);
       // A session key is a short-lived write capability. Never expose it to peers.
-      emit(session, { type: 'ready', session: key, previews, presences: [...peers].filter(peer => peer !== session && peer.presence).map(peer => ({ peer: peer.peer, color: peer.color, data: peer.presence })) });
+      emit(session, { type: 'ready', session: key, self: session.peer, members: roster(room), previews, presences: [...peers].filter(peer => peer !== session && peer.presence).map(peer => ({ peer: peer.peer, color: peer.color, data: peer.presence })) });
       const heartbeat = setInterval(async () => {
         try {
           if (!await allowed()) { emit(session, { type: 'unavailable' }); res.end(); return; }
@@ -45,7 +59,9 @@ module.exports = function registerLiveInk(app, auth, { PDF, isLocked, hashToken,
         for (const id of session.previews.keys()) broadcast(session, { type: 'clear', id });
         broadcast(session, { type: 'presence', peer: session.peer, color: session.color, data: null });
         if (!peers.size) rooms.delete(room);
+        else sendRoster(room);
       });
+      sendRoster(room);
     } catch { if (!res.headersSent) res.status(503).end(); else res.end(); }
   };
   app.get('/api/pdfs/:id/live/stream', auth, connect(false));

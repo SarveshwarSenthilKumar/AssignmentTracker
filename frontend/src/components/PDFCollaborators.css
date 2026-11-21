@@ -1,0 +1,20 @@
+.pdf-live-bar{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px 12px;padding:5px 12px;background:var(--surface-panel);border-bottom:1px solid var(--border);flex-shrink:0;position:relative;z-index:44}
+.pdf-live-bar .pdf-live-status{flex:1 1 200px;padding:0;border:0;min-width:0;font-size:12px}
+.pdf-collaborators{position:relative;color:var(--text-primary);font-size:12px}
+.pdf-collaborators>summary{display:flex;align-items:center;gap:7px;min-height:36px;padding:5px 9px;cursor:pointer;list-style:none;border:1px solid var(--border-strong);border-radius:8px;background:var(--surface-input)}
+.pdf-collaborators>summary::-webkit-details-marker{display:none}
+.pdf-collaborators>summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.pdf-collaborator-avatars{display:flex;padding-left:4px}
+.pdf-collaborator-avatars>i,.pdf-collaborator-avatar{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;font-style:normal;font-weight:700;color:#10202c;flex-shrink:0}
+.pdf-collaborator-avatars>i{margin-left:-4px;border:2px solid var(--surface-panel);font-size:10px}
+.pdf-collaborators-panel{position:absolute;right:0;top:calc(100% + 7px);width:320px;max-width:calc(100vw - 24px);max-height:50dvh;overflow:auto;overscroll-behavior:contain;padding:14px;border:1px solid var(--border-strong);border-radius:10px;background:var(--surface-panel);box-shadow:0 10px 30px #0005}
+.pdf-collaborators-panel h3{font-size:14px;font-weight:650;margin-bottom:8px}
+.pdf-collaborators-panel ul{list-style:none;padding:0;margin:0}
+.pdf-collaborators-panel li{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)}
+.pdf-collaborators-panel li>span:first-of-type{flex:1;min-width:0}
+.pdf-collaborators-panel strong{display:block;font-size:12px;overflow-wrap:anywhere}
+.pdf-collaborators-panel small{display:block;color:var(--text-muted);font-size:11px;margin-top:2px}
+.pdf-collaborator-online{color:#62c795;font-size:10px}
+.pdf-collaborators-note{font-size:11px;line-height:1.6;color:var(--text-muted);margin-top:12px}
+@media(pointer:coarse){.pdf-collaborators>summary{min-height:44px}}
+@media(max-width:540px){.pdf-collaborators{margin-left:auto}.pdf-collaborators-panel{position:fixed;top:20dvh;right:12px;left:12px;width:auto;max-height:65dvh}}

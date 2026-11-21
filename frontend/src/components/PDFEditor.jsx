@@ -25,6 +25,7 @@ import {readScrollSettings,normalizeScrollSettings,SCROLL_SETTINGS_KEY} from '..
 import useShortcuts from '../hooks/useShortcuts'
 import useLiveInk from '../hooks/useLiveInk'
 import PDFCollaborationPresence from './PDFCollaborationPresence'
+import PDFCollaborators from './PDFCollaborators'
 import useInlineConfirm from '../hooks/useInlineConfirm'
 import InlineConfirmation from './InlineConfirmation'
 import PDFCalculator from './PDFCalculator'
@@ -2487,7 +2488,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         insert={<InsertPanel onPages={exportImage?undefined:handleAddPages} pageNumber={pageNumber} onFiles={insertFiles} onInsert={insertGenerated} color={currentColor} busy={inserting||!pageBase||pageBase.page!==pageNumber||deletingPage}/>}
       />
       {!focusMode && renderFolderNavigation?.(leave, loading || inserting || deletingPage || saveStatus === 'saving' || confirmation.pending)}
-      {liveEnabled && <p className="pdf-live-status" role="status">{liveInk.connected ? liveStatus : 'Live previews reconnecting · ' + liveStatus}</p>}
+      {liveEnabled && <PDFCollaborators members={liveInk.members} self={liveInk.self} connected={liveInk.connected} status={liveStatus}/>}
 
       {lineSuggestion&&<div className="pdf-line-suggestion" role="status" aria-live="polite"><span>{lineSuggestion.numberLine?'Number line detected':lineSuggestion.dashed?'Dashed line detected':lineSuggestion.dots?'Dotted line detected':'Straight line detected'}</span><button type="button" onClick={()=>{setCurrentTool('select');setLineSuggestion(null)}}>Move / resize</button><button type="button" onClick={()=>setLineSuggestion(null)} aria-label="Keep detected line"><Check size={15}/>Keep</button><button type="button" onClick={revertStraightLine} aria-label="Restore original freehand stroke"><Undo size={15}/>Undo</button></div>}
       {['arrow-copy','arrow-paste'].includes(currentTool)&&!exportImage&&<div className="pdf-existing-text-hint pdf-arrow-copy-bar">

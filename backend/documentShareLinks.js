@@ -8,7 +8,7 @@ const editable = file => /\.(md|markdown|txt)$/i.test(file.originalName || '') &
   /^(text\/plain|text\/markdown|application\/octet-stream)(;|$)/i.test(file.mimeType || '');
 
 module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDFFolder }) {
-  const liveInk = require('./liveInk')(app, auth, { PDF, isLocked, hashToken, validId });
+  const liveInk = require('./liveInk')(app, auth, { PDF, User, isLocked, hashToken, validId });
   const contentRevision = file => createHash('sha256').update(file.pdfData).digest('hex');
   const normalized = annotations => (annotations || []).map((item, index) => item.id ? item : { ...item, id: `legacy-${index}-${createHash('sha256').update(JSON.stringify(item)).digest('hex').slice(0, 16)}` });
   const live = shared => async (req, res) => {

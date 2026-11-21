@@ -4,6 +4,7 @@ import { annotationChanges } from '../lib/liveAnnotations'
 export default function useLiveInk({ url, token, enabled, contentRevision, committed, onChanges }) {
   const [previews, setPreviews] = useState(new Map())
   const [participants, setParticipants] = useState(new Map())
+  const [members, setMembers] = useState([]), [self, setSelf] = useState(null)
   const presence = useRef(null)
   const connection = useRef(null), pending = useRef(new Map()), offsets = useRef(new Map())
   const edits = useRef(new Map()), receiver = useRef(onChanges)
@@ -25,7 +26,11 @@ export default function useLiveInk({ url, token, enabled, contentRevision, commi
         offsets.current.clear()
         setPreviews(new Map(event.previews.filter(item => !known.current.has(item.id)).map(item => [item.id, { ...item, livePressure: item.pressure, updated: Date.now() }])))
         setConnected(true)
+        setMembers(event.members || [])
+        setSelf(event.self || null)
         setParticipants(new Map((event.presences || []).map(peer => [peer.peer, { ...peer, updated: Date.now() }])))
+      } else if (event.type === 'roster') {
+        setMembers(event.members || [])
       } else if (event.type === 'clear') {
         setPreviews(previous => { const next = new Map(previous); next.delete(event.id); return next })
       } else if (event.type === 'ink') {
@@ -50,7 +55,9 @@ export default function useLiveInk({ url, token, enabled, contentRevision, commi
     }
     const connect = async () => {
       try {
-        const response = await fetch(`${url}/stream`, { cache: 'no-store', signal: controller.signal, headers: token ? { Authorization: `Bearer ${token}` } : {} })
+        let identityToken = token
+        if (!identityToken) { try { identityToken = localStorage.getItem('token') } catch { /* Guests can still join. */ } }
+        const response = await fetch(`${url}/stream`, { cache: 'no-store', signal: controller.signal, headers: identityToken ? { Authorization: `Bearer ${identityToken}` } : {} })
         if (!response.ok || !response.body) throw new Error('Live preview unavailable')
         const reader = response.body.getReader(), decoder = new TextDecoder()
         let buffer = ''
@@ -73,6 +80,8 @@ export default function useLiveInk({ url, token, enabled, contentRevision, commi
         setConnected(false)
         setPreviews(new Map())
         setParticipants(new Map())
+        setMembers([])
+        setSelf(null)
         if (!controller.signal.aborted) reconnect = setTimeout(connect, 1200)
       }
     }
@@ -165,5 +174,6 @@ export default function useLiveInk({ url, token, enabled, contentRevision, commi
     if (!enabled || !contentRevision) return
     presence.current = { data: data ? { ...data, contentRevision } : null }
   }
-  return { connected, publish, publishChanges, publishPresence, participants: [...participants.values()].filter(peer => peer.data.contentRevision === contentRevision), strokes: [...previews.values()].filter(stroke => stroke.contentRevision === contentRevision) }
+  const names = new Map(members.map(member => [member.peer, member.name]))
+  return { connected, members, self, publish, publishChanges, publishPresence, participants: [...participants.values()].filter(peer => peer.data.contentRevision === contentRevision).map(peer => ({ ...peer, name: names.get(peer.peer) })), strokes: [...previews.values()].filter(stroke => stroke.contentRevision === contentRevision) }
 }

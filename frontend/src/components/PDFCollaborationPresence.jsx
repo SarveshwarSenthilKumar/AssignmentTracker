@@ -114,7 +114,7 @@ export default function PDFCollaborationPresence({ root, enabled, participants, 
         {peer.data.rects.filter(rect=>rect.page===number).map((rect,i)=>{const bounds=rotated(rect,rotation);return <span key={i} className={`pdf-peer-rect is-${rect.kind}`} style={{left:`${bounds.x*100}%`,top:`${bounds.y*100}%`,width:`${bounds.width*100}%`,height:`${bounds.height*100}%`}}/>})}
         {location&&<>
           {peer.data.tool==='eraser'&&(()=>{const size=rotated(cursor,rotation);return <span className="pdf-peer-eraser" style={{left:`${location.x*100}%`,top:`${location.y*100}%`,width:`${size.width*100}%`,height:`${size.height*100}%`,borderRadius:cursor.round?'50%':'2px'}}/>})()}
-          <span className={`pdf-peer-cursor${cursor.down?' is-down':''}`} style={{left:`${location.x*100}%`,top:`${location.y*100}%`}}><i/><span>{labels[peer.data.tool]||peer.data.tool}</span></span>
+          <span className={`pdf-peer-cursor${cursor.down?' is-down':''}`} style={{left:`${location.x*100}%`,top:`${location.y*100}%`}}><i/><span>{peer.name?`${peer.name} · `:''}{labels[peer.data.tool]||peer.data.tool}</span></span>
         </>}
       </div>
     })}
