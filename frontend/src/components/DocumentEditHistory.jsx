@@ -38,13 +38,26 @@ export default function DocumentEditHistory({url,token,onClose}) {
     return()=>{controller.abort();clearInterval(timer);loadRef.current=null;if(opener?.isConnected)opener.focus({preventScroll:true})}
   },[url,token])
   const query=search.trim().toLowerCase()
-  const visible=items.filter(item=>`${item.actor} ${item.action} ${item.pages.map(page=>`page ${page}`).join(' ')}`.toLowerCase().includes(query))
+  const visible=items.filter(item=>`${item.actor} ${item.action} ${item.description||''} ${(item.details||[]).map(detail=>`${detail.label} ${detail.text||''} ${detail.before||''} ${detail.after||''}`).join(' ')} ${item.pages.map(page=>`page ${page}`).join(' ')}`.toLowerCase().includes(query))
   return <aside className="document-edit-history" role="dialog" aria-label="Document edit history" onKeyDown={event=>{event.stopPropagation();if(event.key==='Escape'){event.preventDefault();onClose()}}}>
     <header><h2><History size={18}/>Edit history</h2><button type="button" ref={close} aria-label="Close edit history" onClick={onClose}><X size={18}/></button></header>
-    <div className="document-history-controls"><input type="search" aria-label="Filter edit history" placeholder="Search people, actions, or pages…" value={search} onChange={event=>setSearch(event.target.value)}/><button type="button" disabled={busy} onClick={()=>loadRef.current?.(false,true)} aria-label="Refresh latest edit history"><RefreshCw size={16}/></button></div>
-    <p className="document-history-note">Shows the latest 300 saved edit groups. Continuous edits are grouped together. Earlier edits from before history was enabled are unavailable.</p>
+    <div className="document-history-controls"><input type="search" aria-label="Filter loaded edit history" placeholder="Search loaded edits, people, or text…" value={search} onChange={event=>setSearch(event.target.value)}/><button type="button" disabled={busy} onClick={()=>loadRef.current?.(false,true)} aria-label="Refresh latest edit history"><RefreshCw size={16}/></button></div>
+    <p className="document-history-note">Up to 300 saved edit groups are retained. Continuous edits are grouped together, and text excerpts may be shortened. Older entries may contain summaries only.</p>
     {error&&<p className="document-history-error" role="alert">{error}</p>}
-    <ol aria-busy={busy}>{visible.map(item=><li key={item.id}><strong>{item.actor}</strong><span>{item.action}</span>{item.pages.length>0&&<small>Page{item.pages.length===1?'':'s'} {item.pages.join(', ')}</small>}<time dateTime={item.at} title={`Started ${new Date(item.startedAt||item.at).toLocaleString()}`}>{new Date(item.at).toLocaleString()}</time>{item.updates>1&&<small>{item.updates} updates grouped</small>}</li>)}</ol>
+    <ol aria-busy={busy}>{visible.map(item=><li key={item.id}>
+      <strong>{item.actor}</strong><span className="document-history-description">{item.description||item.action}</span>
+      {item.description&&<small>{item.action}</small>}
+      {item.pages.length>0&&<small>Page{item.pages.length===1?'':'s'} {item.pages.join(', ')}</small>}
+      <time dateTime={item.at} title={`Started ${new Date(item.startedAt||item.at).toLocaleString()}`}>{new Date(item.at).toLocaleString()}</time>
+      {item.updates>1&&<small>{item.updates} updates grouped</small>}
+      {item.details?.length>0&&<details className="document-history-details"><summary>What changed</summary>
+        {item.details.map(detail=><article key={detail.key}><h3>{detail.label}</h3>{detail.kind==='note'?<p>{detail.text}</p>:<>
+          <div className="document-history-before"><span>Before</span><pre>{detail.before||'(empty)'}</pre></div>
+          <div className="document-history-after"><span>After</span><pre>{detail.after||'(empty)'}</pre></div>
+        </>}</article>)}
+        {item.detailsTruncated&&<p className="document-history-truncated">Additional changes were grouped into this entry.</p>}
+      </details>}
+    </li>)}</ol>
     {!busy&&!error&&!visible.length&&<p className="document-history-empty">{query?'No matching edits.':'No edits recorded yet. New saved changes will appear here.'}</p>}
     <footer>{busy&&<span role="status">Loading history…</span>}{cursor&&<button type="button" disabled={busy} onClick={()=>loadRef.current?.(true)}>Load older edits</button>}</footer>
   </aside>
