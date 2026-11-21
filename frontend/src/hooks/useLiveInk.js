@@ -19,6 +19,7 @@ export default function useLiveInk({ url, token, enabled, contentRevision, commi
   const edits = useRef(new Map()), receiver = useRef(onChanges)
   receiver.current = onChanges
   const [connected, setConnected] = useState(false)
+  const [accessRevoked,setAccessRevoked]=useState(false)
   const known = useRef(new Set())
   useEffect(() => { edits.current.clear(); pending.current.clear(); offsets.current.clear(); presence.current = null; setPreviews(new Map()); setParticipants(new Map()) }, [contentRevision])
   known.current = new Set(committed.map(item => item.id))
@@ -30,6 +31,7 @@ export default function useLiveInk({ url, token, enabled, contentRevision, commi
     setConnected(false)
     setMembers([])
     setSelf(null)
+    setAccessRevoked(false)
     const controller = new AbortController()
     let reconnect, sender, expiry, sending = false, sequence = 0
     const receive = event => {
@@ -62,15 +64,19 @@ export default function useLiveInk({ url, token, enabled, contentRevision, commi
           else next.delete(event.peer)
           return next
         })
+      } else if (event.type === 'revoked'||event.type === 'unavailable') {
+        setAccessRevoked(true);setConnected(false);setMembers([]);setParticipants(new Map());setPreviews(new Map())
+        connection.current=null;edits.current.clear();pending.current.clear();presence.current=null
+        controller.abort()
       } else if (event.type === 'edit') receiver.current?.(event)
       else if (event.type === 'refresh') receiver.current?.(event)
-      else if (event.type === 'unavailable') controller.abort()
     }
     const connect = async () => {
       try {
         let identityToken = token
         if (!identityToken) { try { identityToken = localStorage.getItem('token') } catch { /* Guests can still join. */ } }
         const response = await fetch(`${url}/stream`, { cache: 'no-store', signal: controller.signal, headers: { 'X-PDF-Client': browserId.current, ...(identityToken ? { Authorization: `Bearer ${identityToken}` } : {}) } })
+        if(response.status===403){const data=await response.json().catch(()=>({}));if(data.code==='DOCUMENT_ACCESS_REVOKED'){setAccessRevoked(true);controller.abort();return}}
         if (!response.ok || !response.body) throw new Error('Live preview unavailable')
         const reader = response.body.getReader(), decoder = new TextDecoder()
         let buffer = ''
@@ -197,5 +203,5 @@ export default function useLiveInk({ url, token, enabled, contentRevision, commi
     const id = identity?.peer || peer.peer, previous = people.get(id)
     if (!previous || priority(peer)>priority(previous) || (priority(peer)===priority(previous)&&peer.updated>previous.updated)) people.set(id,{...peer,person:id,name:identity?.name})
   }
-  return { connected, members, self, publish, publishChanges, publishPresence, participants: [...people.values()], strokes: [...previews.values()].filter(stroke => stroke.contentRevision === contentRevision) }
+  return { connected, accessRevoked, members, self, publish, publishChanges, publishPresence, participants: [...people.values()], strokes: [...previews.values()].filter(stroke => stroke.contentRevision === contentRevision) }
 }

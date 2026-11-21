@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { mergeText } from '../lib/liveText'
+import {sharedDocumentRequest} from '../lib/sharedDocumentRequest'
 
 export default function useLiveText({ url, token, enabled = true, value, onChange, onSaved }) {
   const latest = useRef({ value, onChange, onSaved })
@@ -23,7 +24,7 @@ export default function useLiveText({ url, token, enabled = true, value, onChang
       const draft = latest.current.value
       const writing = session.revision && draft !== session.saved && !session.conflict
       try {
-        const response = await fetch(url, { method: writing ? 'PUT' : 'GET', cache: 'no-store', signal: controller.signal,
+        const response = await sharedDocumentRequest(url, { method: writing ? 'PUT' : 'GET', cache: 'no-store', signal: controller.signal,
           headers: { ...(token && { Authorization: `Bearer ${token}` }), ...(writing && { 'Content-Type': 'application/json' }) },
           ...(writing && { body: JSON.stringify({ text: draft, baseText: session.saved, baseRevision: session.revision }) }) })
         const data = await response.json()

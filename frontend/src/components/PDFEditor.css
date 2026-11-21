@@ -346,3 +346,8 @@
 .pdf-share-dialog :is(button,select,input){min-height:44px;max-width:100%}
 .pdf-share-dialog :is(input,select){font-size:16px}
 .pdf-live-status{flex-shrink:0;padding:5px 12px;font-size:12px;line-height:1.5;color:var(--text-secondary);background:var(--surface-panel);border-bottom:1px solid var(--border);overflow-wrap:anywhere}
+.pdf-access-revoked{position:fixed;inset:0;z-index:6000;display:grid;place-items:center;padding:20px;background:#080e18e8;overscroll-behavior:contain}
+.pdf-access-revoked>section{width:min(480px,100%);padding:24px;background:var(--surface-panel);color:var(--text-primary);border:1px solid var(--border-strong);border-radius:12px;line-height:1.7}
+.pdf-access-revoked h2{font-size:20px;font-weight:650;margin-bottom:10px}
+.pdf-access-revoked section>div{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px}
+.pdf-access-revoked button{min-height:44px;padding:8px 12px;border:1px solid var(--border-strong);border-radius:8px;background:var(--surface-input);color:var(--text-primary)}

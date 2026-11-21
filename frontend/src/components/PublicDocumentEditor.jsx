@@ -2,6 +2,7 @@ import { Component, useEffect, useRef, useState } from 'react'
 import SharedTextEditor from './SharedTextEditor'
 import PDFEditor from './PDFEditor'
 import './DocumentLibrary.css'
+import {sharedDocumentRequest} from '../lib/sharedDocumentRequest'
 
 class SharedEditorBoundary extends Component {
   state = { failed: false }
@@ -30,7 +31,7 @@ export default function PublicDocumentEditor({ shareToken }) {
     const controller = new AbortController()
     setFile(null)
     setError('')
-    fetch(`${endpoint}/editor`, { signal: controller.signal, cache: 'no-store' })
+    sharedDocumentRequest(`${endpoint}/editor`, { signal: controller.signal, cache: 'no-store' })
       .then(async response => {
         const data = await response.json()
         if (!response.ok) throw new Error(data.message || 'This editor link is unavailable.')
@@ -56,7 +57,7 @@ export default function PublicDocumentEditor({ shareToken }) {
         reader.onerror = () => reject(new Error('Could not read this file.'))
         reader.readAsDataURL(replacement)
       })
-      const response = await fetch(`${endpoint}/document/content`, { method: 'PUT', cache: 'no-store', headers: { 'Content-Type': 'application/json', 'X-Share-Revision': file.revision }, body: JSON.stringify({ content }) })
+      const response = await sharedDocumentRequest(`${endpoint}/document/content`, { method: 'PUT', cache: 'no-store', headers: { 'Content-Type': 'application/json', 'X-Share-Revision': file.revision }, body: JSON.stringify({ content }) })
       const data = await response.json()
       if (!response.ok) throw new Error(data.message || 'Could not save the replacement.')
       setFile(previous => ({ ...previous, revision: response.headers.get('X-Share-Revision') }))

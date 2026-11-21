@@ -20,6 +20,8 @@ module.exports = function registerSharedFolders(app, auth, { User, PDF, PDFFolde
   const editable = file => /\.(md|markdown|txt)$/i.test(file.originalName || '') &&
     /^(text\/plain|text\/markdown|application\/octet-stream)(;|$)/i.test(file.mimeType || '');
   const revision = bytes => createHash('sha256').update(bytes).digest('hex');
+  const collaboratorId = (fileId,userId) => createHash('sha256').update(`${String(fileId).toLowerCase()}:account:${String(userId).toLowerCase()}`).digest('hex').slice(0,24);
+  const collaboratorFilter = (req,access) => access.owned?{}:{revokedCollaborators:{$ne:collaboratorId(req.params.fileId,req.user.userId)}};
 
   async function accessibleFolder(req) {
     const owned = await ownedFolder(req);
@@ -78,9 +80,9 @@ module.exports = function registerSharedFolders(app, auth, { User, PDF, PDFFolde
     if (!access) return res.status(404).json({ message: 'This shared folder is unavailable.' });
     const { folder, locks } = access;
     const files = await PDF.find({ user: folder.user, pdfFolder: folder._id, deletedAt: null })
-      .select('name originalName mimeType').sort('name').lean();
+      .select('name originalName mimeType +revokedCollaborators').sort('name').lean();
     const canEdit = access.owned || !!await PDFFolder.exists({ _id: folder._id, sharedWith: req.user.userId, sharedEditors: req.user.userId });
-    res.json({ name: folder.name, files: files.filter(file => !locks.includes(`file:${file._id}`)).map(file => ({ ...file, canEdit: canEdit && editable(file) })) });
+    res.json({ name: folder.name, files: files.filter(file => !locks.includes(`file:${file._id}`)&&(access.owned||!(file.revokedCollaborators||[]).includes(collaboratorId(file._id,req.user.userId)))).map(({revokedCollaborators,...file}) => ({ ...file, canEdit: canEdit && editable(file) })) });
   }));
 
   const editText = write => async (req, res) => {
@@ -90,7 +92,7 @@ module.exports = function registerSharedFolders(app, auth, { User, PDF, PDFFolde
         access.locks.includes(`file:${req.params.fileId.toLowerCase()}`)) {
       return res.status(404).json({ message: 'You do not have edit access to this document.' });
     }
-    const filter = { _id: req.params.fileId, user: access.folder.user, pdfFolder: access.folder._id, deletedAt: null };
+    const filter = { _id: req.params.fileId, user: access.folder.user, pdfFolder: access.folder._id, deletedAt: null, ...collaboratorFilter(req,access) };
     const file = await PDF.findOne(filter).select('originalName mimeType pdfData originalBackup');
     if (!file || !editable(file)) return res.status(404).json({ message: 'This document is unavailable for live editing.' });
     if (file.pdfData.length > 1024 * 1024 || !Buffer.from(file.pdfData.toString('utf8')).equals(file.pdfData)) {
@@ -119,7 +121,7 @@ module.exports = function registerSharedFolders(app, auth, { User, PDF, PDFFolde
     if (!access || access.locks.includes(`file:${req.params.fileId.toLowerCase()}`)) {
       return res.status(404).json({ message: 'This shared document is unavailable.' });
     }
-    const file = await PDF.findOne({ _id: req.params.fileId, user: access.folder.user, pdfFolder: access.folder._id, deletedAt: null })
+    const file = await PDF.findOne({ _id: req.params.fileId, user: access.folder.user, pdfFolder: access.folder._id, deletedAt: null, ...collaboratorFilter(req,access) })
       .select('originalName pdfData');
     if (!file) return res.status(404).json({ message: 'This shared document is unavailable.' });
     res.set('X-Content-Type-Options', 'nosniff');

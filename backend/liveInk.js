@@ -1,9 +1,8 @@
 const { randomBytes, createHash } = require('node:crypto');
-const jwt = require('jsonwebtoken');
 
 // Pen previews are ephemeral; annotation changes from other tools are merged
 // into the same document before they are pushed to peers.
-module.exports = function registerLiveInk(app, auth, { PDF, User, isLocked, hashToken, validId }) {
+module.exports = function registerLiveInk(app, auth, { PDF, isLocked, hashToken, validId, collaboratorAccess }) {
   const sessions = new Map(), rooms = new Map();
   const emit = (session, event) => {
     if (session.res.writableEnded) return;
@@ -19,11 +18,11 @@ module.exports = function registerLiveInk(app, auth, { PDF, User, isLocked, hash
       if (session.res.destroyed || session.res.writableEnded) continue;
       let person = people.get(session.person);
       if (!person) {
-        person = { peer: session.person, name: session.name, color: session.color, role: session.shared ? 'Editor' : 'Owner', sessions: [] };
+        person = { peer: session.person, name: session.name, color: session.color, role: session.owner ? 'Owner' : 'Editor', sessions: [] };
         people.set(session.person, person);
       }
       person.sessions.push(session.peer);
-      if (!session.shared) person.role = 'Owner';
+      if (session.owner) person.role = 'Owner';
     }
     return [...people.values()];
   };
@@ -31,32 +30,25 @@ module.exports = function registerLiveInk(app, auth, { PDF, User, isLocked, hash
   const connect = shared => async (req, res) => {
     if (shared ? !/^[A-Za-z0-9_-]{43}$/.test(req.params.token) : !validId(req.params.id)) return res.status(404).end();
     const filter = shared ? { shareLinkHash: hashToken(req.params.token), shareLinkRole: 'edit', deletedAt: null } : { _id: req.params.id, user: req.user.userId, deletedAt: null };
+    let actor = req.documentCollaborator;
     try {
       const allowed = async () => {
-        const file = await PDF.findOne(filter).select('_id user pdfFolder').lean();
-        return file && !await isLocked(file) ? file : null;
+        const file = await PDF.findOne(filter).select('_id user pdfFolder +revokedCollaborators').lean();
+        if(!file)return null;
+        if(!actor)actor=await collaboratorAccess.identify(req,res,file);
+        return !collaboratorAccess.blocked(file,actor) && !await isLocked(file) ? file : null;
       };
       const file = await allowed();
       if (!file) return res.status(404).end();
-      let identity = req.user;
-      if (shared) {
-        identity = null;
-        const bearer = /^Bearer (.+)$/.exec(req.get('Authorization') || '')?.[1];
-        if (bearer) { try { identity = jwt.verify(bearer, process.env.JWT_SECRET); } catch { /* Public links remain available to guests. */ } }
-      }
-      const account = identity?.userId && validId(String(identity.userId)) ? await User.findById(identity.userId).select('username deactivatedAt approvalPending').lean() : null;
-      const username = account && !account.deactivatedAt && !account.approvalPending ? account.username : null;
       if (req.aborted || res.destroyed || res.writableEnded) return;
       const room = String(file._id), peers = rooms.get(room) || new Set();
-      const client = req.get('X-PDF-Client');
-      const guest = typeof client === 'string' && /^[A-Za-z0-9_-]{16,80}$/.test(client) ? client : randomBytes(16).toString('hex');
-      const person = createHash('sha256').update(`${room}:${username ? `account:${account._id}` : `guest:${guest}`}`).digest('hex').slice(0,24);
+      const person = actor.person;
       if (peers.size >= 32) return res.status(429).json({ message: 'This live room is full.' });
       res.set({ 'Content-Type': 'text/event-stream', 'Cache-Control': 'private, no-store, no-transform', 'Connection': 'keep-alive', 'X-Accel-Buffering': 'no', 'Referrer-Policy': 'no-referrer' });
       res.flushHeaders();
       const key = randomBytes(32).toString('base64url');
-      const session = { key, person, peer: randomBytes(9).toString('hex'), color: ['#38bdf8','#a78bfa','#fb923c','#34d399','#f472b6'][parseInt(person.slice(0,4),16) % 5], room, shared, filter, res, previews: new Map(), sequence: 0, checkedAt: Date.now(), checking: null, allowed, lastPacket: 0 };
-      session.name = username || `Guest ${person.slice(0,4).toUpperCase()}`;
+      const session = { key, person, actor, owner:actor.owner, peer: randomBytes(9).toString('hex'), color: ['#38bdf8','#a78bfa','#fb923c','#34d399','#f472b6'][parseInt(person.slice(0,4),16) % 5], room, shared, filter:shared?{...filter,...collaboratorAccess.filter(actor)}:filter, res, previews: new Map(), sequence: 0, checkedAt: Date.now(), checking: null, allowed, lastPacket: 0 };
+      session.name = actor.name || `Guest ${person.slice(0,4).toUpperCase()}`;
       sessions.set(key, session); peers.add(session); rooms.set(room, peers);
       const previews = [];
       for (const peer of peers) for (const preview of peer.previews.values()) if (Date.now() - preview.updated < 10000) previews.push(preview);
@@ -82,6 +74,23 @@ module.exports = function registerLiveInk(app, auth, { PDF, User, isLocked, hash
   };
   app.get('/api/pdfs/:id/live/stream', auth, connect(false));
   app.get('/api/shared-document/:token/live/stream', connect(true));
+  app.delete('/api/pdfs/:id/collaborators/:person',auth,async(req,res)=>{
+    res.set('Cache-Control','no-store');
+    if(!validId(req.params.id)||!/^[a-f\d]{24}$/.test(req.params.person))return res.status(400).json({message:'Choose a valid collaborator.'});
+    try {
+      const file=await PDF.findOne({_id:req.params.id,user:req.user.userId,deletedAt:null}).select('_id user').lean();
+      if(!file)return res.status(403).json({message:'Only the document owner can revoke access.'});
+      const owner=await collaboratorAccess.identify(req,res,file);
+      const peers=rooms.get(String(file._id))||new Set();
+      const targets=[...peers].filter(session=>session.person===req.params.person);
+      if(req.params.person===owner.person||targets.some(session=>session.owner))return res.status(400).json({message:'The owner’s access cannot be revoked.'});
+      const blocked=[...new Set([req.params.person,...targets.map(session=>session.actor.browserPerson)])];
+      await PDF.updateOne({_id:file._id,user:req.user.userId},{$addToSet:{revokedCollaborators:{$each:blocked}},$set:{updatedAt:new Date()}});
+      for(const session of peers)if(!session.owner&&(blocked.includes(session.person)||blocked.includes(session.actor.browserPerson))){emit(session,{type:'revoked',message:'The owner revoked your access to this document.'});session.res.end();}
+      sendRoster(String(file._id));
+      res.status(204).end();
+    } catch {res.status(503).json({message:'Could not revoke access. Please try again.'});}
+  });
   app.post('/api/document-live-ink/:session', async (req, res) => {
     res.set('Cache-Control', 'no-store');
     const session = sessions.get(req.params.session);
@@ -92,6 +101,7 @@ module.exports = function registerLiveInk(app, auth, { PDF, User, isLocked, hash
         if (!await session.checking) { session.res.end(); return res.status(404).end(); }
         session.checkedAt = Date.now();
       }
+      if(session.res.destroyed||session.res.writableEnded)return res.status(404).end();
       const { id, sequence, cancel, points = [], offset, replace, page, tool, color, strokeWidth, pressure, contentRevision, ended } = req.body || {};
       if (typeof id !== 'string' || id.length > 150 || !Number.isSafeInteger(sequence) || sequence <= session.sequence) return res.status(400).end();
       if (Date.now() - session.lastPacket < 15) return res.status(429).end();

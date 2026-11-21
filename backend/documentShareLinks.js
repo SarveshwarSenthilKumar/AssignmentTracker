@@ -8,13 +8,26 @@ const editable = file => /\.(md|markdown|txt)$/i.test(file.originalName || '') &
   /^(text\/plain|text\/markdown|application\/octet-stream)(;|$)/i.test(file.mimeType || '');
 
 module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDFFolder }) {
-  const liveInk = require('./liveInk')(app, auth, { PDF, User, isLocked, hashToken, validId });
+  const collaboratorAccess = require('./documentCollaboratorAccess')({User});
+  app.use('/api/shared-document/:token',async(req,res,next)=>{
+    res.set('Cache-Control','private, no-store');
+    if(!/^[A-Za-z0-9_-]{43}$/.test(req.params.token))return res.status(404).json({message:'This document link is unavailable.'});
+    try {
+      const file=await PDF.findOne({shareLinkHash:hashToken(req.params.token),deletedAt:null}).select('_id user +revokedCollaborators').lean();
+      if(!file)return res.status(404).json({message:'This document link is unavailable.'});
+      const identity=await collaboratorAccess.identify(req,res,file);
+      if(collaboratorAccess.blocked(file,identity))return res.status(403).json({code:'DOCUMENT_ACCESS_REVOKED',message:'The owner revoked your access to this document.'});
+      next();
+    } catch {res.status(503).json({message:'Could not verify document access.'});}
+  });
+  const sharedAccess=req=>collaboratorAccess.filter(req.documentCollaborator);
+  const liveInk = require('./liveInk')(app, auth, { PDF, User, isLocked, hashToken, validId, collaboratorAccess });
   const contentRevision = file => createHash('sha256').update(file.pdfData).digest('hex');
   const normalized = annotations => (annotations || []).map((item, index) => item.id ? item : { ...item, id: `legacy-${index}-${createHash('sha256').update(JSON.stringify(item)).digest('hex').slice(0, 16)}` });
   const live = shared => async (req, res) => {
     res.set({ 'Cache-Control': 'private, no-store', 'Referrer-Policy': 'no-referrer' });
     if (shared ? !/^[A-Za-z0-9_-]{43}$/.test(req.params.token) : !validId(req.params.id)) return res.status(404).json({ message: 'Document unavailable.' });
-    const filter = shared ? { shareLinkHash: hashToken(req.params.token), shareLinkRole: 'edit', deletedAt: null } : { _id: req.params.id, user: req.user.userId, deletedAt: null };
+    const filter = shared ? { shareLinkHash: hashToken(req.params.token), shareLinkRole: 'edit', deletedAt: null, ...sharedAccess(req) } : { _id: req.params.id, user: req.user.userId, deletedAt: null };
     try {
       for (let attempt = 0; attempt < 6; attempt++) {
         const file = await PDF.findOne(filter);
@@ -116,7 +129,7 @@ module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDF
     const unavailable = () => res.status(404).json({ message: 'This editor link is unavailable.' });
     if (owner ? !validId(req.params.id) : !/^[A-Za-z0-9_-]{43}$/.test(req.params.token)) return unavailable();
     try {
-      const filter = owner ? { _id: req.params.id, user: req.user.userId, deletedAt: null } : { shareLinkHash: hashToken(req.params.token), shareLinkRole: 'edit', deletedAt: null };
+      const filter = owner ? { _id: req.params.id, user: req.user.userId, deletedAt: null } : { shareLinkHash: hashToken(req.params.token), shareLinkRole: 'edit', deletedAt: null, ...sharedAccess(req) };
       const file = await PDF.findOne(filter).select('name user pdfFolder originalName mimeType pdfData originalBackup');
       if (!file || !editable(file) || await isLocked(file)) return unavailable();
       const text = file.pdfData.toString('utf8');
@@ -154,7 +167,7 @@ module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDF
     res.set({ 'Cache-Control': 'private, no-store', 'Referrer-Policy': 'no-referrer', 'X-Content-Type-Options': 'nosniff' });
     if (owner ? !validId(req.params.id) : !/^[A-Za-z0-9_-]{43}$/.test(req.params.token)) return res.status(404).json({ message: 'This editor link is unavailable.' });
     try {
-      const filter = owner ? { _id: req.params.id, user: req.user.userId, deletedAt: null } : { shareLinkHash: hashToken(req.params.token), shareLinkRole: 'edit', deletedAt: null };
+      const filter = owner ? { _id: req.params.id, user: req.user.userId, deletedAt: null } : { shareLinkHash: hashToken(req.params.token), shareLinkRole: 'edit', deletedAt: null, ...sharedAccess(req) };
       const file = await PDF.findOne(filter);
       if (!file || await isLocked(file)) return res.status(404).json({ message: 'This editor link is unavailable.' });
       const revision = createHash('sha256').update(file.pdfData).update(JSON.stringify(normalized(file.annotations))).digest('hex');
@@ -209,7 +222,7 @@ module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDF
     const unavailable = () => res.status(404).type('text/plain').send('This document link is unavailable.');
     if (!/^[A-Za-z0-9_-]{43}$/.test(req.params.token)) return unavailable();
     try {
-      const filter = { shareLinkHash: hashToken(req.params.token), deletedAt: null };
+      const filter = { shareLinkHash: hashToken(req.params.token), deletedAt: null, ...sharedAccess(req) };
       const file = await PDF.findOne(filter).select('user pdfFolder').lean();
       if (!file || await isLocked(file)) return unavailable();
       const download = await PDF.findOne({ ...filter, _id: file._id, pdfFolder: file.pdfFolder ?? null }).select('originalName pdfData');
