@@ -577,6 +577,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const searchActions = useRef([])
   const [showTutorial, setShowTutorial] = useState(false)
   const [showShare, setShowShare] = useState(false)
+  const [shareCredential]=useState(()=>{if(token)return token;try{return localStorage.getItem('token')}catch{return null}})
   const [bookView,setBookView]=useState(false)
   useEffect(() => {
     const key = event => {
@@ -2255,6 +2256,14 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     const response=await fetch(`/api/pdfs/${pdfId}/collaborators/${member.peer}`,{method:'DELETE',headers:{Authorization:`Bearer ${credential}`},cache:'no-store'})
     if(!response.ok){const error=await response.json().catch(()=>({}));throw new Error(error.message||'Could not revoke access.')}
   }
+  const manageDocumentAdmins=async(data)=>{
+    const credential=token||shareCredential
+    if(!credential)throw new Error('Sign in as the owner to manage document admins.')
+    const response=await fetch(`/api/pdfs/${pdfId}/document-admins`,{method:data?'PUT':'GET',cache:'no-store',headers:{Authorization:`Bearer ${credential}`,...(data&&{'Content-Type':'application/json'})},...(data&&{body:JSON.stringify(data)})})
+    const result=await response.json().catch(()=>({}))
+    if(!response.ok)throw new Error(result.message||'Could not manage document admins.')
+    return result
+  }
 
   const collaborationBox=useMemo(()=>{
     if(currentTool==='arrow-paste'&&arrowDraft.detection&&snippet&&pageBase){
@@ -2490,7 +2499,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
           activate(id)
         }}
         onRuler={()=>{commitText();setRulerGuide(null);setCurrentTool(currentTool==='ruler'?'select':'ruler')}}
-        doc={{name:pdfData?.name,onShare:!shareToken&&token&&pdfId&&!exportImage?()=>{commitText();setShowShare(true)}:null,exportImage,saveStatus,history:historyCount,onUndo:undo,onRedo:redo,onSave:handleSave,onDownload:handleDownload,downloading,onCleanCopy:onCleanCopy?handleCleanCopy:null,copying:copyingClean,onClose:handleClose,copyParagraphs,onCopyParagraphs:setCopyParagraphs,onCleanup:exportImage||shareToken?null:()=>{commitText();setCurrentTool('text');setShowCalculator(false);setShowGraph(false);setShowCleanup(true)}}}
+        doc={{name:pdfData?.name,onShare:pdfId&&!exportImage&&(token||shareCredential)&&(!shareToken||liveInk.members.some(member=>member.peer===liveInk.self&&['Owner','Admin'].includes(member.role)))?()=>{commitText();setShowShare(true)}:null,exportImage,saveStatus,history:historyCount,onUndo:undo,onRedo:redo,onSave:handleSave,onDownload:handleDownload,downloading,onCleanCopy:onCleanCopy?handleCleanCopy:null,copying:copyingClean,onClose:handleClose,copyParagraphs,onCopyParagraphs:setCopyParagraphs,onCleanup:exportImage||shareToken?null:()=>{commitText();setCurrentTool('text');setShowCalculator(false);setShowGraph(false);setShowCleanup(true)}}}
         tools={{autoNumberLines,onAutoNumberLines:()=>setAutoNumberLines(previous=>!previous),autoDashedLines,onAutoDashedLines:()=>setAutoDashedLines(previous=>!previous),autoDottedLines,onAutoDottedLines:()=>setAutoDottedLines(previous=>!previous),lineUndoTimer,onLineUndoTimer:()=>setLineUndoTimer(previous=>!previous),autoStraightLines,onAutoStraightLines:()=>setAutoStraightLines(previous=>!previous),current:currentTool,onTool:tool=>{commitText();setCurrentTool(tool)},color:currentColor,onColor:handleColorChange,colors:COLORS,colorNames:COLOR_NAMES,fontSize,onFontSize:handleFontSizeChange,strokeWidth,onWidth:setStrokeWidth,usePressure,onPressure:()=>setUsePressure(previous=>!previous),eraser:{mode:eraserMode,onMode:setEraserMode,size:eraserSize,onSize:setEraserSize,shape:eraserShape,onShape:setEraserShape,target:eraserTarget,onTarget:setEraserTarget}}}
         pages={{count:numPages,current:pageNumber,showThumbnails:showPages,onToggleThumbnails:()=>{if(focusMode){exitFocusMode();setShowPages(true)}else setShowPages(previous=>!previous)},onNavigate:goToPage,onAddBlank:()=>handleAddPages({mode:'blank',placement:'after'}),onDelete:()=>handleDeletePage(),busy:deletingPage||inserting,canAdd:!!numPages&&!!pageBase&&pageBase.page===pageNumber&&!loading&&!deletingPage&&!inserting}}
         view={{toolbarPosition,onToolbarPosition:setToolbarPosition,scale,onZoomIn:handleZoomIn,onZoomOut:handleZoomOut,onFit:handleFitWidth,onRotate:handleRotate,dark:darkPages,onDark:()=>setDarkPages(previous=>!previous),continuous:continuousView,onContinuous:()=>{handleTextDragEnd();commitText();setContinuousView(previous=>!previous)},reference:showReference,onReference:toggleReference,focus:focusMode,onFocus:enterFocusMode,onExitFocus:exitFocusMode}}
@@ -2499,7 +2508,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         insert={<InsertPanel onPages={exportImage?undefined:handleAddPages} pageNumber={pageNumber} onFiles={insertFiles} onInsert={insertGenerated} color={currentColor} busy={inserting||!pageBase||pageBase.page!==pageNumber||deletingPage}/>}
       />
       {!focusMode && renderFolderNavigation?.(leave, loading || inserting || deletingPage || saveStatus === 'saving' || confirmation.pending)}
-      {liveEnabled && <PDFCollaborators members={liveInk.members} participants={liveInk.participants} self={liveInk.self} connected={liveInk.connected} status={liveStatus} onRevoke={revokeCollaborator}/>}
+      {liveEnabled && <PDFCollaborators members={liveInk.members} participants={liveInk.participants} self={liveInk.self} connected={liveInk.connected} status={liveStatus} onRevoke={revokeCollaborator} documentId={pdfId} onLoadAdmins={()=>manageDocumentAdmins()} onManageAdmin={manageDocumentAdmins}/>}
       {liveInk.accessRevoked&&<div className="pdf-access-revoked" role="alertdialog" aria-modal="true" aria-labelledby="pdf-revoked-title"><section><h2 id="pdf-revoked-title">Document access removed</h2><p>The owner removed your access, or this share link is no longer available. Editing and synchronization have stopped.</p><div><button type="button" onClick={onClose} autoFocus>Close document</button><button type="button" disabled={downloading} onClick={()=>handleDownload()}>Download local draft</button></div>{actionError&&<p role="alert">{actionError}</p>}</section></div>}
 
       {lineSuggestion&&<div className="pdf-line-suggestion" role="status" aria-live="polite"><span>{lineSuggestion.numberLine?'Number line detected':lineSuggestion.dashed?'Dashed line detected':lineSuggestion.dots?'Dotted line detected':'Straight line detected'}</span><button type="button" onClick={()=>{setCurrentTool('select');setLineSuggestion(null)}}>Move / resize</button><button type="button" onClick={()=>setLineSuggestion(null)} aria-label="Keep detected line"><Check size={15}/>Keep</button><button type="button" onClick={revertStraightLine} aria-label="Restore original freehand stroke"><Undo size={15}/>Undo</button></div>}
@@ -2595,7 +2604,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       {showSearch && <PDFSearch file={pdfFile} image={exportImage} annotations={displayAnnotations} actions={searchActions} focusRequest={searchFocusRequest} onPage={goToPage} onClose={()=>setShowSearch(false)}/>}
       {showTutorial && <PDFEditorTutorial actions={searchActions} onClose={()=>setShowTutorial(false)}/>}
       {showShare && pdfData && <div className="pdf-share-dialog" onPointerDown={event=>event.stopPropagation()} onKeyDown={event=>event.stopPropagation()}>
-        <DocumentShareLink key={pdfId} file={{...pdfData,_id:pdfId}} token={token} onClose={()=>setShowShare(false)}/>
+        <DocumentShareLink key={pdfId} file={{...pdfData,_id:pdfId}} token={token||shareCredential} onClose={()=>setShowShare(false)}/>
       </div>}
       {showSettings && (
         <div className="pdf-settings-panel app-inline-panel" onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setShowSettings(false) } }}>

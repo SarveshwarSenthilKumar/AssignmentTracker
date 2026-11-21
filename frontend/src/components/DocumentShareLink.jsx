@@ -75,6 +75,7 @@ export default function DocumentShareLink({ file, token, onClose }) {
         <input type="url" readOnly value={link} onFocus={event => event.target.select()}/>
       </label>}
       <div className="library-sharing-actions">
+        {link&&<a href={link} target="_blank" rel="noopener noreferrer">Open shared file</a>}
         {link && <button type="button" onClick={async () => {
           try { await navigator.clipboard.writeText(link); setNotice('Link copied.') }
           catch { setNotice('Select and copy the link from the field above.') }

@@ -91,14 +91,36 @@ module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDF
     res.set('Cache-Control', 'no-store');
     if (!validId(req.params.id)) return res.status(400).json({ message: 'Invalid document ID.' });
     try {
-      const filter = { _id: req.params.id, user: req.user.userId };
-      const file = await PDF.findOne(filter).select('user pdfFolder deletedAt originalName mimeType +shareLinkHash +shareLinkRole').lean();
+      const filter = { _id: req.params.id, $or:[{user:req.user.userId},{documentAdmins:req.user.userId}] };
+      const file = await PDF.findOne(filter).select('user pdfFolder deletedAt originalName mimeType +shareLinkHash +shareLinkRole +documentAdmins +revokedCollaborators').lean();
       if (!file) return res.status(404).json({ message: 'Document not found.' });
+      const identity=await collaboratorAccess.identify(req,res,file);
+      if(collaboratorAccess.blocked(file,identity))return res.status(403).json({message:'Your document access has been revoked.'});
       await handler(res, filter, file, req);
     } catch {
       res.status(500).json({ message: 'Could not manage this share link.' });
     }
   }];
+
+  const adminsPath='/api/pdfs/:id/document-admins';
+  app.get(adminsPath,...ownerRoute(async(res,filter,file,req)=>{
+    if(String(file.user)!==String(req.user.userId))return res.status(403).json({message:'Only the owner can manage document admins.'});
+    res.json(await User.find({_id:{$in:file.documentAdmins||[]}}).select('username').lean());
+  }));
+  app.put(adminsPath,...ownerRoute(async(res,filter,file,req)=>{
+    if(String(file.user)!==String(req.user.userId))return res.status(403).json({message:'Only the owner can manage document admins.'});
+    const {username,enabled}=req.body||{};
+    if(typeof username!=='string'||!username.trim()||typeof enabled!=='boolean')return res.status(400).json({message:'Enter a username and choose an admin role.'});
+    const account=await User.findOne({username:username.trim()}).collation({locale:'en',strength:2}).select('username deactivatedAt approvalPending').lean();
+    if(!account||account.deactivatedAt||account.approvalPending)return res.status(404).json({message:'Choose an approved, active account.'});
+    if(String(account._id)===String(file.user))return res.status(400).json({message:'The owner already has full document access.'});
+    const person=createHash('sha256').update(`${file._id}:account:${account._id}`).digest('hex').slice(0,24);
+    if(enabled&&(file.revokedCollaborators||[]).includes(person))return res.status(400).json({message:'This account’s document access was revoked.'});
+    const update=enabled?{$addToSet:{documentAdmins:account._id}}:{$pull:{documentAdmins:account._id}};
+    await PDF.updateOne({_id:file._id,user:req.user.userId},update);
+    await liveInk.refreshRoles(file._id);
+    res.json({username:account.username,role:enabled?'Admin':'Editor'});
+  }));
 
   const path = '/api/pdfs/:id/share-link';
   app.get(path, ...ownerRoute((res, _filter, file) => {
@@ -119,7 +141,8 @@ module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDF
     res.status(201).json({ path: role === 'edit' ? `#/shared-document/${token}` : `/api/shared-document/${token}`, role });
   }));
   app.delete(path, ...ownerRoute(async (res, filter) => {
-    await PDF.updateOne(filter, { $unset: { shareLinkHash: 1, shareLinkRole: 1 } });
+    const result=await PDF.updateOne(filter, { $unset: { shareLinkHash: 1, shareLinkRole: 1 } });
+    if(!result.matchedCount)return res.status(403).json({message:'Your document sharing permissions changed.'});
     liveInk.revokeShared(filter._id);
     res.status(204).end();
   }));

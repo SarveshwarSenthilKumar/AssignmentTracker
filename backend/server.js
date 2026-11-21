@@ -250,6 +250,7 @@ const pdfSchema = new mongoose.Schema({
   shareLinkHash: { type: String, select: false, index: { sparse: true } },
   shareLinkRole: { type: String, enum: ['view', 'edit'], default: 'view', select: false },
   revokedCollaborators: { type: [String], default: [], select: false },
+  documentAdmins: { type: [mongoose.Schema.Types.ObjectId], ref: 'User', default: [], select: false },
   name: {
     type: String,
     required: true,
