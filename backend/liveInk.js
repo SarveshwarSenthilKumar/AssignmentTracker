@@ -180,7 +180,7 @@ module.exports = function registerLiveInk(app, auth, { PDF, isLocked, hashToken,
     sendRoster(String(documentId));
   }, saved(documentId) {
     for (const session of rooms.get(String(documentId)) || []) emit(session, { type: 'refresh' });
-  }, revokeShared(documentId) {
-    for (const session of rooms.get(String(documentId)) || []) if (session.shared) { emit(session, { type: 'unavailable' }); session.res.end(); }
+  }, revokeShared(documentId,role) {
+    for (const session of rooms.get(String(documentId)) || []) if (session.shared) { emit(session, role?{type:'permissions-changed',role}:{ type: 'unavailable' }); session.res.end(); }
   } };
 };

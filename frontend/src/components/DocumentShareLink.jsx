@@ -9,17 +9,24 @@ export default function DocumentShareLink({ file, token, onClose }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [savedRole,setSavedRole]=useState('view'),[needsOriginal,setNeedsOriginal]=useState(false),[original,setOriginal]=useState('')
   const endpoint = `/api/pdfs/${file._id}/share-link`
 
   async function request(method, signal) {
+    let existingToken
+    if(method==='POST'&&original.trim()){
+      const url=new URL(original.trim(),window.location.origin)
+      existingToken=/^(?:#\/shared-document\/|\/api\/shared-document\/)([A-Za-z0-9_-]{43})$/.exec(url.hash||url.pathname)?.[1]
+      if(!existingToken)throw new Error('Paste the full original document sharing link.')
+    }
     const response = await fetch(endpoint, {
       method, signal, cache: 'no-store',
       headers: { Authorization: `Bearer ${token}`, ...(method === 'POST' && { 'Content-Type': 'application/json' }) },
-      ...(method === 'POST' && { body: JSON.stringify({ role }) })
+      ...(method === 'POST' && { body: JSON.stringify({ role,existingToken }) })
     })
     if (response.status === 204) return null
     const data = await response.json().catch(() => ({}))
-    if (!response.ok) throw new Error(data.message || 'Could not manage this share link.')
+    if (!response.ok) {if(data.requiresExistingLink)setNeedsOriginal(true);throw new Error(data.message || 'Could not manage this share link.')}
     return data
   }
 
@@ -30,6 +37,9 @@ export default function DocumentShareLink({ file, token, onClose }) {
         if (controller.signal.aborted) return
         setActive(data.active === true)
         setRole(data.role === 'edit' ? 'edit' : 'view')
+        setSavedRole(data.role==='edit'?'edit':'view')
+        setNeedsOriginal(data.requiresExistingLink===true)
+        setLink(data.path?new URL(data.path,window.location.href).href:'')
         setCanEdit(data.canEdit === true)
       })
       .catch(error => { if (!controller.signal.aborted) setError(error.message) })
@@ -46,7 +56,9 @@ export default function DocumentShareLink({ file, token, onClose }) {
       if (method === 'POST' && !/^(?:\/api|#)\/shared-document\/[A-Za-z0-9_-]{43}$/.test(data?.path || '')) throw new Error('The server did not return a share link.')
       setLink(method === 'POST' ? new URL(data.path, window.location.href).href : '')
       setActive(method === 'POST')
-      setNotice(method === 'POST' ? 'Share link created.' : 'Share link revoked.')
+      setSavedRole(method==='POST'?role:'view')
+      setNeedsOriginal(false);setOriginal('')
+      setNotice(method === 'POST' ? 'Sharing saved. This link stays the same until you revoke it.' : 'Share link revoked. Previous copies no longer grant access.')
     } catch (error) {
       setError(error.message)
     } finally {
@@ -63,14 +75,16 @@ export default function DocumentShareLink({ file, token, onClose }) {
         <button type="button" autoFocus disabled={busy} aria-label="Close share link" onClick={onClose}><X size={18}/></button>
       </div>
       <label>Link permission
-        <select disabled={busy || active === null} value={role} onChange={event => { setRole(event.target.value); setLink('') }}>
+        <select disabled={busy || active === null} value={role} onChange={event => setRole(event.target.value)}>
           <option value="view">Viewer</option>
           <option value="edit" disabled={!canEdit}>Editor</option>
         </select>
       </label>
       <p>{role === 'edit' ? 'Anyone with an Editor link can edit the original without signing in. PDFs and text open in the editor; other formats can be downloaded, edited, and replaced.' : 'Anyone with a Viewer link can download the saved file without signing in.'}</p>
       {!canEdit && active !== null && <p>Editor links support Markdown and plain-text files.</p>}
-      {active && !link && <p>A link already exists. Creating a new one revokes the old link.</p>}
+      <p>Sharing links do not expire. Saving or copying a link keeps the same address. Access remains subject to the owner’s permissions, locks, and revocations.</p>
+      {active&&role!==savedRole&&<p>Save permissions to apply this change to everyone using the existing link.</p>}
+      {needsOriginal&&<label>Recover the original link<input type="text" inputMode="url" value={original} onChange={event=>setOriginal(event.target.value)} placeholder="Paste the link you already shared" disabled={busy}/><small>This older link is still valid. Paste it once so it can be copied again without replacing it.</small></label>}
       {link && <label>Share link
         <input type="url" readOnly value={link} onFocus={event => event.target.select()}/>
       </label>}
@@ -80,7 +94,7 @@ export default function DocumentShareLink({ file, token, onClose }) {
           try { await navigator.clipboard.writeText(link); setNotice('Link copied.') }
           catch { setNotice('Select and copy the link from the field above.') }
         }}>Copy link</button>}
-        <button type="button" className="library-primary" disabled={busy || active === null} onClick={() => change('POST')}><Link2 size={16} aria-hidden="true"/>{active ? 'Replace link' : 'Create link'}</button>
+        <button type="button" className="library-primary" disabled={busy || active === null || (needsOriginal&&!original.trim())} onClick={() => change('POST')}><Link2 size={16} aria-hidden="true"/>{active ? needsOriginal?'Recover existing link':'Save permissions' : 'Create link'}</button>
         {active && <button type="button" disabled={busy} onClick={() => change('DELETE')}>Revoke link</button>}
       </div>
       {notice && <p role="status">{notice}</p>}

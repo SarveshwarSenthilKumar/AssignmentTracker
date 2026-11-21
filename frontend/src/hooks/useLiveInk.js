@@ -20,6 +20,7 @@ export default function useLiveInk({ url, token, enabled, contentRevision, commi
   receiver.current = onChanges
   const [connected, setConnected] = useState(false)
   const [accessRevoked,setAccessRevoked]=useState(false)
+  const [accessMessage,setAccessMessage]=useState(null)
   const known = useRef(new Set())
   useEffect(() => { edits.current.clear(); pending.current.clear(); offsets.current.clear(); presence.current = null; setPreviews(new Map()); setParticipants(new Map()) }, [contentRevision])
   known.current = new Set(committed.map(item => item.id))
@@ -32,6 +33,7 @@ export default function useLiveInk({ url, token, enabled, contentRevision, commi
     setMembers([])
     setSelf(null)
     setAccessRevoked(false)
+    setAccessMessage(null)
     const controller = new AbortController()
     let reconnect, sender, expiry, sending = false, sequence = 0
     const receive = event => {
@@ -64,7 +66,8 @@ export default function useLiveInk({ url, token, enabled, contentRevision, commi
           else next.delete(event.peer)
           return next
         })
-      } else if (event.type === 'revoked'||event.type === 'unavailable') {
+      } else if (event.type === 'revoked'||event.type === 'unavailable'||event.type==='permissions-changed') {
+        if(event.type==='permissions-changed')setAccessMessage(`Your sharing permission changed to ${event.role==='edit'?'Editor':'Viewer'}. Try again to reopen the same link with its current permissions.`)
         setAccessRevoked(true);setConnected(false);setMembers([]);setParticipants(new Map());setPreviews(new Map())
         connection.current=null;edits.current.clear();pending.current.clear();presence.current=null
         controller.abort()
@@ -203,5 +206,5 @@ export default function useLiveInk({ url, token, enabled, contentRevision, commi
     const id = identity?.peer || peer.peer, previous = people.get(id)
     if (!previous || priority(peer)>priority(previous) || (priority(peer)===priority(previous)&&peer.updated>previous.updated)) people.set(id,{...peer,person:id,name:identity?.name})
   }
-  return { connected, accessRevoked, members, self, publish, publishChanges, publishPresence, participants: [...people.values()], strokes: [...previews.values()].filter(stroke => stroke.contentRevision === contentRevision) }
+  return { connected, accessRevoked, accessMessage, members, self, publish, publishChanges, publishPresence, participants: [...people.values()], strokes: [...previews.values()].filter(stroke => stroke.contentRevision === contentRevision) }
 }

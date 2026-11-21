@@ -82,9 +82,9 @@ export default function PublicDocumentEditor({ shareToken }) {
       {error && <p role="alert">{error}</p>}
       {file && <>
         <a className="underline" href={endpoint}>Download saved file</a>
-        {file.editor!=='text'&&<button type="button" onClick={()=>setHistory(true)}>Edit history</button>}
+        {file.editor!=='text'&&file.editor!=='view'&&<button type="button" onClick={()=>setHistory(true)}>Edit history</button>}
         {history&&<DocumentEditHistory url={`${endpoint}/history`} onClose={()=>setHistory(false)}/>}
-        {file.editor === 'text' ? <SharedTextEditor url={`${endpoint}/text`} name={file.name} onClose={close}/> : <section className="library-sharing-panel">
+        {file.editor==='view'?<section className="library-sharing-panel"><p>You have view-only access. You can download the saved file using the link above.</p><button type="button" onClick={close}>Back to app</button></section>:file.editor === 'text' ? <SharedTextEditor url={`${endpoint}/text`} name={file.name} onClose={close}/> : <section className="library-sharing-panel">
           <p>Download the file, edit it in an app that supports its format, then upload the edited version here. Replacing the file clears existing annotations.</p>
           <input ref={input} type="file" hidden onChange={replace} disabled={busy}/>
           <button type="button" disabled={busy} onClick={() => input.current?.click()}>{busy ? 'Saving…' : 'Upload edited version'}</button>

@@ -53,12 +53,17 @@ module.exports=function registerSharedWithMe(app,auth,{PDF,User,PDFFolder,collab
         const admin=(file.documentAdmins||[]).some(id=>String(id)===String(req.user.userId));
         const receipt=receiptMap.get(String(file._id));
         let path=null;
-        if(receipt&&receipt.linkHash===file.shareLinkHash){try{const token=decrypt(receipt.link);if(hash(token)===file.shareLinkHash)path=file.shareLinkRole==='edit'?`#/shared-document/${token}`:`/api/shared-document/${token}`;}catch{}}
+        if(receipt&&receipt.linkHash===file.shareLinkHash){try{const token=decrypt(receipt.link);if(hash(token)===file.shareLinkHash)path=`#/shared-document/${token}`;}catch{}}
         if(!admin&&!path)continue;
         result.push({_id:file._id,name:file.name,originalName:file.originalName,mimeType:file.mimeType,owner:ownerMap.get(String(file.user)).username,role:admin?'Admin':file.shareLinkRole==='edit'?'Editor':'Viewer',updatedAt:file.updatedAt,visitedAt:receipt?.visitedAt,openPath:path,canManageLinks:admin});
       }
       res.json(result.sort((a,b)=>new Date(b.visitedAt||b.updatedAt)-new Date(a.visitedAt||a.updatedAt)));
     }catch{res.status(503).json({message:'Could not load documents shared with you.'});}
   });
-  return {remember};
+  const recoverToken=async file=>{
+    const receipts=await Receipt.find({document:file._id,linkHash:file.shareLinkHash}).select('link').limit(10).lean();
+    for(const receipt of receipts){try{const token=decrypt(receipt.link);if(hash(token)===file.shareLinkHash)return token;}catch{}}
+    return null;
+  };
+  return {remember,recoverToken};
 };
