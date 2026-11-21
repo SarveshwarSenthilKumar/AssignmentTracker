@@ -1,17 +1,20 @@
-import {useEffect,useRef,useState} from 'react'
-import {History,X,RefreshCw} from 'lucide-react'
+import {useEffect,useId,useRef,useState} from 'react'
+import {History,X,RefreshCw,ChevronDown} from 'lucide-react'
 import {sharedDocumentRequest} from '../lib/sharedDocumentRequest'
 import './DocumentEditHistory.css'
 
 export default function DocumentEditHistory({url,token,onClose}) {
   const [items,setItems]=useState([]),[cursor,setCursor]=useState(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[search,setSearch]=useState('')
   const loadRef=useRef(null),close=useRef(null),cursorRef=useRef(null)
+  const [expanded,setExpanded]=useState(new Set())
+  const detailsId=useId()
   cursorRef.current=cursor
   useEffect(()=>{
     const controller=new AbortController(),opener=document.activeElement
     close.current?.focus()
     let loading=false,older=false
     setItems([]);setCursor(null);setError('')
+    setExpanded(new Set())
     const load=async(more,refresh=false)=>{
       if(loading||controller.signal.aborted)return
       if(older&&!more&&!refresh)return
@@ -50,13 +53,17 @@ export default function DocumentEditHistory({url,token,onClose}) {
       {item.pages.length>0&&<small>Page{item.pages.length===1?'':'s'} {item.pages.join(', ')}</small>}
       <time dateTime={item.at} title={`Started ${new Date(item.startedAt||item.at).toLocaleString()}`}>{new Date(item.at).toLocaleString()}</time>
       {item.updates>1&&<small>{item.updates} updates grouped</small>}
-      {item.details?.length>0&&<details className="document-history-details"><summary>What changed</summary>
-        {item.details.map(detail=><article key={detail.key}><h3>{detail.label}</h3>{detail.kind==='note'?<p>{detail.text}</p>:<>
+      <button type="button" className="document-history-toggle" aria-expanded={expanded.has(item.id)} aria-controls={`${detailsId}-${item.id}`} onClick={()=>setExpanded(previous=>{const next=new Set(previous);if(next.has(item.id))next.delete(item.id);else next.add(item.id);return next})}>
+        <span>What changed</span><ChevronDown size={16} aria-hidden="true"/>
+      </button>
+      <div id={`${detailsId}-${item.id}`} className="document-history-details" hidden={!expanded.has(item.id)}>
+        {!item.details?.length&&<p className="document-history-unavailable">This entry contains a summary only. Detailed before/after changes were not recorded for it. New text and annotation edits saved with the updated app include those details.</p>}
+        {(item.details||[]).map(detail=><article key={detail.key}><h3>{detail.label}</h3>{detail.kind==='note'?<p>{detail.text}</p>:<>
           <div className="document-history-before"><span>Before</span><pre>{detail.before||'(empty)'}</pre></div>
           <div className="document-history-after"><span>After</span><pre>{detail.after||'(empty)'}</pre></div>
         </>}</article>)}
         {item.detailsTruncated&&<p className="document-history-truncated">Additional changes were grouped into this entry.</p>}
-      </details>}
+      </div>
     </li>)}</ol>
     {!busy&&!error&&!visible.length&&<p className="document-history-empty">{query?'No matching edits.':'No edits recorded yet. New saved changes will appear here.'}</p>}
     <footer>{busy&&<span role="status">Loading history…</span>}{cursor&&<button type="button" disabled={busy} onClick={()=>loadRef.current?.(true)}>Load older edits</button>}</footer>
