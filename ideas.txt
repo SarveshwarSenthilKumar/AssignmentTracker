@@ -62,6 +62,6 @@ add a feature to have a small database which would store the ai summary for a da
 
 add ability to add sports events to calendar including f1
 
-add an option to create a copy with annotations and without annotations and make them both be at the top of the pdf editor, add remove access, show in the documents tab, add a shared with me folder, add edit history 
+add an option to create a copy with annotations and without annotations and make them both be at the top of the pdf editor, add remove access, show in the documents tab, add a shared with me folder
 
 add like a friends system for docs sharing

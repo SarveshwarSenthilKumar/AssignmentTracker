@@ -5,8 +5,8 @@ import SharedTextEditor from './SharedTextEditor'
 
 const base = '/api/shared-folders'
 
-export default function SharedFolders({ token, selectedFolder, folderName }) {
-  const [panel, setPanel] = useState(null)
+export default function SharedFolders({ token, selectedFolder, folderName,receivedOnly=false,onShowReceived,refreshKey=0 }) {
+  const [panel, setPanel] = useState(receivedOnly?'received':null)
   const [folders, setFolders] = useState([])
   const [active, setActive] = useState(null)
   const [members, setMembers] = useState(null)
@@ -43,7 +43,7 @@ export default function SharedFolders({ token, selectedFolder, folderName }) {
     pending
       .catch(error => { if (!controller.signal.aborted) setError(error.message) })
     return () => controller.abort()
-  }, [panel, ownerFolder, token])
+  }, [panel, ownerFolder, token,refreshKey])
 
   const run = async operation => {
     if (busy) return
@@ -78,10 +78,10 @@ export default function SharedFolders({ token, selectedFolder, folderName }) {
     setPanel(previous => previous === next ? null : next)
   }
   return <section className="library-sharing" aria-label="Document folder sharing">
-    <div className="library-sharing-actions">
+    {!receivedOnly&&<div className="library-sharing-actions">
       {ownerFolder && <button type="button" className="library-primary" disabled={!!editing} aria-expanded={panel === 'share'} onClick={() => togglePanel('share')}><Users size={16} aria-hidden="true"/> Share folder</button>}
-      <button type="button" disabled={!!editing} aria-expanded={panel === 'received'} onClick={() => togglePanel('received')}><FolderOpen size={16} aria-hidden="true"/> Shared with me</button>
-    </div>
+      <button type="button" disabled={!!editing} aria-expanded={panel === 'received'} onClick={() => onShowReceived?onShowReceived():togglePanel('received')}><FolderOpen size={16} aria-hidden="true"/> Shared with me</button>
+    </div>}
     {panel && <div className="library-sharing-panel">
       {panel === 'share' && ownerFolder && <section aria-label="Share selected folder">
         <h3>Share {folderName}</h3>
@@ -114,7 +114,7 @@ export default function SharedFolders({ token, selectedFolder, folderName }) {
         </li>)}</ul>}
       </section>}
       {panel === 'received' && <section aria-label="Folders shared with me">
-        <h3>Shared with me</h3>
+        <h3>{receivedOnly?'Shared folders':'Shared with me'}</h3>
         {!folders.length && <p>No folders shared with you.</p>}
         <ul>{folders.map(folder => <li key={folder._id}><button type="button" disabled={busy || !!editing} onClick={() => openFolder(folder._id)}>{folder.name}</button></li>)}</ul>
       </section>}

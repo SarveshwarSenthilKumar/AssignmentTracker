@@ -19,11 +19,12 @@ module.exports = function documentCollaboratorAccess({ User }) {
     const account=claims?.userId&&/^[a-f\d]{24}$/i.test(String(claims.userId))?await User.findById(claims.userId).select('username deactivatedAt approvalPending').lean():null;
     const accountId=account&&!account.deactivatedAt&&!account.approvalPending?String(account._id):null;
     const browserPerson=person(file._id,`guest:${browser}`);
-    const identity={file:String(file._id),person:accountId?person(file._id,`account:${accountId}`):browserPerson,browserPerson,accountId,name:accountId?account.username:null,owner:accountId===String(file.user)};
+    const identity={file:String(file._id),person:accountId?person(file._id,`account:${accountId}`):browserPerson,browserPerson,browserId:browser,accountId,name:accountId?account.username:null,owner:accountId===String(file.user)};
     req.documentCollaborator=identity;
     return identity;
   }
   const filter = identity => identity.owner?{}:{revokedCollaborators:{$nin:[identity.person,identity.browserPerson]}};
   const blocked = (file,identity) => !identity.owner&&(file.revokedCollaborators||[]).some(id=>id===identity.person||id===identity.browserPerson);
-  return {identify,filter,blocked};
+  const forFile=(identity,file)=>({...identity,file:String(file._id),person:identity.accountId?person(file._id,`account:${identity.accountId}`):person(file._id,`guest:${identity.browserId}`),browserPerson:person(file._id,`guest:${identity.browserId}`),owner:identity.accountId===String(file.user)});
+  return {identify,filter,blocked,forFile};
 };

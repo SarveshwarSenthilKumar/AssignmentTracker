@@ -10,6 +10,7 @@ const editable = file => /\.(md|markdown|txt)$/i.test(file.originalName || '') &
 
 module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDFFolder }) {
   const collaboratorAccess = require('./documentCollaboratorAccess')({User});
+  const received=require('./sharedWithMe')(app,auth,{PDF,User,PDFFolder,collaboratorAccess,isLocked});
   app.use('/api/shared-document/:token',async(req,res,next)=>{
     res.set('Cache-Control','private, no-store');
     if(!/^[A-Za-z0-9_-]{43}$/.test(req.params.token))return res.status(404).json({message:'This document link is unavailable.'});
@@ -18,6 +19,7 @@ module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDF
       if(!file)return res.status(404).json({message:'This document link is unavailable.'});
       const identity=await collaboratorAccess.identify(req,res,file);
       if(collaboratorAccess.blocked(file,identity))return res.status(403).json({code:'DOCUMENT_ACCESS_REVOKED',message:'The owner revoked your access to this document.'});
+      if(req.method==='GET'&&req.path==='/editor')await received.remember(identity,file,req.params.token).catch(()=>{});
       next();
     } catch {res.status(503).json({message:'Could not verify document access.'});}
   });
