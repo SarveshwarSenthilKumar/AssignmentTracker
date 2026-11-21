@@ -1,4 +1,5 @@
 const { randomBytes, createHash } = require('node:crypto');
+const {appendHistory}=require('./documentEditHistory');
 
 // Pen previews are ephemeral; annotation changes from other tools are merged
 // into the same document before they are pushed to peers.
@@ -136,7 +137,7 @@ module.exports = function registerLiveInk(app, auth, { PDF, isLocked, hashToken,
         const validKey = key => !['id', '__proto__', 'constructor', 'prototype'].includes(key);
         if (!Array.isArray(changes) || changes.length > 64 || Buffer.byteLength(JSON.stringify(changes)) > 512 * 1024 || changes.some(change => !change || typeof change.id !== 'string' || change.id.length > 200 || !change.set || typeof change.set !== 'object' || Array.isArray(change.set) || !Array.isArray(change.unset) || !Object.keys(change.set).every(validKey) || !change.unset.every(key => typeof key === 'string' && validKey(key)))) return res.status(400).end();
         for (let attempt = 0; attempt < 6; attempt++) {
-          const file = await PDF.findOne(session.filter);
+          const file = await PDF.findOne(session.filter).select('+editHistory');
           if (!file || await isLocked(file)) { session.res.end(); return res.status(404).end(); }
           const hash = createHash('sha256').update(file.pdfData).digest('hex');
           if (contentRevision !== hash) return res.status(409).end();
@@ -152,7 +153,7 @@ module.exports = function registerLiveInk(app, auth, { PDF, isLocked, hashToken,
           }
           const next = [...annotations.values()];
           if (Buffer.byteLength(JSON.stringify(next)) > 12 * 1024 * 1024) return res.status(413).end();
-          const result = await PDF.updateOne({ ...session.filter, _id: file._id, updatedAt: file.updatedAt, annotations: file.annotations, pdfData: file.pdfData }, { $set: { annotations: next, updatedAt: new Date() } }, { runValidators: true });
+          const result = await PDF.updateOne({ ...session.filter, _id: file._id, updatedAt: file.updatedAt, annotations: file.annotations, pdfData: file.pdfData }, { $set: { annotations: next,editHistory:appendHistory(file,session.actor,{annotations:next}), updatedAt: new Date() } }, { runValidators: true });
           if (!result.matchedCount) continue;
           session.sequence = sequence; session.lastPacket = Date.now();
           broadcast(session, { type: 'edit', changes, contentRevision: hash });

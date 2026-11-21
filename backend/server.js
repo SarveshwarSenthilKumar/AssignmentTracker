@@ -14,6 +14,7 @@ const multer = require('multer');
 const https = require('https');
 const { documentAction } = require('./documentActions');
 const { deletePDFPage, insertPDFPages, mergePDFDocuments } = require('./pdfPages');
+const {appendHistory}=require('./documentEditHistory');
 const { resetAccountWorkspace } = require('./accountReset');
 const { dependencyChange } = require('./taskDependencies');
 const { calendarEntry, validDay: validCalendarDay } = require('./calendarEntries');
@@ -251,6 +252,7 @@ const pdfSchema = new mongoose.Schema({
   shareLinkRole: { type: String, enum: ['view', 'edit'], default: 'view', select: false },
   revokedCollaborators: { type: [String], default: [], select: false },
   documentAdmins: { type: [mongoose.Schema.Types.ObjectId], ref: 'User', default: [], select: false },
+  editHistory: { type: Array, default: [], select: false },
   name: {
     type: String,
     required: true,
@@ -1776,25 +1778,27 @@ app.put('/api/pdfs/:id/task-link', authenticateToken, async (req, res) => {
 app.put('/api/pdfs/:id/content', authenticateToken, async (req, res) => {
   try {
     const filter = { _id: req.params.id, user: req.user.userId, deletedAt: null };
-    const pdf = await PDF.findOne(filter);
+    const pdf = await PDF.findOne(filter).select('+editHistory');
     if (!pdf) return res.status(404).json({ message: 'Document not found' });
     const { data, mimeType } = req.body;
     const base = req.get('X-Offline-Base');
     if (base && pdf.updatedAt?.toISOString() !== base) return res.status(409).json({ message: 'This document changed online. Review the offline draft before syncing.' });
     if (typeof data !== 'string' || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(data)) return res.status(400).json({ message: 'Invalid document content.' });
     const bytes = Buffer.from(data, 'base64');
+    const editHistory=appendHistory(pdf,req.user,{pdfData:bytes,annotations:[]});
     if (bytes.length > 10 * 1024 * 1024) return res.status(400).json({ message: 'Files must be smaller than 10 MB.' });
     if (bytes.length + (pdf.originalBackup || pdf.pdfData).length > 15 * 1024 * 1024) return res.status(400).json({ message: 'The original and edited document together exceed the 15 MB storage limit. Download the edited version instead.' });
     if (base) {
       const updatedAt = new Date();
       const result = await PDF.updateOne({ ...filter, updatedAt: pdf.updatedAt }, { $set: {
-        pdfData: bytes, originalBackup: pdf.originalBackup || pdf.pdfData, annotations: [], updatedAt,
+        pdfData: bytes, originalBackup: pdf.originalBackup || pdf.pdfData, annotations: [],editHistory, updatedAt,
         ...(typeof mimeType === 'string' && mimeType.length < 150 && { mimeType })
       } });
       if (!result.matchedCount) return res.status(409).json({ message: 'This document changed online. Review the offline draft before syncing.' });
       return res.json({ updatedAt, hasOriginalBackup: true });
     }
     if (!pdf.originalBackup) pdf.originalBackup = pdf.pdfData;
+    pdf.editHistory=editHistory;
     pdf.pdfData = bytes;
     if (typeof mimeType === 'string' && mimeType.length < 150) pdf.mimeType = mimeType;
     pdf.annotations = [];
@@ -1819,14 +1823,16 @@ app.put('/api/pdfs/:id/annotations', authenticateToken, async (req, res) => {
     const { annotations } = req.body;
     const base = req.get('X-Offline-Base');
     if (base && !Number.isFinite(Date.parse(base))) return res.status(400).json({ message: 'Invalid offline document revision.' });
+    const current=await PDF.findOne({_id:req.params.id,user:req.user.userId,deletedAt:null}).select('+editHistory');
+    if(!current)return res.status(404).json({message:'Document not found.'});
     const pdf = await PDF.findOneAndUpdate(
-      { _id: req.params.id, user: req.user.userId, deletedAt: null, ...(base && { updatedAt: new Date(base) }) },
-      { annotations, updatedAt: new Date() },
+      { _id: req.params.id, user: req.user.userId, deletedAt: null, annotations:current.annotations,updatedAt:base?new Date(base):current.updatedAt },
+      { annotations, editHistory:appendHistory(current,req.user,{annotations}), updatedAt: new Date() },
       { new: true }
     );
     if (!pdf) {
       if (base) return res.status(409).json({ message: 'This document changed online or is unavailable.' });
-      return res.status(404).json({ message: 'PDF not found' });
+      return res.status(409).json({ message: 'This document changed while saving. Retry to save your latest edits.' });
     }
     res.json(pdf);
   } catch (error) {

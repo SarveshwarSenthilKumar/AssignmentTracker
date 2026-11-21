@@ -1,6 +1,7 @@
 const { createHash, randomBytes } = require('node:crypto');
 const { insertPDFPages, deletePDFPage } = require('./pdfPages');
 const { mergeText } = require('./liveText');
+const {appendHistory,historyPage}=require('./documentEditHistory');
 
 const hashToken = token => createHash('sha256').update(token).digest('hex');
 const validId = id => /^[a-f\d]{24}$/i.test(id);
@@ -30,7 +31,7 @@ module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDF
     const filter = shared ? { shareLinkHash: hashToken(req.params.token), shareLinkRole: 'edit', deletedAt: null, ...sharedAccess(req) } : { _id: req.params.id, user: req.user.userId, deletedAt: null };
     try {
       for (let attempt = 0; attempt < 6; attempt++) {
-        const file = await PDF.findOne(filter);
+        const file = await PDF.findOne(filter).select('+editHistory');
         if (!file || await isLocked(file)) return res.status(404).json({ message: 'This document or editor link is unavailable.' });
         const content = contentRevision(file);
         let annotations = normalized(file.annotations);
@@ -53,7 +54,8 @@ module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDF
           }
           annotations = [...items.values()];
           if (Buffer.byteLength(JSON.stringify(annotations)) > 12 * 1024 * 1024) return res.status(413).json({ message: 'Annotations exceed the 12 MB limit.' });
-          const result = await PDF.updateOne({ ...filter, _id: file._id, updatedAt: file.updatedAt, pdfData: file.pdfData, annotations: file.annotations }, { $set: { annotations, updatedAt: new Date() } }, { runValidators: true });
+          const actor=await collaboratorAccess.identify(req,res,file);
+          const result = await PDF.updateOne({ ...filter, _id: file._id, updatedAt: file.updatedAt, pdfData: file.pdfData, annotations: file.annotations }, { $set: { annotations, editHistory:appendHistory(file,actor,{annotations}), updatedAt: new Date() } }, { runValidators: true });
           if (!result.matchedCount) continue;
           liveInk.saved(file._id);
         }
@@ -103,6 +105,19 @@ module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDF
   }];
 
   const adminsPath='/api/pdfs/:id/document-admins';
+  app.get('/api/pdfs/:id/history',...ownerRoute(async(res,filter,file,req)=>{
+    if(await isLocked(file))return res.status(403).json({message:'Unlock the document to view its edit history.'});
+    const document=await PDF.findOne({...filter,deletedAt:null}).select('_id +editHistory').lean();
+    if(!document)return res.status(404).json({message:'Document unavailable.'});
+    res.json(historyPage(document,req.query));
+  }));
+  app.get('/api/shared-document/:token/history',async(req,res)=>{
+    try{
+      const file=await PDF.findOne({shareLinkHash:hashToken(req.params.token),shareLinkRole:'edit',deletedAt:null,...sharedAccess(req)}).select('user pdfFolder +editHistory').lean();
+      if(!file||await isLocked(file))return res.status(404).json({message:'This document history is unavailable.'});
+      res.json(historyPage(file,req.query));
+    }catch{res.status(503).json({message:'Could not load edit history.'});}
+  });
   app.get(adminsPath,...ownerRoute(async(res,filter,file,req)=>{
     if(String(file.user)!==String(req.user.userId))return res.status(403).json({message:'Only the owner can manage document admins.'});
     res.json(await User.find({_id:{$in:file.documentAdmins||[]}}).select('username').lean());
@@ -153,7 +168,7 @@ module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDF
     if (owner ? !validId(req.params.id) : !/^[A-Za-z0-9_-]{43}$/.test(req.params.token)) return unavailable();
     try {
       const filter = owner ? { _id: req.params.id, user: req.user.userId, deletedAt: null } : { shareLinkHash: hashToken(req.params.token), shareLinkRole: 'edit', deletedAt: null, ...sharedAccess(req) };
-      const file = await PDF.findOne(filter).select('name user pdfFolder originalName mimeType pdfData originalBackup');
+      const file = await PDF.findOne(filter).select('name user pdfFolder originalName mimeType pdfData originalBackup +editHistory');
       if (!file || !editable(file) || await isLocked(file)) return unavailable();
       const text = file.pdfData.toString('utf8');
       if (file.pdfData.length > 1024 * 1024 || !Buffer.from(text).equals(file.pdfData)) {
@@ -171,7 +186,7 @@ module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDF
       if (merged !== null && Buffer.byteLength(merged) <= 1024 * 1024) {
         const bytes = Buffer.from(merged);
         const result = await PDF.updateOne({ ...filter, _id: file._id, pdfFolder: file.pdfFolder ?? null, pdfData: file.pdfData }, {
-          $set: { pdfData: bytes, originalBackup: file.originalBackup || file.pdfData, updatedAt: new Date() }
+          $set: { pdfData: bytes, originalBackup: file.originalBackup || file.pdfData, editHistory:bytes.equals(file.pdfData)?file.editHistory:appendHistory(file,await collaboratorAccess.identify(req,res,file),{pdfData:bytes,action:'Edited text'}),updatedAt: new Date() }
         });
         if (result.matchedCount) return res.json({ text: merged, revision: revision(bytes) });
       }
@@ -191,15 +206,17 @@ module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDF
     if (owner ? !validId(req.params.id) : !/^[A-Za-z0-9_-]{43}$/.test(req.params.token)) return res.status(404).json({ message: 'This editor link is unavailable.' });
     try {
       const filter = owner ? { _id: req.params.id, user: req.user.userId, deletedAt: null } : { shareLinkHash: hashToken(req.params.token), shareLinkRole: 'edit', deletedAt: null, ...sharedAccess(req) };
-      const file = await PDF.findOne(filter);
+      const file = await PDF.findOne(filter).select('+editHistory');
       if (!file || await isLocked(file)) return res.status(404).json({ message: 'This editor link is unavailable.' });
       const revision = createHash('sha256').update(file.pdfData).update(JSON.stringify(normalized(file.annotations))).digest('hex');
-      const save = async changes => {
+      const save = async (changes,details={}) => {
         if (req.get('X-Share-Revision') !== revision) {
           res.status(409).json({ message: 'This document changed. Download your draft before reopening the latest version.' });
           return false;
         }
-        const result = await PDF.updateOne({ ...filter, _id: file._id, updatedAt: file.updatedAt, pdfFolder: file.pdfFolder ?? null, pdfData: file.pdfData, annotations: file.annotations }, { $set: { ...changes, updatedAt: new Date() } }, { runValidators: true });
+        const actor=await collaboratorAccess.identify(req,res,file);
+        const action=changes.pdfData?(req.method==='DELETE'?'Deleted a page':req.path.includes('/pages')?(req.body.mode==='reorder'?'Reordered pages':'Added pages'):'Replaced file contents'):undefined;
+        const result = await PDF.updateOne({ ...filter, _id: file._id, updatedAt: file.updatedAt, pdfFolder: file.pdfFolder ?? null, pdfData: file.pdfData, annotations: file.annotations }, { $set: { ...changes, editHistory:appendHistory(file,actor,{...changes,action,pages:req.params.pageNumber?[Number(req.params.pageNumber)]:[],...details}),updatedAt: new Date() } }, { runValidators: true });
         if (!result.matchedCount) { res.status(409).json({ message: 'This document changed or its link was revoked. Reopen the link.' }); return false; }
         liveInk.saved(file._id);
         const next = createHash('sha256').update(changes.pdfData || file.pdfData).update(JSON.stringify(changes.annotations || file.annotations || [])).digest('hex');
@@ -233,7 +250,7 @@ module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDF
     const { sources = [], ...options } = req.body;
     if (!Array.isArray(sources) || sources.some(source => typeof source !== 'string') || sources.reduce((size, source) => size + source.length, 0) > 14 * 1024 * 1024) return res.status(400).json({ message: 'Choose PDFs totaling no more than 10 MB.' });
     const result = remove ? await deletePDFPage(file.pdfData, Number(req.params.pageNumber), options.annotations ?? file.annotations) : await insertPDFPages(file.pdfData, { ...options, sources: sources.map(source => Buffer.from(source, 'base64')), annotations: options.annotations ?? file.annotations });
-    if (await save({ pdfData: result.bytes, annotations: result.annotations })) res.json({ ...result, bytes: undefined, pdfData: result.bytes.toString('base64'), contentRevision: createHash('sha256').update(result.bytes).digest('hex') });
+    if (await save({ pdfData: result.bytes, annotations: result.annotations },{pages:[remove?Number(req.params.pageNumber):result.firstInsertedPage].filter(Number.isInteger)})) res.json({ ...result, bytes: undefined, pdfData: result.bytes.toString('base64'), contentRevision: createHash('sha256').update(result.bytes).digest('hex') });
   }, owner);
   app.post('/api/shared-document/:token/document/pages', pages(false));
   app.delete('/api/shared-document/:token/document/pages/:pageNumber', pages(true));

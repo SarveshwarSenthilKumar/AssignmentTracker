@@ -1,4 +1,5 @@
 const { createHash } = require('node:crypto');
+const {appendHistory,historyPage}=require('./documentEditHistory');
 
 module.exports = function registerSharedFolders(app, auth, { User, PDF, PDFFolder }) {
   const base = '/api/shared-folders';
@@ -93,7 +94,7 @@ module.exports = function registerSharedFolders(app, auth, { User, PDF, PDFFolde
       return res.status(404).json({ message: 'You do not have edit access to this document.' });
     }
     const filter = { _id: req.params.fileId, user: access.folder.user, pdfFolder: access.folder._id, deletedAt: null, ...collaboratorFilter(req,access) };
-    const file = await PDF.findOne(filter).select('originalName mimeType pdfData originalBackup');
+    const file = await PDF.findOne(filter).select('originalName mimeType pdfData originalBackup +editHistory');
     if (!file || !editable(file)) return res.status(404).json({ message: 'This document is unavailable for live editing.' });
     if (file.pdfData.length > 1024 * 1024 || !Buffer.from(file.pdfData.toString('utf8')).equals(file.pdfData)) {
       return res.status(422).json({ message: 'Live editing requires a UTF-8 text file up to 1 MB.' });
@@ -108,7 +109,7 @@ module.exports = function registerSharedFolders(app, auth, { User, PDF, PDFFolde
       const bytes = Buffer.from(text);
       if (bytes.equals(file.pdfData)) return res.json({ text, revision: version });
       const update = await PDF.updateOne({ ...filter, pdfData: file.pdfData }, {
-        $set: { pdfData: bytes, originalBackup: file.originalBackup || file.pdfData, updatedAt: new Date() }
+        $set: { pdfData: bytes, originalBackup: file.originalBackup || file.pdfData,editHistory:appendHistory(file,req.user,{pdfData:bytes,action:'Edited text'}), updatedAt: new Date() }
       });
       if (update.matchedCount) return res.json({ text, revision: revision(bytes) });
     }
@@ -116,6 +117,13 @@ module.exports = function registerSharedFolders(app, auth, { User, PDF, PDFFolde
   };
   app.get(`${base}/:id/files/:fileId/text`, ...route(editText(false)));
   app.put(`${base}/:id/files/:fileId/text`, ...route(editText(true)));
+  app.get(`${base}/:id/files/:fileId/history`,...route(async(req,res)=>{
+    const access=await accessibleFolder(req);
+    if(!access||access.locks.includes(`file:${req.params.fileId.toLowerCase()}`))return res.status(404).json({message:'This document history is unavailable.'});
+    const file=await PDF.findOne({_id:req.params.fileId,user:access.folder.user,pdfFolder:access.folder._id,deletedAt:null,...collaboratorFilter(req,access)}).select('_id +editHistory').lean();
+    if(!file)return res.status(404).json({message:'This document history is unavailable.'});
+    res.json(historyPage(file,req.query));
+  }));
   app.get(`${base}/:id/files/:fileId`, ...route(async (req, res) => {
     const access = await accessibleFolder(req);
     if (!access || access.locks.includes(`file:${req.params.fileId.toLowerCase()}`)) {

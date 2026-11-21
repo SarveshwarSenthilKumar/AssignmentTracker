@@ -4,6 +4,7 @@ import PDFEditor from './PDFEditor'
 import './DocumentLibrary.css'
 import {sharedDocumentRequest} from '../lib/sharedDocumentRequest'
 import DocumentAccessNotice from './DocumentAccessNotice'
+import DocumentEditHistory from './DocumentEditHistory'
 
 class SharedEditorBoundary extends Component {
   state = { failed: false }
@@ -28,6 +29,7 @@ export default function PublicDocumentEditor({ shareToken }) {
   const [status, setStatus] = useState('')
   const [busy, setBusy] = useState(false)
   const [denied,setDenied]=useState(null)
+  const [history,setHistory]=useState(false)
   const input = useRef(null)
   useEffect(() => {
     const controller = new AbortController()
@@ -80,6 +82,8 @@ export default function PublicDocumentEditor({ shareToken }) {
       {error && <p role="alert">{error}</p>}
       {file && <>
         <a className="underline" href={endpoint}>Download saved file</a>
+        {file.editor!=='text'&&<button type="button" onClick={()=>setHistory(true)}>Edit history</button>}
+        {history&&<DocumentEditHistory url={`${endpoint}/history`} onClose={()=>setHistory(false)}/>}
         {file.editor === 'text' ? <SharedTextEditor url={`${endpoint}/text`} name={file.name} onClose={close}/> : <section className="library-sharing-panel">
           <p>Download the file, edit it in an app that supports its format, then upload the edited version here. Replacing the file clears existing annotations.</p>
           <input ref={input} type="file" hidden onChange={replace} disabled={busy}/>

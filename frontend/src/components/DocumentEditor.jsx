@@ -13,6 +13,7 @@ import { X, Save, Download, Plus, FileText, Loader2, Upload, MessageSquare } fro
 import { PDFDocument } from 'pdf-lib'
 import PDFEditor from './PDFEditor'
 import DocumentAccessNotice from './DocumentAccessNotice'
+import DocumentEditHistory from './DocumentEditHistory'
 import { imageFromFile } from './PDFInsertPanel'
 import { fileKind, extensionOf, fileBytes, blobBase64, downloadBlob, parseDelimited, serializeDelimited } from '../lib/documentFormats'
 import './DocumentEditor.css'
@@ -25,6 +26,7 @@ export default function DocumentEditor({ pdfId, token, onClose, onCleanCopy, ass
   const [data, setData] = useState(null), [kind, setKind] = useState(null), [loading, setLoading] = useState(true)
   const [loadFailed, setLoadFailed] = useState(false)
   const [accessDenied,setAccessDenied]=useState(null)
+  const [showHistory,setShowHistory]=useState(false)
   const [error, setError] = useState(''), [text, setText] = useState(''), [dirty, setDirty] = useState(false), [saving, setSaving] = useState(false)
   const [table, setTable] = useState([]), [sheets, setSheets] = useState([]), [sheetId, setSheetId] = useState(null)
   const [changes, setChanges] = useState({}), [gridSize, setGridSize] = useState({ rows: 20, cols: 5 })
@@ -197,6 +199,7 @@ export default function DocumentEditor({ pdfId, token, onClose, onCleanCopy, ass
   return <div className="document-editor" role="region" aria-label="Document editor">
     <header><div className="document-title"><FileText size={22} /><div><h2>{data?.name || 'Document editor'}</h2><p>{filename} · {loading ? 'Loading…' : dirty ? 'Unsaved changes' : data?.offline ? 'Saved on device' : 'Saved'}</p></div></div><div className="document-actions"><StudyPhoneButton/>
       {onToggleAssistant&&<button type="button" onClick={onToggleAssistant} aria-pressed={assistantOpen}><MessageSquare size={17}/>AI assistant</button>}
+      <button type="button" disabled={loading||!data} onClick={()=>setShowHistory(true)}>Edit history</button>
       {isNotes&&<label className="note-autosave"><input type="checkbox" checked={autoSave} onChange={e=>{autoAttempt.current=-1;setAutoSave(e.target.checked)}}/>Autosave</label>}
       {kind==='text'&&aiUndo.length>0&&<button disabled={saving} onClick={()=>{const previous=aiUndo[aiUndo.length-1];setAiUndo(history=>history.slice(0,-1));revision.current++;setText(previous);setDirty(true)}}>Undo AI edit</button>}
       {editable && <button className="document-save" disabled={saving || !dirty} onClick={() => save()}><Save size={17} />{saving ? 'Saving…' : 'Save'}</button>}
@@ -205,6 +208,7 @@ export default function DocumentEditor({ pdfId, token, onClose, onCleanCopy, ass
       <button aria-label="Close editor" disabled={saving} onClick={close}><X size={20} /></button>
     </div></header>
     {renderFolderNavigation?.(leave, loading || saving || confirmation.pending)}
+    {showHistory&&<DocumentEditHistory url={`/api/pdfs/${pdfId}/history`} token={token} onClose={()=>setShowHistory(false)}/>}
     {liveTextEnabled && <div className="library-sharing-panel"><p role="status">{liveText.status}</p>{liveText.conflict && <><p>Another editor changed the same text. Your draft is retained.</p><details><summary>Shared version</summary><pre style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{liveText.conflict.text}</pre></details><div className="library-sharing-actions"><button type="button" onClick={()=>liveText.resolve(false)}>Use shared version</button><button type="button" onClick={()=>liveText.resolve(true)}>Keep my version</button></div></>}</div>}
     <InlineConfirmation {...confirmation} />
     {error && <div role="alert" className="document-error">{error}<button onClick={() => setError('')}>Dismiss</button></div>}
