@@ -274,6 +274,7 @@ function TextAnnotation({
       className="group"
       data-text-annotation
       data-pdf-annotation-id={item.id}
+      data-pdf-annotation-kind={item.stickyNote?'sticky-note':'text'}
       style={{
         position: 'absolute',
         left: item.x * scale,
@@ -2388,7 +2389,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
                   </svg>
 
                   {pageItems.filter(i => i.tool === 'image').map(item => (
-                    <div key={item.id} data-pdf-annotation-id={item.id} style={{ position: 'absolute', left: item.x * scale, top: item.y * scale, width: item.width * scale, height: item.height * scale, pointerEvents: currentTool === 'select' ? 'auto' : 'none', outline: currentTool === 'select' && selectedInsertId === item.id ? '2px solid #8fa5b9' : undefined, touchAction: 'none', cursor: currentTool === 'select' ? 'move' : 'pointer', zIndex: selectedInsertId === item.id ? 25 : 15 }}
+                    <div key={item.id} data-pdf-annotation-id={item.id} data-pdf-annotation-kind="image" style={{ position: 'absolute', left: item.x * scale, top: item.y * scale, width: item.width * scale, height: item.height * scale, pointerEvents: currentTool === 'select' ? 'auto' : 'none', outline: currentTool === 'select' && selectedInsertId === item.id ? '2px solid #8fa5b9' : undefined, touchAction: 'none', cursor: currentTool === 'select' ? 'move' : 'pointer', zIndex: selectedInsertId === item.id ? 25 : 15 }}
                       onPointerDown={e => {
                         e.stopPropagation(); e.preventDefault()
                         if (currentTool === 'eraser') { handleDeleteText(item.id); return }
@@ -2455,7 +2456,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     <div ref={editorRootRef} className={cn("pdf-editor fixed inset-0 bg-slate-950 flex flex-col z-50",focusMode&&"pdf-focus-mode","pdf-touch-tracked",fingerScroll&&"pdf-finger-scroll",currentTool==='read'&&'pdf-reading-mode')} role="region" aria-label="Visual document editor" aria-busy={deletingPage} onPointerDownCapture={e => { if (deletingPage) { e.preventDefault(); e.stopPropagation() } }} onKeyDownCapture={e => { if (deletingPage) { e.preventDefault(); e.stopPropagation() } }}>
       {deletingPage && <div className="inline-operation-status" role="status"><Loader2 className="animate-spin" size={17} />Updating pages…</div>}
       <InlineConfirmation {...confirmation} />
-      <PDFCollaborationPresence root={editorRootRef} enabled={liveEnabled} participants={liveInk.participants} publish={liveInk.publishPresence} activity={()=>stylusGesture.current?.action==='eraser'?{tool:'eraser',eraserSize:stylusExtra.size,eraserShape:stylusExtra.shape}:{tool:currentTool,eraserSize,eraserShape}} tool={currentTool} selectedId={selectedInsertId} activeTextId={activeTextId} eraserSize={eraserSize} eraserShape={eraserShape} scale={scale} box={collaborationBox} page={pageNumber} pageBase={pageBase}/>
+      <PDFCollaborationPresence editRevision={revisionRef.current} root={editorRootRef} enabled={liveEnabled} participants={liveInk.participants} publish={liveInk.publishPresence} activity={()=>stylusGesture.current?.action==='eraser'?{tool:'eraser',eraserSize:stylusExtra.size,eraserShape:stylusExtra.shape,transform:null}:{tool:currentTool,eraserSize,eraserShape,transform:dragRef.current?(dragRef.current.corner?'resize':'move'):null}} tool={currentTool} selectedId={selectedInsertId} activeTextId={activeTextId} eraserSize={eraserSize} eraserShape={eraserShape} scale={scale} box={collaborationBox} page={pageNumber} pageBase={pageBase}/>
       {showStylusStudio&&<PDFStylusSettings barrel={stylusBarrel} onBarrel={setStylusBarrel} tip={stylusEraser?stylusExtra.tip:'none'} onTip={tip=>{setStylusEraser(tip!=='none');setStylusExtra(previous=>({...previous,tip}))}} extra={stylusExtra} onExtra={setStylusExtra} onReset={()=>{setStylusBarrel('eraser');setStylusEraser(true);setStylusExtra({secondary:'none',tip:'eraser',mode:'precision',size:20,shape:'round'})}} onClose={()=>setShowStylusStudio(false)}/>}
 
       <PDFEditorChrome
@@ -2488,7 +2489,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         insert={<InsertPanel onPages={exportImage?undefined:handleAddPages} pageNumber={pageNumber} onFiles={insertFiles} onInsert={insertGenerated} color={currentColor} busy={inserting||!pageBase||pageBase.page!==pageNumber||deletingPage}/>}
       />
       {!focusMode && renderFolderNavigation?.(leave, loading || inserting || deletingPage || saveStatus === 'saving' || confirmation.pending)}
-      {liveEnabled && <PDFCollaborators members={liveInk.members} self={liveInk.self} connected={liveInk.connected} status={liveStatus}/>}
+      {liveEnabled && <PDFCollaborators members={liveInk.members} participants={liveInk.participants} self={liveInk.self} connected={liveInk.connected} status={liveStatus}/>}
 
       {lineSuggestion&&<div className="pdf-line-suggestion" role="status" aria-live="polite"><span>{lineSuggestion.numberLine?'Number line detected':lineSuggestion.dashed?'Dashed line detected':lineSuggestion.dots?'Dotted line detected':'Straight line detected'}</span><button type="button" onClick={()=>{setCurrentTool('select');setLineSuggestion(null)}}>Move / resize</button><button type="button" onClick={()=>setLineSuggestion(null)} aria-label="Keep detected line"><Check size={15}/>Keep</button><button type="button" onClick={revertStraightLine} aria-label="Restore original freehand stroke"><Undo size={15}/>Undo</button></div>}
       {['arrow-copy','arrow-paste'].includes(currentTool)&&!exportImage&&<div className="pdf-existing-text-hint pdf-arrow-copy-bar">

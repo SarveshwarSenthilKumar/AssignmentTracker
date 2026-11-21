@@ -98,6 +98,8 @@ module.exports = function registerLiveInk(app, auth, { PDF, User, isLocked, hash
       if (req.body.presence !== undefined) {
         const presence = req.body.presence;
         if (Buffer.byteLength(JSON.stringify(presence)) > 32 * 1024) return res.status(400).end();
+        const actions = ['viewing','selecting','typing','editing-text','drawing','highlighting','moving','resizing','erasing','measuring','selecting-region','placing','working','idle'];
+        if (presence && ((presence.action !== undefined && !actions.includes(presence.action)) || (presence.targetId != null && (typeof presence.targetId !== 'string' || presence.targetId.length > 200)) || (presence.targetKind != null && !['text','sticky-note','image','annotation','region'].includes(presence.targetKind)))) return res.status(400).end();
         const number = value => Number.isFinite(value) && Math.abs(value) <= 10;
         const rect = item => item && Number.isInteger(item.page) && item.page > 0 && item.page <= 10000 && [item.x,item.y,item.width,item.height].every(number) && [0,90,180,270].includes(item.rotation);
         if (presence !== null && (!presence || typeof presence.tool !== 'string' || presence.tool.length > 50 || typeof presence.contentRevision !== 'string' || !/^[a-f\d]{64}$/.test(presence.contentRevision) || !Array.isArray(presence.rects) || presence.rects.length > 80 || !presence.rects.every(item => rect(item) && ['selection','caret','object','region'].includes(item.kind)) || (presence.cursor && (!rect(presence.cursor) || typeof presence.cursor.down !== 'boolean')))) return res.status(400).end();

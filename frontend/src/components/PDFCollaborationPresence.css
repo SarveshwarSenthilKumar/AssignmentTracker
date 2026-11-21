@@ -9,3 +9,12 @@
 .pdf-peer-cursor.is-down>i{box-shadow:0 0 0 3px #ffffff80}
 .pdf-peer-cursor>span{margin-top:9px;padding:2px 6px;border-radius:4px;background:var(--peer-color);color:#10202c;box-shadow:0 1px 4px #0004}
 .pdf-peer-eraser{position:absolute;transform:translate(-50%,-50%);border:2px solid var(--peer-color);background:color-mix(in srgb,var(--peer-color) 10%,transparent);box-sizing:border-box}
+.pdf-peer-cursor{display:block;width:13px;height:18px;transition:left 50ms linear,top 50ms linear}
+.pdf-peer-cursor>svg{display:block;filter:drop-shadow(0 1px 1px #0006)}
+.pdf-peer-cursor>span{position:absolute;left:14px;top:12px;margin:0;max-width:230px;min-width:100px;padding:4px 7px;line-height:1.35}
+.pdf-peer-cursor strong,.pdf-peer-cursor small{display:block;overflow:hidden;text-overflow:ellipsis}
+.pdf-peer-cursor strong{font-size:11px;font-weight:700}
+.pdf-peer-cursor small{font-size:10px;font-weight:400}
+.pdf-peer-cursor.is-near-right>span{left:auto;right:4px}
+.pdf-peer-cursor.is-near-bottom>span{top:auto;bottom:6px}
+@media(prefers-reduced-motion:reduce){.pdf-peer-cursor{transition:none}}

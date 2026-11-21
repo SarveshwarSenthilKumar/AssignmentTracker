@@ -188,6 +188,14 @@ export default function useLiveInk({ url, token, enabled, contentRevision, commi
     if (!enabled || !contentRevision) return
     presence.current = { data: data ? { ...data, contentRevision } : null }
   }
-  const names = new Map(members.flatMap(member => (member.sessions || [member.peer]).map(peer => [peer, member.name])))
-  return { connected, members, self, publish, publishChanges, publishPresence, participants: [...participants.values()].filter(peer => peer.data.contentRevision === contentRevision).map(peer => ({ ...peer, name: names.get(peer.peer) })), strokes: [...previews.values()].filter(stroke => stroke.contentRevision === contentRevision) }
+  const identities = new Map(members.flatMap(member => (member.sessions || [member.peer]).map(peer => [peer, member])))
+  const people = new Map()
+  const priority = peer => !['viewing','idle',undefined].includes(peer.data.action) ? 1 : 0
+  for (const peer of participants.values()) {
+    const identity = identities.get(peer.peer)
+    if (peer.data.contentRevision !== contentRevision || identity?.peer === self) continue
+    const id = identity?.peer || peer.peer, previous = people.get(id)
+    if (!previous || priority(peer)>priority(previous) || (priority(peer)===priority(previous)&&peer.updated>previous.updated)) people.set(id,{...peer,person:id,name:identity?.name})
+  }
+  return { connected, members, self, publish, publishChanges, publishPresence, participants: [...people.values()], strokes: [...previews.values()].filter(stroke => stroke.contentRevision === contentRevision) }
 }
