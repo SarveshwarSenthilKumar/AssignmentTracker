@@ -12,6 +12,7 @@ import { useEffect, useState, useRef } from 'react'
 import { X, Save, Download, Plus, FileText, Loader2, Upload, MessageSquare } from 'lucide-react'
 import { PDFDocument } from 'pdf-lib'
 import PDFEditor from './PDFEditor'
+import DocumentAccessNotice from './DocumentAccessNotice'
 import { imageFromFile } from './PDFInsertPanel'
 import { fileKind, extensionOf, fileBytes, blobBase64, downloadBlob, parseDelimited, serializeDelimited } from '../lib/documentFormats'
 import './DocumentEditor.css'
@@ -23,6 +24,7 @@ export default function DocumentEditor({ pdfId, token, onClose, onCleanCopy, ass
   const confirmation = useInlineConfirm()
   const [data, setData] = useState(null), [kind, setKind] = useState(null), [loading, setLoading] = useState(true)
   const [loadFailed, setLoadFailed] = useState(false)
+  const [accessDenied,setAccessDenied]=useState(null)
   const [error, setError] = useState(''), [text, setText] = useState(''), [dirty, setDirty] = useState(false), [saving, setSaving] = useState(false)
   const [table, setTable] = useState([]), [sheets, setSheets] = useState([]), [sheetId, setSheetId] = useState(null)
   const [changes, setChanges] = useState({}), [gridSize, setGridSize] = useState({ rows: 20, cols: 5 })
@@ -45,7 +47,8 @@ export default function DocumentEditor({ pdfId, token, onClose, onCleanCopy, ass
     const load = async () => {
       try {
         const response = await fetch(`/api/pdfs/${pdfId}`, { headers: { Authorization: `Bearer ${token}` } })
-        const document = await response.json()
+        const document = await response.json().catch(()=>({}))
+        if(!cancelled&&[401,403,404].includes(response.status))setAccessDenied(document.message||'This document is unavailable.')
         if (!response.ok) throw new Error(document.message || 'Could not load the document.')
         if (cancelled) return
         setData(document)
@@ -144,6 +147,7 @@ export default function DocumentEditor({ pdfId, token, onClose, onCleanCopy, ass
       const blob = replacement || await serialize()
       const response = await fetch(`/api/pdfs/${pdfId}/content`, { method: 'PUT', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ data: await blobBase64(blob), mimeType: replacement?.type || mime }) })
       const result = await readApiJson(response)
+      if([401,403,404].includes(response.status))setAccessDenied(result.message||'Your document access is no longer available.')
       if (!response.ok) throw new Error(result.message || 'Could not save this document.')
       bytesRef.current = new Uint8Array(await blob.arrayBuffer())
       if(kind==='word'){
@@ -173,7 +177,7 @@ export default function DocumentEditor({ pdfId, token, onClose, onCleanCopy, ass
   useShortcuts('Document editor', {
     save: () => { if (!loadFailed && ['text','word','table','workbook'].includes(kind)) save() },
     download: () => download(), close,
-  }, !loading && !saving && !confirmation.pending && kind !== 'pdf' && kind !== 'image')
+  }, !loading && !saving && !confirmation.pending && !accessDenied && !liveText.accessDenied && kind !== 'pdf' && kind !== 'image')
   liveAssistantEditor.current={snapshot:()=>!loading&&!saving&&!loadFailed&&kind==='text'&&text.length<=30000?{kind:'text',texts:[{id:'document',text}],version:revision.current}:null,apply:actions=>{
     if(loading||saving||loadFailed||kind!=='text'||actions.length!==1||actions[0].type!=='replace_text'||actions[0].id!=='document')throw new Error('This document does not support that edit.')
     setAiUndo(previous=>[...previous.slice(-9),text]);revision.current++;setText(actions[0].text);setDirty(true)
@@ -184,6 +188,7 @@ export default function DocumentEditor({ pdfId, token, onClose, onCleanCopy, ass
   },[pdfId,kind,dirty,saving,loading,error,imageDocument,onClose])
   const usesVisualEditor = !error && ((kind === 'pdf' && !loading) || (kind === 'image' && imageDocument))
   useDocumentTabTitle(usesVisualEditor || error ? null : data?.name)
+  if(accessDenied||liveText.accessDenied)return <DocumentAccessNotice message={accessDenied||liveText.accessDenied} onClose={onClose} onRetry={()=>window.location.reload()} onSaveDraft={data?()=>download():undefined}/>
   if (kind === 'pdf' && !loading && !error) return <PDFEditor assistantOpen={assistantOpen} onToggleAssistant={onToggleAssistant} onAssistantHost={onAssistantHost} onCleanCopy={onCleanCopy} pdfId={pdfId} token={token} onClose={onClose} renderFolderNavigation={renderFolderNavigation} />
   if (kind === 'image' && imageDocument && !error) return <PDFEditor assistantOpen={assistantOpen} onToggleAssistant={onToggleAssistant} onAssistantHost={onAssistantHost} onCleanCopy={onCleanCopy} pdfId={pdfId} token={token} onClose={onClose} renderFolderNavigation={renderFolderNavigation} initialDocument={imageDocument} exportImage />
   const editable = ['text','word','table','workbook'].includes(kind) && !loading && !loadFailed

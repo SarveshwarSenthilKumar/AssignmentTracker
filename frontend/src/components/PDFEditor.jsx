@@ -26,6 +26,7 @@ import useShortcuts from '../hooks/useShortcuts'
 import useLiveInk from '../hooks/useLiveInk'
 import PDFCollaborationPresence from './PDFCollaborationPresence'
 import PDFCollaborators from './PDFCollaborators'
+import DocumentAccessNotice from './DocumentAccessNotice'
 import {sharedDocumentRequest} from '../lib/sharedDocumentRequest'
 import useInlineConfirm from '../hooks/useInlineConfirm'
 import InlineConfirmation from './InlineConfirmation'
@@ -680,6 +681,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const [pdfFolders, setPdfFolders] = useState([])
   const [savingMetadata, setSavingMetadata] = useState(false)
   const [pdfError, setPdfError] = useState(null)
+  const [accessDenied,setAccessDenied]=useState(null)
   const [drawingPaths, setDrawingPaths] = useState([])
   const remoteChangesRef = useRef(null), publishEditsRef = useRef(null)
   const liveInk = useLiveInk({ url: liveUrl, token, enabled: liveEnabled, contentRevision: liveState.current.content, committed: drawingPaths, onChanges: event => remoteChangesRef.current?.(event) })
@@ -859,7 +861,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
 
   /* ---------- saving ---------- */
   const saveAnnotations = useCallback(() => {
-    if(liveInk.accessRevoked)return Promise.resolve(false)
+    if(liveInk.accessRevoked||accessDenied)return Promise.resolve(false)
     if (deletingPageRef.current) return Promise.resolve(false)
     const snapshot = cleanForSave(pathsRef.current)
     const revision = revisionRef.current
@@ -874,6 +876,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
           const delta = annotationChanges(liveState.current.annotations, snapshot)
           const response = await sharedDocumentRequest(liveUrl, { method: 'PUT', cache: 'no-store', headers: { 'Content-Type': 'application/json', ...(token && { Authorization: `Bearer ${token}` }) }, body: JSON.stringify({ ...delta, contentRevision: liveState.current.content }) })
           const data = await response.json()
+          if([401,403,404].includes(response.status))setAccessDenied(data.message||'Your document access is no longer available.')
           if (!response.ok) throw new Error(data.message || 'Could not synchronize changes.')
           const merged = rebaseAnnotations(snapshot, pathsRef.current, data.annotations)
           undoStack.current = undoStack.current.map(items => rebaseAnnotations(snapshot, items, data.annotations))
@@ -913,7 +916,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     })
     saveQueueRef.current = operation
     return operation
-  }, [pdfId, token, shareToken, liveEnabled, liveUrl, updatePaths,liveInk.accessRevoked])
+  }, [pdfId, token, shareToken, liveEnabled, liveUrl, updatePaths,liveInk.accessRevoked,accessDenied])
   flushEditsRef.current = liveEnabled ? saveAnnotations : null
 
   // Autosave 1s after the last change (including deletions)
@@ -1007,6 +1010,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         if (!data.pdfData) setPdfError('This document has no PDF data. Please upload it again.')
       } else {
         const errorData = await response.json().catch(() => ({}))
+        if([401,403,404].includes(response.status))setAccessDenied(errorData.message||'This document is unavailable.')
         setPdfError(errorData.message || 'Failed to fetch PDF')
       }
     } catch (err) {
@@ -1018,7 +1022,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   }
 
   useEffect(() => {
-    if (!liveEnabled||liveInk.accessRevoked) return
+    if (!liveEnabled||liveInk.accessRevoked||accessDenied) return
     const controller = new AbortController()
     let timer, syncing = false
     const sync = async () => {
@@ -1035,6 +1039,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         const response = await sharedDocumentRequest(`${liveUrl}?contentRevision=${encodeURIComponent(liveState.current.content || '')}&revision=${encodeURIComponent(sharedRevision.current || '')}`, { cache: 'no-store', signal: controller.signal, headers: token ? { Authorization: `Bearer ${token}` } : {} })
         if (response.status === 204) { setLiveStatus('Live · changes synchronized'); return }
         const data = await response.json()
+        if([401,403,404].includes(response.status))setAccessDenied(data.message||'Your document access is no longer available.')
         if (!response.ok) throw new Error(data.message || 'Live synchronization interrupted.')
         if (controller.signal.aborted || liveState.current.busy || baseline !== liveState.current.annotations || localRevision !== revisionRef.current || isDrawingRef.current || isErasingRef.current || dragRef.current || deletingPageRef.current || insertingRef.current) return
         if (data.contentRevision !== liveState.current.content) {
@@ -1070,7 +1075,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     syncNowRef.current = sync
     sync()
     return () => { controller.abort(); clearTimeout(timer); syncNowRef.current = null }
-  }, [pdfId, token, shareToken, liveEnabled, liveUrl, updatePaths, bumpHistory, saveAnnotations,liveInk.accessRevoked])
+  }, [pdfId, token, shareToken, liveEnabled, liveUrl, updatePaths, bumpHistory, saveAnnotations,liveInk.accessRevoked,accessDenied])
 
   const fetchPDFFolders = async () => {
     try {
@@ -1984,7 +1989,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     'grow-insert': () => resizeSelected(1.1), 'shrink-insert': () => resizeSelected(.9),
     'nudge-left': () => nudgeSelected(-2,0), 'nudge-right': () => nudgeSelected(2,0), 'nudge-up': () => nudgeSelected(0,-2), 'nudge-down': () => nudgeSelected(0,2),
     'pdf-close': () => { if (showSettings) setShowSettings(false); else handleClose() },
-  }, !loading && !deletingPage && !confirmation.pending && !liveInk.accessRevoked)
+  }, !loading && !deletingPage && !confirmation.pending && !liveInk.accessRevoked && !accessDenied)
 
   const handleStylusButton=(event,phase)=>{
     if(event.pointerType!=='pen')return
@@ -2472,7 +2477,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   )
 
   return (
-    <div ref={editorRootRef} className={cn("pdf-editor fixed inset-0 bg-slate-950 flex flex-col z-50",focusMode&&"pdf-focus-mode","pdf-touch-tracked",fingerScroll&&"pdf-finger-scroll",currentTool==='read'&&'pdf-reading-mode')} role="region" aria-label="Visual document editor" aria-busy={deletingPage} onPointerDownCapture={e => { if (deletingPage) { e.preventDefault(); e.stopPropagation() } }} onKeyDownCapture={e => { if (deletingPage) { e.preventDefault(); e.stopPropagation() } }}>
+    <div ref={editorRootRef} className={cn("pdf-editor fixed inset-0 bg-slate-950 flex flex-col z-50",focusMode&&"pdf-focus-mode","pdf-touch-tracked",fingerScroll&&"pdf-finger-scroll",currentTool==='read'&&'pdf-reading-mode')} role="region" aria-label="Visual document editor" aria-busy={deletingPage} onPointerDownCapture={e => { if (deletingPage && !e.target.closest('.document-access-notice')) { e.preventDefault(); e.stopPropagation() } }} onKeyDownCapture={e => { if (deletingPage && !e.target.closest('.document-access-notice')) { e.preventDefault(); e.stopPropagation() } }}>
       {deletingPage && <div className="inline-operation-status" role="status"><Loader2 className="animate-spin" size={17} />Updating pages…</div>}
       <InlineConfirmation {...confirmation} />
       <PDFCollaborationPresence editRevision={revisionRef.current} root={editorRootRef} enabled={liveEnabled} participants={liveInk.participants} publish={liveInk.publishPresence} activity={()=>stylusGesture.current?.action==='eraser'?{tool:'eraser',eraserSize:stylusExtra.size,eraserShape:stylusExtra.shape,transform:null}:{tool:currentTool,eraserSize,eraserShape,transform:dragRef.current?(dragRef.current.corner?'resize':'move'):null}} tool={currentTool} selectedId={selectedInsertId} activeTextId={activeTextId} eraserSize={eraserSize} eraserShape={eraserShape} scale={scale} box={collaborationBox} page={pageNumber} pageBase={pageBase}/>
@@ -2509,7 +2514,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       />
       {!focusMode && renderFolderNavigation?.(leave, loading || inserting || deletingPage || saveStatus === 'saving' || confirmation.pending)}
       {liveEnabled && <PDFCollaborators members={liveInk.members} participants={liveInk.participants} self={liveInk.self} connected={liveInk.connected} status={liveStatus} onRevoke={revokeCollaborator} documentId={pdfId} onLoadAdmins={()=>manageDocumentAdmins()} onManageAdmin={manageDocumentAdmins}/>}
-      {liveInk.accessRevoked&&<div className="pdf-access-revoked" role="alertdialog" aria-modal="true" aria-labelledby="pdf-revoked-title"><section><h2 id="pdf-revoked-title">Document access removed</h2><p>The owner removed your access, or this share link is no longer available. Editing and synchronization have stopped.</p><div><button type="button" onClick={onClose} autoFocus>Close document</button><button type="button" disabled={downloading} onClick={()=>handleDownload()}>Download local draft</button></div>{actionError&&<p role="alert">{actionError}</p>}</section></div>}
+      {(accessDenied||liveInk.accessRevoked)&&<DocumentAccessNotice message={accessDenied||undefined} onClose={onClose} onRetry={!pdfFile?()=>window.location.reload():undefined} onSaveDraft={pdfFile?()=>handleDownload():undefined}/>}
 
       {lineSuggestion&&<div className="pdf-line-suggestion" role="status" aria-live="polite"><span>{lineSuggestion.numberLine?'Number line detected':lineSuggestion.dashed?'Dashed line detected':lineSuggestion.dots?'Dotted line detected':'Straight line detected'}</span><button type="button" onClick={()=>{setCurrentTool('select');setLineSuggestion(null)}}>Move / resize</button><button type="button" onClick={()=>setLineSuggestion(null)} aria-label="Keep detected line"><Check size={15}/>Keep</button><button type="button" onClick={revertStraightLine} aria-label="Restore original freehand stroke"><Undo size={15}/>Undo</button></div>}
       {['arrow-copy','arrow-paste'].includes(currentTool)&&!exportImage&&<div className="pdf-existing-text-hint pdf-arrow-copy-bar">

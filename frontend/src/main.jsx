@@ -14,7 +14,7 @@ function Root() {
   const readHash = () => window.location.hash
   const hash = React.useSyncExternalStore(subscribeToHash, readHash)
   const shareToken = /^#\/shared-document\/([A-Za-z0-9_-]{43})$/.exec(hash)?.[1]
-  if (shareToken) return <GuestAuthProvider><PublicDocumentEditor key={shareToken} shareToken={shareToken}/></GuestAuthProvider>
+  if (shareToken||hash.startsWith('#/shared-document/')) return <GuestAuthProvider><PublicDocumentEditor key={shareToken||hash} shareToken={shareToken||''}/></GuestAuthProvider>
   return <AuthProvider><App/></AuthProvider>
 }
 

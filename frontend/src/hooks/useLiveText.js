@@ -9,6 +9,7 @@ export default function useLiveText({ url, token, enabled = true, value, onChang
   const [status, setStatus] = useState('Connecting live editor…')
   const [ready, setReady] = useState(false)
   const [conflict, setConflict] = useState(null)
+  const [accessDenied,setAccessDenied]=useState(null)
   const state = useRef(null)
   useEffect(() => {
     if (!enabled) return
@@ -16,6 +17,7 @@ export default function useLiveText({ url, token, enabled = true, value, onChang
     const session = { saved: latest.current.value, revision: null, busy: false, conflict: false }
     state.current = session
     setReady(false)
+    setAccessDenied(null)
     setConflict(null)
     let timer
     const sync = async () => {
@@ -30,7 +32,7 @@ export default function useLiveText({ url, token, enabled = true, value, onChang
         const data = await response.json()
         if (!response.ok) {
           if (response.status === 409) { session.conflict = true; setStatus('Checking overlapping edits…'); return false }
-          if ([401, 403, 404].includes(response.status)) setReady(false)
+          if ([401, 403, 404].includes(response.status)) {setReady(false);setAccessDenied(data.message||'This document is no longer available to your account.');controller.abort();return false}
           throw new Error(data.message || 'Could not synchronize this document.')
         }
         if (controller.signal.aborted) return false
@@ -72,5 +74,5 @@ export default function useLiveText({ url, token, enabled = true, value, onChang
     if (!useLocal) { latest.current.value = conflict.text; latest.current.onChange(conflict.text); latest.current.onSaved?.() }
     setConflict(null)
   }
-  return { ready, status, conflict, resolve, sync: () => syncRef.current?.() }
+  return { ready, status, conflict, accessDenied, resolve, sync: () => syncRef.current?.() }
 }

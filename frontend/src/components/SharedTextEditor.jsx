@@ -1,9 +1,12 @@
 import { useState } from 'react'
 import useLiveText from '../hooks/useLiveText'
+import DocumentAccessNotice from './DocumentAccessNotice'
+import {downloadBlob} from '../lib/documentFormats'
 
 export default function SharedTextEditor({ url, token, name, onClose }) {
   const [draft, setDraft] = useState('')
   const live = useLiveText({ url, token, value: draft, onChange: setDraft })
+  if(live.accessDenied)return <DocumentAccessNotice message={live.accessDenied} onClose={onClose} onRetry={()=>window.location.reload()} onSaveDraft={draft?()=>downloadBlob(new Blob([draft],{type:'text/plain'}),name||'document.txt'):undefined}/>
   return <section className="library-live-editor" aria-label={`Live editing ${name}`}>
     <h4>{name}</h4>
     <p role="status">{live.status}</p>
