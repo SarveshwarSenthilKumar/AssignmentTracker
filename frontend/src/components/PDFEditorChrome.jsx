@@ -98,6 +98,7 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
     <hr/>{action(X,'Close document',doc.onClose)}
   </>,{left:true})
   const viewMenu=menu('view','View',Maximize,<>
+    {action(SlidersHorizontal,'Editor layout',view.onVisibility,{detail:'Show or hide editor panels and controls'})}
     {!doc.exportImage&&action(Files,'Book view',onBookView,{active:bookView,detail:'Read two pages side by side and flip through spreads'})}
     <label className="pc-field">Toolbar position<select value={view.toolbarPosition} onChange={event=>view.onToolbarPosition(event.target.value)}><option value="auto">Automatic</option><option value="top">Top</option><option value="bottom">Bottom</option><option value="left">Left · vertical</option><option value="right">Right · vertical</option></select></label>
     <div className="pc-zoom-controls">{iconButton(ZoomOut,'Zoom out',view.onZoomOut)}<span>{Math.round(view.scale*100)}%</span>{iconButton(ZoomIn,'Zoom in',view.onZoomIn)}</div>
@@ -182,7 +183,7 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
       {doc.onHistory&&<button type="button" className="pc-button" onClick={doc.onHistory} title="Edit history"><History size={16}/><span>History</span></button>}
       <div className="pc-history">{iconButton(Undo,'Undo (Ctrl+Z)',doc.onUndo,!doc.history.undo)}{iconButton(Redo,'Redo (Ctrl+Shift+Z)',doc.onRedo,!doc.history.redo)}</div>
       {!doc.exportImage&&<button type="button" className={`pc-button pc-side-button${view.reference?' is-active':''}`} onClick={view.onReference} aria-pressed={view.reference} disabled={!pages.count||pages.busy}><Files size={16}/><span>Side page</span></button>}
-      <StudyPhoneButton className="pc-button"/>{utilities.onAssistant&&<button type="button" className={`pc-button${utilities.assistantOpen?' is-active':''}`} onClick={utilities.onAssistant} aria-pressed={utilities.assistantOpen}><MessageSquare size={16}/><span>AI assistant</span></button>}
+      <StudyPhoneButton className="pc-button pdf-phone-shortcut"/>{utilities.onAssistant&&<button type="button" className={`pc-button pdf-assistant-shortcut${utilities.assistantOpen?' is-active':''}`} onClick={utilities.onAssistant} aria-pressed={utilities.assistantOpen}><MessageSquare size={16}/><span>AI assistant</span></button>}
       {iconButton(Maximize,'Fullscreen',view.onFocus)}
       <button type="button" className="pc-button pc-save" onClick={doc.onSave} disabled={doc.saveStatus==='saving'}>{doc.saveStatus==='saving'?<Loader2 size={16} className="animate-spin"/>:<Save size={16}/>}<span>Save</span></button>
       {iconButton(X,'Close editor',doc.onClose)}
@@ -219,7 +220,7 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
       {view.focus&&<>
         {iconButton(Undo,'Undo',doc.onUndo,!doc.history.undo)}{iconButton(Redo,'Redo',doc.onRedo,!doc.history.redo)}
         {!doc.exportImage&&<button type="button" className={`pc-button pc-side-button${view.reference?' is-active':''}`} onClick={view.onReference} aria-pressed={view.reference} disabled={!pages.count||pages.busy}><Files size={16}/>Side page</button>}
-        <StudyPhoneButton className="pc-button"/>{utilities.onAssistant&&<button type="button" className={`pc-button${utilities.assistantOpen?' is-active':''}`} onClick={utilities.onAssistant} aria-pressed={utilities.assistantOpen}><MessageSquare size={16}/>AI assistant</button>}
+        <StudyPhoneButton className="pc-button pdf-phone-shortcut"/>{utilities.onAssistant&&<button type="button" className={`pc-button pdf-assistant-shortcut${utilities.assistantOpen?' is-active':''}`} onClick={utilities.onAssistant} aria-pressed={utilities.assistantOpen}><MessageSquare size={16}/>AI assistant</button>}
         {doc.onHistory&&iconButton(History,'Edit history',doc.onHistory)}{doc.onShare&&iconButton(Share2,'Share document',doc.onShare)}{iconButton(Save,'Save',doc.onSave,doc.saveStatus==='saving')}{iconButton(X,'Exit fullscreen',view.onExitFocus)}
       </>}
     </div>
