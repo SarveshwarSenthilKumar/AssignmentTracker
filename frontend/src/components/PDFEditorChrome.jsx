@@ -88,8 +88,10 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
   </div>
   const documentMenu=menu('document','Document',FileText,<>
     {action(Download,doc.downloading?'Exporting…':'Download annotated PDF',()=>doc.onDownload('pdf'),{disabled:doc.downloading,detail:'Include the current text boxes, ink, and inserts'})}
+    {action(Download,'Download without annotations',()=>doc.onDownload('pdf-without-annotations'),{disabled:doc.downloading,detail:'Download the current PDF pages without editor ink, text, sticky notes, or inserts'})}
     {doc.exportImage&&action(Download,'Download edited PNG',doc.onDownload,{disabled:doc.downloading})}
-    {doc.onCleanCopy&&action(Copy,doc.copying?'Creating copy…':'Create clean copy',doc.onCleanCopy,{disabled:doc.copying||pages.busy,detail:'Separate document without editor annotations'})}
+    {doc.onCopyWithAnnotations&&action(Copy,'Create copy with annotations',doc.onCopyWithAnnotations,{disabled:doc.copying||pages.busy,detail:'Keep editable ink, text, sticky notes, and inserts in a separate document'})}
+    {doc.onCleanCopy&&action(Copy,'Create copy without annotations',doc.onCleanCopy,{disabled:doc.copying||pages.busy,detail:'Keep the current pages and remove editor annotations from the copy'})}
     {doc.onCleanup&&action(Pen,'Clean up PDF',doc.onCleanup,{disabled:pages.busy,detail:'Use your comments to prepare and review text corrections'})}
     {utilities.onSettings&&<><hr/>{action(Settings,'Document settings',utilities.onSettings,{active:utilities.settingsOpen,detail:'Name, folder, tags and document actions'})}</>}
     {action(Pen,'Stylus setup',utilities.onStylus,{detail:'Button assignments and eraser preferences'})}

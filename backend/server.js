@@ -1600,11 +1600,13 @@ app.get('/api/pdfs/:id', authenticateToken, async (req, res) => {
   }
 });
 
-// A clean copy has independent storage and no editor annotation history.
+// Copies have independent storage, sharing permissions, and edit history.
 app.post('/api/pdfs/:id/copy', authenticateToken, async (req, res) => {
   const { id } = req.params;
   if (!mongoose.isValidObjectId(id)) return res.status(400).json({ message: 'Invalid document ID.' });
   try {
+    const includeAnnotations=req.body?.includeAnnotations??true;
+    if(typeof includeAnnotations!=='boolean')return res.status(400).json({message:'Choose whether to include annotations.'});
     const user = req.user.userId;
     const account = await User.findById(user).select('lockedSections');
     if (!account) return res.sendStatus(401);
@@ -1615,12 +1617,12 @@ app.post('/api/pdfs/:id/copy', authenticateToken, async (req, res) => {
     if (!source) return res.status(404).json({ message: 'Document not found.' });
     const copy = await PDF.create({
       user,
-      name: await copyName(source, 'copy'),
+      name: await copyName(source, includeAnnotations?'copy':'without annotations'),
       originalName: source.originalName,
       mimeType: source.mimeType,
       pdfData: source.pdfData,
-      originalBackup: source.originalBackup,
-      annotations: source.annotations,
+      originalBackup: includeAnnotations?source.originalBackup:null,
+      annotations: includeAnnotations?source.annotations:[],
       tags: source.tags,
       pdfFolder: source.pdfFolder
     });

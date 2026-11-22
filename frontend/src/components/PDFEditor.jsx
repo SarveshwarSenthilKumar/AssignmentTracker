@@ -1864,24 +1864,26 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     await saveAnnotations()
   }
 
-  const handleCleanCopy=async()=>{
+  const handleCleanCopy=async(includeAnnotations=false)=>{
     if(cleanCopyLock.current||deletingPageRef.current||insertingRef.current)return
     cleanCopyLock.current=true;setCopyingClean(true);setActionError(null)
     try{
-      if (!await confirmation.ask('Create a clean copy and leave this document to open it?', 'Create and open copy', { required: true })) return
-      commitText();await saveQueueRef.current;await saveAnnotations()
-      const response=await documentRequest(`/api/pdfs/${pdfId}/clean-copy`,{method:'POST',headers:{Authorization:`Bearer ${token}`}})
+      if (!await confirmation.ask(`Create a copy ${includeAnnotations?'with':'without'} editor annotations and open it?`, 'Create and open copy', { required: true })) return
+      commitText();await saveQueueRef.current
+      if(!await saveAnnotations())throw new Error('Your current edits could not be saved. Retry Save before making a copy.')
+      const response=await documentRequest(`/api/pdfs/${pdfId}/copy`,{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({includeAnnotations})})
       const copy=await response.json().catch(()=>({}))
-      if(!response.ok||!copy._id)throw new Error(copy.message||'Could not create a clean copy.')
+      if(!response.ok||!copy._id)throw new Error(copy.message||'Could not create a document copy.')
       if(document.fullscreenElement===editorRootRef.current)await document.exitFullscreen().catch(()=>{})
       onCleanCopy?.(copy)
-    }catch(error){setActionError(error.message||'Could not create a clean copy.')}
+    }catch(error){setActionError(error.message||'Could not create a document copy.')}
     finally{cleanCopyLock.current=false;setCopyingClean(false)}
   }
 
   const handleDownload = async (format) => {
     if (downloading) return
-    const asImage = exportImage && format !== 'pdf'
+    const withoutAnnotations=format==='pdf-without-annotations'
+    const asImage = exportImage && format !== 'pdf' && !withoutAnnotations
     setDownloading(true)
     setActionError(null)
     try {
@@ -1895,7 +1897,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       }
 
       let outBytes = pdfBytes
-      const annotations = cleanForSave(pathsRef.current)
+      const annotations = withoutAnnotations?[]:cleanForSave(pathsRef.current)
       if (annotations.length > 0) {
         try {
           outBytes = await burnAnnotations(pdfBytes, annotations, usePressure)
@@ -1919,7 +1921,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       }
       const originalName = pdfData?.originalName || pdfData?.name || (exportImage ? 'image' : 'document')
       const baseName = originalName.replace(/\.[^.]+$/, '') || 'document'
-      const filename = asImage ? `${baseName}-edited.png` : `${baseName}-annotated.pdf`
+      const filename = asImage ? `${baseName}-edited.png` : `${baseName}-${withoutAnnotations?'without-annotations':'annotated'}.pdf`
       await downloadBlob(blob, filename)
     } catch (err) {
 
@@ -2506,7 +2508,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
           activate(id)
         }}
         onRuler={()=>{commitText();setRulerGuide(null);setCurrentTool(currentTool==='ruler'?'select':'ruler')}}
-        doc={{name:pdfData?.name,onHistory:()=>setShowHistory(true),onShare:pdfId&&!exportImage&&(token||shareCredential)&&(!shareToken||liveInk.members.some(member=>member.peer===liveInk.self&&['Owner','Admin'].includes(member.role)))?()=>{commitText();setShowShare(true)}:null,exportImage,saveStatus,history:historyCount,onUndo:undo,onRedo:redo,onSave:handleSave,onDownload:handleDownload,downloading,onCleanCopy:onCleanCopy?handleCleanCopy:null,copying:copyingClean,onClose:handleClose,copyParagraphs,onCopyParagraphs:setCopyParagraphs,onCleanup:exportImage||shareToken?null:()=>{commitText();setCurrentTool('text');setShowCalculator(false);setShowGraph(false);setShowCleanup(true)}}}
+        doc={{name:pdfData?.name,onHistory:()=>setShowHistory(true),onShare:pdfId&&!exportImage&&(token||shareCredential)&&(!shareToken||liveInk.members.some(member=>member.peer===liveInk.self&&['Owner','Admin'].includes(member.role)))?()=>{commitText();setShowShare(true)}:null,exportImage,saveStatus,history:historyCount,onUndo:undo,onRedo:redo,onSave:handleSave,onDownload:handleDownload,downloading,onCleanCopy:onCleanCopy?()=>handleCleanCopy(false):null,onCopyWithAnnotations:onCleanCopy?()=>handleCleanCopy(true):null,copying:copyingClean,onClose:handleClose,copyParagraphs,onCopyParagraphs:setCopyParagraphs,onCleanup:exportImage||shareToken?null:()=>{commitText();setCurrentTool('text');setShowCalculator(false);setShowGraph(false);setShowCleanup(true)}}}
         tools={{autoNumberLines,onAutoNumberLines:()=>setAutoNumberLines(previous=>!previous),autoDashedLines,onAutoDashedLines:()=>setAutoDashedLines(previous=>!previous),autoDottedLines,onAutoDottedLines:()=>setAutoDottedLines(previous=>!previous),lineUndoTimer,onLineUndoTimer:()=>setLineUndoTimer(previous=>!previous),autoStraightLines,onAutoStraightLines:()=>setAutoStraightLines(previous=>!previous),current:currentTool,onTool:tool=>{commitText();setCurrentTool(tool)},color:currentColor,onColor:handleColorChange,colors:COLORS,colorNames:COLOR_NAMES,fontSize,onFontSize:handleFontSizeChange,strokeWidth,onWidth:setStrokeWidth,usePressure,onPressure:()=>setUsePressure(previous=>!previous),eraser:{mode:eraserMode,onMode:setEraserMode,size:eraserSize,onSize:setEraserSize,shape:eraserShape,onShape:setEraserShape,target:eraserTarget,onTarget:setEraserTarget}}}
         pages={{count:numPages,current:pageNumber,showThumbnails:showPages,onToggleThumbnails:()=>{if(focusMode){exitFocusMode();setShowPages(true)}else setShowPages(previous=>!previous)},onNavigate:goToPage,onAddBlank:()=>handleAddPages({mode:'blank',placement:'after'}),onDelete:()=>handleDeletePage(),busy:deletingPage||inserting,canAdd:!!numPages&&!!pageBase&&pageBase.page===pageNumber&&!loading&&!deletingPage&&!inserting}}
         view={{toolbarPosition,onToolbarPosition:setToolbarPosition,scale,onZoomIn:handleZoomIn,onZoomOut:handleZoomOut,onFit:handleFitWidth,onRotate:handleRotate,dark:darkPages,onDark:()=>setDarkPages(previous=>!previous),continuous:continuousView,onContinuous:()=>{handleTextDragEnd();commitText();setContinuousView(previous=>!previous)},reference:showReference,onReference:toggleReference,focus:focusMode,onFocus:enterFocusMode,onExitFocus:exitFocusMode}}
