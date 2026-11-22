@@ -2,7 +2,7 @@ import {useEffect,useRef} from 'react'
 import {SlidersHorizontal,X} from 'lucide-react'
 import './PDFEditorVisibility.css'
 
-export const editorVisibilityDefaults={header:true,toolbar:true,folders:true,thumbnails:true,footer:true,collaborators:true,cursors:true,assistant:true,phone:true,finger:true,brush:true,clock:true,timers:true};
+export const editorVisibilityDefaults={header:true,toolbar:true,folders:true,thumbnails:true,footer:true,collaborators:true,soloCollaborators:true,cursors:true,assistant:true,phone:true,finger:true,brush:true,clock:true,timers:true};
 export function readEditorVisibility(){
   try{const saved=JSON.parse(localStorage.getItem('pdf-editor-visibility')||'{}');return Object.fromEntries(Object.entries(editorVisibilityDefaults).map(([key,value])=>[key,typeof saved?.[key]==='boolean'?saved[key]:value]));}catch{return {...editorVisibilityDefaults};}
 }
@@ -30,6 +30,7 @@ export default function PDFEditorVisibility({value,onChange,onReset,open,onOpen,
       <button type="button" onClick={onZen}>Enter Zen mode</button>
       <p>Just the page and your current tool. Press Escape or tap the top-right corner to exit.</p>
       <div className="pdf-visibility-options">{options.map(([key,label])=><label key={key}><input type="checkbox" checked={value[key]} onChange={event=>onChange(key,event.target.checked)}/><span>{label}</span></label>)}</div>
+      <div className="pdf-visibility-options"><label><input type="checkbox" checked={!value.soloCollaborators} onChange={event=>onChange('soloCollaborators',!event.target.checked)}/><span>Hide online bar when I’m the only person</span></label></div>
       <footer><button type="button" onClick={onReset}>Show everything</button><button type="button" onClick={onSave}>Save document</button><button type="button" onClick={onExit}>Close document</button></footer>
     </section>}
   </div>

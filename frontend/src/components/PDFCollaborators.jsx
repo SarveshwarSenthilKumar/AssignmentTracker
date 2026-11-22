@@ -3,7 +3,7 @@ import {useEffect,useState} from 'react'
 import { collaborationActivity } from '../lib/pdfCollaborationActivity'
 import './PDFCollaborators.css'
 
-export default function PDFCollaborators({ members, participants = [], self, connected, status, onRevoke,onManageAdmin,onLoadAdmins,documentId }) {
+export default function PDFCollaborators({ members, participants = [], self, connected, status, onRevoke,onManageAdmin,onLoadAdmins,documentId,hideWhenAlone=false }) {
   const [target,setTarget]=useState(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('')
   const owner=members.some(member=>member.peer===self&&member.role==='Owner')
   const manager=members.some(member=>member.peer===self&&['Owner','Admin'].includes(member.role))
@@ -26,6 +26,7 @@ export default function PDFCollaborators({ members, participants = [], self, con
   }
   const ordered = [...members].sort((a,b) => Number(b.peer===self)-Number(a.peer===self) || a.name.localeCompare(b.name))
   const activities=new Map(participants.map(peer=>[peer.person,collaborationActivity(peer.data)]))
+  if(hideWhenAlone&&connected&&members.length===1&&members[0].peer===self&&!target&&!busy&&!error&&!notice)return null
   return <div className="pdf-live-bar">
     <p className="pdf-live-status" role="status">{connected ? status : 'Live connection reconnecting…'}</p>
     <details className="pdf-collaborators">

@@ -2530,7 +2530,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         insert={<InsertPanel onPages={exportImage?undefined:handleAddPages} pageNumber={pageNumber} onFiles={insertFiles} onInsert={insertGenerated} color={currentColor} busy={inserting||!pageBase||pageBase.page!==pageNumber||deletingPage}/>}
       />
       {!focusMode && renderFolderNavigation?.(leave, loading || inserting || deletingPage || saveStatus === 'saving' || confirmation.pending)}
-      {liveEnabled && <PDFCollaborators members={liveInk.members} participants={liveInk.participants} self={liveInk.self} connected={liveInk.connected} status={liveStatus} onRevoke={revokeCollaborator} documentId={pdfId} onLoadAdmins={()=>manageDocumentAdmins()} onManageAdmin={manageDocumentAdmins}/>}
+      {liveEnabled && <PDFCollaborators hideWhenAlone={!editorVisibility.soloCollaborators} members={liveInk.members} participants={liveInk.participants} self={liveInk.self} connected={liveInk.connected} status={liveStatus} onRevoke={revokeCollaborator} documentId={pdfId} onLoadAdmins={()=>manageDocumentAdmins()} onManageAdmin={manageDocumentAdmins}/>}
       {showHistory&&!liveInk.accessRevoked&&!accessDenied&&<DocumentEditHistory url={shareToken?`/api/shared-document/${shareToken}/history`:`/api/pdfs/${pdfId}/history`} token={token} onClose={()=>setShowHistory(false)}/>}
       {(accessDenied||liveInk.accessRevoked)&&<DocumentAccessNotice message={accessDenied||liveInk.accessMessage||undefined} onClose={onClose} onRetry={!pdfFile||liveInk.accessMessage?()=>window.location.reload():undefined} onSaveDraft={pdfFile?()=>handleDownload():undefined}/>}
 
