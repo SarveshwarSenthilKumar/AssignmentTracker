@@ -10,19 +10,22 @@ const options=[['header','Document header'],['toolbar','Tools toolbar'],['folder
 
 export default function PDFEditorVisibility({value,onChange,onReset,open,onOpen,onClose,onSave,onExit,onZen}){
   const root=useRef(null),trigger=useRef(null),close=useRef(null)
+  const opener=useRef(null)
+  const closePanel=()=>{onClose();const target=trigger.current||opener.current;if(target?.isConnected)target.focus({preventScroll:true})}
   const dismiss=useRef(onClose)
   dismiss.current=onClose
   useEffect(()=>{
     if(!open)return
+    opener.current=document.activeElement
     close.current?.focus()
     const outside=event=>{if(!root.current?.contains(event.target))dismiss.current()}
     document.addEventListener('pointerdown',outside)
     return()=>document.removeEventListener('pointerdown',outside)
   },[open])
   return <div className="pdf-visibility-control" ref={root}>
-    <button type="button" ref={trigger} className="pdf-visibility-trigger" onClick={()=>open?onClose():onOpen()} aria-expanded={open} aria-label="Show or hide editor elements"><SlidersHorizontal size={17}/><span>Editor layout</span></button>
-    {open&&<section className="pdf-visibility-panel" role="dialog" aria-label="Show or hide editor elements" onKeyDown={event=>{event.stopPropagation();if(event.key==='Escape'){event.preventDefault();onClose();trigger.current?.focus()}}}>
-      <header><h2>Show or hide elements</h2><button type="button" ref={close} onClick={()=>{onClose();trigger.current?.focus()}} aria-label="Close layout controls"><X size={17}/></button></header>
+    {!value.toolbar&&<button type="button" ref={trigger} className="pdf-visibility-trigger" onClick={()=>open?onClose():onOpen()} aria-expanded={open} aria-label="Show or hide editor elements" title="Editor layout · restore hidden controls"><SlidersHorizontal size={17}/></button>}
+    {open&&<section className="pdf-visibility-panel" role="dialog" aria-label="Show or hide editor elements" onKeyDown={event=>{event.stopPropagation();if(event.key==='Escape'){event.preventDefault();closePanel()}}}>
+      <header><h2>Show or hide elements</h2><button type="button" ref={close} onClick={closePanel} aria-label="Close layout controls"><X size={17}/></button></header>
       <p>Choose what stays visible. Your layout is saved on this device. Page thumbnails also need to be opened from Pages.</p>
       <button type="button" onClick={onZen}>Enter Zen mode</button>
       <p>Just the page and your current tool. Press Escape or tap the top-right corner to exit.</p>

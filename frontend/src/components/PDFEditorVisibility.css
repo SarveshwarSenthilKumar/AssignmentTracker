@@ -1,6 +1,7 @@
 .pdf-visibility-control{position:fixed;left:max(12px,env(safe-area-inset-left));bottom:max(12px,env(safe-area-inset-bottom));z-index:130;color:var(--text-primary)}
 .pdf-visibility-control button{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:44px;padding:8px 12px;border:1px solid var(--border-strong);border-radius:8px;background:var(--surface-panel);color:var(--text-primary);font-size:12px;cursor:pointer}
-.pdf-visibility-trigger{box-shadow:0 3px 14px #0004}
+.pdf-visibility-control .pdf-visibility-trigger{width:44px;padding:8px;border-color:transparent;background:transparent;color:var(--text-secondary);opacity:.6}
+.pdf-visibility-control .pdf-visibility-trigger:hover,.pdf-visibility-control .pdf-visibility-trigger:focus-visible,.pdf-visibility-control .pdf-visibility-trigger[aria-expanded="true"]{opacity:1;background:var(--surface-panel);border-color:var(--border-strong)}
 .pdf-visibility-control button:focus-visible,.pdf-visibility-control input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .pdf-visibility-panel{position:absolute;bottom:calc(100% + 8px);left:0;width:340px;max-width:calc(100vw - 24px);max-height:calc(100dvh - 88px - env(safe-area-inset-top) - env(safe-area-inset-bottom));overflow:auto;overscroll-behavior:contain;padding:14px;border:1px solid var(--border-strong);border-radius:12px;background:var(--surface-panel);box-shadow:0 12px 36px #0006}
 .pdf-visibility-panel header{display:flex;align-items:center;justify-content:space-between;gap:10px}.pdf-visibility-panel h2{font-size:15px;font-weight:650}
@@ -10,6 +11,7 @@
 .pdf-visibility-panel footer{display:flex;flex-wrap:wrap;gap:7px;border-top:1px solid var(--border);padding-top:12px;margin-top:8px}
 .pdf-editor[data-hidden-editor~="header"]>.pdf-chrome>.pc-header,
 .pdf-editor[data-hidden-editor~="toolbar"]>.pdf-chrome>.pc-toolbar,
+.pdf-editor[data-hidden-editor~="toolbar"]>.pdf-select-copy-bar,
 .pdf-editor[data-hidden-editor~="toolbar"]>.pdf-chrome.is-focus,
 .pdf-editor[data-hidden-editor~="folders"]>.document-folder-navigation,
 .pdf-editor[data-hidden-editor~="thumbnails"] .pdf-pages,
