@@ -101,16 +101,17 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
   const viewMenu=menu('view','View',Maximize,<>
     {action(Minimize2,'Zen mode',view.onZen,{detail:'Hide everything and keep your current tool · Escape to exit'})}
     {action(SlidersHorizontal,'Editor layout',view.onVisibility,{detail:'Show or hide editor panels and controls'})}
-    {!doc.exportImage&&action(Files,'Book view',onBookView,{active:bookView,detail:'Read two pages side by side and flip through spreads'})}
+    {!doc.exportImage&&!doc.whiteboard&&action(Files,'Book view',onBookView,{active:bookView,detail:'Read two pages side by side and flip through spreads'})}
     <label className="pc-field">Toolbar position<select value={view.toolbarPosition} onChange={event=>view.onToolbarPosition(event.target.value)}><option value="auto">Automatic</option><option value="top">Top</option><option value="bottom">Bottom</option><option value="left">Left · vertical</option><option value="right">Right · vertical</option></select></label>
     <div className="pc-zoom-controls">{iconButton(ZoomOut,'Zoom out',view.onZoomOut)}<span>{Math.round(view.scale*100)}%</span>{iconButton(ZoomIn,'Zoom in',view.onZoomIn)}</div>
     {action(Maximize,'Fit page width',view.onFit)}{action(RotateCw,'Rotate view',view.onRotate)}<hr/>
-    {!doc.exportImage&&action(Files,'Continuous scrolling',view.onContinuous,{active:view.continuous,disabled:pages.busy})}
+    {!doc.exportImage&&!doc.whiteboard&&action(Files,'Continuous scrolling',view.onContinuous,{active:view.continuous,disabled:pages.busy})}
     {!doc.exportImage&&<label className="pc-checkbox"><input type="checkbox" checked={doc.copyParagraphs} onChange={event=>doc.onCopyParagraphs(event.target.checked)}/>Join wrapped lines when copying</label>}
     {action(view.dark?Sun:Moon,view.dark?'Switch to light pages':'Switch to dark pages',view.onDark,{detail:'Display only; exports keep original colors'})}
     {action(Maximize,view.focus?'Exit fullscreen':'Enter fullscreen',view.focus?view.onExitFocus:view.onFocus)}
   </>)
   const pagesMenu=!doc.exportImage&&menu('pages','Pages',Files,<>
+    {pages.onExtend&&action(Plus,'Extend whiteboard',pages.onExtend,{disabled:!pages.canAdd,detail:'Add more canvas below · extend again whenever you need more room'})}
     <div className="pc-page-controls">{iconButton(ChevronLeft,'Previous page',()=>pages.onNavigate(pages.current-1),pages.current<=1||pages.busy)}<span>{pages.current} of {pages.count||'…'}</span>{iconButton(ChevronRight,'Next page',()=>pages.onNavigate(pages.current+1),pages.current>=pages.count||pages.busy)}</div>
     {action(PanelLeft,'Page thumbnails',pages.onToggleThumbnails,{active:pages.showThumbnails})}
     {action(Files,'Side page',view.onReference,{active:view.reference,disabled:!pages.count||pages.busy})}
@@ -182,6 +183,7 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
     {!view.focus&&<header className="pc-header">
       {documentMenu}<div className="pc-file-name"><strong title={doc.name}>{doc.name||'Document editor'}</strong><DocumentCopyNote name={doc.copiedFromName}/><span className={`pc-save-state is-${doc.saveStatus}`} role="status"><i/>{doc.saveStatus==='saving'?'Saving…':doc.saveStatus==='saved'?'Saved':doc.saveStatus==='offline'?'Saved on device':doc.saveStatus==='error'?'Save failed':'Unsaved'}</span></div>
       {doc.onShare&&<button type="button" className="pc-button" onClick={doc.onShare} title="Share document"><Share2 size={16}/><span>Share</span></button>}
+      {pages.onExtend&&<button type="button" className="pc-button" onClick={pages.onExtend} disabled={!pages.canAdd} title="Add more canvas below"><Plus size={16}/><span>Extend board</span></button>}
       {doc.onHistory&&<button type="button" className="pc-button" onClick={doc.onHistory} title="Edit history"><History size={16}/><span>History</span></button>}
       <div className="pc-history">{iconButton(Undo,'Undo (Ctrl+Z)',doc.onUndo,!doc.history.undo)}{iconButton(Redo,'Redo (Ctrl+Shift+Z)',doc.onRedo,!doc.history.redo)}</div>
       {!doc.exportImage&&<button type="button" className={`pc-button pc-side-button${view.reference?' is-active':''}`} onClick={view.onReference} aria-pressed={view.reference} disabled={!pages.count||pages.busy}><Files size={16}/><span>Side page</span></button>}

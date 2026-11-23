@@ -613,7 +613,9 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const [showClock,setShowClock]=useState(()=>{try{return localStorage.getItem('pdf-editor-show-clock')==='true'}catch{return false}})
   useEffect(()=>{try{localStorage.setItem('pdf-editor-show-clock',String(showClock))}catch{}},[showClock])
   const [continuousPreference,setContinuousView]=useState(()=>{try{return localStorage.getItem('pdf-editor-continuous')!=='false'}catch{return true}})
-  const continuousView = !exportImage && continuousPreference
+  const isWhiteboard=pdfData?.documentKind==='whiteboard'
+  const continuousView = !exportImage && (isWhiteboard||continuousPreference)
+  const whiteboardScrollTarget=useRef(null)
   useEffect(()=>{if(!exportImage){try{localStorage.setItem('pdf-editor-continuous',String(continuousPreference))}catch{}}},[continuousPreference,exportImage])
   const [darkPages,setDarkPages]=useState(()=>{try{return localStorage.getItem('pdf-editor-dark-pages')!=='false'}catch{return true}})
   useEffect(()=>{try{localStorage.setItem('pdf-editor-dark-pages',String(darkPages))}catch{}},[darkPages])
@@ -1153,6 +1155,13 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     const width = viewerRef.current.clientWidth - 64
     setScale(Math.max(0.25, Math.min(1, width / pageBase.w)))
   }, [pageBase])
+
+  useEffect(()=>{
+    const target=whiteboardScrollTarget.current
+    if(!target||pageBase?.page!==target)return
+    const section=viewerRef.current?.querySelector(`[data-continuous-page="${target}"]`)
+    if(section){section.scrollIntoView({block:'start'});whiteboardScrollTarget.current=null}
+  },[pageBase,numPages])
 
   /* ---------- coordinates ---------- */
   // Pointer position -> page units, correct at any zoom and rotation
@@ -1855,6 +1864,13 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     finally { deletingPageRef.current = false; setDeletingPage(false) }
   }
 
+  const extendWhiteboard=async()=>{
+    if(!isWhiteboard||!numPages||deletingPageRef.current||insertingRef.current)return
+    whiteboardScrollTarget.current=numPages+1
+    const added=await handleAddPages({mode:'blank',placement:'end',sourcePage:numPages})
+    if(!added)whiteboardScrollTarget.current=null
+  }
+
   const handlePageDrop = (event, targetPage) => {
     event.preventDefault();event.stopPropagation()
     const sourcePage=pageDragRef.current
@@ -2492,7 +2508,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   )
 
   return (
-    <div ref={editorRootRef} data-hidden-editor={Object.keys(editorVisibility).filter(key=>!editorVisibility[key]).join(' ')} className={cn("pdf-editor fixed inset-0 bg-slate-950 flex flex-col z-50",focusMode&&"pdf-focus-mode",zenMode&&"pdf-zen-mode","pdf-touch-tracked",fingerScroll&&"pdf-finger-scroll",currentTool==='read'&&'pdf-reading-mode')} role="region" aria-label="Visual document editor" aria-busy={deletingPage} onPointerDownCapture={e => { if (deletingPage && !e.target.closest('.document-access-notice')) { e.preventDefault(); e.stopPropagation() } }} onKeyDownCapture={e => { if (deletingPage && !e.target.closest('.document-access-notice')) { e.preventDefault(); e.stopPropagation() } }}>
+    <div ref={editorRootRef} data-hidden-editor={Object.keys(editorVisibility).filter(key=>!editorVisibility[key]).join(' ')} className={cn("pdf-editor fixed inset-0 bg-slate-950 flex flex-col z-50",focusMode&&"pdf-focus-mode",zenMode&&"pdf-zen-mode",isWhiteboard&&"pdf-whiteboard","pdf-touch-tracked",fingerScroll&&"pdf-finger-scroll",currentTool==='read'&&'pdf-reading-mode')} role="region" aria-label="Visual document editor" aria-busy={deletingPage} onPointerDownCapture={e => { if (deletingPage && !e.target.closest('.document-access-notice')) { e.preventDefault(); e.stopPropagation() } }} onKeyDownCapture={e => { if (deletingPage && !e.target.closest('.document-access-notice')) { e.preventDefault(); e.stopPropagation() } }}>
       {deletingPage && <div className="inline-operation-status" role="status"><Loader2 className="animate-spin" size={17} />Updating pages…</div>}
       <InlineConfirmation {...confirmation} />
       <PDFCollaborationPresence editRevision={revisionRef.current} root={editorRootRef} enabled={liveEnabled} participants={liveInk.participants} publish={liveInk.publishPresence} activity={()=>stylusGesture.current?.action==='eraser'?{tool:'eraser',eraserSize:stylusExtra.size,eraserShape:stylusExtra.shape,transform:null}:{tool:currentTool,eraserSize,eraserShape,transform:dragRef.current?(dragRef.current.corner?'resize':'move'):null}} tool={currentTool} selectedId={selectedInsertId} activeTextId={activeTextId} eraserSize={eraserSize} eraserShape={eraserShape} scale={scale} box={collaborationBox} page={pageNumber} pageBase={pageBase}/>
@@ -2521,9 +2537,9 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
           activate(id)
         }}
         onRuler={()=>{commitText();setRulerGuide(null);setCurrentTool(currentTool==='ruler'?'select':'ruler')}}
-        doc={{name:pdfData?.name,copiedFromName:pdfData?.copiedFromName,onHistory:()=>setShowHistory(true),onShare:pdfId&&!exportImage&&(token||shareCredential)&&(!shareToken||liveInk.members.some(member=>member.peer===liveInk.self&&['Owner','Admin'].includes(member.role)))?()=>{commitText();setShowShare(true)}:null,exportImage,saveStatus,history:historyCount,onUndo:undo,onRedo:redo,onSave:handleSave,onDownload:handleDownload,downloading,onCleanCopy:onCleanCopy?()=>handleCleanCopy(false):null,onCopyWithAnnotations:onCleanCopy?()=>handleCleanCopy(true):null,copying:copyingClean,onClose:handleClose,copyParagraphs,onCopyParagraphs:setCopyParagraphs,onCleanup:exportImage||shareToken?null:()=>{commitText();setCurrentTool('text');setShowCalculator(false);setShowGraph(false);setShowCleanup(true)}}}
+        doc={{whiteboard:isWhiteboard,name:pdfData?.name,copiedFromName:pdfData?.copiedFromName,onHistory:()=>setShowHistory(true),onShare:pdfId&&!exportImage&&(token||shareCredential)&&(!shareToken||liveInk.members.some(member=>member.peer===liveInk.self&&['Owner','Admin'].includes(member.role)))?()=>{commitText();setShowShare(true)}:null,exportImage,saveStatus,history:historyCount,onUndo:undo,onRedo:redo,onSave:handleSave,onDownload:handleDownload,downloading,onCleanCopy:onCleanCopy?()=>handleCleanCopy(false):null,onCopyWithAnnotations:onCleanCopy?()=>handleCleanCopy(true):null,copying:copyingClean,onClose:handleClose,copyParagraphs,onCopyParagraphs:setCopyParagraphs,onCleanup:exportImage||shareToken?null:()=>{commitText();setCurrentTool('text');setShowCalculator(false);setShowGraph(false);setShowCleanup(true)}}}
         tools={{autoNumberLines,onAutoNumberLines:()=>setAutoNumberLines(previous=>!previous),autoDashedLines,onAutoDashedLines:()=>setAutoDashedLines(previous=>!previous),autoDottedLines,onAutoDottedLines:()=>setAutoDottedLines(previous=>!previous),lineUndoTimer,onLineUndoTimer:()=>setLineUndoTimer(previous=>!previous),autoStraightLines,onAutoStraightLines:()=>setAutoStraightLines(previous=>!previous),current:currentTool,onTool:tool=>{commitText();setCurrentTool(tool)},color:currentColor,onColor:handleColorChange,colors:COLORS,colorNames:COLOR_NAMES,fontSize,onFontSize:handleFontSizeChange,strokeWidth,onWidth:setStrokeWidth,usePressure,onPressure:()=>setUsePressure(previous=>!previous),eraser:{mode:eraserMode,onMode:setEraserMode,size:eraserSize,onSize:setEraserSize,shape:eraserShape,onShape:setEraserShape,target:eraserTarget,onTarget:setEraserTarget}}}
-        pages={{count:numPages,current:pageNumber,showThumbnails:showPages,onToggleThumbnails:()=>{if(focusMode){exitFocusMode();setShowPages(true)}else setShowPages(previous=>!previous)},onNavigate:goToPage,onAddBlank:()=>handleAddPages({mode:'blank',placement:'after'}),onDelete:()=>handleDeletePage(),busy:deletingPage||inserting,canAdd:!!numPages&&!!pageBase&&pageBase.page===pageNumber&&!loading&&!deletingPage&&!inserting}}
+        pages={{onExtend:isWhiteboard?extendWhiteboard:null,count:numPages,current:pageNumber,showThumbnails:showPages,onToggleThumbnails:()=>{if(focusMode){exitFocusMode();setShowPages(true)}else setShowPages(previous=>!previous)},onNavigate:goToPage,onAddBlank:()=>handleAddPages({mode:'blank',placement:'after'}),onDelete:()=>handleDeletePage(),busy:deletingPage||inserting,canAdd:!!numPages&&!!pageBase&&pageBase.page===pageNumber&&!loading&&!deletingPage&&!inserting}}
         view={{onZen:()=>{handleTextDragEnd();commitText();setShowLayout(false);setShowSearch(false);setShowTutorial(false);setZenMode(true);viewerRef.current?.focus({preventScroll:true})},onVisibility:()=>setShowLayout(true),toolbarPosition,onToolbarPosition:setToolbarPosition,scale,onZoomIn:handleZoomIn,onZoomOut:handleZoomOut,onFit:handleFitWidth,onRotate:handleRotate,dark:darkPages,onDark:()=>setDarkPages(previous=>!previous),continuous:continuousView,onContinuous:()=>{handleTextDragEnd();commitText();setContinuousView(previous=>!previous)},reference:showReference,onReference:toggleReference,focus:focusMode,onFocus:enterFocusMode,onExitFocus:exitFocusMode}}
         utilities={{onDetectNumberLine:()=>{commitText();setCurrentTool('number-line');setShowNumberLine(true);setShowGraph(false);setShowCalculator(false)},onNumberLine:()=>{setNumberLineSelection(null);commitText();setCurrentTool('select');setShowGraph(false);setShowCalculator(false);setShowNumberLine(true)},timer:showTimer,onTimer:setShowTimer,stopwatch:showStopwatch,onStopwatch:setShowStopwatch,clock:showClock,onGraph:()=>{commitText();setCurrentTool('graph');setShowGraph(true);setShowCalculator(false)},calculator:showCalculator,onCalculator:()=>{commitText();setShowGraph(false);setShowCalculator(previous=>!previous)},onScanFunction:()=>{commitText();setCurrentTool('function');setShowCalculator(true);setShowGraph(false)},onCalculate:()=>{commitText();setCurrentTool('calculate')},recognition:calculationMode,onRecognition:setCalculationMode,snippetReady:!!snippet,copying:copyingSnippet,onCopyRegion:()=>{commitText();setCurrentTool('snippet')},onArrowCopy:toggleArrowCopy,onPaste:pasteSnippet,canPaste:!!snippet&&!!pageBase&&pageBase.page===pageNumber&&!inserting&&!deletingPage,onStylus:()=>setShowStylusStudio(true),onSettings:shareToken?null:()=>setShowSettings(previous=>!previous),settingsOpen:showSettings,assistantOpen,onAssistant:onToggleAssistant}}
         input={{scroll:fingerScroll,onChange:setFingerInputMode,pageLocked,onPageLock:locked=>{if(locked)setFingerInputMode(false);setPageLocked(locked)},activity:inputActivity,scrollSettings,onScrollSettings:changeScrollSettings}}
@@ -2606,7 +2622,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
               <button onClick={() => { setPdfError(null); setLoading(true); fetchPDF() }} className="mt-4 px-4 py-2 rounded-lg bg-indigo-600 text-white">Retry loading</button>
             </div>
           ) : pdfFile ? (
-            continuousView&&!exportImage ? <PDFContinuousView reading={currentTool==='read'} key={pdfId+':'+numPages} file={pdfFile} count={numPages} currentPage={pageNumber} activePage={activePageView} activePageReady={ready} scale={scale} rotation={rotation} fallback={pageBase} annotations={displayAnnotations} onActivate={activateContinuousPage} onPageReady={onPageLoadSuccess} onDocumentReady={onDocumentLoadSuccess} usePressure={usePressure} viewer={viewerRef} options={PDF_OPTIONS}/> : activePageView
+            continuousView&&!exportImage ? <PDFContinuousView onExtend={isWhiteboard?extendWhiteboard:null} extending={deletingPage||inserting} reading={currentTool==='read'} key={pdfId+':'+numPages} file={pdfFile} count={numPages} currentPage={pageNumber} activePage={activePageView} activePageReady={ready} scale={scale} rotation={rotation} fallback={pageBase||(isWhiteboard?{w:2400,h:1600,rotation:0}:null)} annotations={displayAnnotations} onActivate={activateContinuousPage} onPageReady={onPageLoadSuccess} onDocumentReady={onDocumentLoadSuccess} usePressure={usePressure} viewer={viewerRef} options={PDF_OPTIONS}/> : activePageView
           ) : (
             <div className="text-slate-400">No document data available</div>
           )}

@@ -39,7 +39,7 @@ const ContinuousPage=memo(function ContinuousPage({number,active,activeReady,act
   </section>
 })
 
-export default function PDFContinuousView({file,count,currentPage,activePage,activePageReady,scale,rotation,fallback,annotations,onActivate,onPageReady,onDocumentReady,usePressure,viewer,options,reading=false}){
+export default function PDFContinuousView({file,count,currentPage,activePage,activePageReady,scale,rotation,fallback,annotations,onActivate,onPageReady,onDocumentReady,usePressure,viewer,options,reading=false,onExtend,extending=false}){
   const cache=useRef(new Map()),live=useRef(null),[stackElement,setStackElement]=useState(null)
   live.current={onActivate,onPageReady,onDocumentReady,currentPage}
   const callbacks=useMemo(()=>({onActivate:(...args)=>live.current.onActivate(...args),onReady:page=>{if(page.pageNumber===live.current.currentPage)live.current.onPageReady(page)},onDocumentReady:document=>live.current.onDocumentReady(document)}),[])
@@ -78,5 +78,5 @@ export default function PDFContinuousView({file,count,currentPage,activePage,act
     cache.current=map;return map
   },[annotations])
   useEffect(()=>{viewer.current?.querySelector(`[data-continuous-page="${currentPage}"]`)?.scrollIntoView({block:'start'})},[]) // Preserve the selected page when switching views.
-  return <Document onLoadSuccess={callbacks.onDocumentReady} className="pdf-continuous-document" options={options} file={file} loading={<p>Loading continuous view…</p>} error={<p role="alert">Could not load continuous view. Switch to single-page view to retry.</p>}><div ref={setStackElement} className="pdf-continuous-stack">{Array.from({length:count||1},(_,index)=><ContinuousPage reading={reading} usePressure={usePressure} file={file} key={index+1} number={index+1} active={currentPage===index+1} activeReady={currentPage===index+1&&activePageReady} activePage={currentPage===index+1?activePage:null} scale={scale} rotation={rotation} fallback={fallback} items={byPage.get(index+1)||EMPTY} onActivate={callbacks.onActivate} onReady={callbacks.onReady} viewer={viewer}/>)}</div></Document>
+  return <Document onLoadSuccess={callbacks.onDocumentReady} className="pdf-continuous-document" options={options} file={file} loading={<p>Loading continuous view…</p>} error={<p role="alert">Could not load continuous view. Switch to single-page view to retry.</p>}><div ref={setStackElement} className="pdf-continuous-stack">{Array.from({length:count||1},(_,index)=><ContinuousPage reading={reading} usePressure={usePressure} file={file} key={index+1} number={index+1} active={currentPage===index+1} activeReady={currentPage===index+1&&activePageReady} activePage={currentPage===index+1?activePage:null} scale={scale} rotation={rotation} fallback={fallback} items={byPage.get(index+1)||EMPTY} onActivate={callbacks.onActivate} onReady={callbacks.onReady} viewer={viewer}/>)}</div>{onExtend&&<div className="pdf-whiteboard-extend"><button type="button" disabled={extending} onClick={onExtend}>{extending?'Extending board…':'+ Extend whiteboard'}</button><span>Add more room below, as often as you need.</span></div>}</Document>
 }
