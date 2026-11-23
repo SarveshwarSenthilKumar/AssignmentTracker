@@ -153,6 +153,7 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
     return()=>observer.disconnect()
   },[fullscreen,!!selected])
   const [marquee,setMarquee]=useState(null)
+  const [spacingOnly,setSpacingOnly]=useState(false)
   const zoomRef=useRef(.8)
   const initialOverview=useRef(window.location.hash.endsWith('/overview'))
   const [connectionTarget,setConnectionTarget]=useState(null),[stringHint,setStringHint]=useState('')
@@ -309,6 +310,22 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
     const positions=new Map(snapshots.map(node=>[node.id,{x:node.x+dx,y:node.y+dy}]))
     apply({...current.current,state:{...current.current.state,nodes:current.current.state.nodes.map(node=>positions.has(node.id)?{...node,...positions.get(node.id)}:node)}},record)
   }
+  const changeSpacing=(snapshots,anchor,factor,record=false)=>{
+    if(snapshots.length<2||!Number.isFinite(factor)||factor<=0)return
+    const positions=new Map(snapshots.map(node=>[node.id,{
+      x:clamp(anchor.x+(node.x+node.width/2-anchor.x)*factor-node.width/2,0,MAX_WALL_SIZE-node.width),
+      y:clamp(anchor.y+(node.y+node.height/2-anchor.y)*factor-node.height/2,0,MAX_WALL_SIZE-node.height)
+    }]))
+    // Explicit packing changes positions only; don't run resize spacing afterward.
+    apply({...current.current,state:{...current.current.state,nodes:current.current.state.nodes.map(node=>positions.has(node.id)?{...node,...positions.get(node.id)}:node)}},record,false)
+  }
+  const packSelected=factor=>{
+    const ids=selectionIds(selected),nodes=current.current.state.nodes.filter(node=>ids.nodes.includes(node.id))
+    if(nodes.length<2)return
+    const boxes=nodes.map(itemBounds)
+    const anchor={x:(Math.min(...boxes.map(b=>b.left))+Math.max(...boxes.map(b=>b.right)))/2,y:(Math.min(...boxes.map(b=>b.top))+Math.max(...boxes.map(b=>b.bottom)))/2}
+    changeSpacing(nodes,anchor,factor,true)
+  }
   const resizeSelection=(snapshots,edges,anchor,requested,record=false)=>{
     if(!snapshots.length&&!edges.length)return
     if(!Number.isFinite(requested)||requested<=0)return
@@ -400,7 +417,7 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
     const nodes=current.current.state.nodes.filter(node=>selected.nodes.includes(node.id));if(!nodes.length)return
     const boxes=nodes.map(itemBounds),left=Math.min(...boxes.map(b=>b.left)),top=Math.min(...boxes.map(b=>b.top)),right=Math.max(...boxes.map(b=>b.right)),bottom=Math.max(...boxes.map(b=>b.bottom))
     historyRef.current={undo:[...historyRef.current.undo.slice(-19),current.current],redo:[]};setHistory(historyRef.current)
-    gesture.current={kind:'group-resize',nodes,strings:current.current.state.strings.filter(edge=>selected.strings.includes(edge.id)),corner,start:point(event),bounds:{left,top,right,bottom},pointerId:event.pointerId,layoutBase:current.current.state.nodes,layoutIds:nodes.map(node=>node.id)}
+    gesture.current={kind:spacingOnly?'group-spacing':'group-resize',nodes,strings:current.current.state.strings.filter(edge=>selected.strings.includes(edge.id)),corner,start:point(event),bounds:{left,top,right,bottom},pointerId:event.pointerId,layoutBase:current.current.state.nodes,layoutIds:nodes.map(node=>node.id)}
     event.currentTarget.setPointerCapture(event.pointerId)
   }
   const startPan=event=>{
@@ -421,10 +438,12 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
     if(drag.kind==='pan'){viewport.current.scrollLeft=drag.left+drag.x-event.clientX;viewport.current.scrollTop=drag.top+drag.y-event.clientY;return}
     const p=point(event),dx=p.x-drag.start.x,dy=p.y-drag.start.y
     if(drag.kind==='group'){moveNodes(drag.nodes,dx,dy);return}
-    if(drag.kind==='group-resize'){
+    if(drag.kind==='group-resize'||drag.kind==='group-spacing'){
       const west=drag.corner.includes('w'),north=drag.corner.includes('n'),b=drag.bounds,w=b.right-b.left,h=b.bottom-b.top
       const anchor={x:west?b.right:b.left,y:north?b.bottom:b.top}
-      resizeSelection(drag.nodes,drag.strings,anchor,1+((west?-dx:dx)*w+(north?-dy:dy)*h)/(w*w+h*h))
+      const factor=1+((west?-dx:dx)*w+(north?-dy:dy)*h)/(w*w+h*h)
+      if(drag.kind==='group-spacing')changeSpacing(drag.nodes,anchor,Math.max(.01,factor))
+      else resizeSelection(drag.nodes,drag.strings,anchor,factor)
       return
     }
     const angle=drag.node.rotation*Math.PI/180
@@ -658,7 +677,13 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
     </div>
     {(activeNode||activeString||selectedGroup)&&<div className="detective-properties"><strong>{selectedGroup?`${selectedGroup.nodes.length} items · ${selectedGroup.strings.length} strings selected`:activeString?'String':activeNode.type==='photo'?'Photo':activeNode.type==='pin'?'Thumbtack':'Sticky note'}</strong>
       <DetectiveSelectionSize key={JSON.stringify(selectedIds)} fontSize={commonFontSize} onFontSize={size=>changeSelectedFonts(size)} onFontDelta={delta=>changeSelectedFonts(delta,true)} onScale={scaleSelected}/>
-      {selectedGroup&&<span className="detective-group-hint">Drag a header to move the group · Drag a corner to resize · Shift-click to add or remove items</span>}
+      {selectedGroup&&selectedGroup.nodes.length>1&&<div className="detective-spacing-controls" role="group" aria-label="Selection spacing">
+        <span>Spacing</span>
+        <button type="button" onClick={()=>packSelected(.85)} title="Move selected cards 15% closer without changing their size">Pack closer</button>
+        <button type="button" onClick={()=>packSelected(1/.85)} title="Spread selected cards apart without changing their size">Spread apart</button>
+        <label><input type="checkbox" checked={spacingOnly} onChange={event=>setSpacingOnly(event.target.checked)}/>Corners change spacing only</label>
+      </div>}
+      {selectedGroup&&<span className="detective-group-hint">Drag a header to move the group · {spacingOnly?'Drag a corner to change spacing without resizing cards':'Drag a corner to resize'} · Shift-click to add or remove items</span>}
       {activeString&&<span className="detective-connection-summary" title="Connected items">{nodes.get(activeString.from)?.text.slice(0,30)||nodes.get(activeString.from)?.type} ↔ {nodes.get(activeString.to)?.text.slice(0,30)||nodes.get(activeString.to)?.type}</span>}
       {activeNode&&<><div className="detective-swatches">{colors.map(color=><button key={color} type="button" style={{background:color}} aria-label={`Set item color ${color}`} aria-pressed={activeNode.color===color} onClick={()=>changeNode(activeNode.id,{color})}/>)}</div><label>Color<input type="color" value={activeNode.color} onChange={event=>changeNode(activeNode.id,{color:event.target.value})}/></label><label>Rotate<input type="range" min="-30" max="30" value={activeNode.rotation} onPointerDown={()=>{historyRef.current={undo:[...historyRef.current.undo.slice(-19),current.current],redo:[]};setHistory(historyRef.current)}} onChange={event=>changeNode(activeNode.id,{rotation:Number(event.target.value)},false)}/></label>{activeNode.type==='pin'&&<label>Label<input value={activeNode.text} maxLength={160} onChange={event=>changeNode(activeNode.id,{text:event.target.value})}/></label>}<button type="button" onClick={()=>{setTool('string');beginConnection(activeNode)}}><Link2 size={15}/>Connect from here</button></>}
       {activeString&&<><DetectiveStringWidth value={activeString.width??6} label="Selected string thickness" onStart={()=>{historyRef.current={undo:[...historyRef.current.undo.slice(-19),current.current],redo:[]};setHistory(historyRef.current)}} onChange={width=>apply({...current.current,state:{...current.current.state,strings:current.current.state.strings.map(edge=>edge.id===activeString.id?{...edge,width}:edge)}},false)}/><label>Label<input value={activeString.text} maxLength={160} onChange={event=>apply({...current.current,state:{...current.current.state,strings:current.current.state.strings.map(edge=>edge.id===activeString.id?{...edge,text:event.target.value}:edge)}})}/></label><label>Color<input type="color" value={activeString.color} onChange={event=>apply({...current.current,state:{...current.current.state,strings:current.current.state.strings.map(edge=>edge.id===activeString.id?{...edge,color:event.target.value}:edge)}})}/></label></>}
