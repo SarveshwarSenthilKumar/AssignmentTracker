@@ -1,4 +1,5 @@
 import {useEffect,useRef,useState} from 'react'
+import {createPortal} from 'react-dom'
 import {ChevronLeft,ChevronRight,Pin,X} from 'lucide-react'
 import {DETECTIVE_CASES} from '../lib/detectiveCaseTemplates'
 import './DetectiveCasePicker.css'
@@ -33,7 +34,7 @@ export default function DetectiveCasePicker({busy,error,onChoose,onClose}){
     return()=>{window.removeEventListener('keydown',key,true);if(previous?.isConnected)previous.focus({preventScroll:true})}
   },[])
   const selected=DETECTIVE_CASES[index]
-  return <div className="detective-picker-backdrop" onPointerDown={event=>{if(event.target===event.currentTarget&&!busy)onClose()}}>
+  return createPortal(<div className="detective-picker-backdrop" onPointerDown={event=>{if(event.target===event.currentTarget&&!busy)onClose()}}>
     <section ref={root} className="detective-case-picker" role="dialog" aria-modal="true" aria-labelledby="detective-picker-title" aria-describedby="detective-picker-description" aria-busy={busy} style={{'--case-accent':selected.accent}} data-case-picker>
       <header><div><span className="detective-picker-eyebrow">CLASSIFIED / CASE ARCHIVE</span><h2 id="detective-picker-title">Choose your investigation</h2></div><button type="button" disabled={busy} aria-label="Close case picker" onClick={onClose}><X size={19}/></button></header>
       <p id="detective-picker-description">Use ← / → to browse. Enter builds a new editable wall. Esc closes.</p>
@@ -52,5 +53,5 @@ export default function DetectiveCasePicker({busy,error,onChoose,onClose}){
       {error&&<p className="detective-picker-error" role="alert">{error}</p>}
       <footer><span>A separate wall with a fresh, messy layout.</span><button type="button" data-picker-generate disabled={busy} onClick={()=>onChoose(selected.id)}>{busy?'Assembling evidence…':'Generate case board'}</button></footer>
     </section>
-  </div>
+  </div>,document.fullscreenElement||document.body)
 }

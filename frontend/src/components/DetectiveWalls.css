@@ -63,6 +63,12 @@
 .detective-item.is-paper-sticky{box-shadow:1px 2px 3px #38230f30,4px 8px 11px #38230f45;border-bottom-right-radius:10px 3px}
 .detective-size-controls{display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:5px 8px;border:1px solid var(--border-strong);border-radius:8px}.detective-size-controls label{gap:5px}.detective-properties .detective-size-controls input[type=number]{width:70px;max-width:70px;padding:7px 6px}.detective-size-divider{height:24px;border-left:1px solid var(--border-strong);margin-inline:3px}
 .detective-string-size .detective-width-value{width:85px;max-width:85px;min-width:0;padding:6px;border:1px solid var(--border-strong);border-radius:6px;background:var(--surface-input);color:var(--text-primary);font-size:12px}
+.detective-editor.is-fullscreen>.detective-header,.detective-editor.is-fullscreen>.detective-hint,.detective-editor.is-fullscreen>.detective-board-zoom{display:none}
+.detective-editor.is-fullscreen>.detective-toolbar{position:absolute;bottom:calc(var(--detective-properties-height,0px) + max(12px,env(safe-area-inset-bottom)));left:50%;transform:translateX(-50%);z-index:35;width:max-content;max-width:calc(100% - 24px);padding:7px;gap:5px;border:1px solid var(--border-strong);border-radius:12px;background:var(--surface-panel);box-shadow:0 7px 28px #0006}
+.detective-editor.is-fullscreen>.detective-toolbar>button{font-size:0;min-width:40px;min-height:40px;padding:10px}
+.detective-focus-controls{position:absolute;top:max(12px,env(safe-area-inset-top));right:max(12px,env(safe-area-inset-right));z-index:40;display:flex;gap:5px;padding:6px;border:1px solid var(--border-strong);border-radius:10px;background:var(--surface-panel);box-shadow:0 5px 24px #0005}
+.detective-focus-controls>button{min-width:38px;min-height:38px;padding:8px}
+.detective-editor:fullscreen{width:100%;height:100%;max-width:none;max-height:none}
 .detective-world-size{overflow:hidden}
 .detective-viewport{overflow:scroll;scrollbar-width:auto;scrollbar-color:var(--accent-solid) #61472f;scrollbar-gutter:stable}
 .detective-viewport::-webkit-scrollbar{width:16px;height:16px}.detective-viewport::-webkit-scrollbar-track,.detective-viewport::-webkit-scrollbar-corner{background:#61472f}.detective-viewport::-webkit-scrollbar-thumb{background:var(--accent-solid);border:3px solid #61472f;border-radius:9px}

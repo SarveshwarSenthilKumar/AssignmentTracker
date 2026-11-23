@@ -1,5 +1,5 @@
 import {useEffect,useLayoutEffect,useRef,useState} from 'react'
-import {ArrowLeft,Plus,StickyNote,ImagePlus,Pin,Link2,Hand,MousePointer2,Undo2,Redo2,Trash2,ZoomIn,ZoomOut,Maximize,Download,Save,X} from 'lucide-react'
+import {ArrowLeft,Plus,StickyNote,ImagePlus,Pin,Link2,Hand,MousePointer2,Undo2,Redo2,Trash2,ZoomIn,ZoomOut,Maximize,Minimize,Download,Save,X} from 'lucide-react'
 import {readApiJson} from '../lib/apiResponse'
 import {downloadBlob} from '../lib/documentFormats'
 import './DetectiveWalls.css'
@@ -123,6 +123,34 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
   const [selected,setSelected]=useState(null),[tool,setTool]=useState('pan'),[connecting,setConnecting]=useState(null),[stringColor,setStringColor]=useState('#b52b35'),[zoom,setZoom]=useState(.8),[pointer,setPointer]=useState(null),[photoBusy,setPhotoBusy]=useState(false),[history,setHistory]=useState({undo:[],redo:[]})
   const [stringWidth,setStringWidth]=useState(6)
   const [panning,setPanning]=useState(false)
+  const [fullscreen,setFullscreen]=useState(false)
+  const editorRoot=useRef(null),fullscreenRoot=useRef(null),ownsFullscreen=useRef(false)
+  const exitFullscreen=()=>{
+    setFullscreen(false)
+    if(document.fullscreenElement===editorRoot.current)document.exitFullscreen?.().catch(()=>{})
+  }
+  const enterFullscreen=()=>{
+    setFullscreen(true)
+    const root=editorRoot.current;fullscreenRoot.current=root
+    if(root?.requestFullscreen&&!document.fullscreenElement)root.requestFullscreen().then(()=>{ownsFullscreen.current=true}).catch(()=>{})
+  }
+  useEffect(()=>{
+    const changed=()=>{
+      if(document.fullscreenElement===editorRoot.current&&editorRoot.current)ownsFullscreen.current=true
+      else if(ownsFullscreen.current){ownsFullscreen.current=false;setFullscreen(false)}
+    }
+    document.addEventListener('fullscreenchange',changed)
+    return()=>{document.removeEventListener('fullscreenchange',changed);if(fullscreenRoot.current&&document.fullscreenElement===fullscreenRoot.current)document.exitFullscreen?.().catch(()=>{})}
+  },[])
+  useLayoutEffect(()=>{
+    const root=editorRoot.current
+    if(!root||!fullscreen)return
+    const properties=root.querySelector('.detective-properties')
+    const update=()=>root.style.setProperty('--detective-properties-height',`${properties?.getBoundingClientRect().height||0}px`)
+    update();if(!properties)return
+    const observer=new ResizeObserver(update);observer.observe(properties)
+    return()=>observer.disconnect()
+  },[fullscreen,!!selected])
   const [marquee,setMarquee]=useState(null)
   const zoomRef=useRef(.8)
   const initialOverview=useRef(window.location.hash.endsWith('/overview'))
@@ -212,7 +240,7 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
         return
       }
       if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='s'){event.preventDefault();saveRef.current?.();return}
-      if(event.key==='Escape'){cancelGesture();cancelConnection();setSelected(null);setTool('select');setStringHint('');return}
+      if(event.key==='Escape'){if(fullscreen){exitFullscreen();return}cancelGesture();cancelConnection();setSelected(null);setTool('select');setStringHint('');return}
       if(typing(event.target))return
       if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='a'&&current.current){
         event.preventDefault();cancelConnection();setTool('select')
@@ -502,8 +530,15 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
   const isSelected=(type,id)=>selected?.type===type&&selected.id===id||!!selectedGroup?.[type==='node'?'nodes':'strings'].includes(id)
   const path=(a,b,slack)=>`M ${a.x} ${a.y} Q ${(a.x+b.x)/2} ${(a.y+b.y)/2+(slack??Math.min(140,Math.abs(a.x-b.x)*.12+35))} ${b.x} ${b.y}`
   const start=connecting&&nodes.get(connecting)?anchor(nodes.get(connecting)):null
-  return <section className="detective-editor" aria-label="Interactive detective wall">
-    <header className="detective-header"><button type="button" onClick={leave} title="Back to walls"><ArrowLeft size={18}/></button><input aria-label="Wall name" maxLength={120} value={doc.name} onFocus={()=>{historyRef.current={undo:[...historyRef.current.undo.slice(-19),current.current],redo:[]};setHistory(historyRef.current)}} onChange={event=>apply({...current.current,name:event.target.value},false)}/><span role="status">{status==='saving'?'Saving…':status==='saved'?'Saved':status==='error'?'Save failed':'Unsaved changes'}</span><button type="button" onClick={save}><Save size={16}/><span>Save</span></button><button type="button" onClick={exportWall} title="Export wall backup"><Download size={16}/><span>Backup</span></button></header>
+  return <section ref={editorRoot} className={`detective-editor${fullscreen?' is-fullscreen':''}`} aria-label="Interactive detective wall">
+    {fullscreen&&<div className="detective-focus-controls" role="group" aria-label="Fullscreen board controls">
+      <button type="button" onClick={()=>zoomTo(zoomRef.current/1.25)} aria-label="Zoom out" title="Zoom out"><ZoomOut size={17}/></button>
+      <button type="button" onClick={()=>zoomTo(zoomRef.current*1.25)} aria-label="Zoom in" title="Zoom in"><ZoomIn size={17}/></button>
+      <button type="button" onClick={()=>fit(false)} aria-label="Fit all items" title="Fit all items"><Maximize size={17}/></button>
+      <button type="button" onClick={save} aria-label="Save wall" title="Save wall"><Save size={17}/></button>
+      <button type="button" onClick={exitFullscreen} aria-label="Exit fullscreen" title="Exit fullscreen (Escape)"><Minimize size={17}/></button>
+    </div>}
+    <header className="detective-header"><button type="button" onClick={leave} title="Back to walls"><ArrowLeft size={18}/></button><input aria-label="Wall name" maxLength={120} value={doc.name} onFocus={()=>{historyRef.current={undo:[...historyRef.current.undo.slice(-19),current.current],redo:[]};setHistory(historyRef.current)}} onChange={event=>apply({...current.current,name:event.target.value},false)}/><span role="status">{status==='saving'?'Saving…':status==='saved'?'Saved':status==='error'?'Save failed':'Unsaved changes'}</span><button type="button" onClick={save}><Save size={16}/><span>Save</span></button><button type="button" onClick={exportWall} title="Export wall backup"><Download size={16}/><span>Backup</span></button><button type="button" onClick={fullscreen?exitFullscreen:enterFullscreen} aria-label={fullscreen?'Exit fullscreen':'Enter fullscreen'} title={fullscreen?'Exit fullscreen (Escape)':'Enter fullscreen'}>{fullscreen?<Minimize size={16}/>:<Maximize size={16}/>}<span>Fullscreen</span></button></header>
     <div className="detective-toolbar" role="toolbar" aria-label="Wall tools">
       <button type="button" aria-pressed={tool==='select'} title="Select items or drag empty space to draw a selection rectangle" onClick={()=>{setTool('select');cancelConnection();setStringHint('')}}><MousePointer2 size={16}/>Select</button><button type="button" aria-pressed={tool==='pan'} onClick={()=>{setTool('pan');cancelConnection();setStringHint('')}}><Hand size={16}/>Pan</button>
       <button type="button" onClick={()=>add('note')}><StickyNote size={16}/>Sticky note</button><button type="button" disabled={photoBusy} onClick={()=>fileInput.current.click()}><ImagePlus size={16}/>{photoBusy?'Adding…':'Photo'}</button><button type="button" onClick={()=>add('pin')}><Pin size={16}/>Thumbtack</button>
