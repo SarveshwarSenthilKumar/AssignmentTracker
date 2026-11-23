@@ -61,6 +61,7 @@
 .detective-item.is-paper-photo:nth-of-type(3n)::before{left:auto;right:8%;transform:rotate(14deg);width:70px}
 .detective-item.is-paper-photo>img{filter:sepia(.28) saturate(.65) contrast(1.08)}
 .detective-item.is-paper-sticky{box-shadow:1px 2px 3px #38230f30,4px 8px 11px #38230f45;border-bottom-right-radius:10px 3px}
+.detective-size-controls{display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:5px 8px;border:1px solid var(--border-strong);border-radius:8px}.detective-size-controls label{gap:5px}.detective-properties .detective-size-controls input[type=number]{width:70px;max-width:70px;padding:7px 6px}.detective-size-divider{height:24px;border-left:1px solid var(--border-strong);margin-inline:3px}
 .detective-world-size{overflow:hidden}
 .detective-viewport{overflow:scroll;scrollbar-width:auto;scrollbar-color:var(--accent-solid) #61472f;scrollbar-gutter:stable}
 .detective-viewport::-webkit-scrollbar{width:16px;height:16px}.detective-viewport::-webkit-scrollbar-track,.detective-viewport::-webkit-scrollbar-corner{background:#61472f}.detective-viewport::-webkit-scrollbar-thumb{background:var(--accent-solid);border:3px solid #61472f;border-radius:9px}

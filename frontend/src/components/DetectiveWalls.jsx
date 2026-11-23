@@ -5,6 +5,7 @@ import {downloadBlob} from '../lib/documentFormats'
 import './DetectiveWalls.css'
 import DetectiveWallText from './DetectiveWallText'
 import DetectiveCasePicker from './DetectiveCasePicker'
+import DetectiveSelectionSize from './DetectiveSelectionSize'
 import {isCaseBoardShortcut} from '../lib/detectiveWallDemo'
 
 const uid=()=>crypto.randomUUID()
@@ -19,6 +20,7 @@ const itemBounds=node=>{
 }
 const BOARD_MARGIN=2000
 const MIN_ZOOM=.02,MAX_ZOOM=3
+const nodeFontSize=node=>node.fontSize??(node.type==='photo'?14:node.type==='pin'?12:20)
 const clamp=(n,min,max)=>Math.max(min,Math.min(max,n))
 const typing=target=>target.closest('input,textarea,select,[contenteditable="true"]')
 const wallId=()=>/^#\/detective-wall\/([a-f\d]{24})(?:\/overview)?$/i.exec(window.location.hash)?.[1]||null
@@ -197,6 +199,12 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
       if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='s'){event.preventDefault();saveRef.current?.();return}
       if(event.key==='Escape'){cancelGesture();cancelConnection();setSelected(null);setTool('select');setStringHint('');return}
       if(typing(event.target))return
+      if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='a'&&current.current){
+        event.preventDefault();cancelConnection();setTool('select')
+        const state=current.current.state
+        setSelected(state.nodes.length||state.strings.length?{type:'group',nodes:state.nodes.map(node=>node.id),strings:state.strings.map(edge=>edge.id)}:null)
+        return
+      }
       if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='z'){event.preventDefault();undo(event.shiftKey)}
       else if(event.key==='Delete'||event.key==='Backspace'){event.preventDefault();remove()}
       else if(selected?.type==='group'&&['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key)){
@@ -251,6 +259,27 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
     dy=clamp(dy,-Math.min(...snapshots.map(node=>node.y)),100000-Math.max(...snapshots.map(node=>node.y)))
     const positions=new Map(snapshots.map(node=>[node.id,{x:node.x+dx,y:node.y+dy}]))
     apply({...current.current,state:{...current.current.state,nodes:current.current.state.nodes.map(node=>positions.has(node.id)?{...node,...positions.get(node.id)}:node)}},record)
+  }
+  const resizeSelection=(snapshots,edges,anchor,requested,record=false)=>{
+    if(!snapshots.length&&!edges.length)return
+    const minimum=Math.max(.01,...snapshots.map(node=>Math.max(60/node.width,60/node.height,node.type==='photo'?80/(node.imageHeight??Math.max(80,node.height-90)):0)))
+    const maximum=Math.min(100,...snapshots.map(node=>Math.min(6000/node.width,100000/node.height,node.type==='photo'?6000/(node.imageHeight??Math.max(80,node.height-90)):Infinity)))
+    const factor=clamp(requested,minimum,maximum)
+    const resized=new Map(snapshots.map(node=>{
+      const width=clamp(node.width*factor,60,6000),height=clamp(node.height*factor,60,100000)
+      return [node.id,{width,height,fontSize:clamp(nodeFontSize(node)*factor,8,96),x:clamp(anchor.x+(node.x-anchor.x)*factor,0,W-width),y:clamp(anchor.y+(node.y-anchor.y)*factor,0,100000),...(node.type==='photo'?{imageHeight:clamp((node.imageHeight??Math.max(80,node.height-90))*factor,80,6000)}:{})}]
+    }))
+    const scaledStrings=new Map(edges.map(edge=>[edge.id,{fontSize:clamp((edge.fontSize??15)*factor,8,96),width:clamp((edge.width??6)*factor,1,24),...(edge.slack!==undefined?{slack:clamp(edge.slack*factor,-250,450)}:{})}]))
+    apply({...current.current,state:{...current.current.state,nodes:current.current.state.nodes.map(node=>resized.has(node.id)?{...node,...resized.get(node.id)}:node),strings:current.current.state.strings.map(edge=>scaledStrings.has(edge.id)?{...edge,...scaledStrings.get(edge.id)}:edge)}},record)
+  }
+  const scaleSelected=factor=>{
+    const ids=selectionIds(selected),nodes=current.current.state.nodes.filter(node=>ids.nodes.includes(node.id)),edges=current.current.state.strings.filter(edge=>ids.strings.includes(edge.id))
+    const boxes=nodes.map(itemBounds),anchor=boxes.length?{x:Math.min(...boxes.map(b=>b.left)),y:Math.min(...boxes.map(b=>b.top))}:{x:0,y:0}
+    resizeSelection(nodes,edges,anchor,factor,true)
+  }
+  const changeSelectedFonts=(value,relative=false)=>{
+    const ids=selectionIds(selected)
+    apply({...current.current,state:{...current.current.state,nodes:current.current.state.nodes.map(node=>ids.nodes.includes(node.id)?{...node,fontSize:clamp(relative?nodeFontSize(node)+value:value,8,96)}:node),strings:current.current.state.strings.map(edge=>ids.strings.includes(edge.id)?{...edge,fontSize:clamp(relative?(edge.fontSize??15)+value:value,8,96)}:edge)}})
   }
   const beginConnection=node=>{
     connectionSource.current=node.id;setConnecting(node.id);setSelected({type:'node',id:node.id})
@@ -321,7 +350,7 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
     const nodes=current.current.state.nodes.filter(node=>selected.nodes.includes(node.id));if(!nodes.length)return
     const boxes=nodes.map(itemBounds),left=Math.min(...boxes.map(b=>b.left)),top=Math.min(...boxes.map(b=>b.top)),right=Math.max(...boxes.map(b=>b.right)),bottom=Math.max(...boxes.map(b=>b.bottom))
     historyRef.current={undo:[...historyRef.current.undo.slice(-19),current.current],redo:[]};setHistory(historyRef.current)
-    gesture.current={kind:'group-resize',nodes,corner,start:point(event),bounds:{left,top,right,bottom},pointerId:event.pointerId}
+    gesture.current={kind:'group-resize',nodes,strings:current.current.state.strings.filter(edge=>selected.strings.includes(edge.id)),corner,start:point(event),bounds:{left,top,right,bottom},pointerId:event.pointerId}
     event.currentTarget.setPointerCapture(event.pointerId)
   }
   const startPan=event=>{
@@ -345,24 +374,17 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
     if(drag.kind==='group-resize'){
       const west=drag.corner.includes('w'),north=drag.corner.includes('n'),b=drag.bounds,w=b.right-b.left,h=b.bottom-b.top
       const anchor={x:west?b.right:b.left,y:north?b.bottom:b.top}
-      const minimum=Math.max(...drag.nodes.map(node=>Math.max(60/node.width,60/node.height,node.type==='photo'?80/(node.imageHeight??Math.max(80,node.height-90)):0)))
-      const maximum=Math.min(...drag.nodes.map(node=>Math.min(1200/node.width,100000/node.height,node.type==='photo'?1400/(node.imageHeight??Math.max(80,node.height-90)):Infinity)))
-      const factor=clamp(1+((west?-dx:dx)*w+(north?-dy:dy)*h)/(w*w+h*h),minimum,maximum)
-      const resized=new Map(drag.nodes.map(node=>{
-        const width=node.width*factor,height=node.height*factor
-        return [node.id,{width,height,x:clamp(anchor.x+(node.x-anchor.x)*factor,0,W-width),y:clamp(anchor.y+(node.y-anchor.y)*factor,0,100000),...(node.type==='photo'?{imageHeight:(node.imageHeight??Math.max(80,node.height-90))*factor}:{})}]
-      }))
-      apply({...current.current,state:{...current.current.state,nodes:current.current.state.nodes.map(node=>resized.has(node.id)?{...node,...resized.get(node.id)}:node)}},false)
+      resizeSelection(drag.nodes,drag.strings,anchor,1+((west?-dx:dx)*w+(north?-dy:dy)*h)/(w*w+h*h))
       return
     }
     const angle=drag.node.rotation*Math.PI/180
     if(drag.kind==='resize'){
       const sx=drag.corner.includes('w')?-1:1,sy=drag.corner.includes('n')?-1:1
       const heightDelta=sy*(-dx*Math.sin(angle)+dy*Math.cos(angle))
-      const patch={width:clamp(drag.node.width+sx*(dx*Math.cos(angle)+dy*Math.sin(angle)),60,1200),height:clamp(drag.node.height+heightDelta,60,100000)}
+      const patch={width:clamp(drag.node.width+sx*(dx*Math.cos(angle)+dy*Math.sin(angle)),60,6000),height:clamp(drag.node.height+heightDelta,60,100000)}
       if(drag.node.type==='photo'){
         const imageHeight=drag.node.imageHeight??Math.max(80,drag.node.height-90)
-        patch.imageHeight=clamp(imageHeight+heightDelta,80,1400)
+        patch.imageHeight=clamp(imageHeight+heightDelta,80,6000)
         patch.height=drag.node.height+patch.imageHeight-imageHeight
       }
       const localX=sx*(patch.width-drag.node.width)/2,localY=sy*(patch.height-drag.node.height)/2
@@ -455,6 +477,9 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
   const boardHeight=wallHeight(doc.state)
   const anchor=pinPosition
   const selectedGroup=selected?.type==='group'?selected:null
+  const selectedIds=selectionIds(selected)
+  const selectedFonts=[...doc.state.nodes.filter(node=>selectedIds.nodes.includes(node.id)).map(nodeFontSize),...doc.state.strings.filter(edge=>selectedIds.strings.includes(edge.id)).map(edge=>edge.fontSize??15)]
+  const commonFontSize=selectedFonts.length&&selectedFonts.every(size=>Math.abs(size-selectedFonts[0])<.01)?Math.round(selectedFonts[0]*10)/10:null
   const groupBoxes=selectedGroup?doc.state.nodes.filter(node=>selectedGroup.nodes.includes(node.id)).map(itemBounds):[]
   const groupBounds=groupBoxes.length?{left:Math.min(...groupBoxes.map(b=>b.left)),top:Math.min(...groupBoxes.map(b=>b.top)),right:Math.max(...groupBoxes.map(b=>b.right)),bottom:Math.max(...groupBoxes.map(b=>b.bottom))}:null
   const isSelected=(type,id)=>selected?.type===type&&selected.id===id||!!selectedGroup?.[type==='node'?'nodes':'strings'].includes(id)
@@ -540,7 +565,7 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
                   }
                 }}
               />
-              {edge.text&&<text x={(a.x+b.x)/2} y={(a.y+b.y)/2+(edge.slack??Math.min(140,Math.abs(a.x-b.x)*.12+35))/2-9}>{edge.text}</text>}
+              {edge.text&&<text style={{fontSize:edge.fontSize??15}} x={(a.x+b.x)/2} y={(a.y+b.y)/2+(edge.slack??Math.min(140,Math.abs(a.x-b.x)*.12+35))/2-9}>{edge.text}</text>}
             </g>
           })}
           {start&&pointer&&<path className="detective-string-preview" d={path(start,pointer)} stroke={stringColor} style={{'--string-width':`${stringWidth}px`}}/>}
@@ -554,7 +579,7 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
             else if(tool!=='pan'){if(event.shiftKey){event.preventDefault();event.stopPropagation();toggleNode(node)}else if(!isSelected('node',node.id))setSelected({type:'node',id:node.id})}
           }}
         >
-          <button type="button" className="detective-item-grip" aria-label={`Move or connect ${node.type}: ${node.text.slice(0,60)||'Untitled'}`} onPointerDown={event=>startNode(event,node)} onClick={event=>{if(event.detail===0){if(tool==='string'||connectionSource.current)connect(node);else setSelected({type:'node',id:node.id})}}}><span>{node.type==='photo'?'PHOTO':node.type==='pin'?(node.text||'PIN'):'NOTE'}</span></button>
+          <button type="button" className="detective-item-grip" aria-label={`Move or connect ${node.type}: ${node.text.slice(0,60)||'Untitled'}`} onPointerDown={event=>startNode(event,node)} onClick={event=>{if(event.detail===0){if(tool==='string'||connectionSource.current)connect(node);else setSelected({type:'node',id:node.id})}}}><span style={node.type==='pin'?{fontSize:nodeFontSize(node)}:undefined}>{node.type==='photo'?'PHOTO':node.type==='pin'?(node.text||'PIN'):'NOTE'}</span></button>
           <button
             type="button" className="detective-connect-pin"
             title={connecting&&connecting!==node.id?'Connect to this item':'Drag to another item, or click to start a connection'}
@@ -574,6 +599,7 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
       </div></div>
     </div>
     {(activeNode||activeString||selectedGroup)&&<div className="detective-properties"><strong>{selectedGroup?`${selectedGroup.nodes.length} items · ${selectedGroup.strings.length} strings selected`:activeString?'String':activeNode.type==='photo'?'Photo':activeNode.type==='pin'?'Thumbtack':'Sticky note'}</strong>
+      <DetectiveSelectionSize key={JSON.stringify(selectedIds)} fontSize={commonFontSize} onFontSize={size=>changeSelectedFonts(size)} onFontDelta={delta=>changeSelectedFonts(delta,true)} onScale={scaleSelected}/>
       {selectedGroup&&<span className="detective-group-hint">Drag a header to move the group · Drag a corner to resize · Shift-click to add or remove items</span>}
       {activeString&&<span className="detective-connection-summary" title="Connected items">{nodes.get(activeString.from)?.text.slice(0,30)||nodes.get(activeString.from)?.type} ↔ {nodes.get(activeString.to)?.text.slice(0,30)||nodes.get(activeString.to)?.type}</span>}
       {activeNode&&<><div className="detective-swatches">{colors.map(color=><button key={color} type="button" style={{background:color}} aria-label={`Set item color ${color}`} aria-pressed={activeNode.color===color} onClick={()=>changeNode(activeNode.id,{color})}/>)}</div><label>Color<input type="color" value={activeNode.color} onChange={event=>changeNode(activeNode.id,{color:event.target.value})}/></label><label>Rotate<input type="range" min="-30" max="30" value={activeNode.rotation} onPointerDown={()=>{historyRef.current={undo:[...historyRef.current.undo.slice(-19),current.current],redo:[]};setHistory(historyRef.current)}} onChange={event=>changeNode(activeNode.id,{rotation:Number(event.target.value)},false)}/></label>{activeNode.type==='pin'&&<label>Label<input value={activeNode.text} maxLength={160} onChange={event=>changeNode(activeNode.id,{text:event.target.value})}/></label>}<button type="button" onClick={()=>{setTool('string');beginConnection(activeNode)}}><Link2 size={15}/>Connect from here</button></>}

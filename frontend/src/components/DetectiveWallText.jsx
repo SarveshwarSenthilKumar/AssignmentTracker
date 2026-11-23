@@ -24,7 +24,7 @@ export default function DetectiveWallText({node,onFocus,onChange,onFit}){
     aria-label={node.type==='photo'?'Photo caption':'Sticky note text'}
     placeholder={node.type==='photo'?'Add a caption…':'What’s the connection?'}
     maxLength={3000} value={node.text} rows={1}
-    style={{overflow:'hidden',flex:'0 0 auto',boxSizing:'border-box',fontSize:node.fontSize?`${node.fontSize}px`:undefined}}
+    style={{overflow:'hidden',flex:'0 0 auto',boxSizing:'border-box',fontSize:node.fontSize?`${node.fontSize}px`:undefined,lineHeight:node.fontSize?1.45:undefined}}
     onFocus={onFocus} onChange={onChange}
   />
 }
