@@ -35,6 +35,7 @@
 @media(hover:none){.detective-pin-plus{opacity:1}}
 .detective-world,.detective-world-size{cursor:grab}
 .detective-viewport.is-panning,.detective-viewport.is-panning *{cursor:grabbing!important;user-select:none!important}
+.detective-viewport.tool-pan .detective-item>textarea{pointer-events:none}
 .detective-world-size{overflow:hidden}
 .detective-viewport{overflow:scroll;scrollbar-width:auto;scrollbar-color:var(--accent-solid) #61472f;scrollbar-gutter:stable}
 .detective-viewport::-webkit-scrollbar{width:16px;height:16px}.detective-viewport::-webkit-scrollbar-track,.detective-viewport::-webkit-scrollbar-corner{background:#61472f}.detective-viewport::-webkit-scrollbar-thumb{background:var(--accent-solid);border:3px solid #61472f;border-radius:9px}

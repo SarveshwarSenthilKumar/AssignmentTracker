@@ -1,4 +1,4 @@
-import {useEffect,useRef,useState} from 'react'
+import {useEffect,useLayoutEffect,useRef,useState} from 'react'
 import {ArrowLeft,Plus,StickyNote,ImagePlus,Pin,Link2,Hand,MousePointer2,Undo2,Redo2,Trash2,ZoomIn,ZoomOut,Maximize,Download,Save,X} from 'lucide-react'
 import {readApiJson} from '../lib/apiResponse'
 import {downloadBlob} from '../lib/documentFormats'
@@ -7,6 +7,7 @@ import './DetectiveWalls.css'
 const uid=()=>crypto.randomUUID()
 const colors=['#fff1a8','#ffd0c5','#ccebd2','#cce3ff','#e1d2f5','#ffffff']
 const W=12000,H=8000
+const BOARD_MARGIN=2000
 const MIN_ZOOM=.02,MAX_ZOOM=3
 const clamp=(n,min,max)=>Math.max(min,Math.min(max,n))
 const typing=target=>target.closest('input,textarea,select,[contenteditable="true"]')
@@ -64,7 +65,7 @@ export default function DetectiveWalls({token,userId}){
 
 function DetectiveWallEditor({id,token,userId}){
   const [doc,setDoc]=useState(null),[loading,setLoading]=useState(true),[error,setError]=useState(''),[status,setStatus]=useState('saved'),[localBackup,setLocalBackup]=useState(null)
-  const [selected,setSelected]=useState(null),[tool,setTool]=useState('select'),[connecting,setConnecting]=useState(null),[stringColor,setStringColor]=useState('#b52b35'),[zoom,setZoom]=useState(.8),[pointer,setPointer]=useState(null),[photoBusy,setPhotoBusy]=useState(false),[history,setHistory]=useState({undo:[],redo:[]})
+  const [selected,setSelected]=useState(null),[tool,setTool]=useState('pan'),[connecting,setConnecting]=useState(null),[stringColor,setStringColor]=useState('#b52b35'),[zoom,setZoom]=useState(.8),[pointer,setPointer]=useState(null),[photoBusy,setPhotoBusy]=useState(false),[history,setHistory]=useState({undo:[],redo:[]})
   const [stringWidth,setStringWidth]=useState(6)
   const [panning,setPanning]=useState(false)
   const zoomRef=useRef(.8)
@@ -115,7 +116,7 @@ function DetectiveWallEditor({id,token,userId}){
   const add=(type,extra={})=>{
     if(current.current.state.nodes.length>=200){setError('This wall has 200 items. Start another wall to keep things responsive.');return}
     const view=viewport.current,nodeId=uid(),width=type==='pin'?70:type==='photo'?270:230,height=type==='pin'?70:type==='photo'?230:190
-    const node={id:nodeId,type,x:clamp((view.scrollLeft+view.clientWidth/2)/zoom-width/2,0,W-width),y:clamp((view.scrollTop+view.clientHeight/2)/zoom-height/2,0,H-height),width,height,rotation:0,color:type==='note'?'#fff1a8':type==='pin'?'#bc343a':'#ffffff',text:'',...extra}
+    const node={id:nodeId,type,x:clamp((view.scrollLeft-BOARD_MARGIN+view.clientWidth/2)/zoom-width/2,0,W-width),y:clamp((view.scrollTop-BOARD_MARGIN+view.clientHeight/2)/zoom-height/2,0,H-height),width,height,rotation:0,color:type==='note'?'#fff1a8':type==='pin'?'#bc343a':'#ffffff',text:'',...extra}
     apply({...current.current,state:{...current.current.state,nodes:[...current.current.state.nodes,node]}});setSelected({type:'node',id:nodeId});setTool('select');cancelConnection();setStringHint('')
   }
   const addPhoto=async file=>{
@@ -151,7 +152,7 @@ function DetectiveWallEditor({id,token,userId}){
     }
     window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key)
   })
-  const point=event=>{const rect=viewport.current.getBoundingClientRect();return {x:(event.clientX-rect.left+viewport.current.scrollLeft)/zoom,y:(event.clientY-rect.top+viewport.current.scrollTop)/zoom}}
+  const point=event=>{const rect=viewport.current.getBoundingClientRect();return {x:(event.clientX-rect.left+viewport.current.scrollLeft-BOARD_MARGIN)/zoom,y:(event.clientY-rect.top+viewport.current.scrollTop-BOARD_MARGIN)/zoom}}
   const beginConnection=node=>{
     connectionSource.current=node.id;setConnecting(node.id);setSelected({type:'node',id:node.id})
     setConnectionTarget(null);setPointer(anchor(node));setStringHint('')
@@ -244,10 +245,13 @@ function DetectiveWallEditor({id,token,userId}){
     const view=viewport.current;if(!view)return
     const next=clamp(value,MIN_ZOOM,MAX_ZOOM),rect=view.getBoundingClientRect()
     const x=location?location.x-rect.left:view.clientWidth/2,y=location?location.y-rect.top:view.clientHeight/2
-    const cx=(view.scrollLeft+x)/zoomRef.current,cy=(view.scrollTop+y)/zoomRef.current
+    const cx=(view.scrollLeft-BOARD_MARGIN+x)/zoomRef.current,cy=(view.scrollTop-BOARD_MARGIN+y)/zoomRef.current
     zoomRef.current=next;setZoom(next)
-    requestAnimationFrame(()=>{if(viewport.current===view){view.scrollLeft=cx*next-x;view.scrollTop=cy*next-y}})
+    requestAnimationFrame(()=>{if(viewport.current===view){view.scrollLeft=BOARD_MARGIN+cx*next-x;view.scrollTop=BOARD_MARGIN+cy*next-y}})
   }
+  useLayoutEffect(()=>{
+    if(viewport.current)viewport.current.scrollTo(BOARD_MARGIN,BOARD_MARGIN)
+  },[loading])
   useEffect(()=>{
     const view=viewport.current;if(!view)return
     const wheel=event=>{
@@ -286,7 +290,7 @@ function DetectiveWallEditor({id,token,userId}){
     const right=wholeBoard||!bounds.length?W:Math.max(...bounds.map(b=>b.right))+60,bottom=wholeBoard||!bounds.length?H:Math.max(...bounds.map(b=>b.bottom))+60
     const next=clamp(Math.min((view.clientWidth-32)/(right-left),(view.clientHeight-32)/(bottom-top)),MIN_ZOOM,1)
     zoomRef.current=next;setZoom(next)
-    requestAnimationFrame(()=>view.scrollTo(Math.max(0,(left+right)*next/2-view.clientWidth/2),Math.max(0,(top+bottom)*next/2-view.clientHeight/2)))
+    requestAnimationFrame(()=>view.scrollTo(Math.max(0,BOARD_MARGIN+(left+right)*next/2-view.clientWidth/2),Math.max(0,BOARD_MARGIN+(top+bottom)*next/2-view.clientHeight/2)))
   }
   const leave=async()=>{clearTimeout(timer.current);if(await save())window.location.hash='/detective-wall'}
   const exportWall=()=>downloadBlob(new Blob([JSON.stringify(current.current,null,2)],{type:'application/json'}),`${current.current.name.replace(/[<>:"/\\|?*]/g,'-')||'Detective wall'}.json`)
@@ -326,7 +330,7 @@ function DetectiveWallEditor({id,token,userId}){
       <button type="button" onClick={()=>zoomTo(1)}>100%</button>
     </div>
     <div ref={viewport} className={`detective-viewport tool-${tool}${panning?' is-panning':'}`} tabIndex={0} aria-label="Corkboard. Drag empty space to pan; use the wheel to zoom." onPointerDown={event=>{if(event.button===1||tool==='pan')startPan(event);else if(event.button===0&&(event.target===event.currentTarget||event.target.dataset.wallBackground)){setSelected(null);cancelConnection();setStringHint('');startPan(event)}}} onPointerMove={move} onPointerUp={end} onPointerCancel={cancelGesture} onLostPointerCapture={cancelGesture} onDragOver={event=>{if(event.dataTransfer.types.includes('Files'))event.preventDefault()}} onDrop={event=>{event.preventDefault();addPhoto([...event.dataTransfer.files].find(file=>file.type.startsWith('image/')))}} onPaste={event=>{if(typing(event.target))return;const file=[...event.clipboardData.files].find(file=>file.type.startsWith('image/'));if(file){event.preventDefault();addPhoto(file)}}}>
-      <div className="detective-world-size" data-wall-background="true" style={{width:W*zoom,height:H*zoom}}><div className="detective-world" data-wall-background="true" style={{width:W,height:H,transform:`scale(${zoom})`}}>
+      <div className="detective-world-size" data-wall-background="true" style={{width:W*zoom+BOARD_MARGIN*2,height:H*zoom+BOARD_MARGIN*2}}><div className="detective-world" data-wall-background="true" style={{width:W,height:H,left:BOARD_MARGIN,top:BOARD_MARGIN,transform:`scale(${zoom})`}}>
         <svg className="detective-strings" width={W} height={H} aria-label="Connections">
           {doc.state.strings.map(edge=>{
             const from=nodes.get(edge.from),to=nodes.get(edge.to)
