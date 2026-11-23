@@ -4,6 +4,7 @@ import {readApiJson} from '../lib/apiResponse'
 import {downloadBlob} from '../lib/documentFormats'
 import './DetectiveWalls.css'
 import DetectiveWallText from './DetectiveWallText'
+import DetectiveCasePicker from './DetectiveCasePicker'
 import {isCaseBoardShortcut} from '../lib/detectiveWallDemo'
 
 const uid=()=>crypto.randomUUID()
@@ -45,6 +46,8 @@ export default function DetectiveWalls({token,userId}){
   const [id,setId]=useState(wallId),[walls,setWalls]=useState([]),[name,setName]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[version,setVersion]=useState(0)
   const creating=useRef(false)
   const [generating,setGenerating]=useState(false)
+  const [pickerOpen,setPickerOpen]=useState(false)
+  const beforeGeneration=useRef(null)
   const [deleting,setDeleting]=useState(null)
   useEffect(()=>{const change=()=>setId(wallId());window.addEventListener('hashchange',change);return()=>window.removeEventListener('hashchange',change)},[])
   useEffect(()=>{
@@ -63,28 +66,33 @@ export default function DetectiveWalls({token,userId}){
     creating.current=true;setBusy(true);setError('')
     try{await request(token,`/api/detective-walls/${deleting._id}`,{method:'DELETE'});try{localStorage.removeItem(`detective-wall-draft:${userId}:${deleting._id}`)}catch{}setWalls(previous=>previous.filter(wall=>wall._id!==deleting._id));setDeleting(null)}catch(error){setError(error.message)}finally{creating.current=false;setBusy(false)}
   }
-  const generateDemo=async()=>{
+  const openPicker=(before=null)=>{if(creating.current)return;beforeGeneration.current=before;setError('');setPickerOpen(true)}
+  const generateDemo=async(caseId)=>{
     if(creating.current)return
     creating.current=true;setGenerating(true);setError('')
     try{
+      if(beforeGeneration.current&&!(await beforeGeneration.current())){setError('Save the current wall successfully before creating a new case board.');return}
       const {generateCaseBoard}=await import('../lib/detectiveWallDemo')
-      const wall=await request(token,'/api/detective-walls',{method:'POST',body:JSON.stringify(generateCaseBoard())})
+      const wall=await request(token,'/api/detective-walls',{method:'POST',body:JSON.stringify(generateCaseBoard(caseId))})
       if(!wall._id)throw new Error('The server did not return a case board. Refresh before trying again.')
+      setPickerOpen(false);beforeGeneration.current=null
       window.location.hash=`/detective-wall/${wall._id}/overview`
     }catch(error){setError(error.message)}finally{creating.current=false;setGenerating(false)}
   }
   useEffect(()=>{
     if(id)return
-    const key=event=>{if(!isCaseBoardShortcut(event)||typing(event.target))return;event.preventDefault();event.stopImmediatePropagation();generateDemo()}
+    const key=event=>{if(!isCaseBoardShortcut(event)||typing(event.target))return;event.preventDefault();event.stopImmediatePropagation();openPicker()}
     window.addEventListener('keydown',key,true)
     return()=>window.removeEventListener('keydown',key,true)
   },[id,token])
+  const picker=pickerOpen&&<DetectiveCasePicker busy={generating} error={error} onChoose={generateDemo} onClose={()=>{if(!creating.current){setPickerOpen(false);setError('');beforeGeneration.current=null}}}/>
   if(id)return <>
-    <DetectiveWallEditor key={id} id={id} token={token} userId={userId} onGenerateDemo={generateDemo}/>
+    <DetectiveWallEditor key={id} id={id} token={token} userId={userId} onGenerateDemo={openPicker}/>
+    {picker}
     {generating&&<div className="detective-demo-status" role="status">Assembling the case…</div>}
-    {error&&<div className="detective-demo-status" role="alert">{error}<button type="button" onClick={()=>setError('')}>Dismiss</button></div>}
+    {error&&!pickerOpen&&<div className="detective-demo-status" role="alert">{error}<button type="button" onClick={()=>setError('')}>Dismiss</button></div>}
   </>
-  return <section className="detective-lobby"><div className="detective-intro"><Pin size={30}/><div><h2>Follow the threads</h2><p>Build a corkboard of ideas, evidence, characters, research, or plans. Pin up sticky notes and photos, connect them with strings, and rearrange the whole story.</p><p>Your walls save to your account. Use a mouse, touch, or a pen.</p></div></div>
+  return <section className="detective-lobby">{picker}<div className="detective-intro"><Pin size={30}/><div><h2>Follow the threads</h2><p>Build a corkboard of ideas, evidence, characters, research, or plans. Pin up sticky notes and photos, connect them with strings, and rearrange the whole story.</p><p>Your walls save to your account. Use a mouse, touch, or a pen.</p></div></div>
     <form onSubmit={create}><label htmlFor="detective-wall-name">New detective wall</label><div><input id="detective-wall-name" placeholder="The case of…" value={name} maxLength={120} onChange={event=>setName(event.target.value)} required disabled={busy}/><button disabled={busy||!name.trim()}><Plus size={16}/>Create wall</button></div></form>
     {error&&<p role="alert">{error} <button onClick={()=>setVersion(value=>value+1)}>Retry</button></p>}{(busy||generating)&&<p role="status">{generating?'Assembling the case…':'Loading…'}</p>}
     {deleting&&<div className="detective-notice" role="region" aria-label="Confirm wall deletion">Delete “{deleting.name}” and all its items and strings? This cannot be undone.<button disabled={busy} onClick={deleteWall}>Delete wall</button><button disabled={busy} onClick={()=>setDeleting(null)}>Cancel</button></div>}
@@ -180,10 +188,10 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
   }
   useEffect(()=>{
     const key=event=>{
+      if(event.defaultPrevented||event.target.closest?.('[data-case-picker]'))return
       if(isCaseBoardShortcut(event)&&!typing(event.target)){
         event.preventDefault();event.stopImmediatePropagation()
-        clearTimeout(timer.current)
-        save().then(saved=>{if(saved)onGenerateDemo()})
+        onGenerateDemo(()=>{clearTimeout(timer.current);return save()})
         return
       }
       if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='s'){event.preventDefault();saveRef.current?.();return}
