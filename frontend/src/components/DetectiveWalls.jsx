@@ -8,6 +8,7 @@ import DetectiveCasePicker from './DetectiveCasePicker'
 import DetectiveSelectionSize from './DetectiveSelectionSize'
 import DetectiveStringWidth from './DetectiveStringWidth'
 import {MAX_WALL_SIZE,MIN_TEXT_SIZE} from '../lib/detectiveWallLimits'
+import {spreadGrowingCards} from '../lib/detectiveWallSpacing'
 import {isCaseBoardShortcut} from '../lib/detectiveWallDemo'
 
 const uid=()=>crypto.randomUUID()
@@ -163,8 +164,13 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
     if(gesture.current?.kind==='connection')gesture.current=null
   }
   const cache=()=>{if(!current.current)return;try{localStorage.setItem(cacheKey,JSON.stringify({revision:revision.current,doc:current.current}))}catch{/* The server copy and export remain available. */}}
-  const apply=(next,record=true)=>{
+  const apply=(next,record=true,adjustSpacing=true)=>{
     const previous=current.current;if(!previous)return
+    if(adjustSpacing){
+      const drag=gesture.current
+      const baseline=drag?.layoutBase||previous.state.nodes
+      next={...next,state:{...next.state,nodes:spreadGrowingCards(baseline,next.state.nodes,{fromGesture:!!drag?.layoutBase,resizingIds:drag?.layoutIds})}}
+    }
     if(record){historyRef.current={undo:[...historyRef.current.undo.slice(-19),previous],redo:[]};setHistory(historyRef.current)}
     current.current=next;dirty.current=true;setDoc(next);setStatus('unsaved')
     clearTimeout(timer.current);timer.current=setTimeout(()=>{cache();saveRef.current?.()},700)
@@ -229,7 +235,7 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
     const from=redo?'redo':'undo',to=redo?'undo':'redo',entries=historyRef.current[from]
     if(!entries.length)return
     const snapshot=entries[entries.length-1]
-    historyRef.current={...historyRef.current,[from]:entries.slice(0,-1),[to]:[...historyRef.current[to],current.current]};setHistory(historyRef.current);apply(snapshot,false);setSelected(null);cancelConnection()
+    historyRef.current={...historyRef.current,[from]:entries.slice(0,-1),[to]:[...historyRef.current[to],current.current]};setHistory(historyRef.current);apply(snapshot,false,false);setSelected(null);cancelConnection()
   }
   useEffect(()=>{
     const key=event=>{
@@ -386,7 +392,7 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
     }
     event.preventDefault();setSelected({type:'node',id:node.id});setStringHint('')
     historyRef.current={undo:[...historyRef.current.undo.slice(-19),current.current],redo:[]};setHistory(historyRef.current)
-    gesture.current={kind:resize?'resize':'node',corner:resize,node,start:point(event),pointerId:event.pointerId};event.currentTarget.setPointerCapture(event.pointerId)
+    gesture.current={kind:resize?'resize':'node',corner:resize,node,start:point(event),pointerId:event.pointerId,...(resize?{layoutBase:current.current.state.nodes,layoutIds:[node.id]}:{})};event.currentTarget.setPointerCapture(event.pointerId)
   }
   const startGroupResize=(event,corner)=>{
     event.stopPropagation();if(event.button!==0||selected?.type!=='group')return
@@ -394,7 +400,7 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
     const nodes=current.current.state.nodes.filter(node=>selected.nodes.includes(node.id));if(!nodes.length)return
     const boxes=nodes.map(itemBounds),left=Math.min(...boxes.map(b=>b.left)),top=Math.min(...boxes.map(b=>b.top)),right=Math.max(...boxes.map(b=>b.right)),bottom=Math.max(...boxes.map(b=>b.bottom))
     historyRef.current={undo:[...historyRef.current.undo.slice(-19),current.current],redo:[]};setHistory(historyRef.current)
-    gesture.current={kind:'group-resize',nodes,strings:current.current.state.strings.filter(edge=>selected.strings.includes(edge.id)),corner,start:point(event),bounds:{left,top,right,bottom},pointerId:event.pointerId}
+    gesture.current={kind:'group-resize',nodes,strings:current.current.state.strings.filter(edge=>selected.strings.includes(edge.id)),corner,start:point(event),bounds:{left,top,right,bottom},pointerId:event.pointerId,layoutBase:current.current.state.nodes,layoutIds:nodes.map(node=>node.id)}
     event.currentTarget.setPointerCapture(event.pointerId)
   }
   const startPan=event=>{
@@ -551,7 +557,7 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
     </div>
     <input ref={fileInput} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={event=>{const file=event.target.files?.[0];event.target.value='';addPhoto(file)}}/>
     {error&&<div className="detective-notice" role="alert">{error}<button type="button" onClick={save}>Retry save</button><button type="button" onClick={()=>setError('')} aria-label="Dismiss error"><X size={15}/></button></div>}
-    {localBackup&&<div className="detective-notice">An unsaved local draft is available.<button type="button" onClick={()=>{apply(localBackup);setLocalBackup(null)}}>Restore draft</button><button type="button" onClick={()=>{setLocalBackup(null);try{localStorage.removeItem(cacheKey)}catch{}}}>Keep server version</button></div>}
+    {localBackup&&<div className="detective-notice">An unsaved local draft is available.<button type="button" onClick={()=>{apply(localBackup,true,false);setLocalBackup(null)}}>Restore draft</button><button type="button" onClick={()=>{setLocalBackup(null);try{localStorage.removeItem(cacheKey)}catch{}}}>Keep server version</button></div>}
     <div className={`detective-hint${connecting?' is-connecting':''}`}>
       <span role="status">{connecting?`Connect “${nodes.get(connecting)?.text.slice(0,35)||nodes.get(connecting)?.type||'item'}” → ${connectionTarget?'Release or click to connect.':'Choose another item, or drag to its pin.'}`:tool==='string'?'Choose the first item, then the second. You can also drag from any pin to another item.':stringHint|| (tool==='pan'?'Drag to pan · Wheel to zoom · Use the scrollbars to move around the board.':'Drag empty space to box-select · Shift adds to your selection · Use Pan to move the board · Wheel to zoom')}</span>
       {(connecting||tool==='string')&&<button type="button" onClick={()=>{cancelConnection();setTool('select');setStringHint('')}}>Cancel connection <span aria-hidden="true">Esc</span></button>}
