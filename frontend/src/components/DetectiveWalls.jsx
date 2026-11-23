@@ -329,7 +329,36 @@ function DetectiveWallEditor({id,token,userId}){
       <button type="button" onClick={()=>fit(true)}>Whole board</button>
       <button type="button" onClick={()=>zoomTo(1)}>100%</button>
     </div>
-    <div ref={viewport} className={`detective-viewport tool-${tool}${panning?' is-panning':'}`} tabIndex={0} aria-label="Corkboard. Drag empty space to pan; use the wheel to zoom." onPointerDown={event=>{if(event.button===1||tool==='pan')startPan(event);else if(event.button===0&&(event.target===event.currentTarget||event.target.dataset.wallBackground)){setSelected(null);cancelConnection();setStringHint('');startPan(event)}}} onPointerMove={move} onPointerUp={end} onPointerCancel={cancelGesture} onLostPointerCapture={cancelGesture} onDragOver={event=>{if(event.dataTransfer.types.includes('Files'))event.preventDefault()}} onDrop={event=>{event.preventDefault();addPhoto([...event.dataTransfer.files].find(file=>file.type.startsWith('image/')))}} onPaste={event=>{if(typing(event.target))return;const file=[...event.clipboardData.files].find(file=>file.type.startsWith('image/'));if(file){event.preventDefault();addPhoto(file)}}}>
+    <div
+      ref={viewport}
+      className={['detective-viewport',`tool-${tool}`,panning?'is-panning':''].filter(Boolean).join(' ')}
+      tabIndex={0}
+      aria-label="Corkboard. Drag to pan in Pan mode; use the wheel to zoom. Select mode lets you edit items."
+      onPointerDown={event=>{
+        if(event.button===1||tool==='pan'){
+          startPan(event)
+        }else if(event.button===0&&(event.target===event.currentTarget||event.target.dataset.wallBackground)){
+          setSelected(null)
+          cancelConnection()
+          setStringHint('')
+          startPan(event)
+        }
+      }}
+      onPointerMove={move}
+      onPointerUp={end}
+      onPointerCancel={cancelGesture}
+      onLostPointerCapture={cancelGesture}
+      onDragOver={event=>{if(event.dataTransfer.types.includes('Files'))event.preventDefault()}}
+      onDrop={event=>{
+        event.preventDefault()
+        addPhoto([...event.dataTransfer.files].find(file=>file.type.startsWith('image/')))
+      }}
+      onPaste={event=>{
+        if(typing(event.target))return
+        const file=[...event.clipboardData.files].find(file=>file.type.startsWith('image/'))
+        if(file){event.preventDefault();addPhoto(file)}
+      }}
+    >
       <div className="detective-world-size" data-wall-background="true" style={{width:W*zoom+BOARD_MARGIN*2,height:H*zoom+BOARD_MARGIN*2}}><div className="detective-world" data-wall-background="true" style={{width:W,height:H,left:BOARD_MARGIN,top:BOARD_MARGIN,transform:`scale(${zoom})`}}>
         <svg className="detective-strings" width={W} height={H} aria-label="Connections">
           {doc.state.strings.map(edge=>{
