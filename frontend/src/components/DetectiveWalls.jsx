@@ -1,5 +1,5 @@
 import {useEffect,useLayoutEffect,useRef,useState} from 'react'
-import {ArrowLeft,Plus,StickyNote,ImagePlus,Pin,Link2,Hand,MousePointer2,Undo2,Redo2,Trash2,ZoomIn,ZoomOut,Maximize,Minimize,Download,Save,X} from 'lucide-react'
+import {ArrowLeft,Plus,StickyNote,ImagePlus,Pin,Link2,Hand,MousePointer2,Undo2,Redo2,Trash2,ZoomIn,ZoomOut,Maximize,Minimize,EyeOff,Download,Save,X} from 'lucide-react'
 import {readApiJson} from '../lib/apiResponse'
 import {downloadBlob} from '../lib/documentFormats'
 import './DetectiveWalls.css'
@@ -125,6 +125,11 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
   const [stringWidth,setStringWidth]=useState(6)
   const [panning,setPanning]=useState(false)
   const [fullscreen,setFullscreen]=useState(false)
+  const [zenMode,setZenMode]=useState(false)
+  const enterZenMode=()=>{
+    setZenMode(true)
+    requestAnimationFrame(()=>viewport.current?.focus({preventScroll:true}))
+  }
   const editorRoot=useRef(null),fullscreenRoot=useRef(null),ownsFullscreen=useRef(false)
   const exitFullscreen=()=>{
     setFullscreen(false)
@@ -138,7 +143,7 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
   useEffect(()=>{
     const changed=()=>{
       if(document.fullscreenElement===editorRoot.current&&editorRoot.current)ownsFullscreen.current=true
-      else if(ownsFullscreen.current){ownsFullscreen.current=false;setFullscreen(false)}
+      else if(ownsFullscreen.current){ownsFullscreen.current=false;setFullscreen(false);setZenMode(false)}
     }
     document.addEventListener('fullscreenchange',changed)
     return()=>{document.removeEventListener('fullscreenchange',changed);if(fullscreenRoot.current&&document.fullscreenElement===fullscreenRoot.current)document.exitFullscreen?.().catch(()=>{})}
@@ -247,7 +252,7 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
         return
       }
       if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='s'){event.preventDefault();saveRef.current?.();return}
-      if(event.key==='Escape'){if(fullscreen){exitFullscreen();return}cancelGesture();cancelConnection();setSelected(null);setTool('select');setStringHint('');return}
+      if(event.key==='Escape'){if(zenMode){setZenMode(false);return}if(fullscreen){exitFullscreen();return}cancelGesture();cancelConnection();setSelected(null);setTool('select');setStringHint('');return}
       if(typing(event.target))return
       if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='a'&&current.current){
         event.preventDefault();cancelConnection();setTool('select')
@@ -555,15 +560,17 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
   const isSelected=(type,id)=>selected?.type===type&&selected.id===id||!!selectedGroup?.[type==='node'?'nodes':'strings'].includes(id)
   const path=(a,b,slack)=>`M ${a.x} ${a.y} Q ${(a.x+b.x)/2} ${(a.y+b.y)/2+(slack??Math.min(140,Math.abs(a.x-b.x)*.12+35))} ${b.x} ${b.y}`
   const start=connecting&&nodes.get(connecting)?anchor(nodes.get(connecting)):null
-  return <section ref={editorRoot} className={`detective-editor${fullscreen?' is-fullscreen':''}`} aria-label="Interactive detective wall">
+  return <section ref={editorRoot} className={`detective-editor${fullscreen?' is-fullscreen':''}${zenMode?' is-zen':''}`} aria-label="Interactive detective wall">
+    {zenMode&&<button type="button" className="detective-zen-exit" aria-label="Exit Zen mode" title="Exit Zen mode (Escape)" onClick={()=>setZenMode(false)}><X size={18}/><span>Exit Zen</span></button>}
     {fullscreen&&<div className="detective-focus-controls" role="group" aria-label="Fullscreen board controls">
       <button type="button" onClick={()=>zoomTo(zoomRef.current/1.25)} aria-label="Zoom out" title="Zoom out"><ZoomOut size={17}/></button>
       <button type="button" onClick={()=>zoomTo(zoomRef.current*1.25)} aria-label="Zoom in" title="Zoom in"><ZoomIn size={17}/></button>
       <button type="button" onClick={()=>fit(false)} aria-label="Fit all items" title="Fit all items"><Maximize size={17}/></button>
       <button type="button" onClick={save} aria-label="Save wall" title="Save wall"><Save size={17}/></button>
+      <button type="button" onClick={enterZenMode} aria-label="Enter Zen mode" title="Zen mode — board and current tool only"><EyeOff size={17}/></button>
       <button type="button" onClick={exitFullscreen} aria-label="Exit fullscreen" title="Exit fullscreen (Escape)"><Minimize size={17}/></button>
     </div>}
-    <header className="detective-header"><button type="button" onClick={leave} title="Back to walls"><ArrowLeft size={18}/></button><input aria-label="Wall name" maxLength={120} value={doc.name} onFocus={()=>{historyRef.current={undo:[...historyRef.current.undo.slice(-19),current.current],redo:[]};setHistory(historyRef.current)}} onChange={event=>apply({...current.current,name:event.target.value},false)}/><span role="status">{status==='saving'?'Saving…':status==='saved'?'Saved':status==='error'?'Save failed':'Unsaved changes'}</span><button type="button" onClick={save}><Save size={16}/><span>Save</span></button><button type="button" onClick={exportWall} title="Export wall backup"><Download size={16}/><span>Backup</span></button><button type="button" onClick={fullscreen?exitFullscreen:enterFullscreen} aria-label={fullscreen?'Exit fullscreen':'Enter fullscreen'} title={fullscreen?'Exit fullscreen (Escape)':'Enter fullscreen'}>{fullscreen?<Minimize size={16}/>:<Maximize size={16}/>}<span>Fullscreen</span></button></header>
+    <header className="detective-header"><button type="button" onClick={leave} title="Back to walls"><ArrowLeft size={18}/></button><input aria-label="Wall name" maxLength={120} value={doc.name} onFocus={()=>{historyRef.current={undo:[...historyRef.current.undo.slice(-19),current.current],redo:[]};setHistory(historyRef.current)}} onChange={event=>apply({...current.current,name:event.target.value},false)}/><span role="status">{status==='saving'?'Saving…':status==='saved'?'Saved':status==='error'?'Save failed':'Unsaved changes'}</span><button type="button" onClick={save}><Save size={16}/><span>Save</span></button><button type="button" onClick={exportWall} title="Export wall backup"><Download size={16}/><span>Backup</span></button><button type="button" onClick={fullscreen?exitFullscreen:enterFullscreen} aria-label={fullscreen?'Exit fullscreen':'Enter fullscreen'} title={fullscreen?'Exit fullscreen (Escape)':'Enter fullscreen'}>{fullscreen?<Minimize size={16}/>:<Maximize size={16}/>}<span>Fullscreen</span></button><button type="button" onClick={enterZenMode} title="Hide controls and keep the current tool. Escape exits." aria-label="Enter Zen mode"><EyeOff size={16}/><span>Zen mode</span></button></header>
     <div className="detective-toolbar" role="toolbar" aria-label="Wall tools">
       <button type="button" aria-pressed={tool==='select'} title="Select items or drag empty space to draw a selection rectangle" onClick={()=>{setTool('select');cancelConnection();setStringHint('')}}><MousePointer2 size={16}/>Select</button><button type="button" aria-pressed={tool==='pan'} onClick={()=>{setTool('pan');cancelConnection();setStringHint('')}}><Hand size={16}/>Pan</button>
       <button type="button" onClick={()=>add('note')}><StickyNote size={16}/>Sticky note</button><button type="button" disabled={photoBusy} onClick={()=>fileInput.current.click()}><ImagePlus size={16}/>{photoBusy?'Adding…':'Photo'}</button><button type="button" onClick={()=>add('pin')}><Pin size={16}/>Thumbtack</button>

@@ -70,6 +70,11 @@
 .detective-focus-controls{position:absolute;top:max(12px,env(safe-area-inset-top));right:max(12px,env(safe-area-inset-right));z-index:40;display:flex;gap:5px;padding:6px;border:1px solid var(--border-strong);border-radius:10px;background:var(--surface-panel);box-shadow:0 5px 24px #0005}
 .detective-focus-controls>button{min-width:38px;min-height:38px;padding:8px}
 .detective-editor:fullscreen{width:100%;height:100%;max-width:none;max-height:none}
+.detective-editor.is-zen>:is(.detective-header,.detective-toolbar,.detective-hint,.detective-board-zoom,.detective-properties,.detective-focus-controls){display:none!important}
+.detective-editor.is-zen>.detective-viewport{scrollbar-width:none}.detective-editor.is-zen>.detective-viewport::-webkit-scrollbar{display:none}
+.detective-editor .detective-zen-exit{position:absolute;top:max(8px,env(safe-area-inset-top));right:max(8px,env(safe-area-inset-right));z-index:60;min-height:44px;min-width:44px;padding:10px;opacity:0;transition:opacity .15s;box-shadow:0 3px 14px #0004}
+.detective-editor .detective-zen-exit:hover,.detective-editor .detective-zen-exit:focus-visible{opacity:1}
+@media(hover:none){.detective-editor .detective-zen-exit{opacity:.25}.detective-zen-exit>span{display:none}}
 .detective-world-size{overflow:hidden}
 .detective-viewport{overflow:scroll;scrollbar-width:auto;scrollbar-color:var(--accent-solid) #61472f;scrollbar-gutter:stable}
 .detective-viewport::-webkit-scrollbar{width:16px;height:16px}.detective-viewport::-webkit-scrollbar-track,.detective-viewport::-webkit-scrollbar-corner{background:#61472f}.detective-viewport::-webkit-scrollbar-thumb{background:var(--accent-solid);border:3px solid #61472f;border-radius:9px}
