@@ -216,7 +216,7 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
     const nodeIds=state.nodes.filter(node=>{const b=itemBounds(node);return b.left>=rect.left&&b.right<=rect.right&&b.top>=rect.top&&b.bottom<=rect.bottom}).map(node=>node.id)
     const stringIds=state.strings.filter(edge=>{
       const from=nodeMap.get(edge.from),to=nodeMap.get(edge.to);if(!from||!to)return false
-      const a=pinPosition(from),b=pinPosition(to),cx=(a.x+b.x)/2,cy=(a.y+b.y)/2+Math.min(140,Math.abs(a.x-b.x)*.12+35)
+      const a=pinPosition(from),b=pinPosition(to),cx=(a.x+b.x)/2,cy=(a.y+b.y)/2+(edge.slack??Math.min(140,Math.abs(a.x-b.x)*.12+35))
       for(let i=0;i<=20;i++){const t=i/20,s=1-t;if(!inside({x:s*s*a.x+2*s*t*cx+t*t*b.x,y:s*s*a.y+2*s*t*cy+t*t*b.y}))return false}
       return true
     }).map(edge=>edge.id)
@@ -450,7 +450,7 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
   const groupBoxes=selectedGroup?doc.state.nodes.filter(node=>selectedGroup.nodes.includes(node.id)).map(itemBounds):[]
   const groupBounds=groupBoxes.length?{left:Math.min(...groupBoxes.map(b=>b.left)),top:Math.min(...groupBoxes.map(b=>b.top)),right:Math.max(...groupBoxes.map(b=>b.right)),bottom:Math.max(...groupBoxes.map(b=>b.bottom))}:null
   const isSelected=(type,id)=>selected?.type===type&&selected.id===id||!!selectedGroup?.[type==='node'?'nodes':'strings'].includes(id)
-  const path=(a,b)=>`M ${a.x} ${a.y} Q ${(a.x+b.x)/2} ${(a.y+b.y)/2+Math.min(140,Math.abs(a.x-b.x)*.12+35)} ${b.x} ${b.y}`
+  const path=(a,b,slack)=>`M ${a.x} ${a.y} Q ${(a.x+b.x)/2} ${(a.y+b.y)/2+(slack??Math.min(140,Math.abs(a.x-b.x)*.12+35))} ${b.x} ${b.y}`
   const start=connecting&&nodes.get(connecting)?anchor(nodes.get(connecting)):null
   return <section className="detective-editor" aria-label="Interactive detective wall">
     <header className="detective-header"><button type="button" onClick={leave} title="Back to walls"><ArrowLeft size={18}/></button><input aria-label="Wall name" maxLength={120} value={doc.name} onFocus={()=>{historyRef.current={undo:[...historyRef.current.undo.slice(-19),current.current],redo:[]};setHistory(historyRef.current)}} onChange={event=>apply({...current.current,name:event.target.value},false)}/><span role="status">{status==='saving'?'Saving…':status==='saved'?'Saved':status==='error'?'Save failed':'Unsaved changes'}</span><button type="button" onClick={save}><Save size={16}/><span>Save</span></button><button type="button" onClick={exportWall} title="Export wall backup"><Download size={16}/><span>Backup</span></button></header>
@@ -512,7 +512,7 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
           {doc.state.strings.map(edge=>{
             const from=nodes.get(edge.from),to=nodes.get(edge.to)
             if(!from||!to)return null
-            const a=anchor(from),b=anchor(to),d=path(a,b)
+            const a=anchor(from),b=anchor(to),d=path(a,b,edge.slack)
             return <g key={edge.id} className={isSelected('string',edge.id)?'is-selected':''} onPointerDown={event=>{if(tool==='pan'||connectionSource.current)return;event.stopPropagation();setSelected({type:'string',id:edge.id});setStringHint('Edit this string below.')}} style={{'--string-width':`${edge.width??6}px`}}>
               <path className="detective-string-shadow" d={d}/>
               <path className="detective-string" d={d} stroke={edge.color}/>
@@ -532,14 +532,14 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
                   }
                 }}
               />
-              {edge.text&&<text x={(a.x+b.x)/2} y={(a.y+b.y)/2+Math.min(140,Math.abs(a.x-b.x)*.12+35)/2-9}>{edge.text}</text>}
+              {edge.text&&<text x={(a.x+b.x)/2} y={(a.y+b.y)/2+(edge.slack??Math.min(140,Math.abs(a.x-b.x)*.12+35))/2-9}>{edge.text}</text>}
             </g>
           })}
           {start&&pointer&&<path className="detective-string-preview" d={path(start,pointer)} stroke={stringColor} style={{'--string-width':`${stringWidth}px`}}/>}
         </svg>
         {doc.state.nodes.map(node=><article
           key={node.id} data-wall-node={node.id}
-          className={`detective-item is-${node.type}${isSelected('node',node.id)?' is-selected':''}${connecting===node.id?' is-connecting':''}${connectionTarget===node.id?' is-connection-target':''}${activeString&&(activeString.from===node.id||activeString.to===node.id)?' is-string-endpoint':''}`}
+          className={`detective-item is-${node.type}${node.paperStyle?` is-paper-${node.paperStyle}`:''}${isSelected('node',node.id)?' is-selected':''}${connecting===node.id?' is-connecting':''}${connectionTarget===node.id?' is-connection-target':''}${activeString&&(activeString.from===node.id||activeString.to===node.id)?' is-string-endpoint':''}`}
           style={{left:node.x,top:node.y,width:node.width,height:node.height,background:node.color,'--tack-color':node.type==='pin'?node.color:'#c83431','--tack-size':`${clamp(Math.min(node.width,node.height)*.34,20,240)}px`,'--resize-handle-scale':1/zoom,transform:`rotate(${node.rotation}deg)`}}
           onPointerDown={event=>{
             if(tool==='string'||connectionSource.current){event.preventDefault();event.stopPropagation();connect(node)}

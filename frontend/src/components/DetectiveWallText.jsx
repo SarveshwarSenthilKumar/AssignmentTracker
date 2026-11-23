@@ -18,13 +18,13 @@ export default function DetectiveWallText({node,onFocus,onChange,onFit}){
     measure()
     document.fonts?.ready.then(measure)
     return()=>{active=false}
-  },[node.text,node.width,node.height,node.type,imageHeight])
+  },[node.text,node.width,node.height,node.type,node.fontSize,node.paperStyle,imageHeight])
   return <textarea
     ref={input}
     aria-label={node.type==='photo'?'Photo caption':'Sticky note text'}
     placeholder={node.type==='photo'?'Add a caption…':'What’s the connection?'}
     maxLength={3000} value={node.text} rows={1}
-    style={{overflow:'hidden',flex:'0 0 auto',boxSizing:'border-box'}}
+    style={{overflow:'hidden',flex:'0 0 auto',boxSizing:'border-box',fontSize:node.fontSize?`${node.fontSize}px`:undefined}}
     onFocus={onFocus} onChange={onChange}
   />
 }

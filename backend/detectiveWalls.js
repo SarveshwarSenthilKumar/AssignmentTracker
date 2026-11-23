@@ -16,6 +16,8 @@ module.exports=function registerDetectiveWalls(app,auth,{mongoose}){
       if(!node||!key(node.id)||ids.has(node.id)||!['note','photo','pin'].includes(node.type)||!number(node.x,0,12000)||!number(node.y,0,100000)||!number(node.width,60,1200)||!number(node.height,60,100000)||!number(node.rotation,-30,30)||!color(node.color)||typeof node.text!=='string'||node.text.length>3000)throw new Error('An item has invalid content or dimensions.');
       ids.add(node.id);
       const item={id:node.id,type:node.type,x:node.x,y:node.y,width:node.width,height:node.height,rotation:node.rotation,color:node.color,text:node.text};
+      if(node.paperStyle!==undefined){if(!['sticky','paper','receipt','index','torn','photo'].includes(node.paperStyle))throw new Error('Invalid paper style.');item.paperStyle=node.paperStyle;}
+      if(node.fontSize!==undefined){if(!number(node.fontSize,12,32))throw new Error('Invalid text size.');item.fontSize=node.fontSize;}
       if(node.type==='photo'){
         if(node.imageHeight!==undefined){if(!number(node.imageHeight,80,1400))throw new Error('Invalid photo height.');item.imageHeight=node.imageHeight;}
         if(typeof node.image!=='string'||node.image.length>2800000||!/^data:image\/(?:png|jpeg|webp);base64,[a-z\d+/]+=*$/i.test(node.image))throw new Error('Photos must be PNG, JPEG or WebP images smaller than 2 MB.');
@@ -27,7 +29,8 @@ module.exports=function registerDetectiveWalls(app,auth,{mongoose}){
     const strings=state.strings.map(edge=>{
       if(!number(edge?.width??6,1,24))throw new Error('Choose a string thickness between 1 and 24.');
       if(!edge||!key(edge.id)||edges.has(edge.id)||!ids.has(edge.from)||!ids.has(edge.to)||edge.from===edge.to||!color(edge.color)||typeof edge.text!=='string'||edge.text.length>160)throw new Error('A string has invalid endpoints or content.');
-      edges.add(edge.id);return {id:edge.id,from:edge.from,to:edge.to,color:edge.color,text:edge.text,width:edge.width??6};
+      if(edge.slack!==undefined&&!number(edge.slack,-250,450))throw new Error('Invalid string curve.');
+      edges.add(edge.id);return {id:edge.id,from:edge.from,to:edge.to,color:edge.color,text:edge.text,width:edge.width??6,...(edge.slack!==undefined?{slack:edge.slack}:{})};
     });
     return {nodes,strings};
   }
