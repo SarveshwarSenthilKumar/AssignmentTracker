@@ -7,6 +7,7 @@ import './DetectiveWalls.css'
 const uid=()=>crypto.randomUUID()
 const colors=['#fff1a8','#ffd0c5','#ccebd2','#cce3ff','#e1d2f5','#ffffff']
 const W=12000,H=8000
+const MIN_ZOOM=.02,MAX_ZOOM=3
 const clamp=(n,min,max)=>Math.max(min,Math.min(max,n))
 const typing=target=>target.closest('input,textarea,select,[contenteditable="true"]')
 const wallId=()=>/^#\/detective-wall\/([a-f\d]{24})$/i.exec(window.location.hash)?.[1]||null
@@ -65,6 +66,7 @@ function DetectiveWallEditor({id,token,userId}){
   const [doc,setDoc]=useState(null),[loading,setLoading]=useState(true),[error,setError]=useState(''),[status,setStatus]=useState('saved'),[localBackup,setLocalBackup]=useState(null)
   const [selected,setSelected]=useState(null),[tool,setTool]=useState('select'),[connecting,setConnecting]=useState(null),[stringColor,setStringColor]=useState('#b52b35'),[zoom,setZoom]=useState(.8),[pointer,setPointer]=useState(null),[photoBusy,setPhotoBusy]=useState(false),[history,setHistory]=useState({undo:[],redo:[]})
   const [stringWidth,setStringWidth]=useState(6)
+  const zoomRef=useRef(.8)
   const [connectionTarget,setConnectionTarget]=useState(null),[stringHint,setStringHint]=useState('')
   const connectionSource=useRef(null)
   const viewport=useRef(null),fileInput=useRef(null),current=useRef(null),revision=useRef(0),dirty=useRef(false),queue=useRef(Promise.resolve()),gesture=useRef(null),saveRef=useRef(null),timer=useRef(null),historyRef=useRef({undo:[],redo:[]}),mounted=useRef(true)
@@ -234,22 +236,49 @@ function DetectiveWallEditor({id,token,userId}){
     }else if(drag.previous)cancelConnection()
   }
   const cancelGesture=()=>{if(gesture.current?.kind==='connection')cancelConnection();gesture.current=null}
-  const zoomTo=value=>{
-    const view=viewport.current,next=clamp(value,.15,2),cx=(view.scrollLeft+view.clientWidth/2)/zoom,cy=(view.scrollTop+view.clientHeight/2)/zoom
-    setZoom(next);requestAnimationFrame(()=>{if(viewport.current===view){view.scrollLeft=cx*next-view.clientWidth/2;view.scrollTop=cy*next-view.clientHeight/2}})
+  const zoomTo=(value,location=null)=>{
+    const view=viewport.current;if(!view)return
+    const next=clamp(value,MIN_ZOOM,MAX_ZOOM),rect=view.getBoundingClientRect()
+    const x=location?location.x-rect.left:view.clientWidth/2,y=location?location.y-rect.top:view.clientHeight/2
+    const cx=(view.scrollLeft+x)/zoomRef.current,cy=(view.scrollTop+y)/zoomRef.current
+    zoomRef.current=next;setZoom(next)
+    requestAnimationFrame(()=>{if(viewport.current===view){view.scrollLeft=cx*next-x;view.scrollTop=cy*next-y}})
   }
   useEffect(()=>{
     const view=viewport.current;if(!view)return
-    const wheel=event=>{if(event.ctrlKey||event.metaKey){event.preventDefault();zoomTo(zoom+(event.deltaY<0?.08:-.08))}}
+    const wheel=event=>{if(event.ctrlKey||event.metaKey){event.preventDefault();zoomTo(zoomRef.current*Math.exp(-event.deltaY*.002),{x:event.clientX,y:event.clientY})}}
+    let pinch=null
+    const touchStart=event=>{
+      if(event.touches.length!==2)return
+      event.preventDefault();cancelGesture()
+      const [a,b]=event.touches
+      pinch={distance:Math.max(1,Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY)),zoom:zoomRef.current}
+    }
+    const touchMove=event=>{
+      if(!pinch||event.touches.length!==2)return
+      event.preventDefault();const [a,b]=event.touches
+      zoomTo(pinch.zoom*Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY)/pinch.distance,{x:(a.clientX+b.clientX)/2,y:(a.clientY+b.clientY)/2})
+    }
+    const touchEnd=event=>{if(event.touches.length<2)pinch=null}
     view.addEventListener('wheel',wheel,{passive:false})
-    return()=>view.removeEventListener('wheel',wheel)
-  },[zoom,loading])
-  const fit=()=>{
+    view.addEventListener('touchstart',touchStart,{passive:false})
+    view.addEventListener('touchmove',touchMove,{passive:false})
+    view.addEventListener('touchend',touchEnd)
+    view.addEventListener('touchcancel',touchEnd)
+    return()=>{view.removeEventListener('wheel',wheel);view.removeEventListener('touchstart',touchStart);view.removeEventListener('touchmove',touchMove);view.removeEventListener('touchend',touchEnd);view.removeEventListener('touchcancel',touchEnd)}
+  },[loading])
+  const fit=(wholeBoard=false)=>{
     const nodes=current.current.state.nodes,view=viewport.current
-    if(!nodes.length){setZoom(.8);view.scrollTo(0,0);return}
-    const left=Math.min(...nodes.map(node=>node.x))-60,top=Math.min(...nodes.map(node=>node.y))-60,right=Math.max(...nodes.map(node=>node.x+node.width))+60,bottom=Math.max(...nodes.map(node=>node.y+node.height))+60
-    const next=clamp(Math.min(view.clientWidth/(right-left),view.clientHeight/(bottom-top)),.15,1)
-    setZoom(next);requestAnimationFrame(()=>view.scrollTo(Math.max(0,left*next),Math.max(0,top*next)))
+    if(!view)return
+    const bounds=nodes.map(node=>{
+      const angle=node.rotation*Math.PI/180,w=Math.abs(node.width*Math.cos(angle))+Math.abs(node.height*Math.sin(angle)),h=Math.abs(node.width*Math.sin(angle))+Math.abs(node.height*Math.cos(angle))
+      return {left:node.x+node.width/2-w/2,top:node.y+node.height/2-h/2,right:node.x+node.width/2+w/2,bottom:node.y+node.height/2+h/2}
+    })
+    const left=wholeBoard||!bounds.length?0:Math.min(...bounds.map(b=>b.left))-60,top=wholeBoard||!bounds.length?0:Math.min(...bounds.map(b=>b.top))-60
+    const right=wholeBoard||!bounds.length?W:Math.max(...bounds.map(b=>b.right))+60,bottom=wholeBoard||!bounds.length?H:Math.max(...bounds.map(b=>b.bottom))+60
+    const next=clamp(Math.min((view.clientWidth-32)/(right-left),(view.clientHeight-32)/(bottom-top)),MIN_ZOOM,1)
+    zoomRef.current=next;setZoom(next)
+    requestAnimationFrame(()=>view.scrollTo(Math.max(0,(left+right)*next/2-view.clientWidth/2),Math.max(0,(top+bottom)*next/2-view.clientHeight/2)))
   }
   const leave=async()=>{clearTimeout(timer.current);if(await save())window.location.hash='/detective-wall'}
   const exportWall=()=>downloadBlob(new Blob([JSON.stringify(current.current,null,2)],{type:'application/json'}),`${current.current.name.replace(/[<>:"/\\|?*]/g,'-')||'Detective wall'}.json`)
@@ -272,7 +301,6 @@ function DetectiveWallEditor({id,token,userId}){
         <label className="detective-string-size">Thickness<input aria-label="New string thickness" type="range" min="1" max="24" step="1" value={stringWidth} onChange={event=>setStringWidth(Number(event.target.value))}/><output>{stringWidth} px</output></label>
       </div>}
       <button type="button" disabled={!history.undo.length} onClick={()=>undo(false)} title="Undo (Ctrl+Z)"><Undo2 size={16}/></button><button type="button" disabled={!history.redo.length} onClick={()=>undo(true)} title="Redo (Ctrl+Shift+Z)"><Redo2 size={16}/></button><button type="button" disabled={!selected} onClick={remove} title="Delete selected item or string"><Trash2 size={16}/></button>
-      <div className="detective-zoom"><button type="button" onClick={()=>zoomTo(zoom-.1)} aria-label="Zoom out"><ZoomOut size={16}/></button><span>{Math.round(zoom*100)}%</span><button type="button" onClick={()=>zoomTo(zoom+.1)} aria-label="Zoom in"><ZoomIn size={16}/></button><button type="button" onClick={fit} title="Fit all items"><Maximize size={16}/></button></div>
     </div>
     <input ref={fileInput} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={event=>{const file=event.target.files?.[0];event.target.value='';addPhoto(file)}}/>
     {error&&<div className="detective-notice" role="alert">{error}<button type="button" onClick={save}>Retry save</button><button type="button" onClick={()=>setError('')} aria-label="Dismiss error"><X size={15}/></button></div>}
@@ -280,6 +308,14 @@ function DetectiveWallEditor({id,token,userId}){
     <div className={`detective-hint${connecting?' is-connecting':''}`}>
       <span role="status">{connecting?`Connect “${nodes.get(connecting)?.text.slice(0,35)||nodes.get(connecting)?.type||'item'}” → ${connectionTarget?'Release or click to connect.':'Choose another item, or drag to its pin.'}`:tool==='string'?'Choose the first item, then the second. You can also drag from any pin to another item.':stringHint|| (tool==='pan'?'Drag the wall to pan.':'Drag headers to move · Drag a pin to another item to connect · Click any string to edit it · Ctrl/⌘ + wheel to zoom')}</span>
       {(connecting||tool==='string')&&<button type="button" onClick={()=>{cancelConnection();setTool('select');setStringHint('')}}>Cancel connection <span aria-hidden="true">Esc</span></button>}
+    </div>
+    <div className="detective-board-zoom" role="group" aria-label="Board zoom">
+      <button type="button" onClick={()=>zoomTo(zoomRef.current/1.25)} disabled={zoom<=MIN_ZOOM} aria-label="Zoom out" title="Zoom out"><ZoomOut size={17}/></button>
+      <label><span>Zoom</span><input aria-label="Board zoom percentage" type="range" min="2" max="300" step="1" value={Math.round(zoom*100)} onChange={event=>zoomTo(Number(event.target.value)/100)}/><output>{Math.round(zoom*100)}%</output></label>
+      <button type="button" onClick={()=>zoomTo(zoomRef.current*1.25)} disabled={zoom>=MAX_ZOOM} aria-label="Zoom in" title="Zoom in"><ZoomIn size={17}/></button>
+      <button type="button" onClick={()=>fit(false)} title="Fit all notes and photos"><Maximize size={16}/>Fit items</button>
+      <button type="button" onClick={()=>fit(true)}>Whole board</button>
+      <button type="button" onClick={()=>zoomTo(1)}>100%</button>
     </div>
     <div ref={viewport} className={`detective-viewport tool-${tool}`} tabIndex={0} aria-label="Corkboard. Use the toolbar to add items or pan." onPointerDown={event=>{if(event.button===1||tool==='pan')startPan(event);else if(event.target===event.currentTarget||event.target.dataset.wallBackground){setSelected(null);cancelConnection();setStringHint('')}}} onPointerMove={move} onPointerUp={end} onPointerCancel={cancelGesture} onLostPointerCapture={cancelGesture} onDragOver={event=>{if(event.dataTransfer.types.includes('Files'))event.preventDefault()}} onDrop={event=>{event.preventDefault();addPhoto([...event.dataTransfer.files].find(file=>file.type.startsWith('image/')))}} onPaste={event=>{if(typing(event.target))return;const file=[...event.clipboardData.files].find(file=>file.type.startsWith('image/'));if(file){event.preventDefault();addPhoto(file)}}}>
       <div className="detective-world-size" data-wall-background="true" style={{width:W*zoom,height:H*zoom}}><div className="detective-world" data-wall-background="true" style={{width:W,height:H,transform:`scale(${zoom})`}}>
