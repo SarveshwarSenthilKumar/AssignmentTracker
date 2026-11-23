@@ -13,10 +13,11 @@ module.exports=function registerDetectiveWalls(app,auth,{mongoose}){
     if(Buffer.byteLength(JSON.stringify(state))>10*1024*1024)throw new Error('This wall exceeds 10 MB. Use smaller photos or another wall.');
     const ids=new Set(),key=value=>typeof value==='string'&&/^[a-z\d_-]{1,80}$/i.test(value);
     const nodes=state.nodes.map(node=>{
-      if(!node||!key(node.id)||ids.has(node.id)||!['note','photo','pin'].includes(node.type)||!number(node.x,0,12000)||!number(node.y,0,8000)||!number(node.width,60,1200)||!number(node.height,60,1400)||!number(node.rotation,-30,30)||!color(node.color)||typeof node.text!=='string'||node.text.length>3000)throw new Error('An item has invalid content or dimensions.');
+      if(!node||!key(node.id)||ids.has(node.id)||!['note','photo','pin'].includes(node.type)||!number(node.x,0,12000)||!number(node.y,0,100000)||!number(node.width,60,1200)||!number(node.height,60,100000)||!number(node.rotation,-30,30)||!color(node.color)||typeof node.text!=='string'||node.text.length>3000)throw new Error('An item has invalid content or dimensions.');
       ids.add(node.id);
       const item={id:node.id,type:node.type,x:node.x,y:node.y,width:node.width,height:node.height,rotation:node.rotation,color:node.color,text:node.text};
       if(node.type==='photo'){
+        if(node.imageHeight!==undefined){if(!number(node.imageHeight,80,1400))throw new Error('Invalid photo height.');item.imageHeight=node.imageHeight;}
         if(typeof node.image!=='string'||node.image.length>2800000||!/^data:image\/(?:png|jpeg|webp);base64,[a-z\d+/]+=*$/i.test(node.image))throw new Error('Photos must be PNG, JPEG or WebP images smaller than 2 MB.');
         item.image=node.image;
       }

@@ -3,10 +3,12 @@ import {ArrowLeft,Plus,StickyNote,ImagePlus,Pin,Link2,Hand,MousePointer2,Undo2,R
 import {readApiJson} from '../lib/apiResponse'
 import {downloadBlob} from '../lib/documentFormats'
 import './DetectiveWalls.css'
+import DetectiveWallText from './DetectiveWallText'
 
 const uid=()=>crypto.randomUUID()
 const colors=['#fff1a8','#ffd0c5','#ccebd2','#cce3ff','#e1d2f5','#ffffff']
 const W=12000,H=8000
+const wallHeight=state=>Math.max(H,...state.nodes.map(node=>node.y+node.height+80))
 const BOARD_MARGIN=2000
 const MIN_ZOOM=.02,MAX_ZOOM=3
 const clamp=(n,min,max)=>Math.max(min,Math.min(max,n))
@@ -113,10 +115,18 @@ function DetectiveWallEditor({id,token,userId}){
     return()=>{mounted.current=false;controller.abort();window.removeEventListener('beforeunload',unload);clearTimeout(timer.current);if(dirty.current){cache();saveRef.current?.()}}
   },[id,token])
   const changeNode=(nodeId,patch,record=true)=>apply({...current.current,state:{...current.current.state,nodes:current.current.state.nodes.map(node=>node.id===nodeId?{...node,...patch}:node)}},record)
+  const fitNodeText=(nodeId,contentHeight,imageHeight)=>{
+    const node=current.current?.state.nodes.find(item=>item.id===nodeId)
+    if(!node)return
+    const height=Math.ceil(38+contentHeight+(node.type==='photo'?imageHeight+10:0))
+    if(height>node.height||(node.type==='photo'&&node.imageHeight===undefined)){
+      changeNode(nodeId,{height:Math.max(node.height,height),...(node.type==='photo'?{imageHeight}:{})},false)
+    }
+  }
   const add=(type,extra={})=>{
     if(current.current.state.nodes.length>=200){setError('This wall has 200 items. Start another wall to keep things responsive.');return}
     const view=viewport.current,nodeId=uid(),width=type==='pin'?70:type==='photo'?270:230,height=type==='pin'?70:type==='photo'?230:190
-    const node={id:nodeId,type,x:clamp((view.scrollLeft-BOARD_MARGIN+view.clientWidth/2)/zoom-width/2,0,W-width),y:clamp((view.scrollTop-BOARD_MARGIN+view.clientHeight/2)/zoom-height/2,0,H-height),width,height,rotation:0,color:type==='note'?'#fff1a8':type==='pin'?'#bc343a':'#ffffff',text:'',...extra}
+    const node={id:nodeId,type,x:clamp((view.scrollLeft-BOARD_MARGIN+view.clientWidth/2)/zoom-width/2,0,W-width),y:clamp((view.scrollTop-BOARD_MARGIN+view.clientHeight/2)/zoom-height/2,0,Math.min(100000,wallHeight(current.current.state)-height)),width,height,rotation:0,color:type==='note'?'#fff1a8':type==='pin'?'#bc343a':'#ffffff',text:'',...extra}
     apply({...current.current,state:{...current.current.state,nodes:[...current.current.state.nodes,node]}});setSelected({type:'node',id:nodeId});setTool('select');cancelConnection();setStringHint('')
   }
   const addPhoto=async file=>{
@@ -147,7 +157,7 @@ function DetectiveWallEditor({id,token,userId}){
         const node=current.current?.state.nodes.find(item=>item.id===selected.id)
         if(!node)return
         event.preventDefault();const step=event.shiftKey?20:5
-        changeNode(node.id,{x:clamp(node.x+(event.key==='ArrowLeft'?-step:event.key==='ArrowRight'?step:0),0,W-node.width),y:clamp(node.y+(event.key==='ArrowUp'?-step:event.key==='ArrowDown'?step:0),0,H-node.height)})
+        changeNode(node.id,{x:clamp(node.x+(event.key==='ArrowLeft'?-step:event.key==='ArrowRight'?step:0),0,W-node.width),y:clamp(node.y+(event.key==='ArrowUp'?-step:event.key==='ArrowDown'?step:0),0,Math.min(100000,wallHeight(current.current.state)-node.height))})
       }
     }
     window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key)
@@ -226,7 +236,16 @@ function DetectiveWallEditor({id,token,userId}){
     if(drag.kind==='pan'){viewport.current.scrollLeft=drag.left+drag.x-event.clientX;viewport.current.scrollTop=drag.top+drag.y-event.clientY;return}
     const p=point(event),dx=p.x-drag.start.x,dy=p.y-drag.start.y
     const angle=drag.node.rotation*Math.PI/180
-    changeNode(drag.node.id,drag.kind==='resize'?{width:clamp(drag.node.width+dx*Math.cos(angle)+dy*Math.sin(angle),60,1200),height:clamp(drag.node.height-dx*Math.sin(angle)+dy*Math.cos(angle),60,1400)}:{x:clamp(drag.node.x+dx,0,W-drag.node.width),y:clamp(drag.node.y+dy,0,H-drag.node.height)},false)
+    if(drag.kind==='resize'){
+      const heightDelta=-dx*Math.sin(angle)+dy*Math.cos(angle)
+      const patch={width:clamp(drag.node.width+dx*Math.cos(angle)+dy*Math.sin(angle),60,1200),height:clamp(drag.node.height+heightDelta,60,100000)}
+      if(drag.node.type==='photo'){
+        const imageHeight=drag.node.imageHeight??Math.max(80,drag.node.height-90)
+        patch.imageHeight=clamp(imageHeight+heightDelta,80,1400)
+        patch.height=drag.node.height+patch.imageHeight-imageHeight
+      }
+      changeNode(drag.node.id,patch,false)
+    }else changeNode(drag.node.id,{x:clamp(drag.node.x+dx,0,W-drag.node.width),y:clamp(drag.node.y+dy,0,Math.min(100000,wallHeight(current.current.state)-drag.node.height))},false)
   }
   const end=event=>{
     const drag=gesture.current
@@ -287,7 +306,7 @@ function DetectiveWallEditor({id,token,userId}){
       return {left:node.x+node.width/2-w/2,top:node.y+node.height/2-h/2,right:node.x+node.width/2+w/2,bottom:node.y+node.height/2+h/2}
     })
     const left=wholeBoard||!bounds.length?0:Math.min(...bounds.map(b=>b.left))-60,top=wholeBoard||!bounds.length?0:Math.min(...bounds.map(b=>b.top))-60
-    const right=wholeBoard||!bounds.length?W:Math.max(...bounds.map(b=>b.right))+60,bottom=wholeBoard||!bounds.length?H:Math.max(...bounds.map(b=>b.bottom))+60
+    const right=wholeBoard||!bounds.length?W:Math.max(...bounds.map(b=>b.right))+60,bottom=wholeBoard||!bounds.length?wallHeight(current.current.state):Math.max(...bounds.map(b=>b.bottom))+60
     const next=clamp(Math.min((view.clientWidth-32)/(right-left),(view.clientHeight-32)/(bottom-top)),MIN_ZOOM,1)
     zoomRef.current=next;setZoom(next)
     requestAnimationFrame(()=>view.scrollTo(Math.max(0,BOARD_MARGIN+(left+right)*next/2-view.clientWidth/2),Math.max(0,BOARD_MARGIN+(top+bottom)*next/2-view.clientHeight/2)))
@@ -299,6 +318,7 @@ function DetectiveWallEditor({id,token,userId}){
   const activeNode=selected?.type==='node'?doc.state.nodes.find(node=>node.id===selected.id):null
   const activeString=selected?.type==='string'?doc.state.strings.find(edge=>edge.id===selected.id):null
   const nodes=new Map(doc.state.nodes.map(node=>[node.id,node]))
+  const boardHeight=wallHeight(doc.state)
   const anchor=node=>{const angle=node.rotation*Math.PI/180,dy=14-node.height/2;return {x:node.x+node.width/2-dy*Math.sin(angle),y:node.y+node.height/2+dy*Math.cos(angle)}}
   const path=(a,b)=>`M ${a.x} ${a.y} Q ${(a.x+b.x)/2} ${(a.y+b.y)/2+Math.min(140,Math.abs(a.x-b.x)*.12+35)} ${b.x} ${b.y}`
   const start=connecting&&nodes.get(connecting)?anchor(nodes.get(connecting)):null
@@ -359,8 +379,8 @@ function DetectiveWallEditor({id,token,userId}){
         if(file){event.preventDefault();addPhoto(file)}
       }}
     >
-      <div className="detective-world-size" data-wall-background="true" style={{width:W*zoom+BOARD_MARGIN*2,height:H*zoom+BOARD_MARGIN*2}}><div className="detective-world" data-wall-background="true" style={{width:W,height:H,left:BOARD_MARGIN,top:BOARD_MARGIN,transform:`scale(${zoom})`}}>
-        <svg className="detective-strings" width={W} height={H} aria-label="Connections">
+      <div className="detective-world-size" data-wall-background="true" style={{width:W*zoom+BOARD_MARGIN*2,height:boardHeight*zoom+BOARD_MARGIN*2}}><div className="detective-world" data-wall-background="true" style={{width:W,height:boardHeight,left:BOARD_MARGIN,top:BOARD_MARGIN,transform:`scale(${zoom})`}}>
+        <svg className="detective-strings" width={W} height={boardHeight} aria-label="Connections">
           {doc.state.strings.map(edge=>{
             const from=nodes.get(edge.from),to=nodes.get(edge.to)
             if(!from||!to)return null
@@ -407,8 +427,8 @@ function DetectiveWallEditor({id,token,userId}){
             onPointerDown={event=>startConnection(event,node)}
             onClick={event=>{if(event.detail===0)connect(node)}}
           ><i className="detective-tack" aria-hidden="true"/><span className="detective-pin-plus" aria-hidden="true">+</span></button>
-          {node.type==='photo'&&<img src={node.image} alt={node.text||'Pinned photo'} draggable={false}/>}
-          {node.type!=='pin'&&<textarea aria-label={node.type==='photo'?'Photo caption':'Sticky note text'} placeholder={node.type==='photo'?'Add a caption…':'What’s the connection?'} maxLength={3000} value={node.text} onFocus={()=>{setSelected({type:'node',id:node.id});historyRef.current={undo:[...historyRef.current.undo.slice(-19),current.current],redo:[]};setHistory(historyRef.current)}} onChange={event=>changeNode(node.id,{text:event.target.value},false)}/>}
+          {node.type==='photo'&&<img src={node.image} alt={node.text||'Pinned photo'} draggable={false} style={{height:node.imageHeight??Math.max(80,node.height-90),flex:'0 0 auto'}}/>}
+          {node.type!=='pin'&&<DetectiveWallText node={node} onFit={(height,imageHeight)=>fitNodeText(node.id,height,imageHeight)} onFocus={()=>{setSelected({type:'node',id:node.id});historyRef.current={undo:[...historyRef.current.undo.slice(-19),current.current],redo:[]};setHistory(historyRef.current)}} onChange={event=>changeNode(node.id,{text:event.target.value},false)}/>}
           {node.type!=='pin'&&<button type="button" className="detective-resize" aria-label="Resize item" onPointerDown={event=>startNode(event,node,true)}/>}
         </article>)}
       </div></div>
