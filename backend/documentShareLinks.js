@@ -68,7 +68,7 @@ module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDF
         const revision = createHash('sha256').update(file.pdfData).update(JSON.stringify(annotations)).digest('hex');
         res.set('X-Share-Revision', revision);
         if (req.method === 'GET' && req.query.revision === revision && req.query.contentRevision === content) return res.status(204).end();
-        return res.json({ _id: file._id, name: file.name, originalName: file.originalName, mimeType: file.mimeType, tags: file.tags, annotations, contentRevision: content, revision,
+        return res.json({ _id: file._id, name: file.name, copiedFromName:file.copiedFromName, originalName: file.originalName, mimeType: file.mimeType, tags: file.tags, annotations, contentRevision: content, revision,
           ...(req.method === 'GET' && req.query.contentRevision !== content && { pdfData: file.pdfData.toString('base64') }) });
       }
       res.status(409).json({ message: 'Other edits are arriving. Retrying will merge your changes.' });
@@ -258,11 +258,11 @@ module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDF
     } catch (error) { res.status(400).json({ message: error.message || 'Could not edit this shared file.' }); }
   };
   app.get('/api/shared-document/:token/editor', editor((req, res, file, save, revision) => {
-    res.json({ _id: file._id, name: file.name, originalName: file.originalName, mimeType: file.mimeType, revision,role:file.shareLinkRole||'view',
+    res.json({ _id: file._id, name: file.name, copiedFromName:file.copiedFromName, originalName: file.originalName, mimeType: file.mimeType, revision,role:file.shareLinkRole||'view',
       editor: file.shareLinkRole!=='edit'?'view':editable(file) && file.pdfData.length <= 1024 * 1024 && Buffer.from(file.pdfData.toString('utf8')).equals(file.pdfData) ? 'text' : file.mimeType === 'application/pdf' || /\.pdf$/i.test(file.originalName) ? 'pdf' : 'file' });
   },false,true));
   app.get('/api/shared-document/:token/document', editor((req, res, file) => {
-    res.json({ _id: file._id, name: file.name, originalName: file.originalName, mimeType: file.mimeType, pdfData: file.pdfData.toString('base64'), annotations: file.annotations, tags: file.tags });
+    res.json({ _id: file._id, name: file.name, copiedFromName:file.copiedFromName, originalName: file.originalName, mimeType: file.mimeType, pdfData: file.pdfData.toString('base64'), annotations: file.annotations, tags: file.tags });
   }));
   app.get('/api/shared-document/:token/document/download', editor((req, res, file) => res.attachment(file.originalName).type('application/octet-stream').send(file.pdfData)));
   app.put('/api/shared-document/:token/document/annotations', editor(async (req, res, file, save) => {

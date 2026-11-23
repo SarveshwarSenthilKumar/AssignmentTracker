@@ -268,6 +268,7 @@ const pdfSchema = new mongoose.Schema({
   starred: { type: Boolean, default: false },
   mimeType: { type: String, default: 'application/pdf' },
   originalBackup: { type: Buffer, default: null },
+  copiedFromName: { type: String, default: '' },
   pdfData: {
     type: Buffer,
     required: true,
@@ -1619,6 +1620,7 @@ app.post('/api/pdfs/:id/copy', authenticateToken, async (req, res) => {
     const copy = await PDF.create({
       user,
       name: await copyName(source, includeAnnotations?'copy':'without annotations'),
+      copiedFromName: source.name,
       originalName: source.originalName,
       mimeType: source.mimeType,
       pdfData: source.pdfData,
@@ -1644,6 +1646,7 @@ app.post('/api/pdfs/:id/clean-copy', authenticateToken, async (req, res) => {
     const copy = await PDF.create({
       user: req.user.userId,
       name: await copyName(source, 'clean copy'),
+      copiedFromName: source.name,
       originalName: source.originalName,
       mimeType: source.mimeType,
       pdfData: Buffer.from(source.originalBackup || source.pdfData),

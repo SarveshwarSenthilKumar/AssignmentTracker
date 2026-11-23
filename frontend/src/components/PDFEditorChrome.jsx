@@ -1,4 +1,5 @@
 import {StudyPhoneButton} from './StudyPhone'
+import DocumentCopyNote from './DocumentCopyNote'
 import { cloneElement, isValidElement, useEffect, useId, useRef, useState } from 'react'
 import { FileText, ChevronDown, ChevronLeft, ChevronRight, Pen, Highlighter, Type, Move, Eraser, Undo, Redo, Save, Download, Files, Settings, X, Maximize, Sun, Moon, LineChart, Calculator, Plus, Trash2, RotateCw, ZoomIn, ZoomOut, MessageSquare, SlidersHorizontal, Copy, PanelLeft, Loader2, Minimize2, Maximize2, TextSelect, Ruler } from 'lucide-react'
 import PDFEraserControls from './PDFEraserControls'
@@ -179,7 +180,7 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
   </>,{custom:<span className="pc-size-label">{size} <small>pt</small></span>,left:true})
   return <div ref={root} className={`pdf-chrome is-${toolbarEdge}${view.focus?' is-focus':''}${compact?' is-compact':''}`} data-keep-text-active onKeyDown={event=>{if(open&&event.key==='Escape'){event.preventDefault();event.stopPropagation();close();trigger.current?.focus()}}}>
     {!view.focus&&<header className="pc-header">
-      {documentMenu}<div className="pc-file-name"><strong title={doc.name}>{doc.name||'Document editor'}</strong><span className={`pc-save-state is-${doc.saveStatus}`} role="status"><i/>{doc.saveStatus==='saving'?'Saving…':doc.saveStatus==='saved'?'Saved':doc.saveStatus==='offline'?'Saved on device':doc.saveStatus==='error'?'Save failed':'Unsaved'}</span></div>
+      {documentMenu}<div className="pc-file-name"><strong title={doc.name}>{doc.name||'Document editor'}</strong><DocumentCopyNote name={doc.copiedFromName}/><span className={`pc-save-state is-${doc.saveStatus}`} role="status"><i/>{doc.saveStatus==='saving'?'Saving…':doc.saveStatus==='saved'?'Saved':doc.saveStatus==='offline'?'Saved on device':doc.saveStatus==='error'?'Save failed':'Unsaved'}</span></div>
       {doc.onShare&&<button type="button" className="pc-button" onClick={doc.onShare} title="Share document"><Share2 size={16}/><span>Share</span></button>}
       {doc.onHistory&&<button type="button" className="pc-button" onClick={doc.onHistory} title="Edit history"><History size={16}/><span>History</span></button>}
       <div className="pc-history">{iconButton(Undo,'Undo (Ctrl+Z)',doc.onUndo,!doc.history.undo)}{iconButton(Redo,'Redo (Ctrl+Shift+Z)',doc.onRedo,!doc.history.redo)}</div>
