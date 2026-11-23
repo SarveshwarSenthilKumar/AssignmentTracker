@@ -67,3 +67,6 @@ add an option to create a copy with annotations and without annotations and make
 add like a friends system for docs sharing
 
 add setup where it warns you ot set up api key and other tasks
+
+ideas for detective board:
+add the ability to toggle complexity and various metrics for fake boards,  make it sdo it fills the whole boards, make it so you can change it to be green or so on for setting. add the ability to add a full screen mode and a zen mode, make it so that it goes in the iddle, add mover handles with the resizing handles
