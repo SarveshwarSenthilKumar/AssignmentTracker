@@ -24,6 +24,18 @@ const itemBounds=node=>{
 const BOARD_MARGIN=2000
 const MIN_ZOOM=.02,MAX_ZOOM=3
 const nodeFontSize=node=>node.fontSize??(node.type==='photo'?14:node.type==='pin'?12:20)
+const resizeForFont=(node,requested)=>{
+  const oldFont=nodeFontSize(node)
+  const horizontalPadding=node.type==='photo'?26:node.type==='pin'?0:30
+  const chromeHeight=node.type==='photo'?48:node.type==='pin'?0:38
+  const textWidth=Math.max(1,node.width-horizontalPadding),contentHeight=Math.max(1,node.height-chromeHeight)
+  const imageHeight=node.type==='photo'?(node.imageHeight??Math.max(80,node.height-90)):0
+  const maximum=Math.min((MAX_WALL_SIZE-horizontalPadding)/textWidth,(MAX_WALL_SIZE-chromeHeight)/contentHeight,imageHeight?MAX_WALL_SIZE/imageHeight:Infinity)
+  const ratio=Math.min(clamp(requested,MIN_TEXT_SIZE,MAX_WALL_SIZE)/oldFont,maximum)
+  const width=clamp(horizontalPadding+textWidth*ratio,1,MAX_WALL_SIZE)
+  const height=clamp(chromeHeight+contentHeight*ratio,1,MAX_WALL_SIZE)
+  return {...node,width,height,fontSize:clamp(oldFont*ratio,MIN_TEXT_SIZE,MAX_WALL_SIZE),x:clamp(node.x,0,MAX_WALL_SIZE-width),y:clamp(node.y,0,MAX_WALL_SIZE-height),...(imageHeight?{imageHeight:clamp(imageHeight*ratio,1,MAX_WALL_SIZE)}:{})}
+}
 const clamp=(n,min,max)=>Math.max(min,Math.min(max,n))
 const typing=target=>target.closest('input,textarea,select,[contenteditable="true"]')
 const wallId=()=>/^#\/detective-wall\/([a-f\d]{24})(?:\/overview)?$/i.exec(window.location.hash)?.[1]||null
@@ -283,7 +295,7 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
   }
   const changeSelectedFonts=(value,relative=false)=>{
     const ids=selectionIds(selected)
-    apply({...current.current,state:{...current.current.state,nodes:current.current.state.nodes.map(node=>ids.nodes.includes(node.id)?{...node,fontSize:clamp(relative?nodeFontSize(node)+value:value,MIN_TEXT_SIZE,MAX_WALL_SIZE)}:node),strings:current.current.state.strings.map(edge=>ids.strings.includes(edge.id)?{...edge,fontSize:clamp(relative?(edge.fontSize??15)+value:value,MIN_TEXT_SIZE,MAX_WALL_SIZE)}:edge)}})
+    apply({...current.current,state:{...current.current.state,nodes:current.current.state.nodes.map(node=>ids.nodes.includes(node.id)?resizeForFont(node,relative?nodeFontSize(node)+value:value):node),strings:current.current.state.strings.map(edge=>ids.strings.includes(edge.id)?{...edge,fontSize:clamp(relative?(edge.fontSize??15)+value:value,MIN_TEXT_SIZE,MAX_WALL_SIZE)}:edge)}})
   }
   const beginConnection=node=>{
     connectionSource.current=node.id;setConnecting(node.id);setSelected({type:'node',id:node.id})
