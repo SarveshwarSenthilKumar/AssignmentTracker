@@ -98,6 +98,7 @@ export function generateCaseBoard(){
   const events=timeline.map((text,i)=>note(`${text}\n\n${['No reply recorded.','Whose authorization?','One vehicle, two shadows.','Every clock agrees.','The wrong exit.','Original copy missing.','Line disconnected.'][i]}`,700+i*650,4030,i===3?'#ffd0c5':'#fff1a8',285,180))
   events.forEach((event,i)=>{if(i)connect(events[i-1],event,'','#a52e36',7);connect(event,clusters[(i*3)%8].junction,'','#436a86',3)})
   connect(events[3],center,'17 MINUTES','#a52e36',8)
-  note('STRING KEY\n\nRED: confirmed links\nBLUE: signals & timing\nOCHRE: working theories\n\nEverything here is fictional.\nMove the pieces. Follow a thread.',5250,1850,'#ffffff',350,290)
+  const legend=note('STRING KEY\n\nRED: confirmed links\nBLUE: signals & timing\nOCHRE: working theories\n\nEverything here is fictional.\nMove the pieces. Follow a thread.',5550,1850,'#ffffff',350,290)
+  connect(legend,cipher,'READ THE PATTERN','#ad7846',3)
   return {name:`Case 47 — The Meridian Signal (${new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'})})`,state:{nodes,strings}}
 }

@@ -4,6 +4,7 @@ import {readApiJson} from '../lib/apiResponse'
 import {downloadBlob} from '../lib/documentFormats'
 import './DetectiveWalls.css'
 import DetectiveWallText from './DetectiveWallText'
+import {isCaseBoardShortcut} from '../lib/detectiveWallDemo'
 
 const uid=()=>crypto.randomUUID()
 const colors=['#fff1a8','#ffd0c5','#ccebd2','#cce3ff','#e1d2f5','#ffffff']
@@ -19,7 +20,7 @@ const BOARD_MARGIN=2000
 const MIN_ZOOM=.02,MAX_ZOOM=3
 const clamp=(n,min,max)=>Math.max(min,Math.min(max,n))
 const typing=target=>target.closest('input,textarea,select,[contenteditable="true"]')
-const wallId=()=>/^#\/detective-wall\/([a-f\d]{24})$/i.exec(window.location.hash)?.[1]||null
+const wallId=()=>/^#\/detective-wall\/([a-f\d]{24})(?:\/overview)?$/i.exec(window.location.hash)?.[1]||null
 async function request(token,path,options={}){
   const response=await fetch(path,{...options,headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json',...options.headers}})
   const data=await readApiJson(response)
@@ -43,6 +44,7 @@ async function photoData(file){
 export default function DetectiveWalls({token,userId}){
   const [id,setId]=useState(wallId),[walls,setWalls]=useState([]),[name,setName]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[version,setVersion]=useState(0)
   const creating=useRef(false)
+  const [generating,setGenerating]=useState(false)
   const [deleting,setDeleting]=useState(null)
   useEffect(()=>{const change=()=>setId(wallId());window.addEventListener('hashchange',change);return()=>window.removeEventListener('hashchange',change)},[])
   useEffect(()=>{
@@ -61,23 +63,44 @@ export default function DetectiveWalls({token,userId}){
     creating.current=true;setBusy(true);setError('')
     try{await request(token,`/api/detective-walls/${deleting._id}`,{method:'DELETE'});try{localStorage.removeItem(`detective-wall-draft:${userId}:${deleting._id}`)}catch{}setWalls(previous=>previous.filter(wall=>wall._id!==deleting._id));setDeleting(null)}catch(error){setError(error.message)}finally{creating.current=false;setBusy(false)}
   }
-  if(id)return <DetectiveWallEditor key={id} id={id} token={token} userId={userId}/>
+  const generateDemo=async()=>{
+    if(creating.current)return
+    creating.current=true;setGenerating(true);setError('')
+    try{
+      const {generateCaseBoard}=await import('../lib/detectiveWallDemo')
+      const wall=await request(token,'/api/detective-walls',{method:'POST',body:JSON.stringify(generateCaseBoard())})
+      if(!wall._id)throw new Error('The server did not return a case board. Refresh before trying again.')
+      window.location.hash=`/detective-wall/${wall._id}/overview`
+    }catch(error){setError(error.message)}finally{creating.current=false;setGenerating(false)}
+  }
+  useEffect(()=>{
+    if(id)return
+    const key=event=>{if(!isCaseBoardShortcut(event)||typing(event.target))return;event.preventDefault();event.stopImmediatePropagation();generateDemo()}
+    window.addEventListener('keydown',key,true)
+    return()=>window.removeEventListener('keydown',key,true)
+  },[id,token])
+  if(id)return <>
+    <DetectiveWallEditor key={id} id={id} token={token} userId={userId} onGenerateDemo={generateDemo}/>
+    {generating&&<div className="detective-demo-status" role="status">Assembling the case…</div>}
+    {error&&<div className="detective-demo-status" role="alert">{error}<button type="button" onClick={()=>setError('')}>Dismiss</button></div>}
+  </>
   return <section className="detective-lobby"><div className="detective-intro"><Pin size={30}/><div><h2>Follow the threads</h2><p>Build a corkboard of ideas, evidence, characters, research, or plans. Pin up sticky notes and photos, connect them with strings, and rearrange the whole story.</p><p>Your walls save to your account. Use a mouse, touch, or a pen.</p></div></div>
     <form onSubmit={create}><label htmlFor="detective-wall-name">New detective wall</label><div><input id="detective-wall-name" placeholder="The case of…" value={name} maxLength={120} onChange={event=>setName(event.target.value)} required disabled={busy}/><button disabled={busy||!name.trim()}><Plus size={16}/>Create wall</button></div></form>
-    {error&&<p role="alert">{error} <button onClick={()=>setVersion(value=>value+1)}>Retry</button></p>}{busy&&<p role="status">Loading…</p>}
+    {error&&<p role="alert">{error} <button onClick={()=>setVersion(value=>value+1)}>Retry</button></p>}{(busy||generating)&&<p role="status">{generating?'Assembling the case…':'Loading…'}</p>}
     {deleting&&<div className="detective-notice" role="region" aria-label="Confirm wall deletion">Delete “{deleting.name}” and all its items and strings? This cannot be undone.<button disabled={busy} onClick={deleteWall}>Delete wall</button><button disabled={busy} onClick={()=>setDeleting(null)}>Cancel</button></div>}
     <div className="detective-wall-list">{walls.map(wall=><div key={wall._id}><a href={`#/detective-wall/${wall._id}`}><Pin size={22}/><strong>{wall.name}</strong><small>Updated {new Date(wall.updatedAt).toLocaleDateString()}</small><span>Open wall →</span></a><button className="detective-wall-delete" type="button" disabled={busy} aria-label={`Delete ${wall.name}`} onClick={()=>setDeleting(wall)}><Trash2 size={15}/></button></div>)}</div>
     {!busy&&!error&&!walls.length&&<p>Create a wall to start connecting your ideas.</p>}
   </section>
 }
 
-function DetectiveWallEditor({id,token,userId}){
+function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
   const [doc,setDoc]=useState(null),[loading,setLoading]=useState(true),[error,setError]=useState(''),[status,setStatus]=useState('saved'),[localBackup,setLocalBackup]=useState(null)
   const [selected,setSelected]=useState(null),[tool,setTool]=useState('pan'),[connecting,setConnecting]=useState(null),[stringColor,setStringColor]=useState('#b52b35'),[zoom,setZoom]=useState(.8),[pointer,setPointer]=useState(null),[photoBusy,setPhotoBusy]=useState(false),[history,setHistory]=useState({undo:[],redo:[]})
   const [stringWidth,setStringWidth]=useState(6)
   const [panning,setPanning]=useState(false)
   const [marquee,setMarquee]=useState(null)
   const zoomRef=useRef(.8)
+  const initialOverview=useRef(window.location.hash.endsWith('/overview'))
   const [connectionTarget,setConnectionTarget]=useState(null),[stringHint,setStringHint]=useState('')
   const connectionSource=useRef(null)
   const viewport=useRef(null),fileInput=useRef(null),current=useRef(null),revision=useRef(0),dirty=useRef(false),queue=useRef(Promise.resolve()),gesture=useRef(null),saveRef=useRef(null),timer=useRef(null),historyRef=useRef({undo:[],redo:[]}),mounted=useRef(true)
@@ -157,6 +180,12 @@ function DetectiveWallEditor({id,token,userId}){
   }
   useEffect(()=>{
     const key=event=>{
+      if(isCaseBoardShortcut(event)&&!typing(event.target)){
+        event.preventDefault();event.stopImmediatePropagation()
+        clearTimeout(timer.current)
+        save().then(saved=>{if(saved)onGenerateDemo()})
+        return
+      }
       if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='s'){event.preventDefault();saveRef.current?.();return}
       if(event.key==='Escape'){cancelGesture();cancelConnection();setSelected(null);setTool('select');setStringHint('');return}
       if(typing(event.target))return
@@ -403,6 +432,11 @@ function DetectiveWallEditor({id,token,userId}){
     zoomRef.current=next;setZoom(next)
     requestAnimationFrame(()=>view.scrollTo(Math.max(0,BOARD_MARGIN+(left+right)*next/2-view.clientWidth/2),Math.max(0,BOARD_MARGIN+(top+bottom)*next/2-view.clientHeight/2)))
   }
+  useEffect(()=>{
+    if(loading||!current.current||!initialOverview.current)return
+    const frame=requestAnimationFrame(()=>{fit(false);initialOverview.current=false})
+    return()=>cancelAnimationFrame(frame)
+  },[loading])
   const leave=async()=>{clearTimeout(timer.current);if(await save())window.location.hash='/detective-wall'}
   const exportWall=()=>downloadBlob(new Blob([JSON.stringify(current.current,null,2)],{type:'application/json'}),`${current.current.name.replace(/[<>:"/\\|?*]/g,'-')||'Detective wall'}.json`)
   if(loading)return <p role="status">Opening detective wall…</p>

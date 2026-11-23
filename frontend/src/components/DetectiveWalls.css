@@ -48,6 +48,8 @@
 .tool-pan .detective-resize,.tool-string .detective-resize{display:none}
 .detective-item.is-pin .detective-connect-pin{top:calc(35% - 22px)}
 .detective-item.is-pin .detective-connect-pin .detective-tack{width:var(--tack-size,24px);height:var(--tack-size,24px);top:calc(22px - var(--tack-size,24px)/2);left:calc(50% - var(--tack-size,24px)/2)}
+.detective-demo-status{position:fixed;left:50%;top:max(16px,env(safe-area-inset-top));transform:translateX(-50%);z-index:150;display:flex;align-items:center;gap:12px;max-width:calc(100vw - 32px);padding:12px 18px;border:1px solid var(--border-strong);border-radius:10px;background:var(--surface-panel);color:var(--text-primary);box-shadow:0 8px 28px #0005;font-size:13px}
+.detective-demo-status button{padding:6px 10px;border:1px solid var(--border-strong);border-radius:6px;background:var(--surface-raised);color:var(--text-primary);cursor:pointer}
 .detective-world-size{overflow:hidden}
 .detective-viewport{overflow:scroll;scrollbar-width:auto;scrollbar-color:var(--accent-solid) #61472f;scrollbar-gutter:stable}
 .detective-viewport::-webkit-scrollbar{width:16px;height:16px}.detective-viewport::-webkit-scrollbar-track,.detective-viewport::-webkit-scrollbar-corner{background:#61472f}.detective-viewport::-webkit-scrollbar-thumb{background:var(--accent-solid);border:3px solid #61472f;border-radius:9px}

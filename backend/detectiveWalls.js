@@ -38,7 +38,9 @@ module.exports=function registerDetectiveWalls(app,auth,{mongoose}){
   app.post('/api/detective-walls',auth,async(req,res)=>{
     const name=req.body?.name;
     if(typeof name!=='string'||!name.trim()||name.trim().length>120)return res.status(400).json({message:'Enter a wall name up to 120 characters.'});
-    try{res.status(201).json(await Wall.create({user:req.user.userId,name:name.trim()}))}catch{res.status(503).json({message:'Could not create the wall.'})}
+    let state
+    if(req.body.state!==undefined){try{state=clean(req.body.state)}catch(error){return res.status(400).json({message:error.message})}}
+    try{res.status(201).json(await Wall.create({user:req.user.userId,name:name.trim(),...(state?{state}:{})}))}catch{res.status(503).json({message:'Could not create the wall.'})}
   });
   app.get('/api/detective-walls/:id',auth,async(req,res)=>{
     res.set('Cache-Control','private, no-store');
