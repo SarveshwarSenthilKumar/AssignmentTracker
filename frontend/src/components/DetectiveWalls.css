@@ -33,6 +33,8 @@
 .detective-strings g:hover>.detective-string{filter:drop-shadow(0 0 4px #fff)}.detective-strings text{pointer-events:auto;cursor:pointer}
 .detective-connection-summary{max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-secondary);font-size:11px}
 @media(hover:none){.detective-pin-plus{opacity:1}}
+.detective-world,.detective-world-size{cursor:grab}
+.detective-viewport.is-panning,.detective-viewport.is-panning *{cursor:grabbing!important;user-select:none!important}
 .detective-world-size{overflow:hidden}
 .detective-viewport{overflow:scroll;scrollbar-width:auto;scrollbar-color:var(--accent-solid) #61472f;scrollbar-gutter:stable}
 .detective-viewport::-webkit-scrollbar{width:16px;height:16px}.detective-viewport::-webkit-scrollbar-track,.detective-viewport::-webkit-scrollbar-corner{background:#61472f}.detective-viewport::-webkit-scrollbar-thumb{background:var(--accent-solid);border:3px solid #61472f;border-radius:9px}

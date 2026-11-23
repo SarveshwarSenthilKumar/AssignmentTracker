@@ -66,6 +66,7 @@ function DetectiveWallEditor({id,token,userId}){
   const [doc,setDoc]=useState(null),[loading,setLoading]=useState(true),[error,setError]=useState(''),[status,setStatus]=useState('saved'),[localBackup,setLocalBackup]=useState(null)
   const [selected,setSelected]=useState(null),[tool,setTool]=useState('select'),[connecting,setConnecting]=useState(null),[stringColor,setStringColor]=useState('#b52b35'),[zoom,setZoom]=useState(.8),[pointer,setPointer]=useState(null),[photoBusy,setPhotoBusy]=useState(false),[history,setHistory]=useState({undo:[],redo:[]})
   const [stringWidth,setStringWidth]=useState(6)
+  const [panning,setPanning]=useState(false)
   const zoomRef=useRef(.8)
   const [connectionTarget,setConnectionTarget]=useState(null),[stringHint,setStringHint]=useState('')
   const connectionSource=useRef(null)
@@ -190,7 +191,7 @@ function DetectiveWallEditor({id,token,userId}){
     return nearest
   }
   const startConnection=(event,node)=>{
-    event.stopPropagation();if(event.button!==0)return
+    event.stopPropagation();if(event.button===1){startPan(event);return}if(event.button!==0)return
     if(tool==='pan'){startPan(event);return}
     event.preventDefault()
     if(connectionSource.current&&connectionSource.current!==node.id){completeConnection(connectionSource.current,node.id);return}
@@ -200,7 +201,7 @@ function DetectiveWallEditor({id,token,userId}){
     event.currentTarget.setPointerCapture(event.pointerId)
   }
   const startNode=(event,node,resize=false)=>{
-    event.stopPropagation();if(event.button!==0)return
+    event.stopPropagation();if(event.button===1){startPan(event);return}if(event.button!==0)return
     if(tool==='string'||connectionSource.current){event.preventDefault();connect(node);return}
     if(tool==='pan'){startPan(event);return}
     event.preventDefault();setSelected({type:'node',id:node.id});setStringHint('')
@@ -209,7 +210,9 @@ function DetectiveWallEditor({id,token,userId}){
   }
   const startPan=event=>{
     if(event.button!==0&&event.button!==1)return
-    event.preventDefault();gesture.current={kind:'pan',x:event.clientX,y:event.clientY,left:viewport.current.scrollLeft,top:viewport.current.scrollTop,pointerId:event.pointerId};event.currentTarget.setPointerCapture(event.pointerId)
+    event.preventDefault();setPanning(true)
+    gesture.current={kind:'pan',x:event.clientX,y:event.clientY,left:viewport.current.scrollLeft,top:viewport.current.scrollTop,pointerId:event.pointerId}
+    viewport.current.setPointerCapture(event.pointerId)
   }
   const move=event=>{
     if(connectionSource.current){
@@ -228,6 +231,7 @@ function DetectiveWallEditor({id,token,userId}){
     const drag=gesture.current
     if(!drag||drag.pointerId!==event.pointerId)return
     gesture.current=null
+    if(drag.kind==='pan')setPanning(false)
     if(drag.kind!=='connection')return
     if(drag.moved){
       const target=targetAt(event)
@@ -235,7 +239,7 @@ function DetectiveWallEditor({id,token,userId}){
       else{cancelConnection();setStringHint('No connection made. Drop onto another item, or click a pin and then another item.')}
     }else if(drag.previous)cancelConnection()
   }
-  const cancelGesture=()=>{if(gesture.current?.kind==='connection')cancelConnection();gesture.current=null}
+  const cancelGesture=()=>{if(gesture.current?.kind==='connection')cancelConnection();gesture.current=null;setPanning(false)}
   const zoomTo=(value,location=null)=>{
     const view=viewport.current;if(!view)return
     const next=clamp(value,MIN_ZOOM,MAX_ZOOM),rect=view.getBoundingClientRect()
@@ -310,7 +314,7 @@ function DetectiveWallEditor({id,token,userId}){
     {error&&<div className="detective-notice" role="alert">{error}<button type="button" onClick={save}>Retry save</button><button type="button" onClick={()=>setError('')} aria-label="Dismiss error"><X size={15}/></button></div>}
     {localBackup&&<div className="detective-notice">An unsaved local draft is available.<button type="button" onClick={()=>{apply(localBackup);setLocalBackup(null)}}>Restore draft</button><button type="button" onClick={()=>{setLocalBackup(null);try{localStorage.removeItem(cacheKey)}catch{}}}>Keep server version</button></div>}
     <div className={`detective-hint${connecting?' is-connecting':''}`}>
-      <span role="status">{connecting?`Connect “${nodes.get(connecting)?.text.slice(0,35)||nodes.get(connecting)?.type||'item'}” → ${connectionTarget?'Release or click to connect.':'Choose another item, or drag to its pin.'}`:tool==='string'?'Choose the first item, then the second. You can also drag from any pin to another item.':stringHint|| (tool==='pan'?'Drag to pan · Wheel to zoom · Use the scrollbars to move around the board.':'Wheel to zoom · Use the scrollbars to move up, down or sideways · Drag a pin to connect items')}</span>
+      <span role="status">{connecting?`Connect “${nodes.get(connecting)?.text.slice(0,35)||nodes.get(connecting)?.type||'item'}” → ${connectionTarget?'Release or click to connect.':'Choose another item, or drag to its pin.'}`:tool==='string'?'Choose the first item, then the second. You can also drag from any pin to another item.':stringHint|| (tool==='pan'?'Drag to pan · Wheel to zoom · Use the scrollbars to move around the board.':'Drag empty board space to pan · Wheel to zoom · Drag a pin to connect items')}</span>
       {(connecting||tool==='string')&&<button type="button" onClick={()=>{cancelConnection();setTool('select');setStringHint('')}}>Cancel connection <span aria-hidden="true">Esc</span></button>}
     </div>
     <div className="detective-board-zoom" role="group" aria-label="Board zoom">
@@ -321,7 +325,7 @@ function DetectiveWallEditor({id,token,userId}){
       <button type="button" onClick={()=>fit(true)}>Whole board</button>
       <button type="button" onClick={()=>zoomTo(1)}>100%</button>
     </div>
-    <div ref={viewport} className={`detective-viewport tool-${tool}`} tabIndex={0} aria-label="Corkboard. Use the toolbar to add items or pan." onPointerDown={event=>{if(event.button===1||tool==='pan')startPan(event);else if(event.target===event.currentTarget||event.target.dataset.wallBackground){setSelected(null);cancelConnection();setStringHint('')}}} onPointerMove={move} onPointerUp={end} onPointerCancel={cancelGesture} onLostPointerCapture={cancelGesture} onDragOver={event=>{if(event.dataTransfer.types.includes('Files'))event.preventDefault()}} onDrop={event=>{event.preventDefault();addPhoto([...event.dataTransfer.files].find(file=>file.type.startsWith('image/')))}} onPaste={event=>{if(typing(event.target))return;const file=[...event.clipboardData.files].find(file=>file.type.startsWith('image/'));if(file){event.preventDefault();addPhoto(file)}}}>
+    <div ref={viewport} className={`detective-viewport tool-${tool}${panning?' is-panning':'}`} tabIndex={0} aria-label="Corkboard. Drag empty space to pan; use the wheel to zoom." onPointerDown={event=>{if(event.button===1||tool==='pan')startPan(event);else if(event.button===0&&(event.target===event.currentTarget||event.target.dataset.wallBackground)){setSelected(null);cancelConnection();setStringHint('');startPan(event)}}} onPointerMove={move} onPointerUp={end} onPointerCancel={cancelGesture} onLostPointerCapture={cancelGesture} onDragOver={event=>{if(event.dataTransfer.types.includes('Files'))event.preventDefault()}} onDrop={event=>{event.preventDefault();addPhoto([...event.dataTransfer.files].find(file=>file.type.startsWith('image/')))}} onPaste={event=>{if(typing(event.target))return;const file=[...event.clipboardData.files].find(file=>file.type.startsWith('image/'));if(file){event.preventDefault();addPhoto(file)}}}>
       <div className="detective-world-size" data-wall-background="true" style={{width:W*zoom,height:H*zoom}}><div className="detective-world" data-wall-background="true" style={{width:W,height:H,transform:`scale(${zoom})`}}>
         <svg className="detective-strings" width={W} height={H} aria-label="Connections">
           {doc.state.strings.map(edge=>{
