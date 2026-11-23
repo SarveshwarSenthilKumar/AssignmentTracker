@@ -214,7 +214,34 @@ function DetectiveWallEditor({id,token,userId}){
     <div className="detective-hint" role="status">{tool==='string'?(connecting?'Now click another item to connect it. Escape cancels.':'Click two thumbtacks or item headers to connect them with string.'):tool==='pan'?'Drag the wall to pan.':'Drag item headers to move · Drag corners to resize · Click text to edit · Drop or paste a photo · Ctrl/⌘ + wheel to zoom'}</div>
     <div ref={viewport} className={`detective-viewport tool-${tool}`} tabIndex={0} aria-label="Corkboard. Use the toolbar to add items or pan." onPointerDown={event=>{if(event.button===1||tool==='pan')startPan(event);else if(event.target===event.currentTarget||event.target.dataset.wallBackground){setSelected(null);setConnecting(null)}}} onPointerMove={move} onPointerUp={end} onPointerCancel={end} onLostPointerCapture={end} onDragOver={event=>{if(event.dataTransfer.types.includes('Files'))event.preventDefault()}} onDrop={event=>{event.preventDefault();addPhoto([...event.dataTransfer.files].find(file=>file.type.startsWith('image/')))}} onPaste={event=>{if(typing(event.target))return;const file=[...event.clipboardData.files].find(file=>file.type.startsWith('image/'));if(file){event.preventDefault();addPhoto(file)}}}>
       <div className="detective-world-size" data-wall-background="true" style={{width:W*zoom,height:H*zoom}}><div className="detective-world" data-wall-background="true" style={{width:W,height:H,transform:`scale(${zoom})`}}>
-        <svg className="detective-strings" width={W} height={H} aria-label="Connections">{doc.state.strings.map(edge=>{const from=nodes.get(edge.from),to=nodes.get(edge.to);if(!from||!to)return null;const a=anchor(from),b=anchor(to),d=path(a,b);return <g key={edge.id} className={selected?.id===edge.id?'is-selected':''}><path className="detective-string-shadow" d={d}/><path className="detective-string" d={d} stroke={edge.color}/><path className="detective-string-hit" d={d} tabIndex={0} role="button" aria-label={edge.text||`String between ${from.text.slice(0,30)||from.type} and ${to.text.slice(0,30)||to.type}`} onPointerDown={event=>{if(tool==='pan')return;event.stopPropagation();setSelected({type:'string',id:edge.id})}} onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();setSelected({type:'string',id:edge.id})}}/>{edge.text&&<text x={(a.x+b.x)/2} y={(a.y+b.y)/2+Math.min(140,Math.abs(a.x-b.x)*.12+35)/2-9}>{edge.text}</text>}</g>})}{start&&pointer&&<path className="detective-string-preview" d={path(start,pointer)} stroke={stringColor}/>}</svg>
+        <svg className="detective-strings" width={W} height={H} aria-label="Connections">
+          {doc.state.strings.map(edge=>{
+            const from=nodes.get(edge.from),to=nodes.get(edge.to)
+            if(!from||!to)return null
+            const a=anchor(from),b=anchor(to),d=path(a,b)
+            return <g key={edge.id} className={selected?.id===edge.id?'is-selected':''}>
+              <path className="detective-string-shadow" d={d}/>
+              <path className="detective-string" d={d} stroke={edge.color}/>
+              <path
+                className="detective-string-hit" d={d} tabIndex={0} role="button"
+                aria-label={edge.text||`String between ${from.text.slice(0,30)||from.type} and ${to.text.slice(0,30)||to.type}`}
+                onPointerDown={event=>{
+                  if(tool==='pan')return
+                  event.stopPropagation()
+                  setSelected({type:'string',id:edge.id})
+                }}
+                onKeyDown={event=>{
+                  if(event.key==='Enter'||event.key===' '){
+                    event.preventDefault()
+                    setSelected({type:'string',id:edge.id})
+                  }
+                }}
+              />
+              {edge.text&&<text x={(a.x+b.x)/2} y={(a.y+b.y)/2+Math.min(140,Math.abs(a.x-b.x)*.12+35)/2-9}>{edge.text}</text>}
+            </g>
+          })}
+          {start&&pointer&&<path className="detective-string-preview" d={path(start,pointer)} stroke={stringColor}/>}
+        </svg>
         {doc.state.nodes.map(node=><article key={node.id} className={`detective-item is-${node.type}${selected?.id===node.id?' is-selected':''}${connecting===node.id?' is-connecting':''}`} style={{left:node.x,top:node.y,width:node.width,height:node.height,background:node.color,'--tack-color':node.type==='pin'?node.color:'#c83431',transform:`rotate(${node.rotation}deg)`}} onPointerDown={event=>{if(tool==='string'){event.preventDefault();event.stopPropagation();connect(node)}else if(tool!=='pan')setSelected({type:'node',id:node.id})}}>
           <button type="button" className="detective-item-grip" aria-label={`Move or connect ${node.type}: ${node.text.slice(0,60)||'Untitled'}`} onPointerDown={event=>startNode(event,node)} onClick={event=>{if(event.detail===0&&tool==='string')connect(node)}}><i className="detective-tack"/><span>{node.type==='photo'?'PHOTO':node.type==='pin'?(node.text||'PIN'):'NOTE'}</span></button>
           {node.type==='photo'&&<img src={node.image} alt={node.text||'Pinned photo'} draggable={false}/>}
