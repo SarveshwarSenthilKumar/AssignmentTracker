@@ -975,7 +975,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
           sharedRevision.current = data.revision
         }
         setPdfData(data)
-        if(data.tags?.includes('handwritten-notebook'))setCurrentTool('pen')
+        if(data.documentKind==='whiteboard'||data.tags?.includes('handwritten-notebook'))setCurrentTool('pen')
 
         let fontFile
         if (data.pdfData) {

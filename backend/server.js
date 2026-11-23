@@ -269,6 +269,7 @@ const pdfSchema = new mongoose.Schema({
   mimeType: { type: String, default: 'application/pdf' },
   originalBackup: { type: Buffer, default: null },
   copiedFromName: { type: String, default: '' },
+  documentKind: { type: String, enum: ['document','whiteboard'], default: 'document' },
   pdfData: {
     type: Buffer,
     required: true,
@@ -1621,6 +1622,7 @@ app.post('/api/pdfs/:id/copy', authenticateToken, async (req, res) => {
       user,
       name: await copyName(source, includeAnnotations?'copy':'without annotations'),
       copiedFromName: source.name,
+      documentKind: source.documentKind,
       originalName: source.originalName,
       mimeType: source.mimeType,
       pdfData: source.pdfData,
@@ -1647,6 +1649,7 @@ app.post('/api/pdfs/:id/clean-copy', authenticateToken, async (req, res) => {
       user: req.user.userId,
       name: await copyName(source, 'clean copy'),
       copiedFromName: source.name,
+      documentKind: source.documentKind,
       originalName: source.originalName,
       mimeType: source.mimeType,
       pdfData: Buffer.from(source.originalBackup || source.pdfData),
@@ -1663,10 +1666,10 @@ app.post('/api/pdfs/:id/clean-copy', authenticateToken, async (req, res) => {
 
 // Upload a new PDF
 app.post('/api/pdfs/blank-notebook', authenticateToken, async (req, res) => {
-  const { name, pageCount, pageSize, folderId, plainPdf = false } = req.body || {};
+  const { name, pageCount, pageSize, folderId, plainPdf = false, whiteboard = false } = req.body || {};
   if (typeof name !== 'string' || !name.trim() || name.length > 120 ||
       !Number.isInteger(pageCount) || pageCount < 1 || pageCount > 500 ||
-      !['a4', 'letter'].includes(pageSize) || typeof plainPdf !== 'boolean') {
+      !['a4', 'letter'].includes(pageSize) || typeof plainPdf !== 'boolean' || typeof whiteboard !== 'boolean' || (whiteboard && pageCount !== 1)) {
     return res.status(400).json({ message: 'Enter a notebook name, select a page size, and choose 1–500 pages.' });
   }
   try {
@@ -1676,7 +1679,7 @@ app.post('/api/pdfs/blank-notebook', authenticateToken, async (req, res) => {
     }
     const { PDFDocument, PageSizes } = require('pdf-lib');
     const notebook = await PDFDocument.create();
-    const size = pageSize === 'a4' ? PageSizes.A4 : PageSizes.Letter;
+    const size = whiteboard ? [2400,1600] : pageSize === 'a4' ? PageSizes.A4 : PageSizes.Letter;
     for (let index = 0; index < pageCount; index++) notebook.addPage(size);
     notebook.setTitle(name.trim());
     notebook.setCreator('Assignment Tracker');
@@ -1687,7 +1690,8 @@ app.post('/api/pdfs/blank-notebook', authenticateToken, async (req, res) => {
       mimeType: 'application/pdf',
       user,
       pdfFolder: folderId || null,
-      tags: plainPdf ? [] : ['notes', 'handwritten-notebook']
+      documentKind: whiteboard ? 'whiteboard' : 'document',
+      tags: whiteboard ? ['whiteboard'] : plainPdf ? [] : ['notes', 'handwritten-notebook']
     });
     const metadata = file.toObject();
     delete metadata.pdfData;
