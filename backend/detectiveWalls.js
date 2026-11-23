@@ -6,6 +6,7 @@ module.exports=function registerDetectiveWalls(app,auth,{mongoose}){
     revision:{type:Number,default:0}
   },{timestamps:true}));
   const validId=id=>typeof id==='string'&&mongoose.isValidObjectId(id);
+  const renderLimit=1000000; // Browser layout safety, shared with detectiveWallLimits.js.
   const color=value=>typeof value==='string'&&/^#[a-f\d]{6}$/i.test(value);
   const number=(value,min,max)=>typeof value==='number'&&Number.isFinite(value)&&value>=min&&value<=max;
   function clean(state){
@@ -13,13 +14,13 @@ module.exports=function registerDetectiveWalls(app,auth,{mongoose}){
     if(Buffer.byteLength(JSON.stringify(state))>10*1024*1024)throw new Error('This wall exceeds 10 MB. Use smaller photos or another wall.');
     const ids=new Set(),key=value=>typeof value==='string'&&/^[a-z\d_-]{1,80}$/i.test(value);
     const nodes=state.nodes.map(node=>{
-      if(!node||!key(node.id)||ids.has(node.id)||!['note','photo','pin'].includes(node.type)||!number(node.x,0,12000)||!number(node.y,0,100000)||!number(node.width,60,6000)||!number(node.height,60,100000)||!number(node.rotation,-30,30)||!color(node.color)||typeof node.text!=='string'||node.text.length>3000)throw new Error('An item has invalid content or dimensions.');
+      if(!node||!key(node.id)||ids.has(node.id)||!['note','photo','pin'].includes(node.type)||!number(node.x,0,renderLimit)||!number(node.y,0,renderLimit)||!number(node.width,1,renderLimit)||!number(node.height,1,renderLimit)||!number(node.rotation,-30,30)||!color(node.color)||typeof node.text!=='string'||node.text.length>3000)throw new Error('An item has invalid content or dimensions.');
       ids.add(node.id);
       const item={id:node.id,type:node.type,x:node.x,y:node.y,width:node.width,height:node.height,rotation:node.rotation,color:node.color,text:node.text};
       if(node.paperStyle!==undefined){if(!['sticky','paper','receipt','index','torn','photo'].includes(node.paperStyle))throw new Error('Invalid paper style.');item.paperStyle=node.paperStyle;}
-      if(node.fontSize!==undefined){if(!number(node.fontSize,8,96))throw new Error('Invalid text size.');item.fontSize=node.fontSize;}
+      if(node.fontSize!==undefined){if(!number(node.fontSize,.1,renderLimit))throw new Error('Invalid text size.');item.fontSize=node.fontSize;}
       if(node.type==='photo'){
-        if(node.imageHeight!==undefined){if(!number(node.imageHeight,80,6000))throw new Error('Invalid photo height.');item.imageHeight=node.imageHeight;}
+        if(node.imageHeight!==undefined){if(!number(node.imageHeight,1,renderLimit))throw new Error('Invalid photo height.');item.imageHeight=node.imageHeight;}
         if(typeof node.image!=='string'||node.image.length>2800000||!/^data:image\/(?:png|jpeg|webp);base64,[a-z\d+/]+=*$/i.test(node.image))throw new Error('Photos must be PNG, JPEG or WebP images smaller than 2 MB.');
         item.image=node.image;
       }
@@ -27,10 +28,10 @@ module.exports=function registerDetectiveWalls(app,auth,{mongoose}){
     });
     const edges=new Set();
     const strings=state.strings.map(edge=>{
-      if(!number(edge?.width??6,1,24))throw new Error('Choose a string thickness between 1 and 24.');
+      if(!number(edge?.width??6,.1,renderLimit))throw new Error('Choose a positive, renderable string thickness.');
       if(!edge||!key(edge.id)||edges.has(edge.id)||!ids.has(edge.from)||!ids.has(edge.to)||edge.from===edge.to||!color(edge.color)||typeof edge.text!=='string'||edge.text.length>160)throw new Error('A string has invalid endpoints or content.');
-      if(edge.slack!==undefined&&!number(edge.slack,-250,450))throw new Error('Invalid string curve.');
-      if(edge.fontSize!==undefined&&!number(edge.fontSize,8,96))throw new Error('Invalid string label size.');
+      if(edge.slack!==undefined&&!number(edge.slack,-renderLimit,renderLimit))throw new Error('Invalid string curve.');
+      if(edge.fontSize!==undefined&&!number(edge.fontSize,.1,renderLimit))throw new Error('Invalid string label size.');
       edges.add(edge.id);return {id:edge.id,from:edge.from,to:edge.to,color:edge.color,text:edge.text,width:edge.width??6,...(edge.slack!==undefined?{slack:edge.slack}:{}),...(edge.fontSize!==undefined?{fontSize:edge.fontSize}:{})};
     });
     return {nodes,strings};
