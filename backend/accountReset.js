@@ -18,6 +18,7 @@ async function resetAccountWorkspace({ userId, models, startSession }) {
       if (models.EventAttendance) await models.EventAttendance.deleteMany(owner, {session});
       if (models.StudyItem) await models.StudyItem.deleteMany(owner, {session});
       if (models.SavedJob) await models.SavedJob.deleteMany(owner, {session});
+      if (models.DetectiveWall) await models.DetectiveWall.deleteMany(owner, {session});
       if (models.ResumeDraft) await models.ResumeDraft.deleteMany(owner, {session});
       if (models.DocumentSearchIndex) await models.DocumentSearchIndex.deleteMany(owner, {session});
       if (models.CoverLetterDraft) await models.CoverLetterDraft.deleteMany(owner, {session});
