@@ -47,6 +47,7 @@ import useTaskPointerDrag from './hooks/useTaskPointerDrag'
 import ConfirmationSettings from './components/ConfirmationSettings'
 import { readApiJson } from './lib/apiResponse'
 import AccountAISettings from './components/AccountAISettings'
+import SetupBanner from './components/SetupBanner'
 import WorkflowWorkspace from './components/WorkflowWorkspace'
 import AssistantChat from './components/AssistantChat'
 import { SHORTCUTS, matchesShortcut } from './lib/shortcuts'
@@ -1691,6 +1692,7 @@ function App() {
   return (
     <div className="platform-viewport min-h-screen py-8 px-4">
       <div ref={pageFindScope} className="app-shell w-full max-w-[1440px] mx-auto">
+        <SetupBanner key={user?.id} token={token} userId={user?.id} page={page} canvasStatus={canvasStatus}/>
         <SectionLock key={token} section={page} token={token}
           renderNavigation={lockActions => <AppNavigation page={page} user={user} lockActions={lockActions} onSignOut={() => selectedPDF ? closeEditorForNavigation(selectedPDF, logout) : logout()}/>}
           fileId={selectedPDF} onLeaveFile={() => setSelectedPDF(null)}
