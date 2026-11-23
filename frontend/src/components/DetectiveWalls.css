@@ -34,6 +34,8 @@
 .detective-connection-summary{max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-secondary);font-size:11px}
 @media(hover:none){.detective-pin-plus{opacity:1}}
 .detective-world-size{overflow:hidden}
+.detective-viewport{overflow:scroll;scrollbar-width:auto;scrollbar-color:var(--accent-solid) #61472f;scrollbar-gutter:stable}
+.detective-viewport::-webkit-scrollbar{width:16px;height:16px}.detective-viewport::-webkit-scrollbar-track,.detective-viewport::-webkit-scrollbar-corner{background:#61472f}.detective-viewport::-webkit-scrollbar-thumb{background:var(--accent-solid);border:3px solid #61472f;border-radius:9px}
 .detective-board-zoom{display:flex;align-items:center;gap:7px;flex-wrap:wrap;flex-shrink:0;padding:7px 14px;border-bottom:1px solid var(--border-strong);background:var(--surface-panel)}
 .detective-board-zoom label{display:flex;align-items:center;gap:9px;font-size:11px;color:var(--text-secondary)}.detective-board-zoom input[type=range]{width:clamp(80px,16vw,190px);accent-color:var(--accent-solid)}.detective-board-zoom output{width:38px;text-align:right;font-variant-numeric:tabular-nums;color:var(--text-primary)}
 .detective-board-zoom button{min-height:34px;padding:6px 10px}

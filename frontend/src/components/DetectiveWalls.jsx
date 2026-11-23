@@ -246,7 +246,11 @@ function DetectiveWallEditor({id,token,userId}){
   }
   useEffect(()=>{
     const view=viewport.current;if(!view)return
-    const wheel=event=>{if(event.ctrlKey||event.metaKey){event.preventDefault();zoomTo(zoomRef.current*Math.exp(-event.deltaY*.002),{x:event.clientX,y:event.clientY})}}
+    const wheel=event=>{
+      event.preventDefault()
+      const delta=event.deltaY*(event.deltaMode===1?16:event.deltaMode===2?view.clientHeight:1)
+      if(delta)zoomTo(zoomRef.current*Math.exp(-delta*.002),{x:event.clientX,y:event.clientY})
+    }
     let pinch=null
     const touchStart=event=>{
       if(event.touches.length!==2)return
@@ -306,7 +310,7 @@ function DetectiveWallEditor({id,token,userId}){
     {error&&<div className="detective-notice" role="alert">{error}<button type="button" onClick={save}>Retry save</button><button type="button" onClick={()=>setError('')} aria-label="Dismiss error"><X size={15}/></button></div>}
     {localBackup&&<div className="detective-notice">An unsaved local draft is available.<button type="button" onClick={()=>{apply(localBackup);setLocalBackup(null)}}>Restore draft</button><button type="button" onClick={()=>{setLocalBackup(null);try{localStorage.removeItem(cacheKey)}catch{}}}>Keep server version</button></div>}
     <div className={`detective-hint${connecting?' is-connecting':''}`}>
-      <span role="status">{connecting?`Connect “${nodes.get(connecting)?.text.slice(0,35)||nodes.get(connecting)?.type||'item'}” → ${connectionTarget?'Release or click to connect.':'Choose another item, or drag to its pin.'}`:tool==='string'?'Choose the first item, then the second. You can also drag from any pin to another item.':stringHint|| (tool==='pan'?'Drag the wall to pan.':'Drag headers to move · Drag a pin to another item to connect · Click any string to edit it · Ctrl/⌘ + wheel to zoom')}</span>
+      <span role="status">{connecting?`Connect “${nodes.get(connecting)?.text.slice(0,35)||nodes.get(connecting)?.type||'item'}” → ${connectionTarget?'Release or click to connect.':'Choose another item, or drag to its pin.'}`:tool==='string'?'Choose the first item, then the second. You can also drag from any pin to another item.':stringHint|| (tool==='pan'?'Drag to pan · Wheel to zoom · Use the scrollbars to move around the board.':'Wheel to zoom · Use the scrollbars to move up, down or sideways · Drag a pin to connect items')}</span>
       {(connecting||tool==='string')&&<button type="button" onClick={()=>{cancelConnection();setTool('select');setStringHint('')}}>Cancel connection <span aria-hidden="true">Esc</span></button>}
     </div>
     <div className="detective-board-zoom" role="group" aria-label="Board zoom">
