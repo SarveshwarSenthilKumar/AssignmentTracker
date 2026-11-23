@@ -9,6 +9,11 @@ const uid=()=>crypto.randomUUID()
 const colors=['#fff1a8','#ffd0c5','#ccebd2','#cce3ff','#e1d2f5','#ffffff']
 const W=12000,H=8000
 const wallHeight=state=>Math.max(H,...state.nodes.map(node=>node.y+node.height+80))
+const pinPosition=node=>{const angle=node.rotation*Math.PI/180,dy=14-node.height/2;return {x:node.x+node.width/2-dy*Math.sin(angle),y:node.y+node.height/2+dy*Math.cos(angle)}}
+const itemBounds=node=>{
+  const angle=node.rotation*Math.PI/180,w=Math.abs(node.width*Math.cos(angle))+Math.abs(node.height*Math.sin(angle)),h=Math.abs(node.width*Math.sin(angle))+Math.abs(node.height*Math.cos(angle))
+  return {left:node.x+node.width/2-w/2,top:node.y+node.height/2-h/2,right:node.x+node.width/2+w/2,bottom:node.y+node.height/2+h/2}
+}
 const BOARD_MARGIN=2000
 const MIN_ZOOM=.02,MAX_ZOOM=3
 const clamp=(n,min,max)=>Math.max(min,Math.min(max,n))
@@ -70,6 +75,7 @@ function DetectiveWallEditor({id,token,userId}){
   const [selected,setSelected]=useState(null),[tool,setTool]=useState('pan'),[connecting,setConnecting]=useState(null),[stringColor,setStringColor]=useState('#b52b35'),[zoom,setZoom]=useState(.8),[pointer,setPointer]=useState(null),[photoBusy,setPhotoBusy]=useState(false),[history,setHistory]=useState({undo:[],redo:[]})
   const [stringWidth,setStringWidth]=useState(6)
   const [panning,setPanning]=useState(false)
+  const [marquee,setMarquee]=useState(null)
   const zoomRef=useRef(.8)
   const [connectionTarget,setConnectionTarget]=useState(null),[stringHint,setStringHint]=useState('')
   const connectionSource=useRef(null)
@@ -137,7 +143,9 @@ function DetectiveWallEditor({id,token,userId}){
   const remove=()=>{
     if(!selected)return
     const state=current.current.state
-    apply({...current.current,state:{nodes:state.nodes.filter(node=>selected.type!=='node'||node.id!==selected.id),strings:state.strings.filter(edge=>selected.type==='node'?edge.from!==selected.id&&edge.to!==selected.id:edge.id!==selected.id)}})
+    const nodeIds=new Set(selected.type==='group'?selected.nodes:selected.type==='node'?[selected.id]:[])
+    const stringIds=new Set(selected.type==='group'?selected.strings:selected.type==='string'?[selected.id]:[])
+    apply({...current.current,state:{nodes:state.nodes.filter(node=>!nodeIds.has(node.id)),strings:state.strings.filter(edge=>!nodeIds.has(edge.from)&&!nodeIds.has(edge.to)&&!stringIds.has(edge.id))}})
     setSelected(null);cancelConnection()
   }
   const undo=redo=>{
@@ -149,11 +157,15 @@ function DetectiveWallEditor({id,token,userId}){
   useEffect(()=>{
     const key=event=>{
       if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='s'){event.preventDefault();saveRef.current?.();return}
-      if(event.key==='Escape'){cancelConnection();setSelected(null);setTool('select');setStringHint('');return}
+      if(event.key==='Escape'){cancelGesture();cancelConnection();setSelected(null);setTool('select');setStringHint('');return}
       if(typing(event.target))return
       if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='z'){event.preventDefault();undo(event.shiftKey)}
       else if(event.key==='Delete'||event.key==='Backspace'){event.preventDefault();remove()}
-      else if(selected?.type==='node'&&['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key)){
+      else if(selected?.type==='group'&&['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key)){
+        event.preventDefault();const step=event.shiftKey?20:5
+        const nodes=current.current.state.nodes.filter(node=>selected.nodes.includes(node.id))
+        moveNodes(nodes,event.key==='ArrowLeft'?-step:event.key==='ArrowRight'?step:0,event.key==='ArrowUp'?-step:event.key==='ArrowDown'?step:0,true)
+      }else if(selected?.type==='node'&&['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key)){
         const node=current.current?.state.nodes.find(item=>item.id===selected.id)
         if(!node)return
         event.preventDefault();const step=event.shiftKey?20:5
@@ -163,6 +175,45 @@ function DetectiveWallEditor({id,token,userId}){
     window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key)
   })
   const point=event=>{const rect=viewport.current.getBoundingClientRect();return {x:(event.clientX-rect.left+viewport.current.scrollLeft-BOARD_MARGIN)/zoom,y:(event.clientY-rect.top+viewport.current.scrollTop-BOARD_MARGIN)/zoom}}
+  const selectionIds=value=>({nodes:value?.type==='group'?value.nodes:value?.type==='node'?[value.id]:[],strings:value?.type==='group'?value.strings:value?.type==='string'?[value.id]:[]})
+  const updateMarquee=(drag,p)=>{
+    const rect={left:Math.min(drag.start.x,p.x),top:Math.min(drag.start.y,p.y),right:Math.max(drag.start.x,p.x),bottom:Math.max(drag.start.y,p.y)}
+    setMarquee(rect)
+    if(Math.hypot(p.x-drag.start.x,p.y-drag.start.y)*zoom<4)return
+    drag.moved=true
+    const inside=p=>p.x>=rect.left&&p.x<=rect.right&&p.y>=rect.top&&p.y<=rect.bottom
+    const state=current.current.state,nodeMap=new Map(state.nodes.map(node=>[node.id,node]))
+    const nodeIds=state.nodes.filter(node=>{const b=itemBounds(node);return b.left>=rect.left&&b.right<=rect.right&&b.top>=rect.top&&b.bottom<=rect.bottom}).map(node=>node.id)
+    const stringIds=state.strings.filter(edge=>{
+      const from=nodeMap.get(edge.from),to=nodeMap.get(edge.to);if(!from||!to)return false
+      const a=pinPosition(from),b=pinPosition(to),cx=(a.x+b.x)/2,cy=(a.y+b.y)/2+Math.min(140,Math.abs(a.x-b.x)*.12+35)
+      for(let i=0;i<=20;i++){const t=i/20,s=1-t;if(!inside({x:s*s*a.x+2*s*t*cx+t*t*b.x,y:s*s*a.y+2*s*t*cy+t*t*b.y}))return false}
+      return true
+    }).map(edge=>edge.id)
+    const previous=drag.additive?selectionIds(drag.previous):{nodes:[],strings:[]}
+    const result={type:'group',nodes:[...new Set([...previous.nodes,...nodeIds])],strings:[...new Set([...previous.strings,...stringIds])]}
+    setSelected(result.nodes.length||result.strings.length?result:null)
+  }
+  const startMarquee=event=>{
+    if(event.button!==0)return
+    event.preventDefault();cancelConnection()
+    const start=point(event)
+    gesture.current={kind:'marquee',start,pointerId:event.pointerId,previous:selected,additive:event.shiftKey,moved:false}
+    setMarquee({left:start.x,top:start.y,right:start.x,bottom:start.y})
+    if(!event.shiftKey)setSelected(null)
+    viewport.current.focus({preventScroll:true});viewport.current.setPointerCapture(event.pointerId)
+  }
+  const toggleNode=node=>{
+    const ids=selectionIds(selected),nodes=ids.nodes.includes(node.id)?ids.nodes.filter(id=>id!==node.id):[...ids.nodes,node.id]
+    setSelected(nodes.length||ids.strings.length?{type:'group',nodes,strings:ids.strings}:null)
+  }
+  const moveNodes=(snapshots,dx,dy,record=false)=>{
+    if(!snapshots.length)return
+    dx=clamp(dx,-Math.min(...snapshots.map(node=>node.x)),W-Math.max(...snapshots.map(node=>node.x+node.width)))
+    dy=clamp(dy,-Math.min(...snapshots.map(node=>node.y)),100000-Math.max(...snapshots.map(node=>node.y)))
+    const positions=new Map(snapshots.map(node=>[node.id,{x:node.x+dx,y:node.y+dy}]))
+    apply({...current.current,state:{...current.current.state,nodes:current.current.state.nodes.map(node=>positions.has(node.id)?{...node,...positions.get(node.id)}:node)}},record)
+  }
   const beginConnection=node=>{
     connectionSource.current=node.id;setConnecting(node.id);setSelected({type:'node',id:node.id})
     setConnectionTarget(null);setPointer(anchor(node));setStringHint('')
@@ -215,6 +266,13 @@ function DetectiveWallEditor({id,token,userId}){
     event.stopPropagation();if(event.button===1){startPan(event);return}if(event.button!==0)return
     if(tool==='string'||connectionSource.current){event.preventDefault();connect(node);return}
     if(tool==='pan'){startPan(event);return}
+    if(event.shiftKey&&!resize){event.preventDefault();toggleNode(node);return}
+    if(!resize&&selected?.type==='group'&&selected.nodes.includes(node.id)){
+      event.preventDefault()
+      historyRef.current={undo:[...historyRef.current.undo.slice(-19),current.current],redo:[]};setHistory(historyRef.current)
+      gesture.current={kind:'group',nodes:current.current.state.nodes.filter(item=>selected.nodes.includes(item.id)),start:point(event),pointerId:event.pointerId}
+      event.currentTarget.setPointerCapture(event.pointerId);return
+    }
     event.preventDefault();setSelected({type:'node',id:node.id});setStringHint('')
     historyRef.current={undo:[...historyRef.current.undo.slice(-19),current.current],redo:[]};setHistory(historyRef.current)
     gesture.current={kind:resize?'resize':'node',node,start:point(event),pointerId:event.pointerId};event.currentTarget.setPointerCapture(event.pointerId)
@@ -232,9 +290,11 @@ function DetectiveWallEditor({id,token,userId}){
       if(gesture.current?.kind==='connection')gesture.current.target=target
     }
     const drag=gesture.current;if(!drag||drag.pointerId!==event.pointerId)return
+    if(drag.kind==='marquee'){updateMarquee(drag,point(event));return}
     if(drag.kind==='connection'){if(Math.hypot(event.clientX-drag.x,event.clientY-drag.y)>5)drag.moved=true;return}
     if(drag.kind==='pan'){viewport.current.scrollLeft=drag.left+drag.x-event.clientX;viewport.current.scrollTop=drag.top+drag.y-event.clientY;return}
     const p=point(event),dx=p.x-drag.start.x,dy=p.y-drag.start.y
+    if(drag.kind==='group'){moveNodes(drag.nodes,dx,dy);return}
     const angle=drag.node.rotation*Math.PI/180
     if(drag.kind==='resize'){
       const heightDelta=-dx*Math.sin(angle)+dy*Math.cos(angle)
@@ -250,6 +310,9 @@ function DetectiveWallEditor({id,token,userId}){
   const end=event=>{
     const drag=gesture.current
     if(!drag||drag.pointerId!==event.pointerId)return
+    if(drag.kind==='marquee'){
+      updateMarquee(drag,point(event));setMarquee(null);gesture.current=null;return
+    }
     gesture.current=null
     if(drag.kind==='pan')setPanning(false)
     if(drag.kind!=='connection')return
@@ -259,7 +322,7 @@ function DetectiveWallEditor({id,token,userId}){
       else{cancelConnection();setStringHint('No connection made. Drop onto another item, or click a pin and then another item.')}
     }else if(drag.previous)cancelConnection()
   }
-  const cancelGesture=()=>{if(gesture.current?.kind==='connection')cancelConnection();gesture.current=null;setPanning(false)}
+  const cancelGesture=()=>{if(gesture.current?.kind==='connection')cancelConnection();if(gesture.current?.kind==='marquee')setSelected(gesture.current.previous);gesture.current=null;setPanning(false);setMarquee(null)}
   const zoomTo=(value,location=null)=>{
     const view=viewport.current;if(!view)return
     const next=clamp(value,MIN_ZOOM,MAX_ZOOM),rect=view.getBoundingClientRect()
@@ -319,13 +382,15 @@ function DetectiveWallEditor({id,token,userId}){
   const activeString=selected?.type==='string'?doc.state.strings.find(edge=>edge.id===selected.id):null
   const nodes=new Map(doc.state.nodes.map(node=>[node.id,node]))
   const boardHeight=wallHeight(doc.state)
-  const anchor=node=>{const angle=node.rotation*Math.PI/180,dy=14-node.height/2;return {x:node.x+node.width/2-dy*Math.sin(angle),y:node.y+node.height/2+dy*Math.cos(angle)}}
+  const anchor=pinPosition
+  const selectedGroup=selected?.type==='group'?selected:null
+  const isSelected=(type,id)=>selected?.type===type&&selected.id===id||!!selectedGroup?.[type==='node'?'nodes':'strings'].includes(id)
   const path=(a,b)=>`M ${a.x} ${a.y} Q ${(a.x+b.x)/2} ${(a.y+b.y)/2+Math.min(140,Math.abs(a.x-b.x)*.12+35)} ${b.x} ${b.y}`
   const start=connecting&&nodes.get(connecting)?anchor(nodes.get(connecting)):null
   return <section className="detective-editor" aria-label="Interactive detective wall">
     <header className="detective-header"><button type="button" onClick={leave} title="Back to walls"><ArrowLeft size={18}/></button><input aria-label="Wall name" maxLength={120} value={doc.name} onFocus={()=>{historyRef.current={undo:[...historyRef.current.undo.slice(-19),current.current],redo:[]};setHistory(historyRef.current)}} onChange={event=>apply({...current.current,name:event.target.value},false)}/><span role="status">{status==='saving'?'Saving…':status==='saved'?'Saved':status==='error'?'Save failed':'Unsaved changes'}</span><button type="button" onClick={save}><Save size={16}/><span>Save</span></button><button type="button" onClick={exportWall} title="Export wall backup"><Download size={16}/><span>Backup</span></button></header>
     <div className="detective-toolbar" role="toolbar" aria-label="Wall tools">
-      <button type="button" aria-pressed={tool==='select'} onClick={()=>{setTool('select');cancelConnection();setStringHint('')}}><MousePointer2 size={16}/>Select</button><button type="button" aria-pressed={tool==='pan'} onClick={()=>{setTool('pan');cancelConnection();setStringHint('')}}><Hand size={16}/>Pan</button>
+      <button type="button" aria-pressed={tool==='select'} title="Select items or drag empty space to draw a selection rectangle" onClick={()=>{setTool('select');cancelConnection();setStringHint('')}}><MousePointer2 size={16}/>Select</button><button type="button" aria-pressed={tool==='pan'} onClick={()=>{setTool('pan');cancelConnection();setStringHint('')}}><Hand size={16}/>Pan</button>
       <button type="button" onClick={()=>add('note')}><StickyNote size={16}/>Sticky note</button><button type="button" disabled={photoBusy} onClick={()=>fileInput.current.click()}><ImagePlus size={16}/>{photoBusy?'Adding…':'Photo'}</button><button type="button" onClick={()=>add('pin')}><Pin size={16}/>Thumbtack</button>
       <button type="button" aria-pressed={tool==='string'||!!connecting} onClick={()=>{cancelConnection();setStringHint('');setTool(tool==='string'?'select':'string')}} title="Connect two items, or drag directly from any pin"><Link2 size={16}/>Connect items</button>
       {(tool==='string'||connecting)&&<div className="detective-new-string-settings" role="group" aria-label="New string appearance">
@@ -338,7 +403,7 @@ function DetectiveWallEditor({id,token,userId}){
     {error&&<div className="detective-notice" role="alert">{error}<button type="button" onClick={save}>Retry save</button><button type="button" onClick={()=>setError('')} aria-label="Dismiss error"><X size={15}/></button></div>}
     {localBackup&&<div className="detective-notice">An unsaved local draft is available.<button type="button" onClick={()=>{apply(localBackup);setLocalBackup(null)}}>Restore draft</button><button type="button" onClick={()=>{setLocalBackup(null);try{localStorage.removeItem(cacheKey)}catch{}}}>Keep server version</button></div>}
     <div className={`detective-hint${connecting?' is-connecting':''}`}>
-      <span role="status">{connecting?`Connect “${nodes.get(connecting)?.text.slice(0,35)||nodes.get(connecting)?.type||'item'}” → ${connectionTarget?'Release or click to connect.':'Choose another item, or drag to its pin.'}`:tool==='string'?'Choose the first item, then the second. You can also drag from any pin to another item.':stringHint|| (tool==='pan'?'Drag to pan · Wheel to zoom · Use the scrollbars to move around the board.':'Drag empty board space to pan · Wheel to zoom · Drag a pin to connect items')}</span>
+      <span role="status">{connecting?`Connect “${nodes.get(connecting)?.text.slice(0,35)||nodes.get(connecting)?.type||'item'}” → ${connectionTarget?'Release or click to connect.':'Choose another item, or drag to its pin.'}`:tool==='string'?'Choose the first item, then the second. You can also drag from any pin to another item.':stringHint|| (tool==='pan'?'Drag to pan · Wheel to zoom · Use the scrollbars to move around the board.':'Drag empty space to box-select · Shift adds to your selection · Use Pan to move the board · Wheel to zoom')}</span>
       {(connecting||tool==='string')&&<button type="button" onClick={()=>{cancelConnection();setTool('select');setStringHint('')}}>Cancel connection <span aria-hidden="true">Esc</span></button>}
     </div>
     <div className="detective-board-zoom" role="group" aria-label="Board zoom">
@@ -353,15 +418,13 @@ function DetectiveWallEditor({id,token,userId}){
       ref={viewport}
       className={['detective-viewport',`tool-${tool}`,panning?'is-panning':''].filter(Boolean).join(' ')}
       tabIndex={0}
-      aria-label="Corkboard. Drag to pan in Pan mode; use the wheel to zoom. Select mode lets you edit items."
+      aria-label="Corkboard. Drag to pan in Pan mode. In Select mode, drag empty space to select items in a rectangle."
       onPointerDown={event=>{
         if(event.button===1||tool==='pan'){
           startPan(event)
         }else if(event.button===0&&(event.target===event.currentTarget||event.target.dataset.wallBackground)){
-          setSelected(null)
-          cancelConnection()
-          setStringHint('')
-          startPan(event)
+          if(tool==='select')startMarquee(event)
+          else{cancelConnection();setSelected(null);setStringHint('')}
         }
       }}
       onPointerMove={move}
@@ -385,7 +448,7 @@ function DetectiveWallEditor({id,token,userId}){
             const from=nodes.get(edge.from),to=nodes.get(edge.to)
             if(!from||!to)return null
             const a=anchor(from),b=anchor(to),d=path(a,b)
-            return <g key={edge.id} className={selected?.id===edge.id?'is-selected':''} onPointerDown={event=>{if(tool==='pan'||connectionSource.current)return;event.stopPropagation();setSelected({type:'string',id:edge.id});setStringHint('Edit this string below.')}} style={{'--string-width':`${edge.width??6}px`}}>
+            return <g key={edge.id} className={isSelected('string',edge.id)?'is-selected':''} onPointerDown={event=>{if(tool==='pan'||connectionSource.current)return;event.stopPropagation();setSelected({type:'string',id:edge.id});setStringHint('Edit this string below.')}} style={{'--string-width':`${edge.width??6}px`}}>
               <path className="detective-string-shadow" d={d}/>
               <path className="detective-string" d={d} stroke={edge.color}/>
               <path
@@ -411,11 +474,11 @@ function DetectiveWallEditor({id,token,userId}){
         </svg>
         {doc.state.nodes.map(node=><article
           key={node.id} data-wall-node={node.id}
-          className={`detective-item is-${node.type}${selected?.id===node.id?' is-selected':''}${connecting===node.id?' is-connecting':''}${connectionTarget===node.id?' is-connection-target':''}${activeString&&(activeString.from===node.id||activeString.to===node.id)?' is-string-endpoint':''}`}
+          className={`detective-item is-${node.type}${isSelected('node',node.id)?' is-selected':''}${connecting===node.id?' is-connecting':''}${connectionTarget===node.id?' is-connection-target':''}${activeString&&(activeString.from===node.id||activeString.to===node.id)?' is-string-endpoint':''}`}
           style={{left:node.x,top:node.y,width:node.width,height:node.height,background:node.color,'--tack-color':node.type==='pin'?node.color:'#c83431',transform:`rotate(${node.rotation}deg)`}}
           onPointerDown={event=>{
             if(tool==='string'||connectionSource.current){event.preventDefault();event.stopPropagation();connect(node)}
-            else if(tool!=='pan')setSelected({type:'node',id:node.id})
+            else if(tool!=='pan'){if(event.shiftKey){event.preventDefault();event.stopPropagation();toggleNode(node)}else if(!isSelected('node',node.id))setSelected({type:'node',id:node.id})}
           }}
         >
           <button type="button" className="detective-item-grip" aria-label={`Move or connect ${node.type}: ${node.text.slice(0,60)||'Untitled'}`} onPointerDown={event=>startNode(event,node)} onClick={event=>{if(event.detail===0){if(tool==='string'||connectionSource.current)connect(node);else setSelected({type:'node',id:node.id})}}}><span>{node.type==='photo'?'PHOTO':node.type==='pin'?(node.text||'PIN'):'NOTE'}</span></button>
@@ -431,9 +494,11 @@ function DetectiveWallEditor({id,token,userId}){
           {node.type!=='pin'&&<DetectiveWallText node={node} onFit={(height,imageHeight)=>fitNodeText(node.id,height,imageHeight)} onFocus={()=>{setSelected({type:'node',id:node.id});historyRef.current={undo:[...historyRef.current.undo.slice(-19),current.current],redo:[]};setHistory(historyRef.current)}} onChange={event=>changeNode(node.id,{text:event.target.value},false)}/>}
           {node.type!=='pin'&&<button type="button" className="detective-resize" aria-label="Resize item" onPointerDown={event=>startNode(event,node,true)}/>}
         </article>)}
+        {marquee&&<div className="detective-selection-rectangle" aria-hidden="true" style={{left:marquee.left,top:marquee.top,width:marquee.right-marquee.left,height:marquee.bottom-marquee.top,borderWidth:2/zoom}}/>}
       </div></div>
     </div>
-    {(activeNode||activeString)&&<div className="detective-properties"><strong>{activeString?'String':activeNode.type==='photo'?'Photo':activeNode.type==='pin'?'Thumbtack':'Sticky note'}</strong>
+    {(activeNode||activeString||selectedGroup)&&<div className="detective-properties"><strong>{selectedGroup?`${selectedGroup.nodes.length} items · ${selectedGroup.strings.length} strings selected`:activeString?'String':activeNode.type==='photo'?'Photo':activeNode.type==='pin'?'Thumbtack':'Sticky note'}</strong>
+      {selectedGroup&&<span className="detective-group-hint">Drag a selected item’s header to move the group · Shift-click to add or remove items · Delete to remove</span>}
       {activeString&&<span className="detective-connection-summary" title="Connected items">{nodes.get(activeString.from)?.text.slice(0,30)||nodes.get(activeString.from)?.type} ↔ {nodes.get(activeString.to)?.text.slice(0,30)||nodes.get(activeString.to)?.type}</span>}
       {activeNode&&<><div className="detective-swatches">{colors.map(color=><button key={color} type="button" style={{background:color}} aria-label={`Set item color ${color}`} aria-pressed={activeNode.color===color} onClick={()=>changeNode(activeNode.id,{color})}/>)}</div><label>Color<input type="color" value={activeNode.color} onChange={event=>changeNode(activeNode.id,{color:event.target.value})}/></label><label>Rotate<input type="range" min="-30" max="30" value={activeNode.rotation} onPointerDown={()=>{historyRef.current={undo:[...historyRef.current.undo.slice(-19),current.current],redo:[]};setHistory(historyRef.current)}} onChange={event=>changeNode(activeNode.id,{rotation:Number(event.target.value)},false)}/></label>{activeNode.type==='pin'&&<label>Label<input value={activeNode.text} maxLength={160} onChange={event=>changeNode(activeNode.id,{text:event.target.value})}/></label>}<button type="button" onClick={()=>{setTool('string');beginConnection(activeNode)}}><Link2 size={15}/>Connect from here</button></>}
       {activeString&&<><label className="detective-string-size">Thickness<input aria-label="Selected string thickness" type="range" min="1" max="24" step="1" value={activeString.width??6} onFocus={()=>{historyRef.current={undo:[...historyRef.current.undo.slice(-19),current.current],redo:[]};setHistory(historyRef.current)}} onChange={event=>apply({...current.current,state:{...current.current.state,strings:current.current.state.strings.map(edge=>edge.id===activeString.id?{...edge,width:Number(event.target.value)}:edge)}},false)}/><output>{activeString.width??6} px</output></label><label>Label<input value={activeString.text} maxLength={160} onChange={event=>apply({...current.current,state:{...current.current.state,strings:current.current.state.strings.map(edge=>edge.id===activeString.id?{...edge,text:event.target.value}:edge)}})}/></label><label>Color<input type="color" value={activeString.color} onChange={event=>apply({...current.current,state:{...current.current.state,strings:current.current.state.strings.map(edge=>edge.id===activeString.id?{...edge,color:event.target.value}:edge)}})}/></label></>}
