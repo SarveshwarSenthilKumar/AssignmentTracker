@@ -64,6 +64,7 @@ export default function DetectiveWalls({token,userId}){
 function DetectiveWallEditor({id,token,userId}){
   const [doc,setDoc]=useState(null),[loading,setLoading]=useState(true),[error,setError]=useState(''),[status,setStatus]=useState('saved'),[localBackup,setLocalBackup]=useState(null)
   const [selected,setSelected]=useState(null),[tool,setTool]=useState('select'),[connecting,setConnecting]=useState(null),[stringColor,setStringColor]=useState('#b52b35'),[zoom,setZoom]=useState(.8),[pointer,setPointer]=useState(null),[photoBusy,setPhotoBusy]=useState(false),[history,setHistory]=useState({undo:[],redo:[]})
+  const [stringWidth,setStringWidth]=useState(6)
   const viewport=useRef(null),fileInput=useRef(null),current=useRef(null),revision=useRef(0),dirty=useRef(false),queue=useRef(Promise.resolve()),gesture=useRef(null),saveRef=useRef(null),timer=useRef(null),historyRef=useRef({undo:[],redo:[]}),mounted=useRef(true)
   const cacheKey=`detective-wall-draft:${userId}:${id}`
   const cache=()=>{if(!current.current)return;try{localStorage.setItem(cacheKey,JSON.stringify({revision:revision.current,doc:current.current}))}catch{/* The server copy and export remain available. */}}
@@ -148,7 +149,7 @@ function DetectiveWallEditor({id,token,userId}){
     if(connecting===node.id){setConnecting(null);return}
     const state=current.current.state
     if(state.strings.length>=500){setError('Use up to 500 strings per wall.');return}
-    if(!state.strings.some(edge=>(edge.from===connecting&&edge.to===node.id)||(edge.to===connecting&&edge.from===node.id)))apply({...current.current,state:{...state,strings:[...state.strings,{id:uid(),from:connecting,to:node.id,color:stringColor,text:''}]}})
+    if(!state.strings.some(edge=>(edge.from===connecting&&edge.to===node.id)||(edge.to===connecting&&edge.from===node.id)))apply({...current.current,state:{...state,strings:[...state.strings,{id:uid(),from:connecting,to:node.id,color:stringColor,text:'',width:stringWidth}]}})
     setConnecting(null)
   }
   const startNode=(event,node,resize=false)=>{
@@ -205,6 +206,7 @@ function DetectiveWallEditor({id,token,userId}){
       <button type="button" aria-pressed={tool==='select'} onClick={()=>{setTool('select');setConnecting(null)}}><MousePointer2 size={16}/>Select</button><button type="button" aria-pressed={tool==='pan'} onClick={()=>{setTool('pan');setConnecting(null)}}><Hand size={16}/>Pan</button>
       <button type="button" onClick={()=>add('note')}><StickyNote size={16}/>Sticky note</button><button type="button" disabled={photoBusy} onClick={()=>fileInput.current.click()}><ImagePlus size={16}/>{photoBusy?'Adding…':'Photo'}</button><button type="button" onClick={()=>add('pin')}><Pin size={16}/>Thumbtack</button>
       <button type="button" aria-pressed={tool==='string'} onClick={()=>{setTool('string');setConnecting(null)}}><Link2 size={16}/>String</button><label className="detective-color">String<input aria-label="New string color" type="color" value={stringColor} onChange={event=>setStringColor(event.target.value)}/></label>
+      <label className="detective-string-size">Thickness<input aria-label="New string thickness" type="range" min="1" max="24" step="1" value={stringWidth} onChange={event=>setStringWidth(Number(event.target.value))}/><output>{stringWidth} px</output></label>
       <button type="button" disabled={!history.undo.length} onClick={()=>undo(false)} title="Undo (Ctrl+Z)"><Undo2 size={16}/></button><button type="button" disabled={!history.redo.length} onClick={()=>undo(true)} title="Redo (Ctrl+Shift+Z)"><Redo2 size={16}/></button><button type="button" disabled={!selected} onClick={remove} title="Delete selected item or string"><Trash2 size={16}/></button>
       <div className="detective-zoom"><button type="button" onClick={()=>zoomTo(zoom-.1)} aria-label="Zoom out"><ZoomOut size={16}/></button><span>{Math.round(zoom*100)}%</span><button type="button" onClick={()=>zoomTo(zoom+.1)} aria-label="Zoom in"><ZoomIn size={16}/></button><button type="button" onClick={fit} title="Fit all items"><Maximize size={16}/></button></div>
     </div>
@@ -219,7 +221,7 @@ function DetectiveWallEditor({id,token,userId}){
             const from=nodes.get(edge.from),to=nodes.get(edge.to)
             if(!from||!to)return null
             const a=anchor(from),b=anchor(to),d=path(a,b)
-            return <g key={edge.id} className={selected?.id===edge.id?'is-selected':''}>
+            return <g key={edge.id} className={selected?.id===edge.id?'is-selected':''} style={{'--string-width':`${edge.width??6}px`}}>
               <path className="detective-string-shadow" d={d}/>
               <path className="detective-string" d={d} stroke={edge.color}/>
               <path
@@ -240,7 +242,7 @@ function DetectiveWallEditor({id,token,userId}){
               {edge.text&&<text x={(a.x+b.x)/2} y={(a.y+b.y)/2+Math.min(140,Math.abs(a.x-b.x)*.12+35)/2-9}>{edge.text}</text>}
             </g>
           })}
-          {start&&pointer&&<path className="detective-string-preview" d={path(start,pointer)} stroke={stringColor}/>}
+          {start&&pointer&&<path className="detective-string-preview" d={path(start,pointer)} stroke={stringColor} style={{'--string-width':`${stringWidth}px`}}/>}
         </svg>
         {doc.state.nodes.map(node=><article key={node.id} className={`detective-item is-${node.type}${selected?.id===node.id?' is-selected':''}${connecting===node.id?' is-connecting':''}`} style={{left:node.x,top:node.y,width:node.width,height:node.height,background:node.color,'--tack-color':node.type==='pin'?node.color:'#c83431',transform:`rotate(${node.rotation}deg)`}} onPointerDown={event=>{if(tool==='string'){event.preventDefault();event.stopPropagation();connect(node)}else if(tool!=='pan')setSelected({type:'node',id:node.id})}}>
           <button type="button" className="detective-item-grip" aria-label={`Move or connect ${node.type}: ${node.text.slice(0,60)||'Untitled'}`} onPointerDown={event=>startNode(event,node)} onClick={event=>{if(event.detail===0&&tool==='string')connect(node)}}><i className="detective-tack"/><span>{node.type==='photo'?'PHOTO':node.type==='pin'?(node.text||'PIN'):'NOTE'}</span></button>
@@ -252,7 +254,7 @@ function DetectiveWallEditor({id,token,userId}){
     </div>
     {(activeNode||activeString)&&<div className="detective-properties"><strong>{activeString?'String':activeNode.type==='photo'?'Photo':activeNode.type==='pin'?'Thumbtack':'Sticky note'}</strong>
       {activeNode&&<><div className="detective-swatches">{colors.map(color=><button key={color} type="button" style={{background:color}} aria-label={`Set item color ${color}`} aria-pressed={activeNode.color===color} onClick={()=>changeNode(activeNode.id,{color})}/>)}</div><label>Color<input type="color" value={activeNode.color} onChange={event=>changeNode(activeNode.id,{color:event.target.value})}/></label><label>Rotate<input type="range" min="-30" max="30" value={activeNode.rotation} onPointerDown={()=>{historyRef.current={undo:[...historyRef.current.undo.slice(-19),current.current],redo:[]};setHistory(historyRef.current)}} onChange={event=>changeNode(activeNode.id,{rotation:Number(event.target.value)},false)}/></label>{activeNode.type==='pin'&&<label>Label<input value={activeNode.text} maxLength={160} onChange={event=>changeNode(activeNode.id,{text:event.target.value})}/></label>}<button type="button" onClick={()=>{setTool('string');setConnecting(activeNode.id)}}><Link2 size={15}/>Connect from here</button></>}
-      {activeString&&<><label>Label<input value={activeString.text} maxLength={160} onChange={event=>apply({...current.current,state:{...current.current.state,strings:current.current.state.strings.map(edge=>edge.id===activeString.id?{...edge,text:event.target.value}:edge)}})}/></label><label>Color<input type="color" value={activeString.color} onChange={event=>apply({...current.current,state:{...current.current.state,strings:current.current.state.strings.map(edge=>edge.id===activeString.id?{...edge,color:event.target.value}:edge)}})}/></label></>}
+      {activeString&&<><label className="detective-string-size">Thickness<input aria-label="Selected string thickness" type="range" min="1" max="24" step="1" value={activeString.width??6} onFocus={()=>{historyRef.current={undo:[...historyRef.current.undo.slice(-19),current.current],redo:[]};setHistory(historyRef.current)}} onChange={event=>apply({...current.current,state:{...current.current.state,strings:current.current.state.strings.map(edge=>edge.id===activeString.id?{...edge,width:Number(event.target.value)}:edge)}},false)}/><output>{activeString.width??6} px</output></label><label>Label<input value={activeString.text} maxLength={160} onChange={event=>apply({...current.current,state:{...current.current.state,strings:current.current.state.strings.map(edge=>edge.id===activeString.id?{...edge,text:event.target.value}:edge)}})}/></label><label>Color<input type="color" value={activeString.color} onChange={event=>apply({...current.current,state:{...current.current.state,strings:current.current.state.strings.map(edge=>edge.id===activeString.id?{...edge,color:event.target.value}:edge)}})}/></label></>}
       <button type="button" onClick={remove}><Trash2 size={15}/>Remove</button><button type="button" aria-label="Close item settings" onClick={()=>setSelected(null)}><X size={16}/></button>
     </div>}
   </section>

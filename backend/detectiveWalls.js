@@ -24,8 +24,9 @@ module.exports=function registerDetectiveWalls(app,auth,{mongoose}){
     });
     const edges=new Set();
     const strings=state.strings.map(edge=>{
+      if(!number(edge?.width??6,1,24))throw new Error('Choose a string thickness between 1 and 24.');
       if(!edge||!key(edge.id)||edges.has(edge.id)||!ids.has(edge.from)||!ids.has(edge.to)||edge.from===edge.to||!color(edge.color)||typeof edge.text!=='string'||edge.text.length>160)throw new Error('A string has invalid endpoints or content.');
-      edges.add(edge.id);return {id:edge.id,from:edge.from,to:edge.to,color:edge.color,text:edge.text};
+      edges.add(edge.id);return {id:edge.id,from:edge.from,to:edge.to,color:edge.color,text:edge.text,width:edge.width??6};
     });
     return {nodes,strings};
   }
