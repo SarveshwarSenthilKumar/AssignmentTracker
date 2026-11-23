@@ -41,6 +41,13 @@
 .detective-viewport.tool-select .detective-world,.detective-viewport.tool-select .detective-world-size{cursor:crosshair;touch-action:none}
 .detective-selection-rectangle{position:absolute;z-index:20;pointer-events:none;box-sizing:border-box;border:2px solid #78b7ee;background:#78b7ee2b}
 .detective-group-hint{font-size:11px;color:var(--text-secondary)}
+.detective-editor .detective-resize{width:14px;height:14px;min-height:14px;padding:0;border:2px solid #fff;border-radius:3px;background:#4e86b6;z-index:8;touch-action:none;transform:scale(var(--resize-handle-scale,1));transform-origin:center;right:auto;bottom:auto}
+.detective-resize.is-nw{top:-7px;left:-7px;cursor:nwse-resize}.detective-resize.is-ne{top:-7px;right:-7px;cursor:nesw-resize}.detective-resize.is-sw{bottom:-7px;left:-7px;cursor:nesw-resize}.detective-resize.is-se{bottom:-7px;right:-7px;cursor:nwse-resize}
+.detective-editor .detective-resize.is-ne,.detective-editor .detective-resize.is-se{right:-7px;left:auto}.detective-editor .detective-resize.is-sw,.detective-editor .detective-resize.is-se{bottom:-7px;top:auto}
+.detective-group-bounds{position:absolute;z-index:7;pointer-events:none;border:1.5px dashed #78b7ee;box-sizing:border-box}.detective-group-bounds>.detective-resize{pointer-events:auto;opacity:1}
+.tool-pan .detective-resize,.tool-string .detective-resize{display:none}
+.detective-item.is-pin .detective-connect-pin{top:calc(35% - 22px)}
+.detective-item.is-pin .detective-connect-pin .detective-tack{width:var(--tack-size,24px);height:var(--tack-size,24px);top:calc(22px - var(--tack-size,24px)/2);left:calc(50% - var(--tack-size,24px)/2)}
 .detective-world-size{overflow:hidden}
 .detective-viewport{overflow:scroll;scrollbar-width:auto;scrollbar-color:var(--accent-solid) #61472f;scrollbar-gutter:stable}
 .detective-viewport::-webkit-scrollbar{width:16px;height:16px}.detective-viewport::-webkit-scrollbar-track,.detective-viewport::-webkit-scrollbar-corner{background:#61472f}.detective-viewport::-webkit-scrollbar-thumb{background:var(--accent-solid);border:3px solid #61472f;border-radius:9px}
