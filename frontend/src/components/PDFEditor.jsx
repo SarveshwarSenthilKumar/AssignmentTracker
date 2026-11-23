@@ -476,17 +476,31 @@ function TextAnnotation({
 }
 
 // Render previews as they approach the sidebar viewport, keeping long PDFs responsive.
-function PagePreview({ pageNumber }) {
+function PagePreview({ pageNumber, items=[], whiteboard=false, usePressure=true }) {
   const ref = useRef(null)
   const [visible, setVisible] = useState(false)
+  const [size,setSize]=useState(null)
+  const base=size||(whiteboard?{w:2400,h:1600}:{w:612,h:792})
+  const previewScale=136/base.w
+  const height=base.h*previewScale
   useEffect(() => {
     const observer = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting) { setVisible(true); observer.disconnect() }
+      setVisible(entry.isIntersecting)
     }, { root: ref.current?.closest('aside'), rootMargin: '200px' })
     if (ref.current) observer.observe(ref.current)
     return () => observer.disconnect()
   }, [])
-  return <div ref={ref} style={{ width: 136, minHeight: 176 }}>{visible && <Page pageNumber={pageNumber} width={136} renderTextLayer={false} renderAnnotationLayer={false} loading={<div className="h-44 bg-slate-200 " />} />}</div>
+  return <div ref={ref} className="pdf-thumbnail-surface" style={{width:136,height}}>
+    {visible&&<>
+      <Page pageNumber={pageNumber} width={136} renderTextLayer={false} renderAnnotationLayer={false} onLoadSuccess={page=>{const viewport=page.getViewport({scale:1});setSize(previous=>previous?.w===viewport.width&&previous?.h===viewport.height?previous:{w:viewport.width,h:viewport.height})}} loading={<div style={{height,background:'#e2e8f0'}}/>}/>
+      <div className="pdf-thumbnail-annotations" aria-hidden="true">
+        {items.filter(item=>item.sourceText).map(item=><div key={`cover-${item.id}`} style={{position:'absolute',left:item.sourceText.x*previewScale,top:item.sourceText.y*previewScale,width:item.sourceText.width*previewScale,height:item.sourceText.height*previewScale,background:item.sourceText.background||'#fff'}}/>)}
+        <PDFInkLayer items={items} width={base.w} height={base.h} scale={previewScale} usePressure={usePressure}/>
+        {items.filter(item=>item.tool==='image').map(item=><img key={item.id} src={item.dataUrl} alt="" draggable={false} style={{position:'absolute',left:item.x*previewScale,top:item.y*previewScale,width:item.width*previewScale,height:item.height*previewScale}}/>)}
+        {items.filter(item=>item.tool==='text').map(item=><div key={item.id} style={{position:'absolute',left:item.x*previewScale,top:item.y*previewScale,color:item.color||'#000',background:item.stickyNote?item.noteColor||'#fff1a8':undefined,fontSize:(item.fontSize||16)*previewScale,...replacementCss(item,previewScale),lineHeight:LINE_HEIGHT,whiteSpace:'pre',boxSizing:'border-box',width:item.textBoxWidth?item.textBoxWidth*previewScale:undefined,minHeight:item.stickyNote?(item.noteHeight??110)*previewScale:undefined,padding:`${TEXT_PAD_Y*previewScale}px ${TEXT_PAD_X*previewScale}px`}}>{pdfTextLines(item).join('\n')}</div>)}
+      </div>
+    </>}
+  </div>
 }
 
 /* ------------------------------------------------------------------ */
@@ -712,6 +726,19 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const pageDragRef=useRef(null)
   const [pageDropTarget,setPageDropTarget]=useState(null)
   const [showPages, setShowPages] = useState(() => !exportImage && window.innerWidth >= 768)
+  useEffect(()=>{
+    if(!showPages||focusMode||!editorVisibility.thumbnails)return
+    const frame=requestAnimationFrame(()=>{
+      const sidebar=editorRootRef.current?.querySelector('.pdf-pages')
+      const selected=sidebar?.querySelector('[aria-current="page"]')
+      if(!selected)return
+      const bounds=sidebar.getBoundingClientRect(),tile=selected.getBoundingClientRect()
+      const top=bounds.top+(sidebar.firstElementChild?.offsetHeight||0)+8
+      if(tile.top<top)sidebar.scrollTop-=top-tile.top
+      else if(tile.bottom>bounds.bottom-8)sidebar.scrollTop+=tile.bottom-bounds.bottom+8
+    })
+    return()=>cancelAnimationFrame(frame)
+  },[pageNumber,numPages,showPages,focusMode,editorVisibility.thumbnails])
   const [deletingPage, setDeletingPage] = useState(false)
   const deletingPageRef = useRef(false)
   const [downloading, setDownloading] = useState(false)
@@ -1763,6 +1790,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     commitText()
     if (!Number.isFinite(n)) return
     const target=Math.max(1, Math.min(numPages || 1, Math.trunc(n)))
+    if(isWhiteboard)whiteboardScrollTarget.current=target
     setPageNumber(target)
     if(continuousView&&!exportImage)requestAnimationFrame(()=>viewerRef.current?.querySelector(`[data-continuous-page="${target}"]`)?.scrollIntoView({block:'start'}))
     else viewerRef.current?.scrollTo({ top: 0, left: 0 })
@@ -2231,6 +2259,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   useEffect(()=>registerEditor(pdfId,{snapshot:()=>liveAssistantEditor.current.snapshot(),apply:actions=>liveAssistantEditor.current.apply(actions),close:()=>liveAssistantEditor.current.close(),leave:destination=>liveAssistantEditor.current.leave(destination)}),[pdfId])
 
   const pageIndex=useMemo(()=>{const index=new Map();for(const item of drawingPaths){const number=item.page||1;if(!index.has(number))index.set(number,[]);index.get(number).push(item)}return index},[drawingPaths])
+  const previewPageIndex=useMemo(()=>{const index=new Map();for(const item of [...drawingPaths,...remoteInk]){const number=item.page||1;if(!index.has(number))index.set(number,[]);index.get(number).push(item)}return index},[drawingPaths,remoteInk])
 
   const prepareCleanup=async(scope,signal)=>{
     if(loading||exportImage||deletingPageRef.current||insertingRef.current)throw new Error('Wait for the PDF to finish its current operation.')
@@ -2572,9 +2601,9 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         <PDFGraph open={showGraph} onClose={()=>setShowGraph(false)} selection={graphSelection} onInsert={asset=>addImageInsert(asset)} canInsert={!!pageBase&&pageBase.page===pageNumber&&!inserting&&!deletingPage}/>
         <PDFCalculator open={showCalculator} onClose={()=>setShowCalculator(false)} selection={calculationSelection}/>
         {!focusMode && showPages && pdfFile && !pdfError && (
-          <aside className="pdf-pages w-48 sm:w-56 shrink-0 overflow-y-auto border-r border-white/10 bg-slate-900/90" aria-label="Document pages">
-            <div className="sticky top-0 z-10 bg-slate-900 px-4 py-4 border-b border-white/5 flex items-center justify-between"><span className="text-xs font-semibold uppercase tracking-widest text-slate-300">Pages</span><span className="text-xs text-slate-500">{numPages || '…'} total</span></div>
-            <p className="px-4 py-2 text-xs text-slate-400">Drag pages to reorder · Alt+↑/↓</p>
+          <aside className="pdf-pages w-48 sm:w-56 shrink-0 overflow-y-auto border-r border-white/10 bg-slate-900/90" aria-label={isWhiteboard?'Whiteboard sections':'Document pages'}>
+            <div className="sticky top-0 z-10 bg-slate-900 px-4 py-4 border-b border-white/5 flex items-center justify-between"><span className="text-xs font-semibold uppercase tracking-widest text-slate-300">{isWhiteboard?'Sections':'Pages'}</span><span className="text-xs text-slate-500">{numPages || '…'} total</span></div>
+            <p className="px-4 py-2 text-xs text-slate-400">{isWhiteboard?'Click to jump · Drag sections to reorder':'Drag pages to reorder · Alt+↑/↓'}</p>
             <Document options={PDF_OPTIONS} file={pdfFile} loading={<p className="p-4 text-xs text-slate-400">Loading previews…</p>}>
               {Array.from({ length: numPages || 0 }, (_, index) => {
                 const n = index + 1
@@ -2587,9 +2616,9 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
                   onKeyDown={event=>{if(event.altKey&&(event.key==='ArrowUp'||event.key==='ArrowDown')){event.preventDefault();const target=n+(event.key==='ArrowUp'?-1:1);if(target>=1&&target<=numPages)handleAddPages({mode:'reorder',sourcePage:n,targetIndex:target-1})}}}
                   title="Drag to move this page here; Alt+Up/Down also reorders"
                   style={{outline:pageDropTarget===n?'2px solid #8fa5b9':undefined,outlineOffset:-2,cursor:deletingPage||inserting?'wait':'grab'}}
-                  onClick={() => goToPage(n)} aria-label={`Go to page ${n}${count ? `, ${count} annotations` : ''}`} aria-current={pageNumber === n ? 'page' : undefined} className={cn('pdf-page-tile', pageNumber === n && 'is-selected')}>
-                  <div className="pdf-page-preview"><PagePreview pageNumber={n} />{count > 0 && <span className="pdf-page-badge">{count} {count === 1 ? 'edit' : 'edits'}</span>}</div>
-                  <span className="flex items-center justify-between mt-3 text-xs"><span>Page {n}</span>{pageNumber === n && <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" />}</span>
+                  onClick={() => goToPage(n)} aria-label={`Go to ${isWhiteboard?'section':'page'} ${n}${count ? `, ${count} annotations` : ''}`} aria-current={pageNumber === n ? 'page' : undefined} className={cn('pdf-page-tile', pageNumber === n && 'is-selected')}>
+                  <div className="pdf-page-preview"><PagePreview pageNumber={n} items={previewPageIndex.get(n)||EMPTY_PAGE_ITEMS} whiteboard={isWhiteboard} usePressure={usePressure}/>{count > 0 && <span className="pdf-page-badge">{count} {count === 1 ? 'edit' : 'edits'}</span>}</div>
+                  <span className="flex items-center justify-between mt-3 text-xs"><span>{isWhiteboard?'Section':'Page'} {n}</span>{pageNumber === n && <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" />}</span>
                 </button>
                 <button type="button" className="pdf-thumbnail-delete" draggable={false} disabled={numPages<=1||deletingPage||inserting} aria-label={`Delete page ${n}`} title={numPages<=1?'Keep at least one page in the PDF':`Delete page ${n} and its annotations`} onClick={()=>handleDeletePage(n)}><Trash2 size={13}/></button>
                 </div>

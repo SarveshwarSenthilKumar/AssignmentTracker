@@ -362,3 +362,8 @@
 .pdf-whiteboard-extend button:focus-visible{outline:2px solid var(--accent-solid);outline-offset:3px}
 .pdf-whiteboard-extend span{font-size:12px;color:var(--text-secondary)}
 .pdf-zen-mode .pdf-whiteboard-extend{display:none}
+.pdf-thumbnail-surface{position:relative;overflow:hidden;background:white}
+.pdf-thumbnail-annotations{position:absolute;inset:0;overflow:hidden;pointer-events:none;user-select:none}
+.pdf-thumbnail-annotations img{max-width:none}
+.pdf-thumbnail-surface .react-pdf__Page{min-width:0!important;min-height:0!important}
+.pdf-whiteboard .pdf-page-preview{border:1px solid var(--border-strong)}

@@ -110,10 +110,10 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
     {action(view.dark?Sun:Moon,view.dark?'Switch to light pages':'Switch to dark pages',view.onDark,{detail:'Display only; exports keep original colors'})}
     {action(Maximize,view.focus?'Exit fullscreen':'Enter fullscreen',view.focus?view.onExitFocus:view.onFocus)}
   </>)
-  const pagesMenu=!doc.exportImage&&menu('pages','Pages',Files,<>
+  const pagesMenu=!doc.exportImage&&menu('pages',doc.whiteboard?'Sections':'Pages',Files,<>
     {pages.onExtend&&action(Plus,'Extend whiteboard',pages.onExtend,{disabled:!pages.canAdd,detail:'Add more canvas below · extend again whenever you need more room'})}
     <div className="pc-page-controls">{iconButton(ChevronLeft,'Previous page',()=>pages.onNavigate(pages.current-1),pages.current<=1||pages.busy)}<span>{pages.current} of {pages.count||'…'}</span>{iconButton(ChevronRight,'Next page',()=>pages.onNavigate(pages.current+1),pages.current>=pages.count||pages.busy)}</div>
-    {action(PanelLeft,'Page thumbnails',pages.onToggleThumbnails,{active:pages.showThumbnails})}
+    {action(PanelLeft,doc.whiteboard?'Section thumbnails':'Page thumbnails',pages.onToggleThumbnails,{active:pages.showThumbnails})}
     {action(Files,'Side page',view.onReference,{active:view.reference,disabled:!pages.count||pages.busy})}
     <hr/>{action(Plus,'Add blank page after',pages.onAddBlank,{disabled:!pages.canAdd})}
     <p className="pc-menu-note">Import or duplicate pages from Insert → Pages. Drag thumbnails to reorder.</p>
