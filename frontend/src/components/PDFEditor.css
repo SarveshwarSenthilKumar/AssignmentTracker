@@ -376,3 +376,7 @@
 .pdf-sticky-ink-launch,.pdf-sticky-ink-action{display:inline-flex;align-items:center;justify-content:center;padding:5px 7px;border:1px solid #526c83;border-radius:5px;color:#f1f5f9;background:#263754;font-size:11px;cursor:pointer}
 .pdf-sticky-ink-launch{position:absolute;top:5px;right:5px;z-index:2}
 .pdf-sticky-ink-action[aria-pressed=true]{background:#3d5872}
+
+.pdf-resize-handle.pdf-pivot-handle{top:50%;left:calc(100% + 8px);transform:translateY(-50%);width:22px;height:22px;border-radius:50%;display:grid;place-items:center;color:#294457;cursor:grab}
+.pdf-pivot-handle:active{cursor:grabbing}
+@media(pointer:coarse){.pdf-resize-handle.pdf-pivot-handle{width:28px;height:28px}}

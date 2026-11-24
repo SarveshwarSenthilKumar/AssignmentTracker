@@ -36,3 +36,14 @@ export function pdfTextLines(item, measure) {
 export function stickyNoteSize(item){
   return {width:item.textBoxWidth||180,height:Math.max(item.noteHeight??110,pdfTextLines(item).length*(item.fontSize||16)*1.2+4)}
 }
+
+export function pdfObjectSize(item) {
+  if(item.tool!=='text')return {width:item.width,height:item.height}
+  if(item.stickyNote)return stickyNoteSize(item)
+  const size=item.fontSize||16
+  context ||= document.createElement('canvas').getContext('2d')
+  context.font = `${size}px ${PDF_TEXT_FONT}`
+  const measure=line=>context.measureText(line).width
+  const lines=pdfTextLines(item,measure)
+  return {width:item.textBoxWidth||Math.max(12,...lines.map(measure))+8,height:lines.length*size*1.2+4}
+}

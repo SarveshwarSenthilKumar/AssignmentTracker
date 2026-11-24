@@ -1,3 +1,5 @@
+import {rotatePoint} from './insertGeometry'
+
 const point=(a,b,t)=>({...a,x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t,pressure:(a.pressure??.5)+((b.pressure??.5)-(a.pressure??.5))*t})
 const strokeBounds=new WeakMap()
 const shapeKinds=new Set(['rectangle','ellipse','line','arrow'])
@@ -56,8 +58,11 @@ export function eraseAnnotations(items,from,to,{size,shape,mode,target,page,meas
         const points=item.points,r=radius+(item.strokeWidth||1)/2
         if(!(points.length===1?clip(points[0],points[0],c,r,shape):points.some((p,i)=>i>0&&clip(points[i-1],p,c,r,shape))))next.push(item)
       }else if(mode==='objects'||(target==='all'&&isInsertedShape(item))){
-        const bounds=measure(item),x=Math.max(item.x,Math.min(c.x,item.x+bounds.width)),y=Math.max(item.y,Math.min(c.y,item.y+bounds.height))
-        if(shape==='square'?Math.abs(c.x-x)>radius||Math.abs(c.y-y)>radius:Math.hypot(c.x-x,c.y-y)>radius)next.push(item)
+        const bounds=measure(item)
+        const center={x:item.x+bounds.width/2,y:item.y+bounds.height/2}
+        const local=item.rotation?rotatePoint(c,center,-item.rotation):c
+        const x=Math.max(item.x,Math.min(local.x,item.x+bounds.width)),y=Math.max(item.y,Math.min(local.y,item.y+bounds.height))
+        if(shape==='square'?Math.abs(local.x-x)>radius||Math.abs(local.y-y)>radius:Math.hypot(local.x-x,local.y-y)>radius)next.push(item)
       }else next.push(item)
     }
     result=next

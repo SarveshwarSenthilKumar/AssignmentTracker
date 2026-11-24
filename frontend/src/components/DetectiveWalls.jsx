@@ -1,5 +1,5 @@
 import {useEffect,useLayoutEffect,useRef,useState} from 'react'
-import {ArrowLeft,Plus,StickyNote,ImagePlus,Pin,Link2,Hand,Pencil,MousePointer2,Undo2,Redo2,Trash2,ZoomIn,ZoomOut,Maximize,Minimize,EyeOff,Download,Save,X} from 'lucide-react'
+import {ArrowLeft,Plus,StickyNote,ImagePlus,Pin,Link2,Hand,Pencil,MousePointer2,Undo2,Redo2,Trash2,ZoomIn,ZoomOut,RotateCw,Maximize,Minimize,EyeOff,Download,Save,X} from 'lucide-react'
 import {readApiJson} from '../lib/apiResponse'
 import {downloadBlob} from '../lib/documentFormats'
 import './DetectiveWalls.css'
@@ -10,6 +10,7 @@ import DetectiveSelectionSize from './DetectiveSelectionSize'
 import DetectiveStringWidth from './DetectiveStringWidth'
 import {MAX_WALL_SIZE,MIN_TEXT_SIZE} from '../lib/detectiveWallLimits'
 import {MAX_NOTE_STROKES} from '../lib/stickyNoteInk'
+import {pivotDelta} from '../lib/insertGeometry'
 import {spreadGrowingCards} from '../lib/detectiveWallSpacing'
 import {isCaseBoardShortcut} from '../lib/detectiveWallDemo'
 
@@ -426,7 +427,7 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
     }
     event.preventDefault();setSelected({type:'node',id:node.id});setStringHint('')
     historyRef.current={undo:[...historyRef.current.undo.slice(-19),current.current],redo:[]};setHistory(historyRef.current)
-    gesture.current={kind:resize?'resize':'node',corner:resize,node,start:point(event),pointerId:event.pointerId,...(resize?{layoutBase:current.current.state.nodes,layoutIds:[node.id]}:{})};event.currentTarget.setPointerCapture(event.pointerId)
+    gesture.current={kind:resize==='pivot'?'pivot':resize?'resize':'node',corner:resize,node,start:point(event),pointerId:event.pointerId,...(resize&&resize!=='pivot'?{layoutBase:current.current.state.nodes,layoutIds:[node.id]}:{})};event.currentTarget.setPointerCapture(event.pointerId)
   }
   const startGroupResize=(event,corner)=>{
     event.stopPropagation();if(event.button!==0||selected?.type!=='group')return
@@ -461,6 +462,12 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
       const factor=1+((west?-dx:dx)*w+(north?-dy:dy)*h)/(w*w+h*h)
       if(drag.kind==='group-spacing')changeSpacing(drag.nodes,anchor,Math.max(.01,factor))
       else resizeSelection(drag.nodes,drag.strings,anchor,factor)
+      return
+    }
+    if(drag.kind==='pivot'){
+      const center={x:drag.node.x+drag.node.width/2,y:drag.node.y+drag.node.height/2}
+      const angle=drag.node.rotation+pivotDelta(drag.start,p,center)
+      changeNode(drag.node.id,{rotation:clamp(event.shiftKey?Math.round(angle/15)*15:angle,-30,30)},false)
       return
     }
     const angle=drag.node.rotation*Math.PI/180
@@ -702,6 +709,12 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
               const ink=current.current.state.nodes.find(item=>item.id===node.id)?.ink??EMPTY_NOTE_INK
               if(ink.length<MAX_NOTE_STROKES)changeNode(node.id,{ink:[...ink,points]})
             }}/>:null}
+          {tool==='select'&&activeNode?.id===node.id&&<button type="button" className="detective-pivot"
+            aria-label={node.type==='note'?'Rotate sticky note':'Rotate '+node.type} title="Drag to rotate. Hold Shift to snap to 15°."
+            onPointerDown={event=>startNode(event,node,'pivot')}
+            onClick={event=>{if(event.detail===0)changeNode(node.id,{rotation:clamp(node.rotation+(event.shiftKey?-15:15),-30,30)})}}>
+            <RotateCw size={12} aria-hidden="true"/>
+          </button>}
           {resizeCorners.map(corner=><button key={corner} type="button" className={`detective-resize is-${corner}`} aria-label={`Resize ${node.type} from ${corner==='nw'?'top left':corner==='ne'?'top right':corner==='sw'?'bottom left':'bottom right'} corner`} onPointerDown={event=>startNode(event,node,corner)}/>)}
         </article>)}
         {groupBounds&&tool==='select'&&<div className="detective-group-bounds" style={{left:groupBounds.left,top:groupBounds.top,width:groupBounds.right-groupBounds.left,height:groupBounds.bottom-groupBounds.top}}>

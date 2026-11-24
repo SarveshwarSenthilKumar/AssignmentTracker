@@ -1,4 +1,4 @@
-import {pdfTextLines,stickyNoteSize} from './pdfTextBox'
+import {pdfTextLines,stickyNoteSize,pdfObjectSize} from './pdfTextBox'
 import {NOTE_INK_GRID,NOTE_INK_WIDTH} from './stickyNoteInk'
 
 export function selectionHasInk(items,box){
@@ -24,6 +24,13 @@ export async function mathSelectionImage(page,box,items,padding=5){
   context.setTransform(scale,0,0,scale,-x*scale,-y*scale)
   for(const item of items){
     context.save()
+    if(item.rotation&&!item.sourceText&&['image','text'].includes(item.tool)){
+      const {width,height}=pdfObjectSize(item)
+      const x=item.x+width/2,y=item.y+height/2
+      context.translate(x,y)
+      context.rotate(item.rotation*Math.PI/180)
+      context.translate(-x,-y)
+    }
     if(item.points?.length){
       context.strokeStyle=item.color||'#000';context.fillStyle=item.color||'#000';context.lineWidth=item.strokeWidth||2;context.lineCap='round';context.lineJoin='round';context.globalAlpha=item.tool==='highlighter' ? 0.3 : 1
       const first=item.points[0];context.beginPath();context.moveTo(first.x,first.y)

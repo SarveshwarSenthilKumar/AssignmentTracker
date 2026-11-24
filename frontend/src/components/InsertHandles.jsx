@@ -1,13 +1,31 @@
-import { Move } from 'lucide-react'
+import { Move, RotateCw } from 'lucide-react'
 
-export default function InsertHandles({ item, onStart, onMove, onEnd }) {
+export default function InsertHandles({ item, onStart, onMove, onEnd, onRotate }) {
+  const dragHandle=kind=>({
+    onPointerDown:e=>{
+      if(e.button!==0)return
+      e.preventDefault()
+      e.stopPropagation()
+      e.currentTarget.setPointerCapture(e.pointerId)
+      onStart(e,item,kind)
+    },
+    onPointerMove:e=>{e.stopPropagation();onMove(e)},
+    onPointerUp:e=>{
+      e.stopPropagation()
+      onEnd()
+      if(e.currentTarget.hasPointerCapture(e.pointerId))e.currentTarget.releasePointerCapture(e.pointerId)
+    },
+    onPointerCancel:e=>{e.stopPropagation();onEnd(true)},
+    onLostPointerCapture:()=>onEnd()
+  })
+  const label=item.label||(item.stickyNote?'sticky note':item.tool==='text'?'text':'insert')
   return <>
-    <span className="pdf-insert-move-hint"><Move size={12} />Drag to move · {item.tool === 'text' && !item.sourceText && !item.stickyNote ? 'corners to wrap text' : 'corners to resize'}</span>
-    {['nw', 'ne', 'sw', 'se'].map(corner => <button key={corner} type="button" className={`pdf-resize-handle pdf-resize-${corner}`} aria-label={`Resize ${item.label || (item.tool === 'text' ? 'text' : 'insert')} from ${corner} corner`}
-      onPointerDown={e => { e.preventDefault(); e.stopPropagation(); e.currentTarget.setPointerCapture(e.pointerId); onStart(e, item, corner) }}
-      onPointerMove={e => { e.stopPropagation(); onMove(e) }}
-      onPointerUp={e => { e.stopPropagation(); if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId); onEnd() }}
-      onPointerCancel={e => { e.stopPropagation(); onEnd(true) }}
-      onLostPointerCapture={() => onEnd()} />)}
+    <span className="pdf-insert-move-hint"><Move size={12}/>Drag to move · {item.tool==='text'&&!item.sourceText&&!item.stickyNote?'corners to wrap text':'corners to resize'}</span>
+    {['nw','ne','sw','se'].map(corner=><button key={corner} type="button" className={'pdf-resize-handle pdf-resize-'+corner} aria-label={'Resize '+label+' from '+corner+' corner'} {...dragHandle(corner)}/>)}
+    {!item.sourceText&&<button type="button" className="pdf-resize-handle pdf-pivot-handle"
+      aria-label={'Rotate '+label} title="Drag to rotate. Hold Shift to snap to 15°." {...dragHandle('pivot')}
+      onClick={e=>{if(e.detail===0)onRotate(item,e.shiftKey?-15:15)}}>
+      <RotateCw size={13} aria-hidden="true"/>
+    </button>}
   </>
 }

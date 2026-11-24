@@ -87,3 +87,6 @@ body:has(.detective-editor.is-zen) .assistant-launcher{display:none!important}
 .detective-item>.sticky-note-ink{top:38px;height:calc(100% - 38px);z-index:5}
 .detective-note-ink-controls{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .detective-note-ink-controls>span{font-size:11px;color:var(--text-secondary)}
+
+.detective-editor .detective-pivot{position:absolute;left:calc(100% + 16px * var(--resize-handle-scale,1));top:50%;transform:translate(-50%,-50%) scale(var(--resize-handle-scale,1));z-index:8;width:22px;height:22px;min-height:22px;padding:0;border:1px solid #fff;border-radius:50%;background:#4e86b6;color:#fff;cursor:grab;touch-action:none}
+.detective-editor .detective-pivot:active{cursor:grabbing}

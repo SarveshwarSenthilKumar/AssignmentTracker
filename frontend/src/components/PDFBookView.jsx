@@ -15,10 +15,10 @@ function BookPage({ number, width, annotations, usePressure }) {
       onLoadSuccess={page=>{const viewport=page.getViewport({scale:1});setBase({w:viewport.width,h:viewport.height})}}/>
     {base&&<div className="pdf-book-annotations" style={{height:base.h*scale}}>
       <PDFInkLayer items={items} width={base.w} height={base.h} scale={scale} usePressure={usePressure}/>
-      {items.filter(item=>item.tool==='image').map(item=><img key={item.id} src={item.dataUrl} alt={item.label||'Insert'} style={{position:'absolute',left:item.x*scale,top:item.y*scale,width:item.width*scale,height:item.height*scale}}/>)}
+      {items.filter(item=>item.tool==='image').map(item=><img key={item.id} src={item.dataUrl} alt={item.label||'Insert'} style={{position:'absolute',left:item.x*scale,top:item.y*scale,transform:item.rotation?'rotate('+item.rotation+'deg)':undefined,width:item.width*scale,height:item.height*scale}}/>)}
       {items.filter(item=>item.sourceText).map(item=><div key={`cover-${item.id}`} style={{position:'absolute',left:item.sourceText.x*scale,top:item.sourceText.y*scale,width:item.sourceText.width*scale,height:item.sourceText.height*scale,background:item.sourceText.background||'#fff'}}/>)}
       {items.filter(item=>item.tool==='text').map(item=><div key={item.id} style={{
-        position:'absolute',left:item.x*scale,top:item.y*scale,width:item.textBoxWidth?item.textBoxWidth*scale:undefined,
+        position:'absolute',left:item.x*scale,top:item.y*scale,transform:item.rotation?'rotate('+item.rotation+'deg)':undefined,width:item.textBoxWidth?item.textBoxWidth*scale:undefined,
         minHeight:item.stickyNote?(item.noteHeight??110)*scale:undefined,background:item.stickyNote?item.noteColor||'#fff1a8':undefined,
         color:item.color||'#000',fontSize:(item.fontSize||16)*scale,fontFamily:'Helvetica, Arial, sans-serif',
         lineHeight:1.2,whiteSpace:'pre',padding:`${2*scale}px ${4*scale}px`,boxSizing:'border-box'

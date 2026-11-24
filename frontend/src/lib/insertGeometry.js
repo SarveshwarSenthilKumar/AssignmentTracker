@@ -43,3 +43,16 @@ export function resizeFromCorner(item, size, point, corner, page, limits = {}) {
   const width = size.width * ratio, height = size.height * ratio
   return { x: left ? anchorX - width : anchorX, y: top ? anchorY - height : anchorY, width, height, ratio }
 }
+
+export function rotatePoint(point, center, angle) {
+  const radians = angle * Math.PI / 180
+  const cos = Math.cos(radians), sin = Math.sin(radians)
+  const x = point.x - center.x, y = point.y - center.y
+  return { x: center.x + x * cos - y * sin, y: center.y + x * sin + y * cos }
+}
+
+export function pivotDelta(start, point, center) {
+  const angle = p => Math.atan2(p.y - center.y, p.x - center.x)
+  const delta = (angle(point) - angle(start)) * 180 / Math.PI
+  return (delta + 540) % 360 - 180
+}

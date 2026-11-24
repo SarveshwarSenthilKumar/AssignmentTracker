@@ -61,8 +61,8 @@ import { PDFDocument, rgb, degrees, StandardFonts, LineCapStyle, pushGraphicsSta
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.js?url'
 import './PDFEditor.css'
 import InsertHandles from './InsertHandles'
-import { moveInsert, resizeFromCorner, snapInsert } from '../lib/insertGeometry'
-import { PDF_TEXT_FONT, pdfTextLines, stickyNoteSize } from '../lib/pdfTextBox'
+import { moveInsert, resizeFromCorner, snapInsert, rotatePoint, pivotDelta } from '../lib/insertGeometry'
+import { pdfTextLines, stickyNoteSize, pdfObjectSize } from '../lib/pdfTextBox'
 import InsertPanel, { imageFromFile, makeInsert } from './PDFInsertPanel'
 import { cn } from '../lib/utils'
 
@@ -79,7 +79,6 @@ const TEXT_PAD_X = 4
 const TEXT_PAD_Y = 2
 const LINE_HEIGHT = 1.2
 const BASELINE_RATIO = 0.9465 // distance from top of a line box to the baseline, in font sizes
-const FONT_STACK = PDF_TEXT_FONT
 const PDF_OPTIONS = { isEvalSupported: false }
 const EMPTY_PAGE_ITEMS=[]
 const WHITEBOARD_PAGE_SIZE={w:2400,h:1600,rotation:0}
@@ -122,6 +121,7 @@ const strokeHit = (stroke, pt, radius) => {
   return false
 }
 
+const normalizeRotation=angle=>(angle%360+540)%360-180
 const EMPTY_STICKY_INK=[]
 const noteInkTarget=event=>event.target.closest?.('[data-sticky-note-writing]')
 
@@ -180,7 +180,11 @@ export async function burnAnnotations(pdfBytes, annotations, usePressure) {
     const W = box.width
     const H = box.height
     const angle = ((page.getRotation().angle % 360) + 360) % 360
+    const itemRotation=item.sourceText?0:item.rotation||0
+    const size=itemRotation?pdfObjectSize(item):null
+    const center=size?{x:item.x+size.width/2,y:item.y+size.height/2}:null
     const toPdf = (vx, vy) => {
+      if(center){const point=rotatePoint({x:vx,y:vy},center,itemRotation);vx=point.x;vy=point.y}
       let x
       let y
       if (angle === 90) { x = vy; y = vx }
@@ -190,13 +194,14 @@ export async function burnAnnotations(pdfBytes, annotations, usePressure) {
       return { x: x + box.x, y: y + box.y }
     }
 
+    const objectAngle=angle-itemRotation
     const { r, g, b } = hexToRgb(item.color || '#000000')
     const color = rgb(r, g, b)
 
     if (item.tool === 'image') {
       const image = await pdfDoc.embedPng(item.dataUrl)
       const p = toPdf(item.x, item.y + item.height)
-      page.drawImage(image, { x: p.x, y: p.y, width: item.width, height: item.height, rotate: degrees(angle) })
+      page.drawImage(image, { x: p.x, y: p.y, width: item.width, height: item.height, rotate: degrees(objectAngle) })
       continue
     }
 
@@ -205,7 +210,7 @@ export async function burnAnnotations(pdfBytes, annotations, usePressure) {
         const {width,height}=stickyNoteSize(item)
         const point = toPdf(item.x, item.y + height)
         const fill = hexToRgb(item.noteColor || '#fff1a8')
-        page.drawRectangle({ x: point.x, y: point.y, width, height, color: rgb(fill.r, fill.g, fill.b), rotate: degrees(angle) })
+        page.drawRectangle({ x: point.x, y: point.y, width, height, color: rgb(fill.r, fill.g, fill.b), rotate: degrees(objectAngle) })
       }
       if(item.sourceText){
         const source=item.sourceText,p=toPdf(source.x,source.y+source.height)
@@ -226,10 +231,10 @@ export async function burnAnnotations(pdfBytes, annotations, usePressure) {
           item.y + TEXT_PAD_Y + i * size * LINE_HEIGHT + size * (item.textStyle?.baselineRatio||BASELINE_RATIO)
         )
         if(item.textStyle){
-          page.pushOperators(pushGraphicsState(),translate(p.x,p.y),rotateDegrees(angle),scaleGraphics(item.textStyle.horizontalScale||1,1),setCharacterSpacing(item.textStyle.letterSpacing||0))
+          page.pushOperators(pushGraphicsState(),translate(p.x,p.y),rotateDegrees(objectAngle),scaleGraphics(item.textStyle.horizontalScale||1,1),setCharacterSpacing(item.textStyle.letterSpacing||0))
           page.drawText(safe,{x:0,y:0,size,font:selectedFont,color,opacity:item.textStyle.opacity??1})
           page.pushOperators(popGraphicsState())
-        }else page.drawText(safe, { x: p.x, y: p.y, size, font:selectedFont, color, rotate: degrees(angle) })
+        }else page.drawText(safe, { x: p.x, y: p.y, size, font:selectedFont, color, rotate: degrees(objectAngle) })
       })
       if(item.stickyNote)exportStickyInk(page,item,toPdf)
       continue
@@ -278,7 +283,7 @@ export async function burnAnnotations(pdfBytes, annotations, usePressure) {
 function TextAnnotation({
   item, scale, isActive, tool, textareaRef,
   onClick, onChange, onCommit, onDelete, onFontDelta, onColorChange, onNoteColorChange,
-  onDragStart, onDragMove, onDragEnd, onResizeStart, selected, onSelect, onSave, onDownload, writing, onToggleInk, onStroke, onRemoveStroke
+  onDragStart, onDragMove, onDragEnd, onResizeStart, selected, onSelect, onSave, onDownload, onRotate, writing, onToggleInk, onStroke, onRemoveStroke
 }) {
   const interactive = tool === 'text' || tool === 'select' || tool==='read'
   const fontSize = item.fontSize || 16
@@ -309,6 +314,7 @@ function TextAnnotation({
         position: 'absolute',
         left: item.x * scale,
         top: item.y * scale,
+        transform: item.rotation?`rotate(${item.rotation}deg)`:undefined,
         zIndex: isActive || selected ? 30 : 20,
         outline: tool === 'select' && selected ? '2px solid #8fa5b9' : undefined,
         touchAction: tool==='read'?'auto':'none',
@@ -334,7 +340,7 @@ function TextAnnotation({
       {item.stickyNote&&['select','text'].includes(tool)&&!selected&&!isActive&&<button
         type="button" className="pdf-sticky-ink-launch" aria-label="Handwrite on sticky note" title="Handwrite on sticky note"
         onPointerDown={event=>event.stopPropagation()} onClick={()=>onToggleInk(item.id)}><Pen size={14}/></button>}
-      {tool === 'select' && selected && <InsertHandles item={item} onStart={onResizeStart} onMove={onDragMove} onEnd={onDragEnd} />}
+      {tool === 'select' && selected && <InsertHandles item={item} onStart={onResizeStart} onMove={onDragMove} onEnd={onDragEnd} onRotate={onRotate} />}
       {(tool === 'text' || (item.stickyNote && tool === 'select' && selected)) && (
         <div
           data-keep-text-active
@@ -536,8 +542,8 @@ const PagePreview=memo(function PagePreview({ pageNumber, items=[], whiteboard=f
       <div className="pdf-thumbnail-annotations" aria-hidden="true">
         {items.filter(item=>item.sourceText).map(item=><div key={`cover-${item.id}`} style={{position:'absolute',left:item.sourceText.x*previewScale,top:item.sourceText.y*previewScale,width:item.sourceText.width*previewScale,height:item.sourceText.height*previewScale,background:item.sourceText.background||'#fff'}}/>)}
         <PDFInkLayer items={items} width={base.w} height={base.h} scale={previewScale} usePressure={usePressure}/>
-        {items.filter(item=>item.tool==='image').map(item=><img key={item.id} src={item.dataUrl} alt="" draggable={false} style={{position:'absolute',left:item.x*previewScale,top:item.y*previewScale,width:item.width*previewScale,height:item.height*previewScale}}/>)}
-        {items.filter(item=>item.tool==='text').map(item=><div key={item.id} style={{position:'absolute',left:item.x*previewScale,top:item.y*previewScale,color:item.color||'#000',background:item.stickyNote?item.noteColor||'#fff1a8':undefined,fontSize:(item.fontSize||16)*previewScale,...replacementCss(item,previewScale),lineHeight:LINE_HEIGHT,whiteSpace:'pre',boxSizing:'border-box',width:item.textBoxWidth?item.textBoxWidth*previewScale:undefined,minHeight:item.stickyNote?(item.noteHeight??110)*previewScale:undefined,padding:`${TEXT_PAD_Y*previewScale}px ${TEXT_PAD_X*previewScale}px`}}>{pdfTextLines(item).join('\n')}{item.stickyNote&&item.ink?.length>0&&<StickyNoteInk strokes={item.ink}/>}</div>)}
+        {items.filter(item=>item.tool==='image').map(item=><img key={item.id} src={item.dataUrl} alt="" draggable={false} style={{position:'absolute',left:item.x*previewScale,top:item.y*previewScale,transform:item.rotation?'rotate('+item.rotation+'deg)':undefined,width:item.width*previewScale,height:item.height*previewScale}}/>)}
+        {items.filter(item=>item.tool==='text').map(item=><div key={item.id} style={{position:'absolute',left:item.x*previewScale,top:item.y*previewScale,transform:item.rotation?'rotate('+item.rotation+'deg)':undefined,color:item.color||'#000',background:item.stickyNote?item.noteColor||'#fff1a8':undefined,fontSize:(item.fontSize||16)*previewScale,...replacementCss(item,previewScale),lineHeight:LINE_HEIGHT,whiteSpace:'pre',boxSizing:'border-box',width:item.textBoxWidth?item.textBoxWidth*previewScale:undefined,minHeight:item.stickyNote?(item.noteHeight??110)*previewScale:undefined,padding:`${TEXT_PAD_Y*previewScale}px ${TEXT_PAD_X*previewScale}px`}}>{pdfTextLines(item).join('\n')}{item.stickyNote&&item.ink?.length>0&&<StickyNoteInk strokes={item.ink}/>}</div>)}
       </div>
     </>}
   </div>
@@ -1376,15 +1382,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     activate(item.id)
   }
 
-  const measureContext=useRef(null)
-  const insertSize = (item) => {
-    if (item.tool !== 'text') return { width: item.width, height: item.height }
-    const context=measureContext.current??=document.createElement('canvas').getContext('2d')
-    const size = item.fontSize || 16
-    context.font = `${size}px ${FONT_STACK}`
-    const lines = pdfTextLines(item, line => context.measureText(line).width)
-    return { width: item.textBoxWidth || Math.max(12, ...lines.map(line => context.measureText(line).width)) + TEXT_PAD_X * 2, height: Math.max(item.stickyNote ? item.noteHeight ?? 110 : 0, lines.length * size * LINE_HEIGHT + TEXT_PAD_Y * 2) }
-  }
+  const insertSize=pdfObjectSize
 
   const beginTransform = (e, item, corner = null) => {
     if (e.pointerType === 'mouse' && e.button !== 0) return
@@ -1400,8 +1398,8 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     const drag = dragRef.current
     if (!drag || e.pointerId !== drag.pointerId || !pageBase) return
     e.stopPropagation()
-    const {clientX,clientY,altKey}=e
-    pendingDragMove.current=()=>applyDragMove(drag,{clientX,clientY,altKey})
+    const {clientX,clientY,altKey,shiftKey}=e
+    pendingDragMove.current=()=>applyDragMove(drag,{clientX,clientY,altKey,shiftKey})
     if(!dragFrame.current)dragFrame.current=requestAnimationFrame(flushDragMove)
   }
 
@@ -1414,10 +1412,17 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   }
 
   const applyDragMove=(drag,e)=>{
-    const pt = toLocal(e)
-    if (!drag.moved && Math.hypot(pt.x - drag.origin.x, pt.y - drag.origin.y) * scale < 3) return
+    if(!overlayRef.current)return
+    const point = toLocal(e)
+    if (!drag.moved && Math.hypot(point.x - drag.origin.x, point.y - drag.origin.y) * scale < 3) return
+    const rotation=drag.item.rotation||0
+    const center={x:drag.item.x+drag.size.width/2,y:drag.item.y+drag.size.height/2}
+    const pt=rotation&&drag.corner?rotatePoint(point,center,-rotation):point
     let changes
-    if (drag.corner && drag.item.stickyNote) {
+    if(drag.corner==='pivot'){
+      const angle=rotation+pivotDelta(drag.origin,point,center)
+      changes={rotation:normalizeRotation(e.shiftKey?Math.round(angle/15)*15:angle)}
+    }else if (drag.corner && drag.item.stickyNote) {
       const left = drag.corner.includes('w')
       const top = drag.corner.includes('n')
       const anchorX = left ? drag.item.x + drag.size.width : drag.item.x
@@ -1436,7 +1441,8 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       const fromLeft = drag.corner.includes('w')
       const fixedX = fromLeft ? drag.item.x + drag.size.width : drag.item.x
       const available = fromLeft ? fixedX : pageBase.w - fixedX
-      const delta = pt.x - drag.origin.x
+      const origin=rotation?rotatePoint(drag.origin,center,-rotation):drag.origin
+      const delta = pt.x - origin.x
       const textBoxWidth = Math.max(1, Math.min(available, Math.max(24, drag.size.width + (fromLeft ? -delta : delta))))
       const height = insertSize({ ...drag.item, textBoxWidth }).height
       const top = drag.corner.includes('n') ? drag.item.y + drag.size.height - height : drag.item.y
@@ -1448,12 +1454,18 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       changes = text ? { x: result.x, y: result.y, fontSize: size * result.ratio } : { x: result.x, y: result.y, width: result.width, height: result.height }
     } else {
       changes = moveInsert(drag.item, drag.size, pt, { x: drag.origin.x - drag.item.x, y: drag.origin.y - drag.item.y }, pageBase)
-      if (drag.item.tool === 'image') {
-        const neighbors = drag.snapshot.filter(item => item.id !== drag.id && item.tool === 'image' && item.page === pageNumber)
+      if (drag.item.tool === 'image'&&!rotation) {
+        const neighbors = drag.snapshot.filter(item => item.id !== drag.id && item.tool === 'image' && !item.rotation && item.page === pageNumber)
         const snapped = e.altKey ? null : snapInsert(changes, drag.size, pageBase, neighbors, 7 / scale)
         if (snapped) changes = snapped.position
         setInsertGuides(snapped ? { ...snapped.guides, page: pageNumber } : null)
       }
+    }
+    if(rotation&&drag.corner&&drag.corner!=='pivot'){
+      const size=insertSize({...drag.item,...changes})
+      const nextCenter=rotatePoint({x:changes.x+size.width/2,y:changes.y+size.height/2},center,rotation)
+      changes.x=nextCenter.x-size.width/2
+      changes.y=nextCenter.y-size.height/2
     }
     drag.moved = true
     updatePaths(prev => prev.map(item => item.id === drag.id ? { ...item, ...changes } : item))
@@ -1469,6 +1481,11 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     if (!drag.moved) return
     if (cancelled) { updatePaths(drag.snapshot); return }
     if (activeTextIdRef.current !== drag.id) pushHistoryRaw(drag.snapshot)
+  }
+
+  const rotateInsert=(item,amount)=>{
+    pushHistory()
+    updatePaths(previous=>previous.map(value=>value.id===item.id?{...value,rotation:normalizeRotation((value.rotation||0)+amount)}:value))
   }
 
   const addImageInsert = (asset, targetPage = pageNumber, base = pageBase, destination = null) => {
@@ -2608,7 +2625,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
                   </svg>
 
                   {pageItems.filter(i => i.tool === 'image').map(item => (
-                    <div key={item.id} data-pdf-annotation-id={item.id} data-pdf-annotation-kind="image" style={{ position: 'absolute', left: item.x * scale, top: item.y * scale, width: item.width * scale, height: item.height * scale, pointerEvents: currentTool === 'select' ? 'auto' : 'none', outline: currentTool === 'select' && selectedInsertId === item.id ? '2px solid #8fa5b9' : undefined, touchAction: 'none', cursor: currentTool === 'select' ? 'move' : 'pointer', zIndex: selectedInsertId === item.id ? 25 : 15 }}
+                    <div key={item.id} data-pdf-annotation-id={item.id} data-pdf-annotation-kind="image" style={{ position: 'absolute', left: item.x * scale, top: item.y * scale, width: item.width * scale, height: item.height * scale, transform:item.rotation?`rotate(${item.rotation}deg)`:undefined, pointerEvents: currentTool === 'select' ? 'auto' : 'none', outline: currentTool === 'select' && selectedInsertId === item.id ? '2px solid #8fa5b9' : undefined, touchAction: 'none', cursor: currentTool === 'select' ? 'move' : 'pointer', zIndex: selectedInsertId === item.id ? 25 : 15 }}
                       onPointerDown={e => {
                         e.stopPropagation(); e.preventDefault()
                         if (currentTool === 'eraser') { handleDeleteText(item.id); return }
@@ -2622,7 +2639,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
                       onPointerCancel={() => handleTextDragEnd(true)}
                       onLostPointerCapture={() => handleTextDragEnd()}>
                       <img src={item.dataUrl} alt={item.label || 'Inserted image'} draggable={false} style={{ width: '100%', height: '100%', display: 'block' }} />
-                      {currentTool === 'select' && selectedInsertId === item.id && <InsertHandles item={item} onStart={handleResizeStart} onMove={handleTextDragMove} onEnd={handleTextDragEnd} />}
+                      {currentTool === 'select' && selectedInsertId === item.id && <InsertHandles item={item} onStart={handleResizeStart} onMove={handleTextDragMove} onEnd={handleTextDragEnd} onRotate={rotateInsert} />}
                       {currentTool === 'select' && selectedInsertId === item.id && <div className="pdf-insert-controls" onPointerDown={e => e.stopPropagation()}>
                         <select aria-label="Align insert to page" value="" onChange={event => alignInsert(item, event.target.value)}>
                           <option value="" disabled>Align</option>
@@ -2656,6 +2673,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
                       onFontDelta={handleFontDelta}
                       onColorChange={handleAnnotationColorChange}
                       onNoteColorChange={handleNoteColorChange}
+                      onRotate={rotateInsert}
                       writing={writingOnNote(item.id)}
                       onToggleInk={toggleNoteInk}
                       onStroke={changeNoteInk}
