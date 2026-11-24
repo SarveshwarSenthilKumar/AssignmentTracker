@@ -14,7 +14,7 @@ import {History} from 'lucide-react'
 
 const annotationTools=[['read','Select text',TextSelect],['pen','Pen',Pen],['highlighter','Highlight',Highlighter],['text','Text',Type],['select','Move',Move],['eraser','Erase',Eraser]]
 
-export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,insert,onRuler,onStickyNote,onSearch,onTutorial,searchActions,bookView,onBookView}){
+export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,insert,onRuler,onStickyNote,onSearch,onTutorial,searchActions,bookView,onBookView,onQuickActions}){
   const searchable = []
   useEffect(() => {
     if (!searchActions) return
@@ -210,6 +210,7 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
       <button type="button" className="pc-button" title="Add Sticky note" aria-label="Add Sticky note" disabled={!pages.canAdd} onClick={()=>{close();onStickyNote()}}><FileText size={18} aria-hidden="true"/><span>Sticky note</span></button>
       <div className="pc-tool-menus">{pagesMenu}{viewMenu}{utilityMenu}</div>
       <button type="button" className="pc-button" onClick={()=>{close();onSearch()}} title="Search document (Ctrl/Cmd+F)">Find</button>
+      {onQuickActions&&<button type="button" className="pc-button" onClick={()=>{close();onQuickActions()}} title="Quick actions (N)">Quick actions</button>}
       <button type="button" className="pc-button" onClick={()=>{close();onTutorial()}} title="Learn the PDF editor">Tutorial</button>
       <button type="button" className="pc-button pc-page-lock" aria-pressed={input.pageLocked}
         onClick={()=>{close();input.onPageLock(!input.pageLocked)}}

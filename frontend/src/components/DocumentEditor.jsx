@@ -21,7 +21,7 @@ import './DocumentEditor.css'
 const cellText = value => value == null ? '' : typeof value === 'object' ? value.formula ? `=${value.formula}` : value.richText ? value.richText.map(run => run.text).join('') : String(value.text ?? value.result ?? value.error ?? '') : String(value)
 const typedValue = value => value.startsWith('=') ? { formula: value.slice(1) } : /^(?:0|-?[1-9]\d*)(?:\.\d+)?$/.test(value) ? Number(value) : value
 
-export default function DocumentEditor({ pdfId, token, onClose, onCleanCopy, assistantOpen, onToggleAssistant, onAssistantHost, renderFolderNavigation }) {
+export default function DocumentEditor({ pdfId, token, onClose, onCleanCopy, assistantOpen, onToggleAssistant, onAssistantHost, renderFolderNavigation, onTaskCreated }) {
   const confirmation = useInlineConfirm()
   const [data, setData] = useState(null), [kind, setKind] = useState(null), [loading, setLoading] = useState(true)
   const [loadFailed, setLoadFailed] = useState(false)
@@ -191,7 +191,7 @@ export default function DocumentEditor({ pdfId, token, onClose, onCleanCopy, ass
   const usesVisualEditor = !error && ((kind === 'pdf' && !loading) || (kind === 'image' && imageDocument))
   useDocumentTabTitle(usesVisualEditor || error ? null : data?.name)
   if(accessDenied||liveText.accessDenied)return <DocumentAccessNotice message={accessDenied||liveText.accessDenied} onClose={onClose} onRetry={()=>window.location.reload()} onSaveDraft={data?()=>download():undefined}/>
-  if (kind === 'pdf' && !loading && !error) return <PDFEditor assistantOpen={assistantOpen} onToggleAssistant={onToggleAssistant} onAssistantHost={onAssistantHost} onCleanCopy={onCleanCopy} pdfId={pdfId} token={token} onClose={onClose} renderFolderNavigation={renderFolderNavigation} />
+  if (kind === 'pdf' && !loading && !error) return <PDFEditor assistantOpen={assistantOpen} onToggleAssistant={onToggleAssistant} onAssistantHost={onAssistantHost} onCleanCopy={onCleanCopy} pdfId={pdfId} token={token} onClose={onClose} renderFolderNavigation={renderFolderNavigation} onTaskCreated={onTaskCreated} />
   if (kind === 'image' && imageDocument && !error) return <PDFEditor assistantOpen={assistantOpen} onToggleAssistant={onToggleAssistant} onAssistantHost={onAssistantHost} onCleanCopy={onCleanCopy} pdfId={pdfId} token={token} onClose={onClose} renderFolderNavigation={renderFolderNavigation} initialDocument={imageDocument} exportImage />
   const editable = ['text','word','table','workbook'].includes(kind) && !loading && !loadFailed
   const rows = kind === 'workbook' ? gridSize.rows : table.length

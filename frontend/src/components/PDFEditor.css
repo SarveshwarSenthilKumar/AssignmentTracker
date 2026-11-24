@@ -367,3 +367,8 @@
 .pdf-thumbnail-annotations img{max-width:none}
 .pdf-thumbnail-surface .react-pdf__Page{min-width:0!important;min-height:0!important}
 .pdf-whiteboard .pdf-page-preview{border:1px solid var(--border-strong)}
+
+.pdf-quick-action-list{display:grid;gap:8px}
+.pdf-quick-action-list>button,.pdf-quick-action-list>a{text-align:left}
+.pdf-quick-action-list>a{padding:8px 10px;border:1px solid #64748b;border-radius:6px;color:inherit;text-decoration:none}
+.pdf-quick-action-list>a:hover,.pdf-quick-action-list>button:hover{background:#263754}

@@ -2681,6 +2681,7 @@ function App() {
         {/* PDF Editor */}
         {selectedPDF && (
           <DocumentEditor
+            onTaskCreated={task=>setTodos(previous=>[task,...previous.filter(item=>item._id!==task._id)])}
             assistantOpen={assistantOpen}
             onToggleAssistant={()=>setAssistantOpen(previous=>!previous)}
             onAssistantHost={setEditorAssistantHost}

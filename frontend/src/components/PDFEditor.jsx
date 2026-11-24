@@ -1,7 +1,7 @@
 import useDocumentTabTitle from '../hooks/useDocumentTabTitle'
 import PDFSearch from './PDFSearch'
 import PDFEditorTutorial from './PDFEditorTutorial'
-import PDFCalendarEventDialog from './PDFCalendarEventDialog'
+import PDFQuickActions from './PDFQuickActions'
 import PDFBookView from './PDFBookView'
 import {detectNumberLine} from '../lib/pdfNumberLine'
 import {detectCopyArrowStrokes} from '../lib/pdfArrowCopy'
@@ -507,7 +507,7 @@ function PagePreview({ pageNumber, items=[], whiteboard=false, usePressure=true 
 /* ------------------------------------------------------------------ */
 /* Main editor                                                         */
 /* ------------------------------------------------------------------ */
-export default function PDFEditor({ pdfId, onClose, token, initialDocument = null, shareToken = null, shareRevision = null, exportImage = false, onCleanCopy, assistantOpen=false, onToggleAssistant, onAssistantHost, renderFolderNavigation }) {
+export default function PDFEditor({ pdfId, onClose, token, initialDocument = null, shareToken = null, shareRevision = null, exportImage = false, onCleanCopy, assistantOpen=false, onToggleAssistant, onAssistantHost, renderFolderNavigation, onTaskCreated }) {
   const [showCleanup,setShowCleanup]=useState(false)
   const [copyParagraphs,setCopyParagraphs]=useState(()=>{try{return localStorage.getItem('pdf-copy-paragraphs')!=='false'}catch{return true}})
   useEffect(()=>{try{localStorage.setItem('pdf-copy-paragraphs',String(copyParagraphs))}catch{}},[copyParagraphs])
@@ -594,20 +594,20 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const [searchFocusRequest, setSearchFocusRequest] = useState(0)
   const searchActions = useRef([])
   const [showTutorial, setShowTutorial] = useState(false)
-  const [showCalendarEvent,setShowCalendarEvent]=useState(false)
-  const [calendarEventSaved,setCalendarEventSaved]=useState(false)
+  const [showQuickActions,setShowQuickActions]=useState(false)
+  const [quickActionNotice,setQuickActionNotice]=useState('')
   useEffect(()=>{
-    if(!calendarEventSaved)return
-    const timeout=setTimeout(()=>setCalendarEventSaved(false),3500)
+    if(!quickActionNotice)return
+    const timeout=setTimeout(()=>setQuickActionNotice(''),3500)
     return()=>clearTimeout(timeout)
-  },[calendarEventSaved])
+  },[quickActionNotice])
   const [showShare, setShowShare] = useState(false)
   const [editorVisibility,setEditorVisibility]=useState(readEditorVisibility)
   const [showLayout,setShowLayout]=useState(false)
   const [zenMode,setZenMode]=useState(false)
   useEffect(()=>{
     if(!zenMode)return
-    const escape=event=>{if(event.key==='Escape'&&!event.target.closest?.('.pdf-calendar-event-dialog')){event.preventDefault();event.stopImmediatePropagation();setZenMode(false)}}
+    const escape=event=>{if(event.key==='Escape'&&!event.target.closest?.('.pdf-quick-actions-dialog')){event.preventDefault();event.stopImmediatePropagation();setZenMode(false)}}
     window.addEventListener('keydown',escape,true)
     return()=>window.removeEventListener('keydown',escape,true)
   },[zenMode])
@@ -617,7 +617,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const [bookView,setBookView]=useState(false)
   useEffect(() => {
     const key = event => {
-      if (event.target.closest?.('.pdf-calendar-event-dialog')) return
+      if (event.target.closest?.('.pdf-quick-actions-dialog')) return
       if (!(event.ctrlKey || event.metaKey) || event.shiftKey || event.altKey || event.key.toLowerCase() !== 'f') return
       event.preventDefault()
       event.stopPropagation()
@@ -2045,6 +2045,12 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     if(!item||!pageBase||currentTool!=='select')return
     positionInsert(item, { x: item.x + dx, y: item.y + dy })
   }
+  const canOpenQuickActions=Boolean(token&&!shareToken&&!exportImage&&!isWhiteboard)
+  const openQuickActions=()=>{
+    if(!canOpenQuickActions||loading||deletingPage||confirmation.pending||liveInk.accessRevoked||accessDenied||inserting||showLayout||showSettings||showSearch||showTutorial||showShare||document.querySelector('dialog[open]'))return false
+    setQuickActionNotice('')
+    setShowQuickActions(true)
+  }
   useShortcuts('Visual editor', {
     'pdf-save': handleSave, 'pdf-download': handleDownload, undo, redo, 'redo-y': redo,
     'move-tool': () => {commitText();setCurrentTool('select')}, 'text-tool': () => setCurrentTool('text'),
@@ -2056,13 +2062,9 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     'delete-insert': () => { if(selectedInsertId && currentTool==='select'){handleDeleteText(selectedInsertId);setSelectedInsertId(null)} },
     'grow-insert': () => resizeSelected(1.1), 'shrink-insert': () => resizeSelected(.9),
     'nudge-left': () => nudgeSelected(-2,0), 'nudge-right': () => nudgeSelected(2,0), 'nudge-up': () => nudgeSelected(0,-2), 'nudge-down': () => nudgeSelected(0,2),
-    'pdf-new-calendar-event': () => {
-      if(!token||shareToken||exportImage||isWhiteboard||inserting||showLayout||showSettings||showSearch||showTutorial||showShare||document.querySelector('dialog[open]'))return false
-      setCalendarEventSaved(false)
-      setShowCalendarEvent(true)
-    },
+    'pdf-quick-actions': openQuickActions,
     'pdf-close': () => { if (showSettings) setShowSettings(false); else handleClose() },
-  }, !loading && !deletingPage && !confirmation.pending && !liveInk.accessRevoked && !accessDenied && !showCalendarEvent)
+  }, !loading && !deletingPage && !confirmation.pending && !liveInk.accessRevoked && !accessDenied && !showQuickActions)
 
   const handleStylusButton=(event,phase)=>{
     if(event.pointerType!=='pen')return
@@ -2554,8 +2556,8 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     <div ref={editorRootRef} data-hidden-editor={Object.keys(editorVisibility).filter(key=>!editorVisibility[key]).join(' ')} className={cn("pdf-editor fixed inset-0 bg-slate-950 flex flex-col z-50",focusMode&&"pdf-focus-mode",zenMode&&"pdf-zen-mode",isWhiteboard&&"pdf-whiteboard","pdf-touch-tracked",fingerScroll&&"pdf-finger-scroll",currentTool==='read'&&'pdf-reading-mode')} role="region" aria-label="Visual document editor" aria-busy={deletingPage} onPointerDownCapture={e => { if (deletingPage && !e.target.closest('.document-access-notice')) { e.preventDefault(); e.stopPropagation() } }} onKeyDownCapture={e => { if (deletingPage && !e.target.closest('.document-access-notice')) { e.preventDefault(); e.stopPropagation() } }}>
       {deletingPage && <div className="inline-operation-status" role="status"><Loader2 className="animate-spin" size={17} />Updating pages…</div>}
       <InlineConfirmation {...confirmation} />
-      {calendarEventSaved&&<div className="inline-operation-status" role="status">Calendar event created.</div>}
-      {showCalendarEvent&&<PDFCalendarEventDialog token={token} onSaved={()=>setCalendarEventSaved(true)} onClose={()=>setShowCalendarEvent(false)}/>}
+      {quickActionNotice&&<div className="inline-operation-status" role="status">{quickActionNotice}</div>}
+      {showQuickActions&&<PDFQuickActions token={token} onSaved={setQuickActionNotice} onTaskCreated={onTaskCreated} onClose={()=>setShowQuickActions(false)}/>}
       <PDFCollaborationPresence editRevision={revisionRef.current} root={editorRootRef} enabled={liveEnabled} participants={liveInk.participants} publish={liveInk.publishPresence} activity={()=>stylusGesture.current?.action==='eraser'?{tool:'eraser',eraserSize:stylusExtra.size,eraserShape:stylusExtra.shape,transform:null}:{tool:currentTool,eraserSize,eraserShape,transform:dragRef.current?(dragRef.current.corner?'resize':'move'):null}} tool={currentTool} selectedId={selectedInsertId} activeTextId={activeTextId} eraserSize={eraserSize} eraserShape={eraserShape} scale={scale} box={collaborationBox} page={pageNumber} pageBase={pageBase}/>
       {showStylusStudio&&<PDFStylusSettings barrel={stylusBarrel} onBarrel={setStylusBarrel} tip={stylusEraser?stylusExtra.tip:'none'} onTip={tip=>{setStylusEraser(tip!=='none');setStylusExtra(previous=>({...previous,tip}))}} extra={stylusExtra} onExtra={setStylusExtra} onReset={()=>{setStylusBarrel('eraser');setStylusEraser(true);setStylusExtra({secondary:'none',tip:'eraser',mode:'precision',size:20,shape:'round'})}} onClose={()=>setShowStylusStudio(false)}/>}
 
@@ -2565,6 +2567,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         bookView={bookView}
         onBookView={()=>{handleTextDragEnd();commitText();setPageLocked(false);setBookView(previous=>!previous)}}
         searchActions={searchActions}
+        onQuickActions={canOpenQuickActions?openQuickActions:undefined}
         onTutorial={() => setShowTutorial(previous => !previous)}
         onSearch={() => setShowSearch(previous => !previous)}
         onStickyNote={() => {
