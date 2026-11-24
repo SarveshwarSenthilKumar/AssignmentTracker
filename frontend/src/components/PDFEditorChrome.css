@@ -18,7 +18,7 @@
 .pdf-chrome.is-compact .pc-toolbar{min-height:38px;padding:3px 10px;gap:4px}
 .pdf-chrome.is-compact .pc-toolbar .pc-tool>span{display:none}
 .pdf-chrome.is-compact .pc-toolbar .pc-annotation-group{gap:0;padding-right:4px}
-.pdf-chrome.is-compact .pc-toolbar>.pc-insert-slot,.pdf-chrome.is-compact .pc-toolbar>.pc-tool-menus,.pdf-chrome.is-compact .pc-toolbar>.pdf-finger-input{display:none}
+.pdf-chrome.is-compact .pc-toolbar>.pc-insert-slot,.pdf-chrome.is-compact .pc-toolbar>.pc-tool-menus{display:none}
 .pdf-chrome.is-compact .pc-toolbar>.pc-side-button,.pdf-chrome.is-compact .pc-toolbar>button[aria-pressed]:not(.pc-compact-toggle){display:none}
 .pdf-chrome.is-compact .pc-toolbar .pc-tool{padding:5px;min-width:30px}
 .pdf-chrome.is-compact.is-focus .pc-toolbar{padding:4px;gap:2px}
