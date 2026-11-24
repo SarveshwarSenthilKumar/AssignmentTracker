@@ -48,7 +48,7 @@ import { selectionExpression, textInPdfBox } from '../lib/pdfCalculation'
 import { calculate } from '../lib/calculator'
 import { mathSelectionImage, selectionHasInk } from '../lib/mathSelectionImage'
 import { readApiJson } from '../lib/apiResponse'
-import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from 'react'
+import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo, memo } from 'react'
 import { Document, Page, pdfjs } from 'react-pdf'
 import {
   ChevronLeft, ChevronRight, MessageSquare, Files, Moon, Sun, Calculator, X, Save, Download, Upload, Trash2, Pen, Highlighter, Eraser, ZoomIn, ZoomOut,
@@ -79,6 +79,7 @@ const BASELINE_RATIO = 0.9465 // distance from top of a line box to the baseline
 const FONT_STACK = PDF_TEXT_FONT
 const PDF_OPTIONS = { isEvalSupported: false }
 const EMPTY_PAGE_ITEMS=[]
+const WHITEBOARD_PAGE_SIZE={w:2400,h:1600,rotation:0}
 const COLORS = ['#000000', '#9e6464', '#526c83', '#62816f', '#9a835e', '#777487', '#967d87']
 const COLOR_NAMES = { '#000000': 'Black', '#9e6464': 'Muted red', '#526c83': 'Slate blue', '#62816f': 'Sage', '#9a835e': 'Ochre', '#777487': 'Violet gray', '#967d87': 'Rose gray' }
 
@@ -477,7 +478,7 @@ function TextAnnotation({
 }
 
 // Render previews as they approach the sidebar viewport, keeping long PDFs responsive.
-function PagePreview({ pageNumber, items=[], whiteboard=false, usePressure=true }) {
+const PagePreview=memo(function PagePreview({ pageNumber, items=[], whiteboard=false, usePressure=true }) {
   const ref = useRef(null)
   const [visible, setVisible] = useState(false)
   const [size,setSize]=useState(null)
@@ -502,7 +503,7 @@ function PagePreview({ pageNumber, items=[], whiteboard=false, usePressure=true 
       </div>
     </>}
   </div>
-}
+})
 
 /* ------------------------------------------------------------------ */
 /* Main editor                                                         */
@@ -724,10 +725,13 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const remoteChangesRef = useRef(null), publishEditsRef = useRef(null)
   const liveInk = useLiveInk({ url: liveUrl, token, enabled: liveEnabled, contentRevision: liveState.current.content, committed: drawingPaths, onChanges: event => remoteChangesRef.current?.(event) })
   publishEditsRef.current = (before, after) => liveInk.publishChanges(before, after, liveState.current.annotations)
-  const savedInkIds = new Set(drawingPaths.map(item => item.id))
-  const remoteInk = liveInk.strokes.filter(item => !savedInkIds.has(item.id))
-  const displayAnnotations = remoteInk.length ? [...drawingPaths, ...remoteInk] : drawingPaths
-  const [, setCurrentPath] = useState([])
+  const remoteInk=useMemo(()=>{
+    if(!liveInk.strokes.length)return EMPTY_PAGE_ITEMS
+    const savedIds=new Set(drawingPaths.map(item=>item.id))
+    return liveInk.strokes.filter(item=>!savedIds.has(item.id))
+  },[drawingPaths,liveInk.strokes])
+  const displayAnnotations=useMemo(()=>remoteInk.length?[...drawingPaths,...remoteInk]:drawingPaths,[drawingPaths,remoteInk])
+  const pageRemoteInk=useMemo(()=>remoteInk.length?remoteInk.filter(item=>item.page===pageNumber):EMPTY_PAGE_ITEMS,[remoteInk,pageNumber])
   const [rulerGuide, setRulerGuide] = useState(null)
   const liveInkRef=useRef(null)
   const [usePressure, setUsePressure] = useState(true)
@@ -802,22 +806,36 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const currentPathRef = useRef([])
   const liveStrokeId = useRef(null)
   const annotationPointerRef=useRef(null),inkFrameRef=useRef(0),eraserGestureSnapshot=useRef(null)
-  useEffect(()=>()=>cancelAnimationFrame(inkFrameRef.current),[])
+  const pathsFrame=useRef(0),dragFrame=useRef(0),pendingDragMove=useRef(null)
+  const selectionFrame=useRef(0),selectionPoint=useRef(null)
+  useEffect(()=>()=>{cancelAnimationFrame(inkFrameRef.current);cancelAnimationFrame(pathsFrame.current);cancelAnimationFrame(dragFrame.current);cancelAnimationFrame(selectionFrame.current)},[])
   const dragRef = useRef(null)
 
   /* ---------- annotation state helpers ---------- */
-  const updatePaths = useCallback((updater, { silent = false } = {}) => {
+  const updatePaths = useCallback((updater, { silent = false, frame = false } = {}) => {
     const before = pathsRef.current
     const next = typeof updater === 'function' ? updater(pathsRef.current) : updater
+    if(next===before)return
     pathsRef.current = next
-    setDrawingPaths(next)
+    if(frame){
+      if(!pathsFrame.current)pathsFrame.current=requestAnimationFrame(()=>{
+        pathsFrame.current=0
+        setDrawingPaths(pathsRef.current)
+      })
+    }else{
+      cancelAnimationFrame(pathsFrame.current)
+      pathsFrame.current=0
+      setDrawingPaths(next)
+    }
     if (!silent) {
       publishEditsRef.current?.(before, next)
       dirtyRef.current = true
       revisionRef.current += 1
       setSaveStatus(s => (s === 'saving' ? s : 'dirty'))
-      const previousIds = new Set(before.map(item => item.id))
-      if (next.some(item => item.tool === 'image' && !previousIds.has(item.id))) queueMicrotask(() => flushEditsRef.current?.())
+      if(flushEditsRef.current&&next.some((item,index)=>item!==before[index]&&item.tool==='image')){
+        const previousIds=new Set(before.map(item=>item.id))
+        if(next.some(item=>item.tool==='image'&&!previousIds.has(item.id)))queueMicrotask(()=>flushEditsRef.current?.())
+      }
     }
   }, [])
 
@@ -935,7 +953,8 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
           liveState.current.annotations = data.annotations
           sharedRevision.current = data.revision
           updatePaths(merged, { silent: true })
-          dirtyRef.current = annotationChanges(data.annotations, cleanForSave(merged)).upserts.length > 0 || annotationChanges(data.annotations, cleanForSave(merged)).removed.length > 0
+          const remaining=annotationChanges(data.annotations,cleanForSave(merged))
+          dirtyRef.current=remaining.upserts.length>0||remaining.removed.length>0
           setSaveStatus(dirtyRef.current ? 'dirty' : 'saved')
           setLiveStatus('Live · changes synchronized')
           return !dirtyRef.current
@@ -1201,18 +1220,20 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
 
   /* ---------- coordinates ---------- */
   // Pointer position -> page units, correct at any zoom and rotation
-  const toLocal = (ev) => {
+  const localCoordinates = () => {
     const el = overlayRef.current
     const r = el.getBoundingClientRect()
-    const dx = ev.clientX - (r.left + r.width / 2)
-    const dy = ev.clientY - (r.top + r.height / 2)
+    const centerX=r.left+r.width/2,centerY=r.top+r.height/2
+    const halfWidth=el.offsetWidth/2,halfHeight=el.offsetHeight/2
     const t = (rotation * Math.PI) / 180
     const cos = Math.round(Math.cos(t))
     const sin = Math.round(Math.sin(t))
-    const lx = dx * cos + dy * sin
-    const ly = -dx * sin + dy * cos
-    return { x: (lx + el.offsetWidth / 2) / scale, y: (ly + el.offsetHeight / 2) / scale }
+    return ev=>{
+      const dx=ev.clientX-centerX,dy=ev.clientY-centerY
+      return {x:(dx*cos+dy*sin+halfWidth)/scale,y:(-dx*sin+dy*cos+halfHeight)/scale}
+    }
   }
+  const toLocal=event=>localCoordinates()(event)
 
   /* ---------- tool settings ---------- */
   const handleColorChange = (color) => {
@@ -1297,10 +1318,10 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     activate(item.id)
   }
 
+  const measureContext=useRef(null)
   const insertSize = (item) => {
     if (item.tool !== 'text') return { width: item.width, height: item.height }
-    const canvas = document.createElement('canvas')
-    const context = canvas.getContext('2d')
+    const context=measureContext.current??=document.createElement('canvas').getContext('2d')
     const size = item.fontSize || 16
     context.font = `${size}px ${FONT_STACK}`
     const lines = pdfTextLines(item, line => context.measureText(line).width)
@@ -1321,6 +1342,20 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     const drag = dragRef.current
     if (!drag || e.pointerId !== drag.pointerId || !pageBase) return
     e.stopPropagation()
+    const {clientX,clientY,altKey}=e
+    pendingDragMove.current=()=>applyDragMove(drag,{clientX,clientY,altKey})
+    if(!dragFrame.current)dragFrame.current=requestAnimationFrame(flushDragMove)
+  }
+
+  const flushDragMove=()=>{
+    cancelAnimationFrame(dragFrame.current)
+    dragFrame.current=0
+    const move=pendingDragMove.current
+    pendingDragMove.current=null
+    move?.()
+  }
+
+  const applyDragMove=(drag,e)=>{
     const pt = toLocal(e)
     if (!drag.moved && Math.hypot(pt.x - drag.origin.x, pt.y - drag.origin.y) * scale < 3) return
     let changes
@@ -1369,6 +1404,8 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const handleTextDragEnd = (cancelled = false) => {
     const drag = dragRef.current
     if (!drag) return
+    if(cancelled)pendingDragMove.current=null
+    flushDragMove()
     dragRef.current = null
     setInsertGuides(null)
     if (!drag.moved) return
@@ -1465,7 +1502,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       pushHistory()
       erasedRef.current = true
     }
-    updatePaths(next)
+    updatePaths(next,{frame:true})
   }
 
   const paintInkPreview=()=>{
@@ -1473,6 +1510,10 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     inkFrameRef.current=requestAnimationFrame(()=>{
       inkFrameRef.current=0
       const stroke={id:liveStrokeId.current,points:currentPathRef.current,color:currentColor,strokeWidth,tool:currentTool==='ruler'?'pen':currentTool,page:pageNumber,pressure:usePressure,replace:currentTool==='ruler'}
+      if(currentTool==='ruler'&&stroke.points.length===2){
+        const [start,end]=stroke.points
+        setRulerGuide({page:pageNumber,start,end})
+      }
       liveInkRef.current?.draw(stroke,usePressure)
       if (liveStrokeId.current) liveInk.publish(stroke)
     })
@@ -1498,7 +1539,6 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     calculationDrag.current=null
     isDrawingRef.current=false
     currentPathRef.current=[]
-    setCurrentPath([])
     stopInkPreview()
     setCalculationBox(null)
     setCurrentTool(active?'pen':'arrow-copy')
@@ -1586,7 +1626,15 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     if(currentTool==='eraser'&&eraserCursorRef.current){const point=toLocal(e);eraserCursorRef.current.setAttribute('x',point.x-eraserSize/2);eraserCursorRef.current.setAttribute('y',point.y-eraserSize/2);eraserCursorRef.current.style.display='block'}
     if(calculationDrag.current){
       const start=calculationDrag.current;if(start.pointerId!==e.pointerId)return
-      const point=toLocal(e);setCalculationBox({x:Math.min(start.point.x,point.x),y:Math.min(start.point.y,point.y),width:Math.abs(point.x-start.point.x),height:Math.abs(point.y-start.point.y)});return
+      const {clientX,clientY}=e
+      selectionPoint.current={clientX,clientY}
+      if(!selectionFrame.current)selectionFrame.current=requestAnimationFrame(()=>{
+        selectionFrame.current=0
+        if(calculationDrag.current!==start||!overlayRef.current)return
+        const point=toLocal(selectionPoint.current)
+        setCalculationBox({x:Math.min(start.point.x,point.x),y:Math.min(start.point.y,point.y),width:Math.abs(point.x-start.point.x),height:Math.abs(point.y-start.point.y)})
+      })
+      return
     }
     if (isErasingRef.current) {
       eraseAt(toLocal(e))
@@ -1597,15 +1645,15 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       const start = currentPathRef.current[0]
       const end = rulerPoint(e)
       currentPathRef.current = [start, end]
-      setRulerGuide({ page: pageNumber, start, end })
       paintInkPreview()
       return
     }
     const events = e.nativeEvent.getCoalescedEvents?.() || []
     const list = events.length ? events : [e.nativeEvent]
     const path = currentPathRef.current
+    const toSamplePoint=localCoordinates()
     for (const ev of list) {
-      const pt = toLocal(ev)
+      const pt = toSamplePoint(ev)
       const last = path[path.length - 1]
       if (last && Math.hypot(pt.x - last.x, pt.y - last.y) < 0.3 / scale) continue
       path.push({ x: pt.x, y: pt.y, pressure: getPressure(ev) })
@@ -1622,6 +1670,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     stopInkPreview()
     if(calculationDrag.current){
       const start=calculationDrag.current;calculationDrag.current=null
+      cancelAnimationFrame(selectionFrame.current);selectionFrame.current=0
       if(overlayRef.current?.hasPointerCapture(e.pointerId))overlayRef.current.releasePointerCapture(e.pointerId)
       if(e.type==='pointercancel'){setCalculationBox(null);return}
       const point=toLocal(e),box={x:Math.min(start.point.x,point.x),y:Math.min(start.point.y,point.y),width:Math.abs(point.x-start.point.x),height:Math.abs(point.y-start.point.y)}
@@ -1732,7 +1781,6 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       if(!last||Math.hypot(end.x-last.x,end.y-last.y)>.1/scale)points.push({...end,pressure:last?.pressure||.5})
     }
     currentPathRef.current = []
-    setCurrentPath([])
     if(e.type==='pointercancel')return
     if (!points.length) return
     if(currentTool==='arrow-paste'){
@@ -1791,7 +1839,6 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     pushHistory()
     updatePaths([])
     currentPathRef.current = []
-    setCurrentPath([])
   }
 
   const goToPage = (n) => {
@@ -1860,7 +1907,6 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       undoStack.current = []
       redoStack.current = []
       bumpHistory()
-      setCurrentPath([])
       currentPathRef.current = []
       isDrawingRef.current = false
       viewerRef.current?.scrollTo({ top: 0, left: 0 })
@@ -1894,7 +1940,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       if (liveEnabled) { liveState.current.annotations = result.annotations; liveState.current.content = result.contentRevision }
       updatePaths(result.annotations, { silent: true }); dirtyRef.current = false; setSaveStatus('saved')
       undoStack.current = []; redoStack.current = []; bumpHistory()
-      setSelectedInsertId(null); setCurrentPath([]); currentPathRef.current = []; isDrawingRef.current = false
+      setSelectedInsertId(null); currentPathRef.current = []; isDrawingRef.current = false
       viewerRef.current?.scrollTo({ top: 0, left: 0 })
       return true
     } catch (error) { setActionError(error.message); return false }
@@ -2221,7 +2267,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       isDrawingRef.current=false;isErasingRef.current=false;eraserLast.current=null
       const erased=eraserGestureSnapshot.current;eraserGestureSnapshot.current=null
       if(erased&&!rollbackTouch){updatePaths(erased.paths);undoStack.current=erased.undo;redoStack.current=erased.redo;bumpHistory()}
-      currentPathRef.current=[];setCurrentPath([])
+      currentPathRef.current=[]
       calculationDrag.current=null;setCalculationBox(null)
       if(dragRef.current)handleTextDragEnd(true)
       const snapshot=touchAnnotationSnapshot.current
@@ -2275,7 +2321,21 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   useEffect(()=>registerEditor(pdfId,{snapshot:()=>liveAssistantEditor.current.snapshot(),apply:actions=>liveAssistantEditor.current.apply(actions),close:()=>liveAssistantEditor.current.close(),leave:destination=>liveAssistantEditor.current.leave(destination)}),[pdfId])
 
   const pageIndex=useMemo(()=>{const index=new Map();for(const item of drawingPaths){const number=item.page||1;if(!index.has(number))index.set(number,[]);index.get(number).push(item)}return index},[drawingPaths])
-  const previewPageIndex=useMemo(()=>{const index=new Map();for(const item of [...drawingPaths,...remoteInk]){const number=item.page||1;if(!index.has(number))index.set(number,[]);index.get(number).push(item)}return index},[drawingPaths,remoteInk])
+  const previousPreviewPages=useRef(new Map())
+  const previewPageIndex=useMemo(()=>{
+    const index=new Map()
+    for(const item of displayAnnotations){
+      const page=item.page||1
+      if(!index.has(page))index.set(page,[])
+      index.get(page).push(item)
+    }
+    for(const [page,items] of index){
+      const previous=previousPreviewPages.current.get(page)
+      if(previous?.length===items.length&&items.every((item,i)=>item===previous[i]))index.set(page,previous)
+    }
+    previousPreviewPages.current=index
+    return index
+  },[displayAnnotations])
 
   const prepareCleanup=async(scope,signal)=>{
     if(loading||exportImage||deletingPageRef.current||insertingRef.current)throw new Error('Wait for the PDF to finish its current operation.')
@@ -2458,7 +2518,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
                   {pageItems.filter(item=>item.sourceText).map(item=><div key={`cover-${item.id}`} aria-hidden style={{position:'absolute',left:item.sourceText.x*scale,top:item.sourceText.y*scale,width:item.sourceText.width*scale,height:item.sourceText.height*scale,background:item.sourceText.background||'#fff',pointerEvents:'none'}}/>)}
                   {currentTool==='text'&&existingRuns.page===pageNumber&&existingRuns.items.filter(run=>!pageItems.some(item=>item.sourceText?.key===run.key)).map(run=><div key={`source-${run.key}`} aria-hidden style={{position:'absolute',left:run.x*scale,top:run.y*scale,width:run.width*scale,height:run.height*scale,borderBottom:'1px dotted #718ea855',pointerEvents:'none'}}/>)}
                   <PDFInkLayer items={pageItems} width={pageBase.w} height={pageBase.h} scale={scale} usePressure={usePressure}/>
-                  <PDFInkLayer items={remoteInk.filter(item=>item.page===pageNumber)} width={pageBase.w} height={pageBase.h} scale={scale} usePressure={usePressure}/>
+                  {pageRemoteInk.length>0&&<PDFInkLayer items={pageRemoteInk} width={pageBase.w} height={pageBase.h} scale={scale} usePressure={usePressure}/>}
                   <PDFLiveInk ref={liveInkRef} width={pageBase.w} height={pageBase.h} scale={scale}/>
                   {currentTool === 'select' && insertGuides?.page === pageNumber && <div className="pdf-insert-guides" aria-hidden="true">
                     {insertGuides.x !== null && <span className="pdf-insert-guide-x" style={{ left: insertGuides.x * scale }}/>}
@@ -2670,7 +2730,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
               <button onClick={() => { setPdfError(null); setLoading(true); fetchPDF() }} className="mt-4 px-4 py-2 rounded-lg bg-indigo-600 text-white">Retry loading</button>
             </div>
           ) : pdfFile ? (
-            continuousView&&!exportImage ? <PDFContinuousView onExtend={isWhiteboard?extendWhiteboard:null} extending={deletingPage||inserting} reading={currentTool==='read'} key={pdfId+':'+numPages} file={pdfFile} count={numPages} currentPage={pageNumber} activePage={activePageView} activePageReady={ready} scale={scale} rotation={rotation} fallback={pageBase||(isWhiteboard?{w:2400,h:1600,rotation:0}:null)} annotations={displayAnnotations} onActivate={activateContinuousPage} onPageReady={onPageLoadSuccess} onDocumentReady={onDocumentLoadSuccess} usePressure={usePressure} viewer={viewerRef} options={PDF_OPTIONS}/> : activePageView
+            continuousView&&!exportImage ? <PDFContinuousView onExtend={isWhiteboard?extendWhiteboard:null} extending={deletingPage||inserting} reading={currentTool==='read'} key={pdfId+':'+numPages} file={pdfFile} count={numPages} currentPage={pageNumber} activePage={activePageView} activePageReady={ready} scale={scale} rotation={rotation} fallback={pageBase||(isWhiteboard?WHITEBOARD_PAGE_SIZE:null)} byPage={previewPageIndex} onActivate={activateContinuousPage} onPageReady={onPageLoadSuccess} onDocumentReady={onDocumentLoadSuccess} usePressure={usePressure} viewer={viewerRef} options={PDF_OPTIONS}/> : activePageView
           ) : (
             <div className="text-slate-400">No document data available</div>
           )}

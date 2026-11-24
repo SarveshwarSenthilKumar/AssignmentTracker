@@ -7,16 +7,20 @@ const equal = (a, b) => {
 
 export function annotationChanges(base, draft) {
   const before = new Map(base.map(item => [item.id, item]))
-  const after = new Map(draft.map(item => [item.id, item]))
-  return {
-    upserts: draft.filter(item => !equal(item, before.get(item.id))),
-    removed: base.filter(item => !after.has(item.id)).map(item => item.id),
-    patches: draft.filter(item => before.has(item.id) && !equal(item, before.get(item.id))).map(item => ({
-      id: item.id,
-      set: Object.fromEntries(Object.entries(item).filter(([key, value]) => key !== 'id' && !equal(value, before.get(item.id)[key]))),
-      unset: Object.keys(before.get(item.id)).filter(key => key !== 'id' && !(key in item))
-    }))
+  const upserts=[],patches=[]
+  const remaining=new Set(before.keys())
+  for(const item of draft){
+    const previous=before.get(item.id)
+    remaining.delete(item.id)
+    if(equal(item,previous))continue
+    upserts.push(item)
+    if(previous)patches.push({
+      id:item.id,
+      set:Object.fromEntries(Object.entries(item).filter(([key,value])=>key!=='id'&&!equal(value,previous[key]))),
+      unset:Object.keys(previous).filter(key=>key!=='id'&&!(key in item))
+    })
   }
+  return {upserts,removed:[...remaining],patches}
 }
 
 // Reapply only local changes to the newest shared state. Remote additions survive.

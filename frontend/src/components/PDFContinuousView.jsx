@@ -39,8 +39,8 @@ const ContinuousPage=memo(function ContinuousPage({number,active,activeReady,act
   </section>
 })
 
-export default function PDFContinuousView({file,count,currentPage,activePage,activePageReady,scale,rotation,fallback,annotations,onActivate,onPageReady,onDocumentReady,usePressure,viewer,options,reading=false,onExtend,extending=false}){
-  const cache=useRef(new Map()),live=useRef(null),[stackElement,setStackElement]=useState(null)
+export default function PDFContinuousView({file,count,currentPage,activePage,activePageReady,scale,rotation,fallback,byPage,onActivate,onPageReady,onDocumentReady,usePressure,viewer,options,reading=false,onExtend,extending=false}){
+  const live=useRef(null),[stackElement,setStackElement]=useState(null)
   live.current={onActivate,onPageReady,onDocumentReady,currentPage}
   const callbacks=useMemo(()=>({onActivate:(...args)=>live.current.onActivate(...args),onReady:page=>{if(page.pageNumber===live.current.currentPage)live.current.onPageReady(page)},onDocumentReady:document=>live.current.onDocumentReady(document)}),[])
   useEffect(()=>{
@@ -72,11 +72,6 @@ export default function PDFContinuousView({file,count,currentPage,activePage,act
     schedule()
     return()=>{disposed=true;clearTimeout(timer);cancelAnimationFrame(frame);observer.disconnect();viewport.removeEventListener('scroll',schedule);viewport.removeEventListener('pointerup',schedule,true);viewport.removeEventListener('pointercancel',schedule,true);viewport.removeEventListener('focusout',schedule);window.removeEventListener('resize',schedule)}
   },[viewer,file,count,stackElement,reading])
-  const byPage=useMemo(()=>{
-    const map=new Map();for(const item of annotations){const page=item.page||1;if(!map.has(page))map.set(page,[]);map.get(page).push(item)}
-    for(const [page,items]of map){const previous=cache.current.get(page);if(previous?.length===items.length&&items.every((item,index)=>item===previous[index]))map.set(page,previous)}
-    cache.current=map;return map
-  },[annotations])
   useEffect(()=>{viewer.current?.querySelector(`[data-continuous-page="${currentPage}"]`)?.scrollIntoView({block:'start'})},[]) // Preserve the selected page when switching views.
   return <Document onLoadSuccess={callbacks.onDocumentReady} className="pdf-continuous-document" options={options} file={file} loading={<p>Loading continuous view…</p>} error={<p role="alert">Could not load continuous view. Switch to single-page view to retry.</p>}><div ref={setStackElement} className="pdf-continuous-stack">{Array.from({length:count||1},(_,index)=><ContinuousPage reading={reading} usePressure={usePressure} file={file} key={index+1} number={index+1} active={currentPage===index+1} activeReady={currentPage===index+1&&activePageReady} activePage={currentPage===index+1?activePage:null} scale={scale} rotation={rotation} fallback={fallback} items={byPage.get(index+1)||EMPTY} onActivate={callbacks.onActivate} onReady={callbacks.onReady} viewer={viewer}/>)}</div>{onExtend&&<div className="pdf-whiteboard-extend"><button type="button" disabled={extending} onClick={onExtend}>{extending?'Extending board…':'+ Extend whiteboard'}</button><span>Add more room below, as often as you need.</span></div>}</Document>
 }

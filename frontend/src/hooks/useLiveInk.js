@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { annotationChanges } from '../lib/liveAnnotations'
 
 export default function useLiveInk({ url, token, enabled, contentRevision, committed, onChanges }) {
@@ -23,7 +23,7 @@ export default function useLiveInk({ url, token, enabled, contentRevision, commi
   const [accessMessage,setAccessMessage]=useState(null)
   const known = useRef(new Set())
   useEffect(() => { edits.current.clear(); pending.current.clear(); offsets.current.clear(); presence.current = null; setPreviews(new Map()); setParticipants(new Map()) }, [contentRevision])
-  known.current = new Set(committed.map(item => item.id))
+  useEffect(()=>{known.current=new Set(committed.map(item=>item.id))},[committed])
   useEffect(() => {
     setPreviews(previous => [...previous.keys()].some(id => known.current.has(id)) ? new Map([...previous].filter(([id]) => !known.current.has(id))) : previous)
   }, [committed])
@@ -178,6 +178,7 @@ export default function useLiveInk({ url, token, enabled, contentRevision, commi
   const publishChanges = (before, after, durable) => {
     if (!enabled || !contentRevision) return
     const delta = annotationChanges(before, after)
+    if(!delta.upserts.length&&!delta.removed.length)return
     const patches = new Map(delta.patches.map(patch => [patch.id, patch]))
     const saved = new Set(durable.map(item => item.id))
     const changes = delta.upserts.filter(item => saved.has(item.id) || JSON.stringify(item).length <= 64000).map(item => ({ id: item.id, set: patches.get(item.id)?.set || Object.fromEntries(Object.entries(item).filter(([key]) => key !== 'id')), unset: patches.get(item.id)?.unset || [], removed: false }))
@@ -207,5 +208,6 @@ export default function useLiveInk({ url, token, enabled, contentRevision, commi
     const id = identity?.peer || peer.peer, previous = people.get(id)
     if (!previous || priority(peer)>priority(previous) || (priority(peer)===priority(previous)&&peer.updated>previous.updated)) people.set(id,{...peer,person:id,name:identity?.name})
   }
-  return { connected, accessRevoked, accessMessage, members, self, publish, publishChanges, publishPresence, participants: [...people.values()], strokes: [...previews.values()].filter(stroke => stroke.contentRevision === contentRevision) }
+  const strokes=useMemo(()=>[...previews.values()].filter(stroke=>stroke.contentRevision===contentRevision),[previews,contentRevision])
+  return { connected, accessRevoked, accessMessage, members, self, publish, publishChanges, publishPresence, participants: [...people.values()], strokes }
 }
