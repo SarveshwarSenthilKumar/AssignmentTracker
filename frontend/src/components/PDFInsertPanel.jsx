@@ -20,10 +20,86 @@ export async function imageFromFile(file) {
   } finally { URL.revokeObjectURL(url) }
 }
 
+const UNIT_CIRCLE_POINTS = [
+  [0, '0', '1', '0'],
+  [30, 'π/6', '√3/2', '1/2'],
+  [45, 'π/4', '√2/2', '√2/2'],
+  [60, 'π/3', '1/2', '√3/2'],
+  [90, 'π/2', '0', '1'],
+  [120, '2π/3', '−1/2', '√3/2'],
+  [135, '3π/4', '−√2/2', '√2/2'],
+  [150, '5π/6', '−√3/2', '1/2'],
+  [180, 'π', '−1', '0'],
+  [210, '7π/6', '−√3/2', '−1/2'],
+  [225, '5π/4', '−√2/2', '−√2/2'],
+  [240, '4π/3', '−1/2', '−√3/2'],
+  [270, '3π/2', '0', '−1'],
+  [300, '5π/3', '1/2', '−√3/2'],
+  [315, '7π/4', '√2/2', '−√2/2'],
+  [330, '11π/6', '√3/2', '−1/2']
+]
+
+function drawUnitCircle(ctx, size) {
+  const center = size / 2, radius = 290
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.lineWidth = 3
+  ctx.beginPath()
+  ctx.moveTo(center - 420, center)
+  ctx.lineTo(center + 420, center)
+  ctx.moveTo(center, center - 420)
+  ctx.lineTo(center, center + 420)
+  ctx.stroke()
+
+  ctx.lineWidth = 5
+  ctx.beginPath()
+  ctx.arc(center, center, radius, 0, Math.PI * 2)
+  ctx.stroke()
+
+  for (const [degrees, radians, cosine, sine] of UNIT_CIRCLE_POINTS) {
+    const angle = degrees * Math.PI / 180
+    const x = Math.cos(angle), y = -Math.sin(angle)
+    const pointX = center + radius * x, pointY = center + radius * y
+    if (degrees % 90 !== 0) {
+      ctx.save()
+      ctx.globalAlpha = 0.32
+      ctx.lineWidth = 2
+      ctx.beginPath()
+      ctx.moveTo(center, center)
+      ctx.lineTo(center + 175 * x, center + 175 * y)
+      ctx.moveTo(center + 267 * x, center + 267 * y)
+      ctx.lineTo(pointX, pointY)
+      ctx.stroke()
+      ctx.restore()
+    }
+
+    ctx.beginPath()
+    ctx.arc(pointX, pointY, 6, 0, Math.PI * 2)
+    ctx.fill()
+
+    // Offset cardinal labels so the axes do not cross their text.
+    const angleX = center + 220 * x + (degrees % 180 === 90 ? 53 : 0)
+    const angleY = center + 220 * y + (degrees % 180 === 0 ? -34 : 0)
+    ctx.font = '600 28px Arial'
+    ctx.fillText(`${degrees}°`, angleX, angleY - 16)
+    ctx.fillText(degrees === 0 ? '0 / 2π' : radians, angleX, angleY + 16)
+
+    const coordinateX = center + 375 * x + (degrees % 180 === 90 ? 55 : 0)
+    const coordinateY = center + 375 * y + (degrees % 180 === 0 ? 22 : 0)
+    ctx.font = '28px Arial'
+    ctx.fillText(`(${cosine}, ${sine})`, coordinateX, coordinateY)
+  }
+
+  ctx.font = '30px Arial'
+  ctx.fillText('x', center + 440, center)
+  ctx.fillText('y', center, center - 440)
+  ctx.fillText('(cos θ, sin θ)', center, size - 36)
+}
+
 export function makeInsert(kind, color, options = {}) {
   const canvas = document.createElement('canvas')
-  canvas.width = kind === 'table' ? 720 : 480
-  canvas.height = kind === 'table' ? 360 : 240
+  canvas.width = kind === 'unit-circle' ? 1000 : kind === 'table' ? 720 : 480
+  canvas.height = kind === 'unit-circle' ? canvas.width : kind === 'table' ? 360 : 240
   const ctx = canvas.getContext('2d')
   ctx.strokeStyle = color
   ctx.fillStyle = color
@@ -33,6 +109,7 @@ export function makeInsert(kind, color, options = {}) {
     ctx.lineCap = lineStyle === 'dotted' ? 'round' : 'butt'
     ctx.setLineDash(lineStyle === 'dotted' ? [0, 18] : lineStyle === 'dashed' ? [24, 14] : [])
   }
+  if (kind === 'unit-circle') drawUnitCircle(ctx, canvas.width)
   if (kind === 'rectangle') ctx.strokeRect(8, 8, 464, 224)
   if (kind === 'ellipse') { ctx.beginPath(); ctx.ellipse(240, 120, 230, 110, 0, 0, Math.PI * 2); ctx.stroke() }
   if (kind === 'line' || kind === 'arrow') {
@@ -65,14 +142,15 @@ export function makeInsert(kind, color, options = {}) {
       }
     })
   }
-  return { dataUrl: canvas.toDataURL('image/png'), width: canvas.width, height: canvas.height, insertKind: kind, label: kind === 'stamp' ? options.label : kind }
+  return { dataUrl: canvas.toDataURL('image/png'), width: canvas.width, height: canvas.height, insertKind: kind, label: kind === 'stamp' ? options.label : kind === 'unit-circle' ? 'Unit circle' : kind }
 }
 
 const SHAPES = [
   { kind: 'rectangle', label: 'Rectangle', Icon: Square },
   { kind: 'ellipse', label: 'Ellipse', Icon: Circle },
   { kind: 'line', label: 'Line', Icon: Minus },
-  { kind: 'arrow', label: 'Arrow', Icon: ArrowRight }
+  { kind: 'arrow', label: 'Arrow', Icon: ArrowRight },
+  { kind: 'unit-circle', label: 'Unit circle', Icon: Circle }
 ]
 const FILE_TYPES = [
   { label: 'Images', Icon: ImageIcon, accept: 'image/*,.svg,.webp,.bmp,.gif,.avif', formats: 'PNG, JPG, SVG, WebP, GIF, BMP, AVIF', hint: 'Insert a picture. Animated images use a still frame.' },
@@ -169,11 +247,13 @@ export default function InsertPanel({ onFiles, onInsert, onPages, pageNumber, co
         {section === 'shapes'  && <>
           <p className="insert-label">Choose a shape</p>
           <div className="insert-shape-grid">{SHAPES.map(({ kind: type, label: name, Icon }) => <button key={type} type="button" aria-pressed={kind === type} onClick={() => setKind(type)}><Icon size={32} strokeWidth={1.5} /><span>{name}</span>{kind === type && <Check className="insert-selected-check" size={15} />}</button>)}</div>
-          <label className="insert-label insert-spaced" htmlFor={`${id}-line-style`}>Line style</label>
-          <select id={`${id}-line-style`} className="insert-text-input" value={lineStyle} onChange={event => setLineStyle(event.target.value)}><option value="solid">Solid</option><option value="dotted">Dotted</option><option value="dashed">Dashed</option></select>
-          <svg viewBox="0 0 300 60" role="img" aria-label={`${lineStyle} ${kind} preview`} style={{width:'100%',height:60,color}}>
-            {kind === 'rectangle' ? <rect x="12" y="10" width="276" height="40" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap={lineStyle === 'dotted' ? 'round' : 'butt'} strokeDasharray={lineStyle === 'dotted' ? '0 6' : lineStyle === 'dashed' ? '8 5' : undefined}/> : kind === 'ellipse' ? <ellipse cx="150" cy="30" rx="138" ry="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap={lineStyle === 'dotted' ? 'round' : 'butt'} strokeDasharray={lineStyle === 'dotted' ? '0 6' : lineStyle === 'dashed' ? '8 5' : undefined}/> : <><line x1="12" y1="30" x2="288" y2="30" stroke="currentColor" strokeWidth="2" strokeLinecap={lineStyle === 'dotted' ? 'round' : 'butt'} strokeDasharray={lineStyle === 'dotted' ? '0 6' : lineStyle === 'dashed' ? '8 5' : undefined}/>{kind === 'arrow' && <path d="M275 17 L288 30 L275 43" fill="none" stroke="currentColor" strokeWidth="2"/>}</>}
-          </svg>
+          {kind === 'unit-circle' ? <p className="insert-help">Includes common angles in degrees and radians and their exact cosine and sine coordinates.</p> : <>
+            <label className="insert-label insert-spaced" htmlFor={`${id}-line-style`}>Line style</label>
+            <select id={`${id}-line-style`} className="insert-text-input" value={lineStyle} onChange={event => setLineStyle(event.target.value)}><option value="solid">Solid</option><option value="dotted">Dotted</option><option value="dashed">Dashed</option></select>
+            <svg viewBox="0 0 300 60" role="img" aria-label={`${lineStyle} ${kind} preview`} style={{width:'100%',height:60,color}}>
+              {kind === 'rectangle' ? <rect x="12" y="10" width="276" height="40" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap={lineStyle === 'dotted' ? 'round' : 'butt'} strokeDasharray={lineStyle === 'dotted' ? '0 6' : lineStyle === 'dashed' ? '8 5' : undefined}/> : kind === 'ellipse' ? <ellipse cx="150" cy="30" rx="138" ry="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap={lineStyle === 'dotted' ? 'round' : 'butt'} strokeDasharray={lineStyle === 'dotted' ? '0 6' : lineStyle === 'dashed' ? '8 5' : undefined}/> : <><line x1="12" y1="30" x2="288" y2="30" stroke="currentColor" strokeWidth="2" strokeLinecap={lineStyle === 'dotted' ? 'round' : 'butt'} strokeDasharray={lineStyle === 'dotted' ? '0 6' : lineStyle === 'dashed' ? '8 5' : undefined}/>{kind === 'arrow' && <path d="M275 17 L288 30 L275 43" fill="none" stroke="currentColor" strokeWidth="2"/>}</>}
+            </svg>
+          </>}
           <p className="insert-help">Use the Move tool to drag the shape. Drag a corner handle to resize it.</p>
         </>}
         {section === 'table' && <>
@@ -189,7 +269,7 @@ export default function InsertPanel({ onFiles, onInsert, onPages, pageNumber, co
           <div className="insert-stamp-preview" aria-label="Stamp preview"><span style={{ color, borderColor: color }}>{label || 'YOUR TEXT'}</span></div>
         </>}
       </div>
-      {section !== 'files' && <div className="insert-footer">{section !== 'pages' && <span className="insert-color"><i style={{ backgroundColor: color }} />Toolbar color</span>}<button type="button" className="insert-submit" disabled={busy || (section === 'stamp' && !label.trim()) || (section === 'pages' && pageMode === 'files' && !pageFiles.length)} onClick={submit}><Plus size={16} />{section === 'pages' ? (pageMode === 'files' ? 'Merge pages' : pageMode === 'blank' ? 'Add blank page' : 'Duplicate page') : `Insert ${section === 'shapes' ? kind : section}`}</button></div>}
+      {section !== 'files' && <div className="insert-footer">{section !== 'pages' && <span className="insert-color"><i style={{ backgroundColor: color }} />Toolbar color</span>}<button type="button" className="insert-submit" disabled={busy || (section === 'stamp' && !label.trim()) || (section === 'pages' && pageMode === 'files' && !pageFiles.length)} onClick={submit}><Plus size={16} />{section === 'pages' ? (pageMode === 'files' ? 'Merge pages' : pageMode === 'blank' ? 'Add blank page' : 'Duplicate page') : section === 'shapes' && kind === 'unit-circle' ? 'Insert unit circle' : `Insert ${section === 'shapes' ? kind : section}`}</button></div>}
     </div>}
   </div>
 }
