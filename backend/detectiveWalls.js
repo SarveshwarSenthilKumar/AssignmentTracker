@@ -19,6 +19,15 @@ module.exports=function registerDetectiveWalls(app,auth,{mongoose}){
       const item={id:node.id,type:node.type,x:node.x,y:node.y,width:node.width,height:node.height,rotation:node.rotation,color:node.color,text:node.text};
       if(node.paperStyle!==undefined){if(!['sticky','paper','receipt','index','torn','photo'].includes(node.paperStyle))throw new Error('Invalid paper style.');item.paperStyle=node.paperStyle;}
       if(node.fontSize!==undefined){if(!number(node.fontSize,.1,renderLimit))throw new Error('Invalid text size.');item.fontSize=node.fontSize;}
+      if(node.ink!==undefined){
+        // Keep these handwriting limits in sync with detectiveWallLimits.js.
+        const validPoint=point=>Array.isArray(point)&&point.length===2&&point.every(value=>Number.isInteger(value)&&number(value,0,1000));
+        if(node.type!=='note'||!Array.isArray(node.ink)||node.ink.length>80||
+          !node.ink.every(stroke=>Array.isArray(stroke)&&stroke.length>0&&stroke.length<=1200&&stroke.every(validPoint))){
+          throw new Error('A sticky note has invalid handwriting.');
+        }
+        item.ink=node.ink;
+      }
       if(node.type==='photo'){
         if(node.imageHeight!==undefined){if(!number(node.imageHeight,1,renderLimit))throw new Error('Invalid photo height.');item.imageHeight=node.imageHeight;}
         if(typeof node.image!=='string'||node.image.length>2800000||!/^data:image\/(?:png|jpeg|webp);base64,[a-z\d+/]+=*$/i.test(node.image))throw new Error('Photos must be PNG, JPEG or WebP images smaller than 2 MB.');

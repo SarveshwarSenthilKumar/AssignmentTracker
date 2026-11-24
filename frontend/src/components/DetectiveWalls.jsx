@@ -1,16 +1,18 @@
 import {useEffect,useLayoutEffect,useRef,useState} from 'react'
-import {ArrowLeft,Plus,StickyNote,ImagePlus,Pin,Link2,Hand,MousePointer2,Undo2,Redo2,Trash2,ZoomIn,ZoomOut,Maximize,Minimize,EyeOff,Download,Save,X} from 'lucide-react'
+import {ArrowLeft,Plus,StickyNote,ImagePlus,Pin,Link2,Hand,Pencil,MousePointer2,Undo2,Redo2,Trash2,ZoomIn,ZoomOut,Maximize,Minimize,EyeOff,Download,Save,X} from 'lucide-react'
 import {readApiJson} from '../lib/apiResponse'
 import {downloadBlob} from '../lib/documentFormats'
 import './DetectiveWalls.css'
 import DetectiveWallText from './DetectiveWallText'
+import DetectiveNoteInk from './DetectiveNoteInk'
 import DetectiveCasePicker from './DetectiveCasePicker'
 import DetectiveSelectionSize from './DetectiveSelectionSize'
 import DetectiveStringWidth from './DetectiveStringWidth'
-import {MAX_WALL_SIZE,MIN_TEXT_SIZE} from '../lib/detectiveWallLimits'
+import {MAX_WALL_SIZE,MIN_TEXT_SIZE,MAX_NOTE_STROKES} from '../lib/detectiveWallLimits'
 import {spreadGrowingCards} from '../lib/detectiveWallSpacing'
 import {isCaseBoardShortcut} from '../lib/detectiveWallDemo'
 
+const EMPTY_NOTE_INK=[]
 const uid=()=>crypto.randomUUID()
 const colors=['#fff1a8','#ffd0c5','#ccebd2','#cce3ff','#e1d2f5','#ffffff']
 const W=12000,H=8000
@@ -163,6 +165,7 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
     const observer=new ResizeObserver(update);observer.observe(properties)
     return()=>observer.disconnect()
   },[fullscreen,!!selected])
+  const [inkNoteId,setInkNoteId]=useState(null)
   const [marquee,setMarquee]=useState(null)
   const [spacingOnly,setSpacingOnly]=useState(false)
   const zoomRef=useRef(INITIAL_ZOOM),zoomListener=useRef(null)
@@ -571,6 +574,7 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
   if(loading)return <p role="status">Opening detective wall…</p>
   if(!doc)return <div className="detective-lobby"><p role="alert">{error}</p><a href="#/detective-wall">Back to walls</a></div>
   const activeNode=selected?.type==='node'?doc.state.nodes.find(node=>node.id===selected.id):null
+  const writingNote=tool==='select'&&activeNode?.id===inkNoteId&&!connecting
   const activeString=selected?.type==='string'?doc.state.strings.find(edge=>edge.id===selected.id):null
   const nodes=new Map(doc.state.nodes.map(node=>[node.id,node]))
   const boardHeight=wallHeight(doc.state)
@@ -692,6 +696,11 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
           ><i className="detective-tack" aria-hidden="true"/><span className="detective-pin-plus" aria-hidden="true">+</span></button>
           {node.type==='photo'&&<img src={node.image} alt={node.text||'Pinned photo'} draggable={false} style={{height:node.imageHeight??Math.max(80,node.height-90),flex:'0 0 auto'}}/>}
           {node.type!=='pin'&&<DetectiveWallText node={node} onFit={(height,imageHeight)=>fitNodeText(node.id,height,imageHeight)} onFocus={()=>{setSelected({type:'node',id:node.id});historyRef.current={undo:[...historyRef.current.undo.slice(-19),current.current],redo:[]};setHistory(historyRef.current)}} onChange={event=>changeNode(node.id,{text:event.target.value},false)}/>}
+          {node.type==='note'&&(node.ink?.length||writingNote&&node.id===inkNoteId)?<DetectiveNoteInk
+            strokes={node.ink??EMPTY_NOTE_INK} active={writingNote&&node.id===inkNoteId} onStroke={points=>{
+              const ink=current.current.state.nodes.find(item=>item.id===node.id)?.ink??EMPTY_NOTE_INK
+              if(ink.length<MAX_NOTE_STROKES)changeNode(node.id,{ink:[...ink,points]})
+            }}/>:null}
           {resizeCorners.map(corner=><button key={corner} type="button" className={`detective-resize is-${corner}`} aria-label={`Resize ${node.type} from ${corner==='nw'?'top left':corner==='ne'?'top right':corner==='sw'?'bottom left':'bottom right'} corner`} onPointerDown={event=>startNode(event,node,corner)}/>)}
         </article>)}
         {groupBounds&&tool==='select'&&<div className="detective-group-bounds" style={{left:groupBounds.left,top:groupBounds.top,width:groupBounds.right-groupBounds.left,height:groupBounds.bottom-groupBounds.top}}>
@@ -701,6 +710,14 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
       </div></div>
     </div>
     {(activeNode||activeString||selectedGroup)&&<div className="detective-properties"><strong>{selectedGroup?`${selectedGroup.nodes.length} items · ${selectedGroup.strings.length} strings selected`:activeString?'String':activeNode.type==='photo'?'Photo':activeNode.type==='pin'?'Thumbtack':'Sticky note'}</strong>
+      {activeNode?.type==='note'&&<div className="detective-note-ink-controls" role="group" aria-label="Sticky note handwriting">
+        <button type="button" aria-pressed={writingNote} onClick={()=>{
+          setInkNoteId(writingNote?null:activeNode.id)
+          cancelConnection();setTool('select');setStringHint('')
+        }}><Pencil size={15}/>{writingNote?'Done handwriting':'Handwrite'}</button>
+        {activeNode.ink?.length>0&&<button type="button" onClick={()=>changeNode(activeNode.id,{ink:activeNode.ink.slice(0,-1)})}>Remove last stroke</button>}
+        {writingNote&&<span>{activeNode.ink?.length>=MAX_NOTE_STROKES?'Stroke limit reached. Remove a stroke to keep writing.':'Write on the note with a pen, finger, or mouse.'}</span>}
+      </div>}
       <DetectiveSelectionSize key={JSON.stringify(selectedIds)} fontSize={commonFontSize} onFontSize={size=>changeSelectedFonts(size)} onFontDelta={delta=>changeSelectedFonts(delta,true)} onScale={scaleSelected}/>
       {selectedGroup&&selectedGroup.nodes.length>1&&<div className="detective-spacing-controls" role="group" aria-label="Selection spacing">
         <span>Spacing</span>

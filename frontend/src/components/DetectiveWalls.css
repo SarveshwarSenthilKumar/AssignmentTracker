@@ -83,3 +83,9 @@ body:has(.detective-editor.is-zen) .assistant-launcher{display:none!important}
 .detective-board-zoom label{display:flex;align-items:center;gap:9px;font-size:11px;color:var(--text-secondary)}.detective-board-zoom input[type=range]{width:clamp(80px,16vw,190px);accent-color:var(--accent-solid)}.detective-board-zoom output{width:38px;text-align:right;font-variant-numeric:tabular-nums;color:var(--text-primary)}
 .detective-board-zoom button{min-height:34px;padding:6px 10px}
 @media(max-width:650px){.detective-board-zoom{gap:5px;padding:6px 8px}.detective-board-zoom label>span{display:none}.detective-board-zoom button{min-height:38px;padding:6px 8px}}
+
+.detective-note-ink{position:absolute;top:38px;left:0;width:100%;height:calc(100% - 38px);z-index:5;pointer-events:none}
+.detective-note-ink.is-writing{pointer-events:auto;touch-action:none;cursor:crosshair}
+.detective-note-ink path{fill:none;stroke:#302a24;stroke-width:12;stroke-linecap:round;stroke-linejoin:round}
+.detective-note-ink-controls{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.detective-note-ink-controls>span{font-size:11px;color:var(--text-secondary)}
