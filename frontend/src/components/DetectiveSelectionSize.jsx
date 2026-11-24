@@ -12,8 +12,8 @@ export default function DetectiveSelectionSize({fontSize,onFontSize,onFontDelta,
     <button type="button" title="Shrink selected items, pictures and text by 20%" onClick={()=>onScale(.8)}>Smaller</button>
     <button type="button" title="Enlarge selected items, pictures and text by 25%" onClick={()=>onScale(1.25)}>Larger</button>
     <span className="detective-size-divider"/>
-    <button type="button" aria-label="Decrease selected font sizes" title="Smaller text; resize its card proportionally" onClick={()=>onFontDelta(-2)}>A−</button>
-    <label title="Cards and photos resize proportionally with their text">Text size<input type="number" aria-label="Selected font size" min={MIN_TEXT_SIZE} max={MAX_WALL_SIZE} step="any" placeholder="Mixed" value={draft} onChange={event=>setDraft(event.target.value)} onBlur={commit} onKeyDown={event=>{event.stopPropagation();if(event.key==='Enter')event.currentTarget.blur()}}/><span>px</span></label>
-    <button type="button" aria-label="Increase selected font sizes" title="Bigger text; resize its card proportionally" onClick={()=>onFontDelta(2)}>A+</button>
+    <button type="button" aria-label="Decrease selected font sizes" title="Decrease text size" onClick={()=>onFontDelta(-2)}>A−</button>
+    <label>Text size<input type="number" aria-label="Selected font size" min={MIN_TEXT_SIZE} max={MAX_WALL_SIZE} step="any" placeholder="Mixed" value={draft} onChange={event=>setDraft(event.target.value)} onBlur={commit} onKeyDown={event=>{event.stopPropagation();if(event.key==='Enter')event.currentTarget.blur()}}/><span>px</span></label>
+    <button type="button" aria-label="Increase selected font sizes" title="Increase text size" onClick={()=>onFontDelta(2)}>A+</button>
   </div>
 }
