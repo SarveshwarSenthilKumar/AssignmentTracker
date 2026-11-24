@@ -23,6 +23,7 @@ import { pageFontPrograms, fontKey, standardTextFont, replacementCss, loadPageFo
 import PDFReferencePane from './PDFReferencePane'
 import PDFStylusSettings from './PDFStylusSettings'
 import usePDFTouchInput from '../hooks/usePDFTouchInput'
+import {readPDFFingerMode,savePDFFingerMode} from '../lib/pdfFingerMode'
 import {readScrollSettings,normalizeScrollSettings,SCROLL_SETTINGS_KEY} from '../lib/pdfScrollSettings'
 import useShortcuts from '../hooks/useShortcuts'
 import useLiveInk from '../hooks/useLiveInk'
@@ -649,11 +650,11 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const snippetCopyRef=useRef(false)
   const editorRootRef=useRef(null),ownsFullscreenRef=useRef(false)
   const [focusMode,setFocusMode]=useState(false)
-  const [fingerScroll,setFingerScroll]=useState(()=>{try{return localStorage.getItem('pdf-finger-mode')!=='draw'}catch{return true}})
+  const [fingerScroll,setFingerScroll]=useState(()=>readPDFFingerMode()==='scroll')
   const [pageLocked,setPageLocked]=useState(false)
   const [scrollSettings,setScrollSettings]=useState(readScrollSettings)
   const changeScrollSettings=value=>{const next=normalizeScrollSettings(value);setScrollSettings(next);try{localStorage.setItem(SCROLL_SETTINGS_KEY,JSON.stringify(next))}catch{/* Keep the settings for this editor session. */}}
-  useEffect(()=>{try{localStorage.setItem('pdf-finger-mode',fingerScroll?'scroll':'draw')}catch{}},[fingerScroll])
+
   const touchAnnotationSnapshot=useRef(null)
   const [stylusBarrel,setStylusBarrel]=useState(()=>{try{const saved=localStorage.getItem('pdf-stylus-barrel');return ['eraser','pan','undo','redo','previous','next','none'].includes(saved)?saved:'eraser'}catch{return 'eraser'}})
   const [stylusEraser,setStylusEraser]=useState(()=>{try{return localStorage.getItem('pdf-stylus-eraser')!=='false'}catch{return true}})
@@ -2163,6 +2164,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     handleTextDragEnd();commitText()
     if(!scroll&&!['pen','highlighter','eraser'].includes(currentTool))setCurrentTool('pen')
     setFingerScroll(scroll)
+    savePDFFingerMode(scroll?'scroll':'draw')
   }
 
   const pinchHandlers={

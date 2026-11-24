@@ -1,11 +1,18 @@
 import {useEffect,useState} from 'react'
 import {CheckCircle2,ChevronDown,KeyRound,Settings2,X} from 'lucide-react'
+import {PDF_FINGER_MODE_CHANGED,readPDFFingerMode,savePDFFingerMode} from '../lib/pdfFingerMode'
 import './SetupBanner.css'
 
 const readProgress=id=>{try{return JSON.parse(localStorage.getItem(`workspace-setup:${id}`)||'{}')||{}}catch{return {}}}
 
 export default function SetupBanner({token,userId,page,canvasStatus}){
   const [progress,setProgress]=useState(()=>readProgress(userId))
+  const [fingerMode,setFingerMode]=useState(readPDFFingerMode)
+  useEffect(()=>{
+    const changed=event=>setFingerMode(event.detail)
+    window.addEventListener(PDF_FINGER_MODE_CHANGED,changed)
+    return()=>window.removeEventListener(PDF_FINGER_MODE_CHANGED,changed)
+  },[])
   const [credentials,setCredentials]=useState(null),[error,setError]=useState(false)
   const [expanded,setExpanded]=useState(false),[destination,setDestination]=useState(null),[refresh,setRefresh]=useState(0)
   useEffect(()=>{setProgress(readProgress(userId));setExpanded(false)},[userId])
@@ -38,6 +45,7 @@ export default function SetupBanner({token,userId,page,canvasStatus}){
   const tasks=[
     {id:'key',title:credentials?.needsReplacement?'Replace your Gemini API key':'Add your Gemini API key',description:'Required for AI chats, file questions and AI study tools.',done:!!hasKey,automatic:true,route:'account',target:'account-ai-title'},
     {id:'preferences',title:'Review your preferences',description:'Check your time zone, appearance and other account settings.',done:!!progress.preferences,route:'account',target:'account-preferences-title'},
+    {id:'pdf-finger',title:'Choose how one finger works in PDFs',description:'Scroll is the default. You can switch modes anytime in the PDF toolbar.',done:!!progress['pdf-finger']},
     {id:'tutorial',title:'Explore the platform tutorial',description:'Learn the editor, tasks, calendar and sharing tools.',done:!!progress.tutorial,route:'tutorial'},
     {id:'canvas',title:'Connect Canvas (optional)',description:'Import your courses and assignments, or skip this step.',done:!!canvasStatus?.hasCredentials||!!progress.canvas,automatic:!!canvasStatus?.hasCredentials,route:'canvas',optional:true}
   ]
@@ -61,7 +69,12 @@ export default function SetupBanner({token,userId,page,canvasStatus}){
     {expanded&&<ul id="workspace-setup-checklist" className="setup-banner-list">{tasks.map(task=><li key={task.id}>
       <span className={`setup-banner-dot${task.done?' is-done':''}`} aria-label={task.done?'Complete':'Incomplete'}>{task.done&&<CheckCircle2 size={18}/>}</span>
       <div><strong>{task.title}</strong><p>{task.description}</p></div>
-      <div className="setup-banner-actions"><a href={`#/${task.route}`} onClick={event=>openTask(event,task)}>{task.done?'Review':'Open'}</a>{!task.automatic&&<button type="button" onClick={()=>update({[task.id]:!task.done})}>{task.done?'Reset':task.optional?'Skip':'Mark done'}</button>}</div>
+      {task.id==='pdf-finger'?<div className="setup-banner-actions" role="group" aria-label="One-finger PDF input">
+        {['scroll','draw'].map(mode=><button key={mode} type="button" aria-pressed={fingerMode===mode} onClick={()=>{
+          savePDFFingerMode(mode)
+          update({'pdf-finger':true})
+        }}>{mode==='scroll'?'Scroll (default)':'Draw'}</button>)}
+      </div>:<div className="setup-banner-actions"><a href={`#/${task.route}`} onClick={event=>openTask(event,task)}>{task.done?'Review':'Open'}</a>{!task.automatic&&<button type="button" onClick={()=>update({[task.id]:!task.done})}>{task.done?'Reset':task.optional?'Skip':'Mark done'}</button>}</div>}
     </li>)}</ul>}
   </section>
 }
