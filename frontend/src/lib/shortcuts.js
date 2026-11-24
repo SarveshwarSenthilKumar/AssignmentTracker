@@ -63,6 +63,7 @@ export const SHORTCUTS = [
   {id:'download',scope:'Document editor',label:'Download the edited document',key:'s',mod:true,shift:true,typing:true,keys:'Ctrl / Cmd + Shift + S'},
   {id:'close',scope:'Document editor',label:'Close the editor (unsaved edits are protected)',key:'Escape',typing:true,keys:'Esc'},
   {id:'pdf-save',scope:'Visual editor',label:'Save annotations',key:'s',mod:true,typing:true,keys:'Ctrl / Cmd + S'},
+  {id:'pdf-new-calendar-event',scope:'Visual editor',label:'Create a calendar event from a PDF',key:'n',keys:'N'},
   {id:'pdf-download',scope:'Visual editor',label:'Download with annotations',key:'s',mod:true,shift:true,typing:true,keys:'Ctrl / Cmd + Shift + S'},
   {id:'undo',scope:'Visual editor',label:'Undo annotation change',key:'z',mod:true,keys:'Ctrl / Cmd + Z'},
   {id:'redo',scope:'Visual editor',label:'Redo annotation change',key:'z',mod:true,shift:true,keys:'Ctrl / Cmd + Shift + Z'},

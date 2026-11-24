@@ -29,7 +29,7 @@
 .pdf-editor[data-hidden-editor~="toolbar"]:has(>.pdf-chrome:is(.is-left,.is-right))>:is(.pdf-editor-workspace,.document-folder-navigation){margin-left:0;margin-right:0}
 .pdf-editor[data-hidden-editor~="toolbar"].pdf-focus-mode .pdf-editor-workspace .pdf-editor-canvas{padding-top:0;padding-bottom:0}
 @media(max-width:600px){.pdf-visibility-trigger>span{display:none}.pdf-visibility-panel{max-height:70dvh}}
-.pdf-editor.pdf-zen-mode>:not(.pdf-editor-workspace):not(.pdf-zen-exit):not(.document-access-notice):not(.inline-confirmation):not([role="alert"]):not(.inline-operation-status){display:none!important}
+.pdf-editor.pdf-zen-mode>:not(.pdf-editor-workspace):not(.pdf-zen-exit):not(.document-access-notice):not(.inline-confirmation):not([role="alert"]):not(.inline-operation-status):not(.pdf-calendar-event-dialog){display:none!important}
 .pdf-editor.pdf-zen-mode>.pdf-editor-workspace{margin:0!important}
 .pdf-editor.pdf-zen-mode>.pdf-editor-workspace>:not(.pdf-viewer-region){display:none!important}
 .pdf-editor.pdf-zen-mode .pdf-focus-page-arrows,.pdf-editor.pdf-zen-mode .pdf-peer-overlay{display:none!important}
