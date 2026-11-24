@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { allowOnPointerDown, getCenter, isPenInput } from '../lib/vendor/excalidraw/pointerInput'
 import {scrollPhysics} from '../lib/pdfScrollSettings'
 
-const CONTROL='button,input,textarea,select,a,[contenteditable="true"]'
+const CONTROL='button,input,textarea,select,a,[contenteditable="true"],[data-sticky-note-writing]'
 const consume=event=>{event.preventDefault();event.stopPropagation()}
 const flingVelocity=(pan,now=performance.now())=>{
   if(!pan||pan.frozen||now-pan.lastMotion>100)return null

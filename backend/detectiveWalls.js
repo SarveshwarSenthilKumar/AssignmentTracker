@@ -20,7 +20,7 @@ module.exports=function registerDetectiveWalls(app,auth,{mongoose}){
       if(node.paperStyle!==undefined){if(!['sticky','paper','receipt','index','torn','photo'].includes(node.paperStyle))throw new Error('Invalid paper style.');item.paperStyle=node.paperStyle;}
       if(node.fontSize!==undefined){if(!number(node.fontSize,.1,renderLimit))throw new Error('Invalid text size.');item.fontSize=node.fontSize;}
       if(node.ink!==undefined){
-        // Keep these handwriting limits in sync with detectiveWallLimits.js.
+        // Keep these handwriting limits in sync with stickyNoteInk.js.
         const validPoint=point=>Array.isArray(point)&&point.length===2&&point.every(value=>Number.isInteger(value)&&number(value,0,1000));
         if(node.type!=='note'||!Array.isArray(node.ink)||node.ink.length>80||
           !node.ink.every(stroke=>Array.isArray(stroke)&&stroke.length>0&&stroke.length<=1200&&stroke.every(validPoint))){

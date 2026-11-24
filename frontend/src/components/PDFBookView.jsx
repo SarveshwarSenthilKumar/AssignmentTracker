@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Document, Page } from 'react-pdf'
 import PDFInkLayer from './PDFInkLayer'
+import StickyNoteInk from './StickyNoteInk'
 import { pdfTextLines } from '../lib/pdfTextBox'
 import './PDFBookView.css'
 
@@ -21,7 +22,7 @@ function BookPage({ number, width, annotations, usePressure }) {
         minHeight:item.stickyNote?(item.noteHeight??110)*scale:undefined,background:item.stickyNote?item.noteColor||'#fff1a8':undefined,
         color:item.color||'#000',fontSize:(item.fontSize||16)*scale,fontFamily:'Helvetica, Arial, sans-serif',
         lineHeight:1.2,whiteSpace:'pre',padding:`${2*scale}px ${4*scale}px`,boxSizing:'border-box'
-      }}>{pdfTextLines(item).join('\n')}</div>)}
+      }}>{pdfTextLines(item).join('\n')}{item.stickyNote&&item.ink?.length>0&&<StickyNoteInk strokes={item.ink}/>}</div>)}
     </div>}
     </div>
     <span className="pdf-book-page-number">{number}</span>

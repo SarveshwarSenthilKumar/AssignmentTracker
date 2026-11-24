@@ -32,3 +32,7 @@ export function pdfTextLines(item, measure) {
     return lines
   })
 }
+
+export function stickyNoteSize(item){
+  return {width:item.textBoxWidth||180,height:Math.max(item.noteHeight??110,pdfTextLines(item).length*(item.fontSize||16)*1.2+4)}
+}

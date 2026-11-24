@@ -1,0 +1,3 @@
+.sticky-note-ink{position:absolute;inset:0;width:100%;height:100%;z-index:1;pointer-events:none}
+.sticky-note-ink.is-writing{pointer-events:auto;touch-action:none;cursor:crosshair;box-shadow:inset 0 0 0 2px #526c83}
+.sticky-note-ink path{fill:none;stroke:#302a24;stroke-linecap:round;stroke-linejoin:round}

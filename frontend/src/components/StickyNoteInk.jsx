@@ -1,5 +1,6 @@
 import {useLayoutEffect,useMemo,useRef} from 'react'
-import {MAX_NOTE_STROKES,MAX_NOTE_STROKE_POINTS,NOTE_INK_GRID} from '../lib/detectiveWallLimits'
+import {MAX_NOTE_STROKES,MAX_NOTE_STROKE_POINTS,NOTE_INK_GRID,NOTE_INK_WIDTH} from '../lib/stickyNoteInk'
+import './StickyNoteInk.css'
 
 const strokePath=points=>{
   if(!points.length)return ''
@@ -7,7 +8,7 @@ const strokePath=points=>{
   return points.length===1?`${path}h.01`:path
 }
 
-export default function DetectiveNoteInk({strokes,active,onStroke}){
+export default function StickyNoteInk({strokes,active=false,onStroke}){
   const preview=useRef(null),gesture=useRef(null),frame=useRef(null)
   const paths=useMemo(()=>strokes.map(strokePath),[strokes])
 
@@ -45,8 +46,9 @@ export default function DetectiveNoteInk({strokes,active,onStroke}){
     })
   }
 
-  return <svg className={`detective-note-ink${active?' is-writing':''}`}
-    viewBox={`0 0 ${NOTE_INK_GRID} ${NOTE_INK_GRID}`} preserveAspectRatio="none"
+  return <svg className={`sticky-note-ink${active?' is-writing':''}`}
+    data-sticky-note-writing={active?true:undefined}
+    viewBox={`0 0 ${NOTE_INK_GRID} ${NOTE_INK_GRID}`} preserveAspectRatio="none" strokeWidth={NOTE_INK_WIDTH}
     role="img" aria-label={active?'Sticky note handwriting area':'Handwritten ink'}
     onPointerDown={event=>{
       if(event.button!==0)return

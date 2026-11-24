@@ -4,11 +4,12 @@ import {readApiJson} from '../lib/apiResponse'
 import {downloadBlob} from '../lib/documentFormats'
 import './DetectiveWalls.css'
 import DetectiveWallText from './DetectiveWallText'
-import DetectiveNoteInk from './DetectiveNoteInk'
+import StickyNoteInk from './StickyNoteInk'
 import DetectiveCasePicker from './DetectiveCasePicker'
 import DetectiveSelectionSize from './DetectiveSelectionSize'
 import DetectiveStringWidth from './DetectiveStringWidth'
-import {MAX_WALL_SIZE,MIN_TEXT_SIZE,MAX_NOTE_STROKES} from '../lib/detectiveWallLimits'
+import {MAX_WALL_SIZE,MIN_TEXT_SIZE} from '../lib/detectiveWallLimits'
+import {MAX_NOTE_STROKES} from '../lib/stickyNoteInk'
 import {spreadGrowingCards} from '../lib/detectiveWallSpacing'
 import {isCaseBoardShortcut} from '../lib/detectiveWallDemo'
 
@@ -696,7 +697,7 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
           ><i className="detective-tack" aria-hidden="true"/><span className="detective-pin-plus" aria-hidden="true">+</span></button>
           {node.type==='photo'&&<img src={node.image} alt={node.text||'Pinned photo'} draggable={false} style={{height:node.imageHeight??Math.max(80,node.height-90),flex:'0 0 auto'}}/>}
           {node.type!=='pin'&&<DetectiveWallText node={node} onFit={(height,imageHeight)=>fitNodeText(node.id,height,imageHeight)} onFocus={()=>{setSelected({type:'node',id:node.id});historyRef.current={undo:[...historyRef.current.undo.slice(-19),current.current],redo:[]};setHistory(historyRef.current)}} onChange={event=>changeNode(node.id,{text:event.target.value},false)}/>}
-          {node.type==='note'&&(node.ink?.length||writingNote&&node.id===inkNoteId)?<DetectiveNoteInk
+          {node.type==='note'&&(node.ink?.length||writingNote&&node.id===inkNoteId)?<StickyNoteInk
             strokes={node.ink??EMPTY_NOTE_INK} active={writingNote&&node.id===inkNoteId} onStroke={points=>{
               const ink=current.current.state.nodes.find(item=>item.id===node.id)?.ink??EMPTY_NOTE_INK
               if(ink.length<MAX_NOTE_STROKES)changeNode(node.id,{ink:[...ink,points]})

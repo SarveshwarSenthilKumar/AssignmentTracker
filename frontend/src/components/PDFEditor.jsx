@@ -8,6 +8,8 @@ import {detectCopyArrowStrokes} from '../lib/pdfArrowCopy'
 import {matchingFontAsset,replacementFontBytes,replacementFontFace} from '../lib/pdfReplacementFonts'
 import {downloadBlob} from '../lib/documentFormats'
 import PDFInkLayer, { PDFLiveInk } from './PDFInkLayer'
+import StickyNoteInk from './StickyNoteInk'
+import {MAX_NOTE_STROKES,NOTE_INK_GRID,NOTE_INK_WIDTH} from '../lib/stickyNoteInk'
 import { serializeAnnotations } from '../lib/annotationSerializer'
 import { annotationChanges, rebaseAnnotations } from '../lib/liveAnnotations'
 import PDFEditorChrome from './PDFEditorChrome'
@@ -60,7 +62,7 @@ import workerUrl from 'pdfjs-dist/build/pdf.worker.min.js?url'
 import './PDFEditor.css'
 import InsertHandles from './InsertHandles'
 import { moveInsert, resizeFromCorner, snapInsert } from '../lib/insertGeometry'
-import { PDF_TEXT_FONT, pdfTextLines } from '../lib/pdfTextBox'
+import { PDF_TEXT_FONT, pdfTextLines, stickyNoteSize } from '../lib/pdfTextBox'
 import InsertPanel, { imageFromFile, makeInsert } from './PDFInsertPanel'
 import { cn } from '../lib/utils'
 
@@ -118,6 +120,26 @@ const strokeHit = (stroke, pt, radius) => {
     if (distToSegment(pt, pts[i - 1], pts[i]) <= r) return true
   }
   return false
+}
+
+const EMPTY_STICKY_INK=[]
+const noteInkTarget=event=>event.target.closest?.('[data-sticky-note-writing]')
+
+function exportStickyInk(page,item,toPdf){
+  if(!item.ink?.length)return
+  const {width,height}=stickyNoteSize(item)
+  const inkColor=rgb(48/255,42/255,36/255)
+  const thickness=NOTE_INK_WIDTH*Math.sqrt(width*height)/NOTE_INK_GRID
+  for(const stroke of item.ink){
+    const points=stroke.map(([x,y])=>toPdf(item.x+x*width/NOTE_INK_GRID,item.y+y*height/NOTE_INK_GRID))
+    if(points.length===1){
+      const [point]=points
+      page.drawCircle({x:point.x,y:point.y,size:thickness/2,color:inkColor})
+    }else if(points.length>1){
+      const path=points.map((point,index)=>`${index?'L':'M'}${point.x.toFixed(2)} ${(-point.y).toFixed(2)}`).join(' ')
+      page.drawSvgPath(path,{x:0,y:0,borderColor:inkColor,borderWidth:thickness,borderLineCap:LineCapStyle.Round})
+    }
+  }
 }
 
 const cleanForSave = (items) => items.filter(i => !(i.tool === 'text' && !i.text?.trim() && !i.sourceText && !i.stickyNote))
@@ -180,17 +202,17 @@ export async function burnAnnotations(pdfBytes, annotations, usePressure) {
 
     if (item.tool === 'text') {
       if (item.stickyNote) {
-        const height = Math.max(item.noteHeight ?? 110, pdfTextLines(item).length * (item.fontSize || 16) * LINE_HEIGHT + TEXT_PAD_Y * 2)
+        const {width,height}=stickyNoteSize(item)
         const point = toPdf(item.x, item.y + height)
         const fill = hexToRgb(item.noteColor || '#fff1a8')
-        page.drawRectangle({ x: point.x, y: point.y, width: item.textBoxWidth || 180, height, color: rgb(fill.r, fill.g, fill.b), rotate: degrees(angle) })
+        page.drawRectangle({ x: point.x, y: point.y, width, height, color: rgb(fill.r, fill.g, fill.b), rotate: degrees(angle) })
       }
       if(item.sourceText){
         const source=item.sourceText,p=toPdf(source.x,source.y+source.height)
         const background=hexToRgb(source.background||'#ffffff')
         page.drawRectangle({x:p.x,y:p.y,width:source.width,height:source.height,color:rgb(background.r,background.g,background.b),rotate:degrees(angle)})
       }
-      if (!item.text?.trim()) continue
+      if (!item.text?.trim()) {if(item.stickyNote)exportStickyInk(page,item,toPdf);continue}
       const size = item.fontSize || 16
       const selectedFont=await textFont(item),characters=new Set(selectedFont.getCharacterSet())
       if(item.textStyle&&Array.from(item.text.replace(/[\n\r\t]/g,'')).some(character=>!characters.has(character.codePointAt(0))))throw new Error(`The original font ${item.textStyle.fontName} does not contain all the characters in your replacement. Your edits are saved, but this PDF cannot be exported in the original font with those characters.`)
@@ -209,6 +231,7 @@ export async function burnAnnotations(pdfBytes, annotations, usePressure) {
           page.pushOperators(popGraphicsState())
         }else page.drawText(safe, { x: p.x, y: p.y, size, font:selectedFont, color, rotate: degrees(angle) })
       })
+      if(item.stickyNote)exportStickyInk(page,item,toPdf)
       continue
     }
 
@@ -255,7 +278,7 @@ export async function burnAnnotations(pdfBytes, annotations, usePressure) {
 function TextAnnotation({
   item, scale, isActive, tool, textareaRef,
   onClick, onChange, onCommit, onDelete, onFontDelta, onColorChange, onNoteColorChange,
-  onDragStart, onDragMove, onDragEnd, onResizeStart, selected, onSelect, onSave, onDownload
+  onDragStart, onDragMove, onDragEnd, onResizeStart, selected, onSelect, onSave, onDownload, writing, onToggleInk, onStroke, onRemoveStroke
 }) {
   const interactive = tool === 'text' || tool === 'select' || tool==='read'
   const fontSize = item.fontSize || 16
@@ -308,6 +331,9 @@ function TextAnnotation({
       onLostPointerCapture={tool === 'select' ? () => onDragEnd() : undefined}
       onMouseDown={(e) => e.stopPropagation()}
     >
+      {item.stickyNote&&['select','text'].includes(tool)&&!selected&&!isActive&&<button
+        type="button" className="pdf-sticky-ink-launch" aria-label="Handwrite on sticky note" title="Handwrite on sticky note"
+        onPointerDown={event=>event.stopPropagation()} onClick={()=>onToggleInk(item.id)}><Pen size={14}/></button>}
       {tool === 'select' && selected && <InsertHandles item={item} onStart={onResizeStart} onMove={onDragMove} onEnd={onDragEnd} />}
       {(tool === 'text' || (item.stickyNote && tool === 'select' && selected)) && (
         <div
@@ -340,6 +366,15 @@ function TextAnnotation({
 
           <div className="h-4 w-px bg-white/20" />
 
+          {item.stickyNote&&<>
+            <button type="button" className="pdf-sticky-ink-action" aria-pressed={writing}
+              onPointerDown={event=>event.stopPropagation()} onClick={()=>onToggleInk(item.id)}>
+              {writing?'Done handwriting':'Handwrite'}
+            </button>
+            {item.ink?.length>0&&<button type="button" className="pdf-sticky-ink-action" title="Remove last stroke"
+              aria-label="Remove last stroke" onPointerDown={event=>event.stopPropagation()} onClick={()=>onRemoveStroke(item.id)}><Undo size={14}/></button>}
+            {writing&&item.ink?.length>=MAX_NOTE_STROKES&&<span className="pdf-sticky-ink-action" role="status">Stroke limit reached</span>}
+          </>}
           {/* Quick Color Picker */}
           {item.stickyNote && <label className="flex items-center gap-1 px-1 text-xs text-slate-200" onMouseDown={event => event.stopPropagation()}>
             Note color
@@ -418,7 +453,7 @@ function TextAnnotation({
             wrap={item.textBoxWidth ? 'soft' : 'off'}
             rows={1}
             spellCheck={false}
-            placeholder="Type text…"
+            placeholder={item.ink?.length?undefined:"Type text…"}
             onChange={(e) => onChange(item.id, e.target.value)}
             onBlur={(e) => {
               if (e.relatedTarget?.closest?.('[data-keep-text-active]')) return
@@ -474,6 +509,8 @@ function TextAnnotation({
           {pdfTextLines(item).join('\n')}
         </div>
       )}
+      {item.stickyNote&&(writing||item.ink?.length>0)&&<StickyNoteInk
+        strokes={item.ink??EMPTY_STICKY_INK} active={writing} onStroke={points=>onStroke(item.id,points)}/>}
     </div>
   )
 }
@@ -500,7 +537,7 @@ const PagePreview=memo(function PagePreview({ pageNumber, items=[], whiteboard=f
         {items.filter(item=>item.sourceText).map(item=><div key={`cover-${item.id}`} style={{position:'absolute',left:item.sourceText.x*previewScale,top:item.sourceText.y*previewScale,width:item.sourceText.width*previewScale,height:item.sourceText.height*previewScale,background:item.sourceText.background||'#fff'}}/>)}
         <PDFInkLayer items={items} width={base.w} height={base.h} scale={previewScale} usePressure={usePressure}/>
         {items.filter(item=>item.tool==='image').map(item=><img key={item.id} src={item.dataUrl} alt="" draggable={false} style={{position:'absolute',left:item.x*previewScale,top:item.y*previewScale,width:item.width*previewScale,height:item.height*previewScale}}/>)}
-        {items.filter(item=>item.tool==='text').map(item=><div key={item.id} style={{position:'absolute',left:item.x*previewScale,top:item.y*previewScale,color:item.color||'#000',background:item.stickyNote?item.noteColor||'#fff1a8':undefined,fontSize:(item.fontSize||16)*previewScale,...replacementCss(item,previewScale),lineHeight:LINE_HEIGHT,whiteSpace:'pre',boxSizing:'border-box',width:item.textBoxWidth?item.textBoxWidth*previewScale:undefined,minHeight:item.stickyNote?(item.noteHeight??110)*previewScale:undefined,padding:`${TEXT_PAD_Y*previewScale}px ${TEXT_PAD_X*previewScale}px`}}>{pdfTextLines(item).join('\n')}</div>)}
+        {items.filter(item=>item.tool==='text').map(item=><div key={item.id} style={{position:'absolute',left:item.x*previewScale,top:item.y*previewScale,color:item.color||'#000',background:item.stickyNote?item.noteColor||'#fff1a8':undefined,fontSize:(item.fontSize||16)*previewScale,...replacementCss(item,previewScale),lineHeight:LINE_HEIGHT,whiteSpace:'pre',boxSizing:'border-box',width:item.textBoxWidth?item.textBoxWidth*previewScale:undefined,minHeight:item.stickyNote?(item.noteHeight??110)*previewScale:undefined,padding:`${TEXT_PAD_Y*previewScale}px ${TEXT_PAD_X*previewScale}px`}}>{pdfTextLines(item).join('\n')}{item.stickyNote&&item.ink?.length>0&&<StickyNoteInk strokes={item.ink}/>}</div>)}
       </div>
     </>}
   </div>
@@ -760,6 +797,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const [missingFont,setMissingFont]=useState(null)
   const [inserting, setInserting] = useState(false)
   const [selectedInsertId, setSelectedInsertId] = useState(null)
+  const [writingNoteId,setWritingNoteId]=useState(null)
   const [insertGuides, setInsertGuides] = useState(null)
   const insertingRef = useRef(false)
   const viewerRef = useRef(null)
@@ -1290,6 +1328,25 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   }, [activeTextId])
 
   /* ---------- text interactions ---------- */
+  const writingOnNote=id=>currentTool==='select'&&selectedInsertId===id&&writingNoteId===id
+  const toggleNoteInk=id=>{
+    if(writingOnNote(id)){setWritingNoteId(null);return}
+    commitText()
+    setCurrentTool('select')
+    setSelectedInsertId(id)
+    setWritingNoteId(id)
+  }
+
+  const changeNoteInk=(id,pointList)=>{
+    const note=pathsRef.current.find(item=>item.id===id&&item.stickyNote)
+    if(!note)return
+    const strokes=note.ink??EMPTY_STICKY_INK
+    if(pointList?strokes.length>=MAX_NOTE_STROKES:!strokes.length)return
+    pushHistory()
+    const ink=pointList?[...strokes,pointList]:strokes.slice(0,-1)
+    updatePaths(previous=>previous.map(item=>item.id===id?{...item,ink}:item))
+  }
+
   const handleTextChange = (id, text) => {
     updatePaths(prev => prev.map(i => (i.id === id ? { ...i, text } : i)))
   }
@@ -2110,7 +2167,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     'grow-insert': () => resizeSelected(1.1), 'shrink-insert': () => resizeSelected(.9),
     'nudge-left': () => nudgeSelected(-2,0), 'nudge-right': () => nudgeSelected(2,0), 'nudge-up': () => nudgeSelected(0,-2), 'nudge-down': () => nudgeSelected(0,2),
     'pdf-quick-actions': openQuickActions,
-    'pdf-close': () => { if (showSettings) setShowSettings(false); else handleClose() },
+    'pdf-close': () => { if (showSettings) setShowSettings(false); else if(writingNoteId&&writingOnNote(selectedInsertId))setWritingNoteId(null); else handleClose() },
   }, !loading && !deletingPage && !confirmation.pending && !liveInk.accessRevoked && !accessDenied && !showQuickActions)
 
   const handleStylusButton=(event,phase)=>{
@@ -2599,6 +2656,10 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
                       onFontDelta={handleFontDelta}
                       onColorChange={handleAnnotationColorChange}
                       onNoteColorChange={handleNoteColorChange}
+                      writing={writingOnNote(item.id)}
+                      onToggleInk={toggleNoteInk}
+                      onStroke={changeNoteInk}
+                      onRemoveStroke={changeNoteInk}
                       onDragStart={handleTextDragStart}
                       onDragMove={handleTextDragMove}
                       onDragEnd={handleTextDragEnd}
@@ -2717,10 +2778,10 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       </nav>}
       <div tabIndex={0}
         {...(currentTool==='read'?{}:touchInput)}
-        onPointerDownCapture={event=>{if(currentTool==='read')return;touchInput.onPointerDownCapture(event);if(!event.isPropagationStopped())handleStylusButton(event,'down')}}
-        onPointerMoveCapture={event=>{if(currentTool==='read')return;touchInput.onPointerMoveCapture(event);if(!event.isPropagationStopped())handleStylusButton(event,'move')}}
-        onPointerUpCapture={event=>{if(currentTool==='read')return;touchInput.onPointerUpCapture(event);if(!event.isPropagationStopped())handleStylusButton(event,'end')}}
-        onPointerCancelCapture={event=>{if(currentTool==='read')return;touchInput.onPointerCancelCapture(event);if(!event.isPropagationStopped())handleStylusButton(event,'end')}}
+        onPointerDownCapture={event=>{if(currentTool==='read')return;touchInput.onPointerDownCapture(event);if(!event.isPropagationStopped()&&!noteInkTarget(event))handleStylusButton(event,'down')}}
+        onPointerMoveCapture={event=>{if(currentTool==='read')return;touchInput.onPointerMoveCapture(event);if(!event.isPropagationStopped()&&!noteInkTarget(event))handleStylusButton(event,'move')}}
+        onPointerUpCapture={event=>{if(currentTool==='read')return;touchInput.onPointerUpCapture(event);if(!event.isPropagationStopped()&&!noteInkTarget(event))handleStylusButton(event,'end')}}
+        onPointerCancelCapture={event=>{if(currentTool==='read')return;touchInput.onPointerCancelCapture(event);if(!event.isPropagationStopped()&&!noteInkTarget(event))handleStylusButton(event,'end')}}
         onLostPointerCaptureCapture={event=>{if(currentTool==='read')return;touchInput.onLostPointerCaptureCapture(event);if(event.target===viewerRef.current&&stylusGesture.current?.id===event.pointerId){stylusGesture.current=null;isErasingRef.current=false;eraserLast.current=null}}}
         onContextMenuCapture={event=>{if(currentTool==='read')return;if(stylusGesture.current||event.nativeEvent.pointerType==='pen'){event.preventDefault();event.stopPropagation()}else touchInput.onContextMenuCapture(event)}}
         aria-label={currentTool==='read'?'PDF view; select text and copy':'PDF canvas; paste or drop images here'} onDragOver={e => { e.preventDefault() }} onDrop={e => { e.preventDefault();if(currentTool!=='read')insertFiles(Array.from(e.dataTransfer.files)) }} onPaste={e => { if(currentTool==='read'||e.target.closest('textarea, input'))return; const files = Array.from(e.clipboardData.files); if (files.length) { e.preventDefault(); insertFiles(files) } else if(snippet){e.preventDefault();if(pageBase?.page===pageNumber&&!inserting&&!deletingPage){try{addImageInsert(snippet)}catch(error){setActionError(error.message)}}} }} ref={viewerRef} onWheelCapture={event=>{if(pageLocked){event.preventDefault();event.stopPropagation()}}} style={{touchAction:pageLocked?'none':currentTool==='read'?'auto':'none',overflow:pageLocked?'hidden':undefined,overscrollBehavior:'contain'}} className="pdf-editor-canvas flex-1 min-h-0 min-w-0 overflow-auto bg-slate-950">

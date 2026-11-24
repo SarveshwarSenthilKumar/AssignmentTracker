@@ -1,7 +1,9 @@
 import PDFInkLayer from './PDFInkLayer'
+import StickyNoteInk from './StickyNoteInk'
 import { useEffect, useRef, useState } from 'react'
 import { Document, Page } from 'react-pdf'
 import { ChevronLeft, ChevronRight, X, ZoomIn, ZoomOut, Maximize, ArrowLeftRight } from 'lucide-react'
+import {pdfTextLines} from '../lib/pdfTextBox'
 import './PDFReferencePane.css'
 
 export default function PDFReferencePane({file,count,page,onPage,onClose,onEdit,annotations,usePressure,options}){
@@ -33,7 +35,7 @@ export default function PDFReferencePane({file,count,page,onPage,onClose,onEdit,
           {base&&<div className="pdf-reference-annotations" style={{width:renderWidth,height:base.h*scale}}>
             <PDFInkLayer items={items} width={base.w} height={base.h} scale={scale} usePressure={usePressure}/>
             {items.filter(item=>item.tool==='image').map(item=><img key={item.id} src={item.dataUrl} alt={item.label||'Annotation'} draggable={false} style={{position:'absolute',left:item.x*scale,top:item.y*scale,width:item.width*scale,height:item.height*scale}}/>)}
-            {items.filter(item=>item.tool==='text').map(item=><div key={item.id} style={{position:'absolute',left:item.x*scale,top:item.y*scale,color:item.color||'#000',fontSize:(item.fontSize||16)*scale,fontFamily:'Helvetica, Arial, sans-serif',lineHeight:1.2,whiteSpace:'pre',padding:`${2*scale}px ${4*scale}px`}}>{item.text}</div>)}
+            {items.filter(item=>item.tool==='text').map(item=><div key={item.id} style={{position:'absolute',left:item.x*scale,top:item.y*scale,color:item.color||'#000',fontSize:(item.fontSize||16)*scale,fontFamily:'Helvetica, Arial, sans-serif',width:item.textBoxWidth?item.textBoxWidth*scale:undefined,minHeight:item.stickyNote?(item.noteHeight??110)*scale:undefined,background:item.stickyNote?item.noteColor||'#fff1a8':undefined,boxSizing:'border-box',lineHeight:1.2,whiteSpace:'pre',padding:`${2*scale}px ${4*scale}px`}}>{pdfTextLines(item).join('\n')}{item.stickyNote&&item.ink?.length>0&&<StickyNoteInk strokes={item.ink}/>}</div>)}
           </div>}
         </div>
       </Document>
