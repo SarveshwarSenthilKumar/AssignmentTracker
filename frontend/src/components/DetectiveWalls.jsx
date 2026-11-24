@@ -23,7 +23,7 @@ const itemBounds=node=>{
   return {left:node.x+node.width/2-w/2,top:node.y+node.height/2-h/2,right:node.x+node.width/2+w/2,bottom:node.y+node.height/2+h/2}
 }
 const BOARD_MARGIN=2000
-const MIN_ZOOM=.02,MAX_ZOOM=3
+const MIN_ZOOM=.02,MAX_ZOOM=3,INITIAL_ZOOM=.8
 const nodeFontSize=node=>node.fontSize??(node.type==='photo'?14:node.type==='pin'?12:20)
 const resizeForFont=(node,requested)=>{
   const oldFont=nodeFontSize(node)
@@ -119,9 +119,27 @@ export default function DetectiveWalls({token,userId}){
   </section>
 }
 
+function DetectiveWallZoom({zoomTo,fit,zoomListener}){
+  const [zoom,setZoom]=useState(INITIAL_ZOOM)
+  useLayoutEffect(()=>{
+    zoomListener.current=setZoom
+    return()=>{zoomListener.current=null}
+  },[zoomListener])
+  return (
+    <div className="detective-board-zoom" role="group" aria-label="Board zoom">
+      <button type="button" onClick={()=>zoomTo(zoom/1.25)} disabled={zoom<=MIN_ZOOM} aria-label="Zoom out" title="Zoom out"><ZoomOut size={17}/></button>
+      <label><span>Zoom</span><input aria-label="Board zoom percentage" type="range" min="2" max="300" step="1" value={Math.round(zoom*100)} onChange={event=>zoomTo(Number(event.target.value)/100)}/><output>{Math.round(zoom*100)}%</output></label>
+      <button type="button" onClick={()=>zoomTo(zoom*1.25)} disabled={zoom>=MAX_ZOOM} aria-label="Zoom in" title="Zoom in"><ZoomIn size={17}/></button>
+      <button type="button" onClick={()=>fit(false)} title="Fit all notes and photos"><Maximize size={16}/>Fit items</button>
+      <button type="button" onClick={()=>fit(true)}>Whole board</button>
+      <button type="button" onClick={()=>zoomTo(1)}>100%</button>
+    </div>
+  )
+}
+
 function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
   const [doc,setDoc]=useState(null),[loading,setLoading]=useState(true),[error,setError]=useState(''),[status,setStatus]=useState('saved'),[localBackup,setLocalBackup]=useState(null)
-  const [selected,setSelected]=useState(null),[tool,setTool]=useState('pan'),[connecting,setConnecting]=useState(null),[stringColor,setStringColor]=useState('#b52b35'),[zoom,setZoom]=useState(.8),[pointer,setPointer]=useState(null),[photoBusy,setPhotoBusy]=useState(false),[history,setHistory]=useState({undo:[],redo:[]})
+  const [selected,setSelected]=useState(null),[tool,setTool]=useState('pan'),[connecting,setConnecting]=useState(null),[stringColor,setStringColor]=useState('#b52b35'),[pointer,setPointer]=useState(null),[photoBusy,setPhotoBusy]=useState(false),[history,setHistory]=useState({undo:[],redo:[]})
   const [stringWidth,setStringWidth]=useState(6)
   const [panning,setPanning]=useState(false)
   const [fullscreen,setFullscreen]=useState(false)
@@ -159,7 +177,9 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
   },[fullscreen,!!selected])
   const [marquee,setMarquee]=useState(null)
   const [spacingOnly,setSpacingOnly]=useState(false)
-  const zoomRef=useRef(.8)
+  const zoomRef=useRef(INITIAL_ZOOM),zoomListener=useRef(null)
+  const worldSize=useRef(null),pendingZoom=useRef(null),zoomFrame=useRef(null)
+  const requestedZoom=()=>pendingZoom.current?.value??zoomRef.current
   const initialOverview=useRef(window.location.hash.endsWith('/overview'))
   const [connectionTarget,setConnectionTarget]=useState(null),[stringHint,setStringHint]=useState('')
   const connectionSource=useRef(null)
@@ -221,7 +241,7 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
   const add=(type,extra={})=>{
     if(current.current.state.nodes.length>=200){setError('This wall has 200 items. Start another wall to keep things responsive.');return}
     const view=viewport.current,nodeId=uid(),width=type==='pin'?70:type==='photo'?270:230,height=type==='pin'?70:type==='photo'?230:190
-    const node={id:nodeId,type,x:clamp((view.scrollLeft-BOARD_MARGIN+view.clientWidth/2)/zoom-width/2,0,MAX_WALL_SIZE-width),y:clamp((view.scrollTop-BOARD_MARGIN+view.clientHeight/2)/zoom-height/2,0,MAX_WALL_SIZE-height),width,height,rotation:0,color:type==='note'?'#fff1a8':type==='pin'?'#bc343a':'#ffffff',text:'',...extra}
+    const node={id:nodeId,type,x:clamp((view.scrollLeft-BOARD_MARGIN+view.clientWidth/2)/zoomRef.current-width/2,0,MAX_WALL_SIZE-width),y:clamp((view.scrollTop-BOARD_MARGIN+view.clientHeight/2)/zoomRef.current-height/2,0,MAX_WALL_SIZE-height),width,height,rotation:0,color:type==='note'?'#fff1a8':type==='pin'?'#bc343a':'#ffffff',text:'',...extra}
     apply({...current.current,state:{...current.current.state,nodes:[...current.current.state.nodes,node]}});setSelected({type:'node',id:nodeId});setTool('select');cancelConnection();setStringHint('')
   }
   const addPhoto=async file=>{
@@ -275,12 +295,12 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
     }
     window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key)
   })
-  const point=event=>{const rect=viewport.current.getBoundingClientRect();return {x:(event.clientX-rect.left+viewport.current.scrollLeft-BOARD_MARGIN)/zoom,y:(event.clientY-rect.top+viewport.current.scrollTop-BOARD_MARGIN)/zoom}}
+  const point=event=>{const rect=viewport.current.getBoundingClientRect();return {x:(event.clientX-rect.left+viewport.current.scrollLeft-BOARD_MARGIN)/zoomRef.current,y:(event.clientY-rect.top+viewport.current.scrollTop-BOARD_MARGIN)/zoomRef.current}}
   const selectionIds=value=>({nodes:value?.type==='group'?value.nodes:value?.type==='node'?[value.id]:[],strings:value?.type==='group'?value.strings:value?.type==='string'?[value.id]:[]})
   const updateMarquee=(drag,p)=>{
     const rect={left:Math.min(drag.start.x,p.x),top:Math.min(drag.start.y,p.y),right:Math.max(drag.start.x,p.x),bottom:Math.max(drag.start.y,p.y)}
     setMarquee(rect)
-    if(Math.hypot(p.x-drag.start.x,p.y-drag.start.y)*zoom<4)return
+    if(Math.hypot(p.x-drag.start.x,p.y-drag.start.y)*zoomRef.current<4)return
     drag.moved=true
     const inside=p=>p.x>=rect.left&&p.x<=rect.right&&p.y>=rect.top&&p.y<=rect.bottom
     const state=current.current.state,nodeMap=new Map(state.nodes.map(node=>[node.id,node]))
@@ -383,7 +403,7 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
       if(card&&viewport.current?.contains(card)&&card.dataset.wallNode!==source)return card.dataset.wallNode
     }
     const p=point(event)
-    let nearest=null,distance=32/zoom
+    let nearest=null,distance=32/zoomRef.current
     for(const node of current.current.state.nodes){
       if(node.id===source)continue
       const a=anchor(node),d=Math.hypot(a.x-p.x,a.y-p.y)
@@ -485,14 +505,32 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
     }else if(drag.previous)cancelConnection()
   }
   const cancelGesture=()=>{if(gesture.current?.kind==='connection')cancelConnection();if(gesture.current?.kind==='marquee')setSelected(gesture.current.previous);gesture.current=null;setPanning(false);setMarquee(null)}
-  const zoomTo=(value,location=null)=>{
-    const view=viewport.current;if(!view)return
-    const next=clamp(value,MIN_ZOOM,MAX_ZOOM),rect=view.getBoundingClientRect()
-    const x=location?location.x-rect.left:view.clientWidth/2,y=location?location.y-rect.top:view.clientHeight/2
-    const cx=(view.scrollLeft-BOARD_MARGIN+x)/zoomRef.current,cy=(view.scrollTop-BOARD_MARGIN+y)/zoomRef.current
-    zoomRef.current=next;setZoom(next)
-    requestAnimationFrame(()=>{if(viewport.current===view){view.scrollLeft=BOARD_MARGIN+cx*next-x;view.scrollTop=BOARD_MARGIN+cy*next-y}})
+  const zoomTo=(value,location=null,center=null)=>{
+    value=clamp(value,MIN_ZOOM,MAX_ZOOM)
+    const view=viewport.current,world=worldSize.current
+    if(!view||!world||(value===requestedZoom()&&!center))return
+    pendingZoom.current={value,location,center}
+    if(zoomFrame.current!==null)return
+    zoomFrame.current=requestAnimationFrame(()=>{
+      zoomFrame.current=null
+      const request=pendingZoom.current
+      pendingZoom.current=null
+      if(viewport.current!==view||worldSize.current!==world)return
+
+      const next=request.value,previous=zoomRef.current
+      const rect=request.location&&view.getBoundingClientRect()
+      const x=rect?request.location.x-rect.left:view.clientWidth/2
+      const y=rect?request.location.y-rect.top:view.clientHeight/2
+      const boardX=request.center?.x??(view.scrollLeft-BOARD_MARGIN+x)/previous
+      const boardY=request.center?.y??(view.scrollTop-BOARD_MARGIN+y)/previous
+
+      world.style.setProperty('--wall-zoom',next)
+      view.scrollTo(BOARD_MARGIN+boardX*next-x,BOARD_MARGIN+boardY*next-y)
+      zoomRef.current=next
+      zoomListener.current?.(next)
+    })
   }
+  useLayoutEffect(()=>()=>cancelAnimationFrame(zoomFrame.current),[])
   useLayoutEffect(()=>{
     if(viewport.current)viewport.current.scrollTo(BOARD_MARGIN,BOARD_MARGIN)
   },[loading])
@@ -501,14 +539,14 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
     const wheel=event=>{
       event.preventDefault()
       const delta=event.deltaY*(event.deltaMode===1?16:event.deltaMode===2?view.clientHeight:1)
-      if(delta)zoomTo(zoomRef.current*Math.exp(-delta*.002),{x:event.clientX,y:event.clientY})
+      if(delta)zoomTo(requestedZoom()*Math.exp(-delta*.002),{x:event.clientX,y:event.clientY})
     }
     let pinch=null
     const touchStart=event=>{
       if(event.touches.length!==2)return
       event.preventDefault();cancelGesture()
       const [a,b]=event.touches
-      pinch={distance:Math.max(1,Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY)),zoom:zoomRef.current}
+      pinch={distance:Math.max(1,Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY)),zoom:requestedZoom()}
     }
     const touchMove=event=>{
       if(!pinch||event.touches.length!==2)return
@@ -533,8 +571,7 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
     const left=wholeBoard||!bounds.length?0:Math.min(...bounds.map(b=>b.left))-60,top=wholeBoard||!bounds.length?0:Math.min(...bounds.map(b=>b.top))-60
     const right=wholeBoard||!bounds.length?wallWidth(current.current.state):Math.max(...bounds.map(b=>b.right))+60,bottom=wholeBoard||!bounds.length?wallHeight(current.current.state):Math.max(...bounds.map(b=>b.bottom))+60
     const next=clamp(Math.min((view.clientWidth-32)/(right-left),(view.clientHeight-32)/(bottom-top)),MIN_ZOOM,1)
-    zoomRef.current=next;setZoom(next)
-    requestAnimationFrame(()=>view.scrollTo(Math.max(0,BOARD_MARGIN+(left+right)*next/2-view.clientWidth/2),Math.max(0,BOARD_MARGIN+(top+bottom)*next/2-view.clientHeight/2)))
+    zoomTo(next,null,{x:(left+right)/2,y:(top+bottom)/2})
   }
   useEffect(()=>{
     if(loading||!current.current||!initialOverview.current)return
@@ -563,8 +600,8 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
   return <section ref={editorRoot} className={`detective-editor${fullscreen?' is-fullscreen':''}${zenMode?' is-zen':''}`} aria-label="Interactive detective wall">
     {zenMode&&<button type="button" className="detective-zen-exit" aria-label="Exit Zen mode" title="Exit Zen mode (Escape)" onClick={()=>setZenMode(false)}><X size={18}/><span>Exit Zen</span></button>}
     {fullscreen&&<div className="detective-focus-controls" role="group" aria-label="Fullscreen board controls">
-      <button type="button" onClick={()=>zoomTo(zoomRef.current/1.25)} aria-label="Zoom out" title="Zoom out"><ZoomOut size={17}/></button>
-      <button type="button" onClick={()=>zoomTo(zoomRef.current*1.25)} aria-label="Zoom in" title="Zoom in"><ZoomIn size={17}/></button>
+      <button type="button" onClick={()=>zoomTo(requestedZoom()/1.25)} aria-label="Zoom out" title="Zoom out"><ZoomOut size={17}/></button>
+      <button type="button" onClick={()=>zoomTo(requestedZoom()*1.25)} aria-label="Zoom in" title="Zoom in"><ZoomIn size={17}/></button>
       <button type="button" onClick={()=>fit(false)} aria-label="Fit all items" title="Fit all items"><Maximize size={17}/></button>
       <button type="button" onClick={save} aria-label="Save wall" title="Save wall"><Save size={17}/></button>
       <button type="button" onClick={enterZenMode} aria-label="Enter Zen mode" title="Zen mode — board and current tool only"><EyeOff size={17}/></button>
@@ -588,14 +625,7 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
       <span role="status">{connecting?`Connect “${nodes.get(connecting)?.text.slice(0,35)||nodes.get(connecting)?.type||'item'}” → ${connectionTarget?'Release or click to connect.':'Choose another item, or drag to its pin.'}`:tool==='string'?'Choose the first item, then the second. You can also drag from any pin to another item.':stringHint|| (tool==='pan'?'Drag to pan · Wheel to zoom · Use the scrollbars to move around the board.':'Drag empty space to box-select · Shift adds to your selection · Use Pan to move the board · Wheel to zoom')}</span>
       {(connecting||tool==='string')&&<button type="button" onClick={()=>{cancelConnection();setTool('select');setStringHint('')}}>Cancel connection <span aria-hidden="true">Esc</span></button>}
     </div>
-    <div className="detective-board-zoom" role="group" aria-label="Board zoom">
-      <button type="button" onClick={()=>zoomTo(zoomRef.current/1.25)} disabled={zoom<=MIN_ZOOM} aria-label="Zoom out" title="Zoom out"><ZoomOut size={17}/></button>
-      <label><span>Zoom</span><input aria-label="Board zoom percentage" type="range" min="2" max="300" step="1" value={Math.round(zoom*100)} onChange={event=>zoomTo(Number(event.target.value)/100)}/><output>{Math.round(zoom*100)}%</output></label>
-      <button type="button" onClick={()=>zoomTo(zoomRef.current*1.25)} disabled={zoom>=MAX_ZOOM} aria-label="Zoom in" title="Zoom in"><ZoomIn size={17}/></button>
-      <button type="button" onClick={()=>fit(false)} title="Fit all notes and photos"><Maximize size={16}/>Fit items</button>
-      <button type="button" onClick={()=>fit(true)}>Whole board</button>
-      <button type="button" onClick={()=>zoomTo(1)}>100%</button>
-    </div>
+    <DetectiveWallZoom zoomTo={zoomTo} fit={fit} zoomListener={zoomListener}/>
     <div
       ref={viewport}
       className={['detective-viewport',`tool-${tool}`,panning?'is-panning':''].filter(Boolean).join(' ')}
@@ -624,7 +654,7 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
         if(file){event.preventDefault();addPhoto(file)}
       }}
     >
-      <div className="detective-world-size" data-wall-background="true" style={{width:boardWidth*zoom+BOARD_MARGIN*2,height:boardHeight*zoom+BOARD_MARGIN*2}}><div className="detective-world" data-wall-background="true" style={{width:boardWidth,height:boardHeight,left:BOARD_MARGIN,top:BOARD_MARGIN,transform:`scale(${zoom})`}}>
+      <div ref={worldSize} className="detective-world-size" data-wall-background="true" style={{'--wall-width':`${boardWidth}px`,'--wall-height':`${boardHeight}px`,'--wall-margin':`${BOARD_MARGIN}px`,'--wall-zoom':INITIAL_ZOOM}}><div className="detective-world" data-wall-background="true">
         <svg className="detective-strings" width={boardWidth} height={boardHeight} aria-label="Connections">
           {doc.state.strings.map(edge=>{
             const from=nodes.get(edge.from),to=nodes.get(edge.to)
@@ -657,7 +687,7 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
         {doc.state.nodes.map(node=><article
           key={node.id} data-wall-node={node.id}
           className={`detective-item is-${node.type}${node.paperStyle?` is-paper-${node.paperStyle}`:''}${isSelected('node',node.id)?' is-selected':''}${connecting===node.id?' is-connecting':''}${connectionTarget===node.id?' is-connection-target':''}${activeString&&(activeString.from===node.id||activeString.to===node.id)?' is-string-endpoint':''}`}
-          style={{left:node.x,top:node.y,width:node.width,height:node.height,background:node.color,'--tack-color':node.type==='pin'?node.color:'#c83431','--tack-size':`${Math.max(1,Math.min(node.width,node.height)*.34)}px`,'--resize-handle-scale':1/zoom,transform:`rotate(${node.rotation}deg)`}}
+          style={{left:node.x,top:node.y,width:node.width,height:node.height,background:node.color,'--tack-color':node.type==='pin'?node.color:'#c83431','--tack-size':`${Math.max(1,Math.min(node.width,node.height)*.34)}px`,transform:`rotate(${node.rotation}deg)`}}
           onPointerDown={event=>{
             if(tool==='string'||connectionSource.current){event.preventDefault();event.stopPropagation();connect(node)}
             else if(tool!=='pan'){if(event.shiftKey){event.preventDefault();event.stopPropagation();toggleNode(node)}else if(!isSelected('node',node.id))setSelected({type:'node',id:node.id})}
@@ -676,10 +706,10 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
           {node.type!=='pin'&&<DetectiveWallText node={node} onFit={(height,imageHeight)=>fitNodeText(node.id,height,imageHeight)} onFocus={()=>{setSelected({type:'node',id:node.id});historyRef.current={undo:[...historyRef.current.undo.slice(-19),current.current],redo:[]};setHistory(historyRef.current)}} onChange={event=>changeNode(node.id,{text:event.target.value},false)}/>}
           {resizeCorners.map(corner=><button key={corner} type="button" className={`detective-resize is-${corner}`} aria-label={`Resize ${node.type} from ${corner==='nw'?'top left':corner==='ne'?'top right':corner==='sw'?'bottom left':'bottom right'} corner`} onPointerDown={event=>startNode(event,node,corner)}/>)}
         </article>)}
-        {groupBounds&&tool==='select'&&<div className="detective-group-bounds" style={{left:groupBounds.left,top:groupBounds.top,width:groupBounds.right-groupBounds.left,height:groupBounds.bottom-groupBounds.top,borderWidth:1.5/zoom,'--resize-handle-scale':1/zoom}}>
+        {groupBounds&&tool==='select'&&<div className="detective-group-bounds" style={{left:groupBounds.left,top:groupBounds.top,width:groupBounds.right-groupBounds.left,height:groupBounds.bottom-groupBounds.top}}>
           {resizeCorners.map(corner=><button key={corner} type="button" className={`detective-resize is-${corner}`} aria-label={`Resize selected group from ${corner==='nw'?'top left':corner==='ne'?'top right':corner==='sw'?'bottom left':'bottom right'} corner`} onPointerDown={event=>startGroupResize(event,corner)}/>)}
         </div>}
-        {marquee&&<div className="detective-selection-rectangle" aria-hidden="true" style={{left:marquee.left,top:marquee.top,width:marquee.right-marquee.left,height:marquee.bottom-marquee.top,borderWidth:2/zoom}}/>}
+        {marquee&&<div className="detective-selection-rectangle" aria-hidden="true" style={{left:marquee.left,top:marquee.top,width:marquee.right-marquee.left,height:marquee.bottom-marquee.top}}/>}
       </div></div>
     </div>
     {(activeNode||activeString||selectedGroup)&&<div className="detective-properties"><strong>{selectedGroup?`${selectedGroup.nodes.length} items · ${selectedGroup.strings.length} strings selected`:activeString?'String':activeNode.type==='photo'?'Photo':activeNode.type==='pin'?'Thumbtack':'Sticky note'}</strong>
