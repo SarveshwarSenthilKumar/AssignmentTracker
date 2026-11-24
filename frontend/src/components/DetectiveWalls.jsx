@@ -1,5 +1,5 @@
 import {useEffect,useLayoutEffect,useRef,useState} from 'react'
-import {ArrowLeft,Plus,StickyNote,ImagePlus,Pin,Link2,Hand,Pencil,MousePointer2,Undo2,Redo2,Trash2,ZoomIn,ZoomOut,RotateCw,Maximize,Minimize,EyeOff,Download,Save,X} from 'lucide-react'
+import {ArrowLeft,Plus,StickyNote,ImagePlus,Pin,Link2,Hand,Pencil,Move,MousePointer2,Undo2,Redo2,Trash2,ZoomIn,ZoomOut,RotateCw,Maximize,Minimize,EyeOff,Download,Save,X} from 'lucide-react'
 import {readApiJson} from '../lib/apiResponse'
 import {downloadBlob} from '../lib/documentFormats'
 import './DetectiveWalls.css'
@@ -414,16 +414,22 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
     gesture.current={kind:'connection',from:node.id,x:event.clientX,y:event.clientY,moved:false,previous,pointerId:event.pointerId,target:null}
     event.currentTarget.setPointerCapture(event.pointerId)
   }
+  const startGroupMove=event=>{
+    if(event.button!==0||selected?.type!=='group')return
+    event.preventDefault();event.stopPropagation()
+    const nodes=current.current.state.nodes.filter(item=>selected.nodes.includes(item.id))
+    if(!nodes.length)return
+    historyRef.current={undo:[...historyRef.current.undo.slice(-19),current.current],redo:[]};setHistory(historyRef.current)
+    gesture.current={kind:'group',nodes,start:point(event),pointerId:event.pointerId}
+    event.currentTarget.setPointerCapture(event.pointerId)
+  }
   const startNode=(event,node,resize=null)=>{
     event.stopPropagation();if(event.button===1){startPan(event);return}if(event.button!==0)return
     if(tool==='string'||connectionSource.current){event.preventDefault();connect(node);return}
     if(tool==='pan'){startPan(event);return}
     if(event.shiftKey&&!resize){event.preventDefault();toggleNode(node);return}
     if(!resize&&selected?.type==='group'&&selected.nodes.includes(node.id)){
-      event.preventDefault()
-      historyRef.current={undo:[...historyRef.current.undo.slice(-19),current.current],redo:[]};setHistory(historyRef.current)
-      gesture.current={kind:'group',nodes:current.current.state.nodes.filter(item=>selected.nodes.includes(item.id)),start:point(event),pointerId:event.pointerId}
-      event.currentTarget.setPointerCapture(event.pointerId);return
+      startGroupMove(event);return
     }
     event.preventDefault();setSelected({type:'node',id:node.id});setStringHint('')
     historyRef.current={undo:[...historyRef.current.undo.slice(-19),current.current],redo:[]};setHistory(historyRef.current)
@@ -709,6 +715,11 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
               const ink=current.current.state.nodes.find(item=>item.id===node.id)?.ink??EMPTY_NOTE_INK
               if(ink.length<MAX_NOTE_STROKES)changeNode(node.id,{ink:[...ink,points]})
             }}/>:null}
+          {tool==='select'&&activeNode?.id===node.id&&<button type="button" className="detective-move"
+            aria-label={node.type==='note'?'Move sticky note':'Move '+node.type} title="Drag to move. Use the arrow keys to nudge."
+            onPointerDown={event=>startNode(event,node)}>
+            <Move size={12} aria-hidden="true"/>
+          </button>}
           {tool==='select'&&activeNode?.id===node.id&&<button type="button" className="detective-pivot"
             aria-label={node.type==='note'?'Rotate sticky note':'Rotate '+node.type} title="Drag to rotate. Hold Shift to snap to 15°."
             onPointerDown={event=>startNode(event,node,'pivot')}
@@ -718,6 +729,10 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
           {resizeCorners.map(corner=><button key={corner} type="button" className={`detective-resize is-${corner}`} aria-label={`Resize ${node.type} from ${corner==='nw'?'top left':corner==='ne'?'top right':corner==='sw'?'bottom left':'bottom right'} corner`} onPointerDown={event=>startNode(event,node,corner)}/>)}
         </article>)}
         {groupBounds&&tool==='select'&&<div className="detective-group-bounds" style={{left:groupBounds.left,top:groupBounds.top,width:groupBounds.right-groupBounds.left,height:groupBounds.bottom-groupBounds.top}}>
+          <button type="button" className="detective-move" aria-label="Move selected items"
+            title="Drag to move the selection. Use the arrow keys to nudge." onPointerDown={startGroupMove}>
+            <Move size={12} aria-hidden="true"/>
+          </button>
           {resizeCorners.map(corner=><button key={corner} type="button" className={`detective-resize is-${corner}`} aria-label={`Resize selected group from ${corner==='nw'?'top left':corner==='ne'?'top right':corner==='sw'?'bottom left':'bottom right'} corner`} onPointerDown={event=>startGroupResize(event,corner)}/>)}
         </div>}
         {marquee&&<div className="detective-selection-rectangle" aria-hidden="true" style={{left:marquee.left,top:marquee.top,width:marquee.right-marquee.left,height:marquee.bottom-marquee.top}}/>}

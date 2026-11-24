@@ -20,7 +20,10 @@ export default function InsertHandles({ item, onStart, onMove, onEnd, onRotate }
   })
   const label=item.label||(item.stickyNote?'sticky note':item.tool==='text'?'text':'insert')
   return <>
-    <span className="pdf-insert-move-hint"><Move size={12}/>Drag to move · {item.tool==='text'&&!item.sourceText&&!item.stickyNote?'corners to wrap text':'corners to resize'}</span>
+    <button type="button" className="pdf-resize-handle pdf-move-handle" aria-label={'Move '+label}
+      title="Drag to move. Use the arrow keys to nudge." {...dragHandle(null)}>
+      <Move size={13} aria-hidden="true"/>
+    </button>
     {['nw','ne','sw','se'].map(corner=><button key={corner} type="button" className={'pdf-resize-handle pdf-resize-'+corner} aria-label={'Resize '+label+' from '+corner+' corner'} {...dragHandle(corner)}/>)}
     {!item.sourceText&&<button type="button" className="pdf-resize-handle pdf-pivot-handle"
       aria-label={'Rotate '+label} title="Drag to rotate. Hold Shift to snap to 15°." {...dragHandle('pivot')}

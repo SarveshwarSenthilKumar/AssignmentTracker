@@ -89,7 +89,6 @@
 .pdf-resize-ne { right: -8px; top: -8px; cursor: nesw-resize; }
 .pdf-resize-sw { left: -8px; bottom: -8px; cursor: nesw-resize; }
 .pdf-resize-se { right: -8px; bottom: -8px; cursor: nwse-resize; }
-.pdf-insert-move-hint { position: absolute; left: 0; bottom: calc(100% + 12px); display: flex; align-items: center; gap: 5px; padding: 4px 7px; border-radius: 5px; color: #fff; background: #304355; white-space: nowrap; font-size: 11px; pointer-events: none; }
 @media (pointer: coarse) { .pdf-resize-handle { width: 24px; height: 24px; } .pdf-resize-nw, .pdf-resize-ne { top: -12px; } .pdf-resize-sw, .pdf-resize-se { bottom: -12px; } .pdf-resize-nw, .pdf-resize-sw { left: -12px; } .pdf-resize-ne, .pdf-resize-se { right: -12px; } }
 .insert-sections { grid-template-columns: repeat(5, 1fr); }
 .insert-spaced { margin-top: 14px; }
@@ -377,6 +376,8 @@
 .pdf-sticky-ink-launch{position:absolute;top:5px;right:5px;z-index:2}
 .pdf-sticky-ink-action[aria-pressed=true]{background:#3d5872}
 
-.pdf-resize-handle.pdf-pivot-handle{top:50%;left:calc(100% + 8px);transform:translateY(-50%);width:22px;height:22px;border-radius:50%;display:grid;place-items:center;color:#294457;cursor:grab}
-.pdf-pivot-handle:active{cursor:grabbing}
-@media(pointer:coarse){.pdf-resize-handle.pdf-pivot-handle{width:28px;height:28px}}
+.pdf-resize-handle:is(.pdf-pivot-handle,.pdf-move-handle){top:50%;transform:translateY(-50%);width:22px;height:22px;border-radius:50%;display:grid;place-items:center;color:#294457;cursor:grab}
+.pdf-resize-handle.pdf-pivot-handle{left:calc(100% + 8px)}
+.pdf-resize-handle.pdf-move-handle{right:calc(100% + 8px)}
+:is(.pdf-pivot-handle,.pdf-move-handle):active{cursor:grabbing}
+@media(pointer:coarse){.pdf-resize-handle:is(.pdf-pivot-handle,.pdf-move-handle){width:28px;height:28px}}
