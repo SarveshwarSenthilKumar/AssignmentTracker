@@ -96,10 +96,71 @@ function drawUnitCircle(ctx, size) {
   ctx.fillText('(cos θ, sin θ)', center, size - 36)
 }
 
+const EXACT_TANGENTS = [
+  '0', '√3/3', '1', '√3', 'undefined', '−√3', '−1', '−√3/3',
+  '0', '√3/3', '1', '√3', 'undefined', '−√3', '−1', '−√3/3'
+]
+
+function drawSpecialTriangle(ctx, x, width, topAngle, baseAngle, baseLength, hypotenuse) {
+  const top = 670, base = 870, right = x + width
+  ctx.beginPath()
+  ctx.moveTo(x, base)
+  ctx.lineTo(right, top)
+  ctx.lineTo(right, base)
+  ctx.closePath()
+  ctx.stroke()
+  ctx.strokeRect(right - 24, base - 24, 24, 24)
+
+  ctx.fillText(baseAngle, x + 90, base - 31)
+  ctx.fillText(topAngle, right - 31, top + 79)
+  ctx.fillText(baseLength, x + width / 2, base + 28)
+  ctx.fillText('1', right + 28, (top + base) / 2)
+  ctx.fillText(hypotenuse, x + width / 2 - 24, (top + base) / 2 - 30)
+}
+
+function drawTrigReference(ctx) {
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.font = '700 42px Arial'
+  ctx.fillText('Exact trigonometric values', 600, 55)
+
+  const rowHeight = 48
+  const columnCenters = [47, 140, 251, 370, 491]
+  const headers = ['Degrees', 'Radians', 'sin θ', 'cos θ', 'tan θ']
+  for (const [table, start] of [0, 8].entries()) {
+    const left = 44 + table * 572, top = 100
+    ctx.font = '700 23px Arial'
+    headers.forEach((header, col) => ctx.fillText(header, left + columnCenters[col], top + rowHeight / 2))
+    ctx.font = '25px Arial'
+    ctx.lineWidth = 1.5
+    for (let row = 0; row < 8; row++) {
+      const index = start + row
+      const [degrees, radians, cosine, sine] = UNIT_CIRCLE_POINTS[index]
+      const y = top + (row + 1) * rowHeight
+      ctx.beginPath()
+      ctx.moveTo(left, y)
+      ctx.lineTo(left + 540, y)
+      ctx.stroke()
+      const values = [`${degrees}°`, radians, sine, cosine, EXACT_TANGENTS[index]]
+      values.forEach((value, col) => ctx.fillText(value, left + columnCenters[col], y + rowHeight / 2))
+    }
+  }
+  ctx.font = '24px Arial'
+  ctx.fillText('360° (2π) has the same values as 0°.', 600, 551)
+  ctx.font = '700 34px Arial'
+  ctx.fillText('Special right triangles', 600, 612)
+  ctx.font = '28px Arial'
+  ctx.lineWidth = 4
+  drawSpecialTriangle(ctx, 118, 200 * Math.sqrt(3), '60°', '30°', '√3', '2')
+  drawSpecialTriangle(ctx, 775, 200, '45°', '45°', '1', '√2')
+  ctx.font = '24px Arial'
+  ctx.fillText('sin θ = opposite / hypotenuse     cos θ = adjacent / hypotenuse     tan θ = opposite / adjacent', 600, 959)
+}
+
 export function makeInsert(kind, color, options = {}) {
   const canvas = document.createElement('canvas')
-  canvas.width = kind === 'unit-circle' ? 1000 : kind === 'table' ? 720 : 480
-  canvas.height = kind === 'unit-circle' ? canvas.width : kind === 'table' ? 360 : 240
+  canvas.width = kind === 'trig-reference' ? 1200 : kind === 'unit-circle' ? 1000 : kind === 'table' ? 720 : 480
+  canvas.height = kind === 'trig-reference' || kind === 'unit-circle' ? 1000 : kind === 'table' ? 360 : 240
   const ctx = canvas.getContext('2d')
   ctx.strokeStyle = color
   ctx.fillStyle = color
@@ -110,6 +171,7 @@ export function makeInsert(kind, color, options = {}) {
     ctx.setLineDash(lineStyle === 'dotted' ? [0, 18] : lineStyle === 'dashed' ? [24, 14] : [])
   }
   if (kind === 'unit-circle') drawUnitCircle(ctx, canvas.width)
+  if (kind === 'trig-reference') drawTrigReference(ctx)
   if (kind === 'rectangle') ctx.strokeRect(8, 8, 464, 224)
   if (kind === 'ellipse') { ctx.beginPath(); ctx.ellipse(240, 120, 230, 110, 0, 0, Math.PI * 2); ctx.stroke() }
   if (kind === 'line' || kind === 'arrow') {
@@ -142,7 +204,7 @@ export function makeInsert(kind, color, options = {}) {
       }
     })
   }
-  return { dataUrl: canvas.toDataURL('image/png'), width: canvas.width, height: canvas.height, insertKind: kind, label: kind === 'stamp' ? options.label : kind === 'unit-circle' ? 'Unit circle' : kind }
+  return { dataUrl: canvas.toDataURL('image/png'), width: canvas.width, height: canvas.height, insertKind: kind, label: kind === 'stamp' ? options.label : SHAPES.find(shape => shape.kind === kind)?.label ?? kind }
 }
 
 const SHAPES = [
@@ -150,7 +212,8 @@ const SHAPES = [
   { kind: 'ellipse', label: 'Ellipse', Icon: Circle },
   { kind: 'line', label: 'Line', Icon: Minus },
   { kind: 'arrow', label: 'Arrow', Icon: ArrowRight },
-  { kind: 'unit-circle', label: 'Unit circle', Icon: Circle }
+  { kind: 'unit-circle', label: 'Unit circle', Icon: Circle },
+  { kind: 'trig-reference', label: 'Trig reference', Icon: Table }
 ]
 const FILE_TYPES = [
   { label: 'Images', Icon: ImageIcon, accept: 'image/*,.svg,.webp,.bmp,.gif,.avif', formats: 'PNG, JPG, SVG, WebP, GIF, BMP, AVIF', hint: 'Insert a picture. Animated images use a still frame.' },
@@ -247,7 +310,7 @@ export default function InsertPanel({ onFiles, onInsert, onPages, pageNumber, co
         {section === 'shapes'  && <>
           <p className="insert-label">Choose a shape</p>
           <div className="insert-shape-grid">{SHAPES.map(({ kind: type, label: name, Icon }) => <button key={type} type="button" aria-pressed={kind === type} onClick={() => setKind(type)}><Icon size={32} strokeWidth={1.5} /><span>{name}</span>{kind === type && <Check className="insert-selected-check" size={15} />}</button>)}</div>
-          {kind === 'unit-circle' ? <p className="insert-help">Includes common angles in degrees and radians and their exact cosine and sine coordinates.</p> : <>
+          {kind === 'unit-circle' ? <p className="insert-help">Includes common angles in degrees and radians and their exact cosine and sine coordinates.</p> : kind === 'trig-reference' ? <p className="insert-help">Exact sine, cosine, and tangent values and labeled 30°–60°–90° and 45°–45°–90° triangles.</p> : <>
             <label className="insert-label insert-spaced" htmlFor={`${id}-line-style`}>Line style</label>
             <select id={`${id}-line-style`} className="insert-text-input" value={lineStyle} onChange={event => setLineStyle(event.target.value)}><option value="solid">Solid</option><option value="dotted">Dotted</option><option value="dashed">Dashed</option></select>
             <svg viewBox="0 0 300 60" role="img" aria-label={`${lineStyle} ${kind} preview`} style={{width:'100%',height:60,color}}>
@@ -269,7 +332,7 @@ export default function InsertPanel({ onFiles, onInsert, onPages, pageNumber, co
           <div className="insert-stamp-preview" aria-label="Stamp preview"><span style={{ color, borderColor: color }}>{label || 'YOUR TEXT'}</span></div>
         </>}
       </div>
-      {section !== 'files' && <div className="insert-footer">{section !== 'pages' && <span className="insert-color"><i style={{ backgroundColor: color }} />Toolbar color</span>}<button type="button" className="insert-submit" disabled={busy || (section === 'stamp' && !label.trim()) || (section === 'pages' && pageMode === 'files' && !pageFiles.length)} onClick={submit}><Plus size={16} />{section === 'pages' ? (pageMode === 'files' ? 'Merge pages' : pageMode === 'blank' ? 'Add blank page' : 'Duplicate page') : section === 'shapes' && kind === 'unit-circle' ? 'Insert unit circle' : `Insert ${section === 'shapes' ? kind : section}`}</button></div>}
+      {section !== 'files' && <div className="insert-footer">{section !== 'pages' && <span className="insert-color"><i style={{ backgroundColor: color }} />Toolbar color</span>}<button type="button" className="insert-submit" disabled={busy || (section === 'stamp' && !label.trim()) || (section === 'pages' && pageMode === 'files' && !pageFiles.length)} onClick={submit}><Plus size={16} />{section === 'pages' ? (pageMode === 'files' ? 'Merge pages' : pageMode === 'blank' ? 'Add blank page' : 'Duplicate page') : `Insert ${section === 'shapes' ? SHAPES.find(shape => shape.kind === kind).label.toLowerCase() : section}`}</button></div>}
     </div>}
   </div>
 }
