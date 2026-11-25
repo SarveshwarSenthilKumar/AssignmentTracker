@@ -92,3 +92,6 @@ body:has(.detective-editor.is-zen) .assistant-launcher{display:none!important}
 .detective-editor .detective-pivot{left:calc(100% + 16px * var(--resize-handle-scale,1))}
 .detective-editor .detective-move{left:calc(-16px * var(--resize-handle-scale,1))}
 .detective-editor :is(.detective-pivot,.detective-move):active{cursor:grabbing}
+
+.detective-frame-setting select{min-height:34px;padding:4px 7px;border:1px solid var(--border-strong);border-radius:6px;background:var(--surface-input);color:var(--text-primary);font:inherit}
+.detective-world.is-framed::before{content:'';position:absolute;pointer-events:none;inset:calc(-1 * var(--wall-frame-width));box-sizing:border-box;border:var(--wall-frame-width) solid #805030;border-image:linear-gradient(135deg,#b5804c,#754429 28%,#a16c42 54%,#593320 82%,#8c5835) 1;box-shadow:0 0 0 4px #4a2e20,inset 0 0 18px #3d2718a0}

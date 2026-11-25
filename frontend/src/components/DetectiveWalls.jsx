@@ -28,6 +28,7 @@ const itemBounds=node=>{
 }
 const DEFAULT_BACKGROUND_COLOR='#a77e54'
 const BOARD_MARGIN=2000
+const FRAME_WIDTHS=[[0,'None'],[64,'Narrow'],[128,'Medium'],[192,'Wide']]
 const MIN_ZOOM=.02,MAX_ZOOM=3,INITIAL_ZOOM=.8
 const nodeFontSize=node=>node.fontSize??(node.type==='photo'?14:node.type==='pin'?12:20)
 const clamp=(n,min,max)=>Math.max(min,Math.min(max,n))
@@ -538,7 +539,9 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
   }
   useLayoutEffect(()=>()=>cancelAnimationFrame(zoomFrame.current),[])
   useLayoutEffect(()=>{
-    if(viewport.current)viewport.current.scrollTo(BOARD_MARGIN,BOARD_MARGIN)
+    const frameWidth=current.current?.state.frameWidth??0
+    const start=BOARD_MARGIN-frameWidth*INITIAL_ZOOM
+    viewport.current?.scrollTo(start,start)
   },[loading])
   useEffect(()=>{
     const view=viewport.current;if(!view)return
@@ -568,14 +571,15 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
     return()=>{view.removeEventListener('wheel',wheel);view.removeEventListener('touchstart',touchStart);view.removeEventListener('touchmove',touchMove);view.removeEventListener('touchend',touchEnd);view.removeEventListener('touchcancel',touchEnd)}
   },[loading])
   const fit=(wholeBoard=false)=>{
-    const nodes=current.current.state.nodes,view=viewport.current
+    const state=current.current.state,view=viewport.current
     if(!view)return
+    const {nodes,frameWidth=0}=state
     const bounds=nodes.map(node=>{
       const angle=node.rotation*Math.PI/180,w=Math.abs(node.width*Math.cos(angle))+Math.abs(node.height*Math.sin(angle)),h=Math.abs(node.width*Math.sin(angle))+Math.abs(node.height*Math.cos(angle))
       return {left:node.x+node.width/2-w/2,top:node.y+node.height/2-h/2,right:node.x+node.width/2+w/2,bottom:node.y+node.height/2+h/2}
     })
-    const left=wholeBoard||!bounds.length?0:Math.min(...bounds.map(b=>b.left))-60,top=wholeBoard||!bounds.length?0:Math.min(...bounds.map(b=>b.top))-60
-    const right=wholeBoard||!bounds.length?wallWidth(current.current.state):Math.max(...bounds.map(b=>b.right))+60,bottom=wholeBoard||!bounds.length?wallHeight(current.current.state):Math.max(...bounds.map(b=>b.bottom))+60
+    const left=wholeBoard||!bounds.length?-frameWidth:Math.min(...bounds.map(b=>b.left))-60,top=wholeBoard||!bounds.length?-frameWidth:Math.min(...bounds.map(b=>b.top))-60
+    const right=wholeBoard||!bounds.length?wallWidth(state)+frameWidth:Math.max(...bounds.map(b=>b.right))+60,bottom=wholeBoard||!bounds.length?wallHeight(state)+frameWidth:Math.max(...bounds.map(b=>b.bottom))+60
     const next=clamp(Math.min((view.clientWidth-32)/(right-left),(view.clientHeight-32)/(bottom-top)),MIN_ZOOM,1)
     zoomTo(next,null,{x:(left+right)/2,y:(top+bottom)/2})
   }
@@ -589,6 +593,21 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
     const state=current.current.state
     const backgroundColor=color===DEFAULT_BACKGROUND_COLOR?undefined:color
     if(backgroundColor!==state.backgroundColor)apply({...current.current,state:{...state,backgroundColor}},true,false)
+  }
+  const changeFrameWidth=width=>{
+    const state=current.current.state
+    const previous=state.frameWidth??0
+    if(width===previous)return
+    apply({...current.current,state:{...state,frameWidth:width||undefined}},true,false)
+
+    const view=viewport.current
+    if(!view)return
+    const oldEdge=BOARD_MARGIN-previous*zoomRef.current
+    const newEdge=BOARD_MARGIN-width*zoomRef.current
+    view.scrollTo(
+      Math.abs(view.scrollLeft-oldEdge)<1?newEdge:view.scrollLeft,
+      Math.abs(view.scrollTop-oldEdge)<1?newEdge:view.scrollTop
+    )
   }
   const exportWall=()=>downloadBlob(new Blob([JSON.stringify(current.current,null,2)],{type:'application/json'}),`${current.current.name.replace(/[<>:"/\\|?*]/g,'-')||'Detective wall'}.json`)
   if(loading)return <p role="status">Opening detective wall…</p>
@@ -624,6 +643,10 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
       <label className="detective-color">Board background<input type="color" value={doc.state.backgroundColor??DEFAULT_BACKGROUND_COLOR}
         onChange={event=>setBackgroundColor(event.target.value)}/></label>
       {doc.state.backgroundColor&&<button type="button" onClick={()=>setBackgroundColor(DEFAULT_BACKGROUND_COLOR)}>Reset background</button>}
+      <label className="detective-color detective-frame-setting">Wood frame<select value={doc.state.frameWidth??0}
+        onChange={event=>changeFrameWidth(Number(event.target.value))}>
+        {FRAME_WIDTHS.map(([width,label])=><option key={width} value={width}>{label}</option>)}
+      </select></label>
       <button type="button" aria-pressed={tool==='select'} title="Select items or drag empty space to draw a selection rectangle" onClick={()=>{setTool('select');cancelConnection();setStringHint('')}}><MousePointer2 size={16}/>Select</button><button type="button" aria-pressed={tool==='pan'} onClick={()=>{setTool('pan');cancelConnection();setStringHint('')}}><Hand size={16}/>Pan</button>
       <button type="button" onClick={()=>add('note')}><StickyNote size={16}/>Sticky note</button><button type="button" disabled={photoBusy} onClick={()=>fileInput.current.click()}><ImagePlus size={16}/>{photoBusy?'Adding…':'Photo'}</button><button type="button" onClick={()=>add('pin')}><Pin size={16}/>Thumbtack</button>
       <button type="button" aria-pressed={tool==='string'||!!connecting} onClick={()=>{cancelConnection();setStringHint('');setTool(tool==='string'?'select':'string')}} title="Connect two items, or drag directly from any pin"><Link2 size={16}/>Connect items</button>
@@ -643,7 +666,7 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
     <DetectiveWallZoom zoomTo={zoomTo} fit={fit} zoomListener={zoomListener}/>
     <div
       ref={viewport}
-      style={doc.state.backgroundColor?{'--wall-background':doc.state.backgroundColor}:undefined}
+      style={{'--wall-background':doc.state.backgroundColor,'--wall-frame-width':(doc.state.frameWidth??0)+'px'}}
       className={['detective-viewport',`tool-${tool}`,panning?'is-panning':''].filter(Boolean).join(' ')}
       tabIndex={0}
       aria-label="Corkboard. Drag to pan in Pan mode. In Select mode, drag empty space to select items in a rectangle."
@@ -670,7 +693,7 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
         if(file){event.preventDefault();addPhoto(file)}
       }}
     >
-      <div ref={worldSize} className="detective-world-size" data-wall-background="true" style={{'--wall-width':`${boardWidth}px`,'--wall-height':`${boardHeight}px`,'--wall-margin':`${BOARD_MARGIN}px`,'--wall-zoom':INITIAL_ZOOM}}><div className="detective-world" data-wall-background="true">
+      <div ref={worldSize} className="detective-world-size" data-wall-background="true" style={{'--wall-width':`${boardWidth}px`,'--wall-height':`${boardHeight}px`,'--wall-margin':`${BOARD_MARGIN}px`,'--wall-zoom':INITIAL_ZOOM}}><div className={doc.state.frameWidth?"detective-world is-framed":"detective-world"} data-wall-background="true">
         <svg className="detective-strings" width={boardWidth} height={boardHeight} aria-label="Connections">
           {doc.state.strings.map(edge=>{
             const from=nodes.get(edge.from),to=nodes.get(edge.to)

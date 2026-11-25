@@ -44,7 +44,11 @@ module.exports=function registerDetectiveWalls(app,auth,{mongoose}){
       edges.add(edge.id);return {id:edge.id,from:edge.from,to:edge.to,color:edge.color,text:edge.text,width:edge.width??6,...(edge.slack!==undefined?{slack:edge.slack}:{}),...(edge.fontSize!==undefined?{fontSize:edge.fontSize}:{})};
     });
     if(state.backgroundColor!==undefined&&!color(state.backgroundColor))throw new Error('Choose a valid wall background color.');
-    return {nodes,strings,...(state.backgroundColor!==undefined?{backgroundColor:state.backgroundColor}:{})};
+    if(state.frameWidth!==undefined&&![0,64,128,192].includes(state.frameWidth))throw new Error('Choose a valid wall frame width.');
+    return {nodes,strings,
+      ...(state.backgroundColor!==undefined?{backgroundColor:state.backgroundColor}:{}),
+      ...(state.frameWidth?{frameWidth:state.frameWidth}:{})
+    };
   }
   app.get('/api/detective-walls',auth,async(req,res)=>{
     res.set('Cache-Control','private, no-store');
