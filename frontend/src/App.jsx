@@ -277,6 +277,16 @@ function App() {
   const [taskDatePrompt,setTaskDatePrompt]=useState(null),[creatingTask,setCreatingTask]=useState(false)
   const createTaskLock=useRef(false)
   const taskDatePromptRef=useRef(null)
+  const refocusTaskAfterCreate=useRef(false)
+  useEffect(()=>{
+    if(creatingTask||!refocusTaskAfterCreate.current)return
+    refocusTaskAfterCreate.current=false
+    const input=inputRef.current
+    const focused=document.activeElement
+    if(input&&(focused===document.body||input.form?.contains(focused))){
+      input.focus({preventScroll:true})
+    }
+  },[creatingTask])
   useEffect(()=>{
     if(!taskDatePrompt)return
     const frame=requestAnimationFrame(()=>taskDatePromptRef.current?.querySelector('button:not(:disabled)')?.focus({preventScroll:true}))
@@ -589,6 +599,7 @@ function App() {
       const data=await readApiJson(response)
       if(!response.ok){if(data.message==='Invalid or expired token'){logout();return}throw new Error(data.message||data.error||'Could not create task.')}
       if(!data._id)throw new Error('The server did not confirm that the task was saved. Refresh your tasks before trying again.')
+      refocusTaskAfterCreate.current=true
       setTodos(previous=>[...previous,data]);setInput('');setDueDate('');setDueHasTime(false);setScheduledDay('');setTaskDatePrompt(null);setNewProgress({enabled:false,target:'',unit:'',autoComplete:false})
     }catch(err){setError(err.message);setErrorDetails(err.stack||err.toString());setShowErrorDetails(false)}
     finally{createTaskLock.current=false;setCreatingTask(false)}
@@ -1911,6 +1922,7 @@ function App() {
           <div className="task-create-fields flex gap-3">
             <input
               ref={inputRef}
+              aria-label="Add task"
               disabled={creatingTask}
               type="text"
               value={input}
