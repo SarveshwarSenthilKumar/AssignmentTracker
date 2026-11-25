@@ -8,7 +8,7 @@ import StickyNoteInk from './StickyNoteInk'
 import DetectiveCasePicker from './DetectiveCasePicker'
 import DetectiveSelectionSize from './DetectiveSelectionSize'
 import DetectiveStringWidth from './DetectiveStringWidth'
-import {MAX_WALL_SIZE,MIN_TEXT_SIZE,DEFAULT_WALL_WIDTH,DEFAULT_WALL_HEIGHT} from '../lib/detectiveWallLimits'
+import {MAX_WALL_SIZE,MIN_TEXT_SIZE,DEFAULT_WALL_WIDTH,DEFAULT_WALL_HEIGHT,MIN_BOARD_WIDTH,MIN_BOARD_HEIGHT,MAX_BOARD_DIMENSION} from '../lib/detectiveWallLimits'
 import {MAX_NOTE_STROKES} from '../lib/stickyNoteInk'
 import {pivotDelta} from '../lib/insertGeometry'
 import {spreadGrowingCards} from '../lib/detectiveWallSpacing'
@@ -18,14 +18,31 @@ const EMPTY_NOTE_INK=[]
 const uid=()=>crypto.randomUUID()
 const colors=['#fff1a8','#ffd0c5','#ccebd2','#cce3ff','#e1d2f5','#ffffff']
 
-const wallHeight=state=>Math.min(MAX_WALL_SIZE*2,Math.max(DEFAULT_WALL_HEIGHT,...state.nodes.map(node=>node.y+node.height+80)))
-const wallWidth=state=>Math.min(MAX_WALL_SIZE*2,Math.max(DEFAULT_WALL_WIDTH,...state.nodes.map(node=>node.x+node.width+80)))
+
 const pinPosition=node=>{const angle=node.rotation*Math.PI/180,dy=(node.type==='pin'?node.height*.35:14)-node.height/2;return {x:node.x+node.width/2-dy*Math.sin(angle),y:node.y+node.height/2+dy*Math.cos(angle)}}
 const resizeCorners=['nw','ne','sw','se']
 const itemBounds=node=>{
   const angle=node.rotation*Math.PI/180,w=Math.abs(node.width*Math.cos(angle))+Math.abs(node.height*Math.sin(angle)),h=Math.abs(node.width*Math.sin(angle))+Math.abs(node.height*Math.cos(angle))
   return {left:node.x+node.width/2-w/2,top:node.y+node.height/2-h/2,right:node.x+node.width/2+w/2,bottom:node.y+node.height/2+h/2}
 }
+const boardMinimum=nodes=>{
+  let width=MIN_BOARD_WIDTH,height=MIN_BOARD_HEIGHT
+  for(const node of nodes){
+    const {right,bottom}=itemBounds(node)
+    width=Math.max(width,Math.ceil(right+80))
+    height=Math.max(height,Math.ceil(bottom+80))
+  }
+  return {width:Math.min(MAX_BOARD_DIMENSION,width),height:Math.min(MAX_BOARD_DIMENSION,height)}
+}
+const boardSize=(state,minimum=boardMinimum(state.nodes))=>({
+  width:Math.max(state.boardWidth??DEFAULT_WALL_WIDTH,minimum.width),
+  height:Math.max(state.boardHeight??DEFAULT_WALL_HEIGHT,minimum.height)
+})
+const BOARD_RESIZE_HANDLES=[
+  ['width','Resize board width','↔'],
+  ['height','Resize board height','↕'],
+  ['both','Resize board width and height','↘']
+]
 const WALL_COLORS=[
   ['backgroundColor','Cork surface','#a77e54'],
   ['surroundColor','Surrounding area','#8b6240'],
@@ -177,6 +194,7 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
   },[fullscreen,!!selected])
   const [inkNoteId,setInkNoteId]=useState(null)
   const [marquee,setMarquee]=useState(null)
+  const [resizingBoard,setResizingBoard]=useState(false)
   const [spacingOnly,setSpacingOnly]=useState(false)
   const zoomRef=useRef(INITIAL_ZOOM),zoomListener=useRef(null)
   const worldSize=useRef(null),pendingZoom=useRef(null),zoomFrame=useRef(null)
@@ -273,7 +291,7 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
         return
       }
       if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='s'){event.preventDefault();saveRef.current?.();return}
-      if(event.key==='Escape'){if(zenMode){setZenMode(false);return}if(fullscreen){exitFullscreen();return}cancelGesture();cancelConnection();setSelected(null);setTool('select');setStringHint('');return}
+      if(event.key==='Escape'){if(resizingBoard){cancelGesture();setResizingBoard(false);return}if(zenMode){setZenMode(false);return}if(fullscreen){exitFullscreen();return}cancelGesture();cancelConnection();setSelected(null);setTool('select');setStringHint('');return}
       if(typing(event.target))return
       if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='a'&&current.current){
         event.preventDefault();cancelConnection();setTool('select')
@@ -458,6 +476,51 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
     gesture.current={kind:'pan',x:event.clientX,y:event.clientY,left:viewport.current.scrollLeft,top:viewport.current.scrollTop,pointerId:event.pointerId}
     viewport.current.setPointerCapture(event.pointerId)
   }
+  const constrainBoard=(width,height,minimum)=>({
+    width:clamp(Math.round(width),minimum.width,MAX_BOARD_DIMENSION),
+    height:clamp(Math.round(height),minimum.height,MAX_BOARD_DIMENSION)
+  })
+  const previewBoard=({width,height})=>{
+    worldSize.current?.style.setProperty('--wall-width',width+'px')
+    worldSize.current?.style.setProperty('--wall-height',height+'px')
+  }
+  const saveBoardSize=({width,height})=>{
+    const state=current.current.state
+    const before=boardSize(state)
+    if(width===before.width&&height===before.height)return
+    apply({...current.current,state:{...state,
+      boardWidth:width===before.width?state.boardWidth:width,
+      boardHeight:height===before.height?state.boardHeight:height
+    }},true,false)
+  }
+  const startBoardResize=(event,axis)=>{
+    event.stopPropagation()
+    if(event.button!==0||gesture.current)return
+    event.preventDefault()
+    const state=current.current.state,minimum=boardMinimum(state.nodes)
+    const handle=event.currentTarget
+    gesture.current={kind:'board-resize',axis,minimum,size:boardSize(state,minimum),
+      start:point(event),pointerId:event.pointerId,handle}
+    handle.focus({preventScroll:true})
+    handle.setPointerCapture(event.pointerId)
+  }
+  const draggedBoardSize=(drag,event)=>{
+    const p=point(event)
+    return constrainBoard(
+      drag.size.width+(drag.axis==='height'?0:p.x-drag.start.x),
+      drag.size.height+(drag.axis==='width'?0:p.y-drag.start.y),
+      drag.minimum
+    )
+  }
+  const keyboardBoardResize=(event,axis)=>{
+    const dx=event.key==='ArrowLeft'?-1:event.key==='ArrowRight'?1:0
+    const dy=event.key==='ArrowUp'?-1:event.key==='ArrowDown'?1:0
+    if(!dx&&!dy)return
+    event.preventDefault();event.stopPropagation()
+    const state=current.current.state,minimum=boardMinimum(state.nodes)
+    const {width,height}=boardSize(state,minimum),step=event.shiftKey?500:100
+    saveBoardSize(constrainBoard(width+(axis==='height'?0:dx*step),height+(axis==='width'?0:dy*step),minimum))
+  }
   const move=event=>{
     if(connectionSource.current){
       const target=targetAt(event),node=current.current.state.nodes.find(item=>item.id===target)
@@ -465,6 +528,7 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
       if(gesture.current?.kind==='connection')gesture.current.target=target
     }
     const drag=gesture.current;if(!drag||drag.pointerId!==event.pointerId)return
+    if(drag.kind==='board-resize'){previewBoard(draggedBoardSize(drag,event));return}
     if(drag.kind==='marquee'){updateMarquee(drag,point(event));return}
     if(drag.kind==='connection'){if(Math.hypot(event.clientX-drag.x,event.clientY-drag.y)>5)drag.moved=true;return}
     if(drag.kind==='pan'){viewport.current.scrollLeft=drag.left+drag.x-event.clientX;viewport.current.scrollTop=drag.top+drag.y-event.clientY;return}
@@ -505,6 +569,14 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
   const end=event=>{
     const drag=gesture.current
     if(!drag||drag.pointerId!==event.pointerId)return
+    if(drag.kind==='board-resize'){
+      const proposed=draggedBoardSize(drag,event)
+      const size=constrainBoard(proposed.width,proposed.height,boardMinimum(current.current.state.nodes))
+      gesture.current=null
+      previewBoard(size)
+      saveBoardSize(size)
+      return
+    }
     if(drag.kind==='marquee'){
       updateMarquee(drag,point(event));setMarquee(null);gesture.current=null;return
     }
@@ -517,8 +589,20 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
       else{cancelConnection();setStringHint('No connection made. Drop onto another item, or click a pin and then another item.')}
     }else if(drag.previous)cancelConnection()
   }
-  const cancelGesture=()=>{if(gesture.current?.kind==='connection')cancelConnection();if(gesture.current?.kind==='marquee')setSelected(gesture.current.previous);gesture.current=null;setPanning(false);setMarquee(null)}
+  const cancelGesture=event=>{
+    const drag=gesture.current
+    if(drag?.kind==='board-resize'){
+      if(event&&event.pointerId!==drag.pointerId)return
+      gesture.current=null
+      previewBoard(boardSize(current.current.state))
+      if(drag.handle.hasPointerCapture(drag.pointerId))drag.handle.releasePointerCapture(drag.pointerId)
+    }
+    if(drag?.kind==='connection')cancelConnection()
+    if(drag?.kind==='marquee')setSelected(drag.previous)
+    gesture.current=null;setPanning(false);setMarquee(null)
+  }
   const zoomTo=(value,location=null,center=null)=>{
+    if(gesture.current?.kind==='board-resize')return
     value=clamp(value,MIN_ZOOM,MAX_ZOOM)
     const view=viewport.current,world=worldSize.current
     if(!view||!world||(value===requestedZoom()&&!center))return
@@ -580,12 +664,13 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
     const state=current.current.state,view=viewport.current
     if(!view)return
     const {nodes,frameWidth=0}=state
+    const size=boardSize(state)
     const bounds=nodes.map(node=>{
       const angle=node.rotation*Math.PI/180,w=Math.abs(node.width*Math.cos(angle))+Math.abs(node.height*Math.sin(angle)),h=Math.abs(node.width*Math.sin(angle))+Math.abs(node.height*Math.cos(angle))
       return {left:node.x+node.width/2-w/2,top:node.y+node.height/2-h/2,right:node.x+node.width/2+w/2,bottom:node.y+node.height/2+h/2}
     })
     const left=wholeBoard||!bounds.length?-frameWidth:Math.min(...bounds.map(b=>b.left))-60,top=wholeBoard||!bounds.length?-frameWidth:Math.min(...bounds.map(b=>b.top))-60
-    const right=wholeBoard||!bounds.length?wallWidth(state)+frameWidth:Math.max(...bounds.map(b=>b.right))+60,bottom=wholeBoard||!bounds.length?wallHeight(state)+frameWidth:Math.max(...bounds.map(b=>b.bottom))+60
+    const right=wholeBoard||!bounds.length?size.width+frameWidth:Math.max(...bounds.map(b=>b.right))+60,bottom=wholeBoard||!bounds.length?size.height+frameWidth:Math.max(...bounds.map(b=>b.bottom))+60
     const next=clamp(Math.min((view.clientWidth-32)/(right-left),(view.clientHeight-32)/(bottom-top)),MIN_ZOOM,1)
     zoomTo(next,null,{x:(left+right)/2,y:(top+bottom)/2})
   }
@@ -635,8 +720,7 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
   const writingNote=tool==='select'&&activeNode?.id===inkNoteId&&!connecting
   const activeString=selected?.type==='string'?doc.state.strings.find(edge=>edge.id===selected.id):null
   const nodes=new Map(doc.state.nodes.map(node=>[node.id,node]))
-  const boardHeight=wallHeight(doc.state)
-  const boardWidth=wallWidth(doc.state)
+  const {width:boardWidth,height:boardHeight}=boardSize(doc.state)
   const anchor=pinPosition
   const selectedGroup=selected?.type==='group'?selected:null
   const selectedIds=selectionIds(selected)
@@ -666,6 +750,11 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
         </label>)}
         {WALL_COLORS.some(([key])=>doc.state[key]!==undefined)&&<button type="button" onClick={resetWallColors}>Reset colors</button>}
       </div>
+      <button type="button" aria-pressed={resizingBoard} onClick={()=>{
+        cancelGesture();cancelConnection()
+        setResizingBoard(!resizingBoard)
+        if(!resizingBoard)fit(true)
+      }}><Maximize size={16}/>{resizingBoard?'Done resizing board':'Resize board'}</button>
       <label className="detective-color detective-frame-setting">Wood frame<select value={doc.state.frameWidth??0}
         onChange={event=>changeFrameWidth(Number(event.target.value))}>
         {FRAME_WIDTHS.map(([width,label])=><option key={width} value={width}>{label}</option>)}
@@ -683,7 +772,7 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
     {error&&<div className="detective-notice" role="alert">{error}<button type="button" onClick={save}>Retry save</button><button type="button" onClick={()=>setError('')} aria-label="Dismiss error"><X size={15}/></button></div>}
     {localBackup&&<div className="detective-notice">An unsaved local draft is available.<button type="button" onClick={()=>{apply(localBackup,true,false);setLocalBackup(null)}}>Restore draft</button><button type="button" onClick={()=>{setLocalBackup(null);try{localStorage.removeItem(cacheKey)}catch{}}}>Keep server version</button></div>}
     <div className={`detective-hint${connecting?' is-connecting':''}`}>
-      <span role="status">{connecting?`Connect “${nodes.get(connecting)?.text.slice(0,35)||nodes.get(connecting)?.type||'item'}” → ${connectionTarget?'Release or click to connect.':'Choose another item, or drag to its pin.'}`:tool==='string'?'Choose the first item, then the second. You can also drag from any pin to another item.':stringHint|| (tool==='pan'?'Drag to pan · Wheel to zoom · Use the scrollbars to move around the board.':'Drag empty space to box-select · Shift adds to your selection · Use Pan to move the board · Wheel to zoom')}</span>
+      <span role="status">{resizingBoard?'Drag a board-edge handle. Arrow keys resize a focused handle. Esc exits.':connecting?`Connect “${nodes.get(connecting)?.text.slice(0,35)||nodes.get(connecting)?.type||'item'}” → ${connectionTarget?'Release or click to connect.':'Choose another item, or drag to its pin.'}`:tool==='string'?'Choose the first item, then the second. You can also drag from any pin to another item.':stringHint|| (tool==='pan'?'Drag to pan · Wheel to zoom · Use the scrollbars to move around the board.':'Drag empty space to box-select · Shift adds to your selection · Use Pan to move the board · Wheel to zoom')}</span>
       {(connecting||tool==='string')&&<button type="button" onClick={()=>{cancelConnection();setTool('select');setStringHint('')}}>Cancel connection <span aria-hidden="true">Esc</span></button>}
     </div>
     <DetectiveWallZoom zoomTo={zoomTo} fit={fit} zoomListener={zoomListener}/>
@@ -797,6 +886,11 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
           </button>
           {resizeCorners.map(corner=><button key={corner} type="button" className={`detective-resize is-${corner}`} aria-label={`Resize selected group from ${corner==='nw'?'top left':corner==='ne'?'top right':corner==='sw'?'bottom left':'bottom right'} corner`} onPointerDown={event=>startGroupResize(event,corner)}/>)}
         </div>}
+        {resizingBoard&&BOARD_RESIZE_HANDLES.map(([axis,label,icon])=><button key={axis} type="button"
+          className={'detective-board-resize is-'+axis} aria-label={label} title={label}
+          onPointerDown={event=>startBoardResize(event,axis)} onKeyDown={event=>keyboardBoardResize(event,axis)}>
+          <span aria-hidden="true">{icon}</span>
+        </button>)}
         {marquee&&<div className="detective-selection-rectangle" aria-hidden="true" style={{left:marquee.left,top:marquee.top,width:marquee.right-marquee.left,height:marquee.bottom-marquee.top}}/>}
       </div></div>
     </div>

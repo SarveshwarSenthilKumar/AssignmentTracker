@@ -98,3 +98,10 @@ body:has(.detective-editor.is-zen) .assistant-launcher{display:none!important}
 
 .detective-wall-colors{display:flex;align-items:center;gap:10px;flex-shrink:0;padding-right:8px;border-right:1px solid var(--border)}
 .detective-viewport[data-custom-frame] .detective-world.is-framed::before{border-color:var(--wall-frame-color);border-image:linear-gradient(135deg,color-mix(in srgb,var(--wall-frame-color) 78%,white),var(--wall-frame-color),color-mix(in srgb,var(--wall-frame-color) 75%,black),var(--wall-frame-color)) 1;box-shadow:0 0 0 4px color-mix(in srgb,var(--wall-frame-color) 66%,black),inset 0 0 18px #0005}
+
+.detective-editor .detective-board-resize{position:absolute;z-index:25;min-height:0;width:30px;height:30px;padding:0;border:2px solid white;border-radius:7px;background:#285c83;color:white;font-size:18px;touch-action:none;transform:translate(-50%,-50%) scale(var(--resize-handle-scale,1))}
+.detective-board-resize.is-width,.detective-board-resize.is-both{left:calc(100% + var(--wall-frame-width,0px))}
+.detective-board-resize.is-height,.detective-board-resize.is-both{top:calc(100% + var(--wall-frame-width,0px))}
+.detective-board-resize.is-width{top:50%;cursor:ew-resize}
+.detective-board-resize.is-height{left:50%;cursor:ns-resize}
+.detective-board-resize.is-both{cursor:nwse-resize}

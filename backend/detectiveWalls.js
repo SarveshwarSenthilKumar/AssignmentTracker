@@ -50,7 +50,14 @@ module.exports=function registerDetectiveWalls(app,auth,{mongoose}){
       colors[field]=state[field];
     }
     if(state.frameWidth!==undefined&&![0,64,128,192].includes(state.frameWidth))throw new Error('Choose a valid wall frame width.');
+    const dimensions={};
+    for(const [field,min] of [['boardWidth',320],['boardHeight',240]]){
+      if(state[field]===undefined)continue;
+      if(!Number.isInteger(state[field])||!number(state[field],min,renderLimit*2))throw new Error('Choose valid board dimensions.');
+      dimensions[field]=state[field];
+    }
     return {nodes,strings,
+      ...dimensions,
       ...colors,
       ...(state.frameWidth?{frameWidth:state.frameWidth}:{})
     };
