@@ -77,13 +77,13 @@ export default function DetectiveWalls({token,userId}){
     try{await request(token,`/api/detective-walls/${deleting._id}`,{method:'DELETE'});try{localStorage.removeItem(`detective-wall-draft:${userId}:${deleting._id}`)}catch{}setWalls(previous=>previous.filter(wall=>wall._id!==deleting._id));setDeleting(null)}catch(error){setError(error.message)}finally{creating.current=false;setBusy(false)}
   }
   const openPicker=(before=null)=>{if(creating.current)return;beforeGeneration.current=before;setError('');setPickerOpen(true)}
-  const generateDemo=async(caseId)=>{
+  const generateDemo=async(caseId,options)=>{
     if(creating.current)return
     creating.current=true;setGenerating(true);setError('')
     try{
       if(beforeGeneration.current&&!(await beforeGeneration.current())){setError('Save the current wall successfully before creating a new case board.');return}
       const {generateCaseBoard}=await import('../lib/detectiveWallDemo')
-      const wall=await request(token,'/api/detective-walls',{method:'POST',body:JSON.stringify(generateCaseBoard(caseId))})
+      const wall=await request(token,'/api/detective-walls',{method:'POST',body:JSON.stringify(generateCaseBoard(caseId,options))})
       if(!wall._id)throw new Error('The server did not return a case board. Refresh before trying again.')
       setPickerOpen(false);beforeGeneration.current=null
       window.location.hash=`/detective-wall/${wall._id}/overview`

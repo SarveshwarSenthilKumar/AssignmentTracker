@@ -1,5 +1,6 @@
 // Hidden, entirely fictional case-board prop. No external images or AI requests.
 import {DETECTIVE_CASES} from './detectiveCaseTemplates'
+import {caseBoardOptions} from './detectiveCaseOptions'
 import {DEFAULT_WALL_WIDTH,DEFAULT_WALL_HEIGHT} from './detectiveWallLimits'
 export const isCaseBoardShortcut=event=>!event.repeat&&!event.isComposing&&(event.ctrlKey||event.metaKey)&&event.altKey&&event.shiftKey&&event.code==='KeyD'
 
@@ -147,7 +148,8 @@ function spreadCaseAcrossWall(nodes,strings){
   }
 }
 
-export function generateCaseBoard(caseId='meridian'){
+export function generateCaseBoard(caseId='meridian',options){
+  const {groups,density,photos,timeline:includeTimeline,scraps}=caseBoardOptions(options)
   const theme=DETECTIVE_CASES.find(item=>item.id===caseId)||DETECTIVE_CASES.find(item=>item.id==='meridian')
   const nodes=[],strings=[],id=()=>crypto.randomUUID(),edges=new Set()
   const random=(min,max)=>min+Math.random()*(max-min)
@@ -184,46 +186,63 @@ export function generateCaseBoard(caseId='meridian'){
     {name:'THE LAST WITNESS',x:4130,y:2910,kind:'surveillance',color:'#ccebd2',notes:['Witness describes a red folder.\nCamera shows an empty hand.\nAnother visit?','Two calls to a disconnected number.\nBoth lasted exactly 47 seconds.','The witness never mentions the van.\nOnly the sound of a clock.'],code:'H / 47s'}
   ]
   const centers=[{x:600,y:460},{x:2090,y:240},{x:3860,y:630},{x:440,y:1970},{x:4330,y:1770},{x:1050,y:3320},{x:2900,y:3370},{x:4400,y:2950}]
-  const clusters=(theme.clusters||cases).map((source,index)=>{
+  // Keep all four corners represented even at the smallest group count.
+  const chosenGroups=new Set([0,2,5,7,1,6,3,4].slice(0,groups))
+  const clusters=(theme.clusters||cases).map((source,index)=>({source,index}))
+    .filter(({index})=>chosenGroups.has(index)).map(({source,index})=>{
     const entry={...source,...centers[index]},angle=random(-.22,.22),stretch=random(.8,1.2)
     const slots=shuffle([[-130,-40],[230,-100],[580,95],[-40,270],[340,280],[120,570],[610,420]])
     const position=()=>{const [x,y]=slots.pop();return {x:entry.x+(x*Math.cos(angle)-y*Math.sin(angle))*stretch,y:entry.y+(x*Math.sin(angle)+y*Math.cos(angle))*stretch}}
     const at=(callback)=>{const p=position();return callback(p.x,p.y)}
     const heading=at((x,y)=>note(`${entry.name}\n${entry.code}\n\n${pick(['still no answer','need the original','check this AGAIN','who signed this?','does not add up'])}`,x,y,entry.color,random(220,340),random(160,230)))
-    const image=at((x,y)=>photo(entry.kind,entry.name,`ex. ${index+1} / ${entry.code}`,x,y,index,entry))
-    const detail=at((x,y)=>photo(pick(['receipt','newspaper','report','letter','diagram']),`FILE ${entry.code}`,'compare the accounts',x,y,index+8,entry))
+    const image=photos?at((x,y)=>photo(entry.kind,entry.name,`ex. ${index+1} / ${entry.code}`,x,y,index,entry)):null
+    const detail=photos?at((x,y)=>photo(pick(['receipt','newspaper','report','letter','diagram']),`FILE ${entry.code}`,'compare the accounts',x,y,index+8,entry)):null
     const a=at((x,y)=>note(entry.notes[0],x,y,entry.color))
     const b=at((x,y)=>note(entry.notes[1],x,y,index%2?'#e1d2f5':'#fff1a8'))
     const c=at((x,y)=>note(entry.notes[2],x,y,'#cce3ff'))
     const junction=at((x,y)=>pin(entry.code,x,y,index%2?'#3d668d':'#a52e36'))
-    connect(heading,image,'EXHIBIT','#ac2936',5);connect(image,a,'','#ad7846',4);connect(a,b,theme.clusters?'CHECK SEQUENCE':'CHECK TIME','#ac2936',5)
-    connect(b,c,'','#436a86',4);connect(c,detail,'','#b03d43',4);connect(heading,junction,'','#ac2936',6)
-    connect(junction,image,'','#ac2936',4);connect(junction,detail,'','#ad7846',4);connect(a,c,'','#ad7846',3)
+    if(image){connect(heading,image,'EXHIBIT','#ac2936',5);connect(image,a,'','#ad7846',4)}
+    else connect(heading,a,'','#ad7846',4)
+    connect(a,b,theme.clusters?'CHECK SEQUENCE':'CHECK TIME','#ac2936',5)
+    connect(b,c,'','#436a86',4)
+    if(detail)connect(c,detail,'','#b03d43',4)
+    connect(heading,junction,'','#ac2936',6)
+    if(density!=='sparse'){
+      if(image)connect(junction,image,'','#ac2936',4)
+      if(detail)connect(junction,detail,'','#ad7846',4)
+      connect(a,c,'','#ad7846',3)
+    }
     connect(center,heading,index%2?'':theme.clusters?'COMPARE ACCOUNTS':'SAME NIGHT','#a52b37',6);connect(cipher,junction,'','#436a86',4)
     return {heading,image,detail,a,b,c,junction}
   })
   clusters.forEach((cluster,i)=>{
-    const next=clusters[(i+1)%8],opposite=clusters[(i+4)%8],diagonal=clusters[(i+3)%8]
+    const next=clusters[(i+1)%clusters.length],opposite=clusters[(i+Math.floor(clusters.length/2))%clusters.length],diagonal=clusters[(i+3)%clusters.length]
     connect(cluster.junction,next.junction,'','#ac2936',5)
-    if(i%2===0)connect(cluster.image,opposite.b,i%3===0?(theme.clusters?'pattern match?':'same minute?'):'','#a52e36',5)
-    connect(cluster.a,diagonal.detail,'','#456b86',4)
-    connect(cluster.c,next.image,'','#ad7846',3)
+    if(density==='sparse')return
+    if(i%2===0)connect(cluster.image||cluster.heading,opposite.b,i%3===0?(theme.clusters?'pattern match?':'same minute?'):'','#a52e36',5)
+    connect(cluster.a,diagonal.detail||diagonal.c,'','#456b86',4)
+    connect(cluster.c,next.image||next.heading,'','#ad7846',3)
     connect(cluster.b,opposite.junction,'','#a52e36',4)
-    connect(cluster.detail,question,'','#ad7846',3)
+    connect(cluster.detail||cluster.c,question,'','#ad7846',3)
     if(i%3!==0)connect(cluster.heading,diagonal.c,'','#ac2936',4)
+    if(density==='dense'){
+      connect(cluster.heading,next.b,'','#ac2936',4)
+      connect(cluster.a,opposite.c,'','#436a86',4)
+      connect(cluster.detail||cluster.b,diagonal.junction,'','#ad7846',4)
+    }
   })
   const timeline=['02:47 · FIRST CALL','03:04 · ACCESS APPROVED','03:11 · VAN ARRIVES','03:17 · SIGNAL BURST','03:22 · EAST RAMP','03:29 · LOG REVISED','03:47 · SECOND CALL']
   const eventPositions=[[1520,1200],[2940,880],[3860,2100],[2540,2780],[4430,3600],[1520,3710],[3500,4250]]
-  const events=(theme.timeline||timeline).map((text,i)=>note(`${text}\n\n${(theme.timelineNotes||['Called twice. Nothing.','Whose authorization?','Two shadows??','All clocks agree. WHY?','WRONG EXIT','original still missing','number disconnected'])[i]}`,eventPositions[i][0],eventPositions[i][1],i===3?'#ffd0c5':'#fff1a8',random(210,310),random(150,210)))
-  events.forEach((event,i)=>{if(i)connect(events[i-1],event,'','#a52e36',7);connect(event,clusters[(i*3)%8].junction,'','#436a86',3)})
-  connect(events[3],center,theme.linkLabel||'17 MINUTES','#a52e36',8)
+  const events=(includeTimeline?(theme.timeline||timeline):[]).map((text,i)=>note(`${text}\n\n${(theme.timelineNotes||['Called twice. Nothing.','Whose authorization?','Two shadows??','All clocks agree. WHY?','WRONG EXIT','original still missing','number disconnected'])[i]}`,eventPositions[i][0],eventPositions[i][1],i===3?'#ffd0c5':'#fff1a8',random(210,310),random(150,210)))
+  events.forEach((event,i)=>{if(i)connect(events[i-1],event,'','#a52e36',7);connect(event,clusters[(i*3)%clusters.length].junction,'','#436a86',3)})
+  if(events[3])connect(events[3],center,theme.linkLabel||'17 MINUTES','#a52e36',8)
   const scribbles=['same handwriting?','NOT the west gate','call back Monday','17 min.\nseventeen.','ask about the umbrella','this was here BEFORE','keep both copies','WHO BENEFITS?','look behind the van','no record of payment','do not trust the stamp','same scratch on both keys','check the reflection','the carbon copy!!','wrong day?']
-  ;(theme.scribbles||scribbles).forEach((text,i)=>{
-    const cluster=clusters[i%clusters.length],reference=i%2?cluster.image:cluster.b
+  if(scraps)(theme.scribbles||scribbles).forEach((text,i)=>{
+    const cluster=clusters[i%clusters.length],reference=i%2?(cluster.image||cluster.heading):cluster.b
     const scrap=note(text,reference.x+random(-130,220),reference.y+reference.height+random(-35,100),pick(['#fff1a8','#ffffff','#e1d2f5']),random(165,230),random(100,155))
     scrap.paperStyle=pick(['receipt','torn','index','sticky']);scrap.rotation=random(-19,19);scrap.fontSize=Math.round(random(18,26))
     connect(reference,scrap,'','#8c3d34',random(2,5))
-    if(i%3===0)connect(scrap,clusters[(i+3)%8].junction,'','#ad7846',3)
+    if(i%3===0)connect(scrap,clusters[(i+3)%clusters.length].junction,'','#ad7846',3)
   })
   const legend=note(`red = linked evidence\nblue = interpretation\nrest = theory\n\n${theme.source} / fictional case reconstruction`,5300,2460,'#ffffff',290,220)
   connect(legend,cipher,'','#ad7846',3)
