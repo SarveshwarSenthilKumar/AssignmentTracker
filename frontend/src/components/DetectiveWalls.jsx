@@ -26,7 +26,13 @@ const itemBounds=node=>{
   const angle=node.rotation*Math.PI/180,w=Math.abs(node.width*Math.cos(angle))+Math.abs(node.height*Math.sin(angle)),h=Math.abs(node.width*Math.sin(angle))+Math.abs(node.height*Math.cos(angle))
   return {left:node.x+node.width/2-w/2,top:node.y+node.height/2-h/2,right:node.x+node.width/2+w/2,bottom:node.y+node.height/2+h/2}
 }
-const DEFAULT_BACKGROUND_COLOR='#a77e54'
+const WALL_COLORS=[
+  ['backgroundColor','Cork surface','#a77e54'],
+  ['surroundColor','Surrounding area','#8b6240'],
+  ['frameColor','Frame color','#805030']
+]
+// Old walls used their custom cork color for the surrounding area as well.
+const wallColor=(state,key,fallback)=>state[key]??(key==='surroundColor'?state.backgroundColor:undefined)??fallback
 const BOARD_MARGIN=2000
 const FRAME_WIDTHS=[[0,'None'],[64,'Narrow'],[128,'Medium'],[192,'Wide']]
 const MIN_ZOOM=.02,MAX_ZOOM=3,INITIAL_ZOOM=.8
@@ -589,16 +595,11 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
     return()=>cancelAnimationFrame(frame)
   },[loading])
   const leave=async()=>{clearTimeout(timer.current);if(await save())window.location.hash='/detective-wall'}
-  const setBackgroundColor=color=>{
-    const state=current.current.state
-    const backgroundColor=color===DEFAULT_BACKGROUND_COLOR?undefined:color
-    if(backgroundColor!==state.backgroundColor)apply({...current.current,state:{...state,backgroundColor}},true,false)
-  }
-  const changeFrameWidth=width=>{
+  const changeFrameWidth=(width,patch={})=>{
     const state=current.current.state
     const previous=state.frameWidth??0
     if(width===previous)return
-    apply({...current.current,state:{...state,frameWidth:width||undefined}},true,false)
+    apply({...current.current,state:{...state,...patch,frameWidth:width||undefined}},true,false)
 
     const view=viewport.current
     if(!view)return
@@ -608,6 +609,24 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
       Math.abs(view.scrollLeft-oldEdge)<1?newEdge:view.scrollLeft,
       Math.abs(view.scrollTop-oldEdge)<1?newEdge:view.scrollTop
     )
+  }
+  const changeWallColor=(key,value,fallback)=>{
+    const state=current.current.state
+    if(wallColor(state,key,fallback)===value)return
+    if(key==='frameColor'&&!state.frameWidth){
+      changeFrameWidth(FRAME_WIDTHS[1][0],{frameColor:value})
+      return
+    }
+    const patch={[key]:value}
+    if(key==='backgroundColor'&&state.surroundColor===undefined){
+      patch.surroundColor=state.backgroundColor??WALL_COLORS[1][2]
+    }
+    apply({...current.current,state:{...state,...patch}},true,false)
+  }
+  const resetWallColors=()=>{
+    const state={...current.current.state}
+    for(const [key] of WALL_COLORS)delete state[key]
+    apply({...current.current,state},true,false)
   }
   const exportWall=()=>downloadBlob(new Blob([JSON.stringify(current.current,null,2)],{type:'application/json'}),`${current.current.name.replace(/[<>:"/\\|?*]/g,'-')||'Detective wall'}.json`)
   if(loading)return <p role="status">Opening detective wall…</p>
@@ -640,9 +659,13 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
     </div>}
     <header className="detective-header"><button type="button" onClick={leave} title="Back to walls"><ArrowLeft size={18}/></button><input aria-label="Wall name" maxLength={120} value={doc.name} onFocus={()=>{historyRef.current={undo:[...historyRef.current.undo.slice(-19),current.current],redo:[]};setHistory(historyRef.current)}} onChange={event=>apply({...current.current,name:event.target.value},false)}/><span role="status">{status==='saving'?'Saving…':status==='saved'?'Saved':status==='error'?'Save failed':'Unsaved changes'}</span><button type="button" onClick={save}><Save size={16}/><span>Save</span></button><button type="button" onClick={exportWall} title="Export wall backup"><Download size={16}/><span>Backup</span></button><button type="button" onClick={fullscreen?exitFullscreen:enterFullscreen} aria-label={fullscreen?'Exit fullscreen':'Enter fullscreen'} title={fullscreen?'Exit fullscreen (Escape)':'Enter fullscreen'}>{fullscreen?<Minimize size={16}/>:<Maximize size={16}/>}<span>Fullscreen</span></button><button type="button" onClick={enterZenMode} title="Hide controls and keep the current tool. Escape exits." aria-label="Enter Zen mode"><EyeOff size={16}/><span>Zen mode</span></button></header>
     <div className="detective-toolbar" role="toolbar" aria-label="Wall tools">
-      <label className="detective-color">Board background<input type="color" value={doc.state.backgroundColor??DEFAULT_BACKGROUND_COLOR}
-        onChange={event=>setBackgroundColor(event.target.value)}/></label>
-      {doc.state.backgroundColor&&<button type="button" onClick={()=>setBackgroundColor(DEFAULT_BACKGROUND_COLOR)}>Reset background</button>}
+      <div className="detective-wall-colors" role="group" aria-label="Board colors">
+        {WALL_COLORS.map(([key,label,fallback])=><label key={key} className="detective-color">{label}
+          <input type="color" value={wallColor(doc.state,key,fallback)}
+            onChange={event=>changeWallColor(key,event.target.value,fallback)}/>
+        </label>)}
+        {WALL_COLORS.some(([key])=>doc.state[key]!==undefined)&&<button type="button" onClick={resetWallColors}>Reset colors</button>}
+      </div>
       <label className="detective-color detective-frame-setting">Wood frame<select value={doc.state.frameWidth??0}
         onChange={event=>changeFrameWidth(Number(event.target.value))}>
         {FRAME_WIDTHS.map(([width,label])=><option key={width} value={width}>{label}</option>)}
@@ -666,7 +689,13 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
     <DetectiveWallZoom zoomTo={zoomTo} fit={fit} zoomListener={zoomListener}/>
     <div
       ref={viewport}
-      style={{'--wall-background':doc.state.backgroundColor,'--wall-frame-width':(doc.state.frameWidth??0)+'px'}}
+      data-custom-frame={doc.state.frameColor?true:undefined}
+      style={{
+        '--wall-background':doc.state.backgroundColor,
+        '--wall-surround':doc.state.surroundColor??doc.state.backgroundColor,
+        '--wall-frame-color':doc.state.frameColor,
+        '--wall-frame-width':(doc.state.frameWidth??0)+'px'
+      }}
       className={['detective-viewport',`tool-${tool}`,panning?'is-panning':''].filter(Boolean).join(' ')}
       tabIndex={0}
       aria-label="Corkboard. Drag to pan in Pan mode. In Select mode, drag empty space to select items in a rectangle."
