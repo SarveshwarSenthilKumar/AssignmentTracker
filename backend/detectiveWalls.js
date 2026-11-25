@@ -43,7 +43,8 @@ module.exports=function registerDetectiveWalls(app,auth,{mongoose}){
       if(edge.fontSize!==undefined&&!number(edge.fontSize,.1,renderLimit))throw new Error('Invalid string label size.');
       edges.add(edge.id);return {id:edge.id,from:edge.from,to:edge.to,color:edge.color,text:edge.text,width:edge.width??6,...(edge.slack!==undefined?{slack:edge.slack}:{}),...(edge.fontSize!==undefined?{fontSize:edge.fontSize}:{})};
     });
-    return {nodes,strings};
+    if(state.backgroundColor!==undefined&&!color(state.backgroundColor))throw new Error('Choose a valid wall background color.');
+    return {nodes,strings,...(state.backgroundColor!==undefined?{backgroundColor:state.backgroundColor}:{})};
   }
   app.get('/api/detective-walls',auth,async(req,res)=>{
     res.set('Cache-Control','private, no-store');

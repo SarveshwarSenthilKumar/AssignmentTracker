@@ -26,6 +26,7 @@ const itemBounds=node=>{
   const angle=node.rotation*Math.PI/180,w=Math.abs(node.width*Math.cos(angle))+Math.abs(node.height*Math.sin(angle)),h=Math.abs(node.width*Math.sin(angle))+Math.abs(node.height*Math.cos(angle))
   return {left:node.x+node.width/2-w/2,top:node.y+node.height/2-h/2,right:node.x+node.width/2+w/2,bottom:node.y+node.height/2+h/2}
 }
+const DEFAULT_BACKGROUND_COLOR='#a77e54'
 const BOARD_MARGIN=2000
 const MIN_ZOOM=.02,MAX_ZOOM=3,INITIAL_ZOOM=.8
 const nodeFontSize=node=>node.fontSize??(node.type==='photo'?14:node.type==='pin'?12:20)
@@ -247,7 +248,7 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
     const state=current.current.state
     const nodeIds=new Set(selected.type==='group'?selected.nodes:selected.type==='node'?[selected.id]:[])
     const stringIds=new Set(selected.type==='group'?selected.strings:selected.type==='string'?[selected.id]:[])
-    apply({...current.current,state:{nodes:state.nodes.filter(node=>!nodeIds.has(node.id)),strings:state.strings.filter(edge=>!nodeIds.has(edge.from)&&!nodeIds.has(edge.to)&&!stringIds.has(edge.id))}})
+    apply({...current.current,state:{...state,nodes:state.nodes.filter(node=>!nodeIds.has(node.id)),strings:state.strings.filter(edge=>!nodeIds.has(edge.from)&&!nodeIds.has(edge.to)&&!stringIds.has(edge.id))}})
     setSelected(null);cancelConnection()
   }
   const undo=redo=>{
@@ -584,6 +585,11 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
     return()=>cancelAnimationFrame(frame)
   },[loading])
   const leave=async()=>{clearTimeout(timer.current);if(await save())window.location.hash='/detective-wall'}
+  const setBackgroundColor=color=>{
+    const state=current.current.state
+    const backgroundColor=color===DEFAULT_BACKGROUND_COLOR?undefined:color
+    if(backgroundColor!==state.backgroundColor)apply({...current.current,state:{...state,backgroundColor}},true,false)
+  }
   const exportWall=()=>downloadBlob(new Blob([JSON.stringify(current.current,null,2)],{type:'application/json'}),`${current.current.name.replace(/[<>:"/\\|?*]/g,'-')||'Detective wall'}.json`)
   if(loading)return <p role="status">Opening detective wall…</p>
   if(!doc)return <div className="detective-lobby"><p role="alert">{error}</p><a href="#/detective-wall">Back to walls</a></div>
@@ -615,6 +621,9 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
     </div>}
     <header className="detective-header"><button type="button" onClick={leave} title="Back to walls"><ArrowLeft size={18}/></button><input aria-label="Wall name" maxLength={120} value={doc.name} onFocus={()=>{historyRef.current={undo:[...historyRef.current.undo.slice(-19),current.current],redo:[]};setHistory(historyRef.current)}} onChange={event=>apply({...current.current,name:event.target.value},false)}/><span role="status">{status==='saving'?'Saving…':status==='saved'?'Saved':status==='error'?'Save failed':'Unsaved changes'}</span><button type="button" onClick={save}><Save size={16}/><span>Save</span></button><button type="button" onClick={exportWall} title="Export wall backup"><Download size={16}/><span>Backup</span></button><button type="button" onClick={fullscreen?exitFullscreen:enterFullscreen} aria-label={fullscreen?'Exit fullscreen':'Enter fullscreen'} title={fullscreen?'Exit fullscreen (Escape)':'Enter fullscreen'}>{fullscreen?<Minimize size={16}/>:<Maximize size={16}/>}<span>Fullscreen</span></button><button type="button" onClick={enterZenMode} title="Hide controls and keep the current tool. Escape exits." aria-label="Enter Zen mode"><EyeOff size={16}/><span>Zen mode</span></button></header>
     <div className="detective-toolbar" role="toolbar" aria-label="Wall tools">
+      <label className="detective-color">Board background<input type="color" value={doc.state.backgroundColor??DEFAULT_BACKGROUND_COLOR}
+        onChange={event=>setBackgroundColor(event.target.value)}/></label>
+      {doc.state.backgroundColor&&<button type="button" onClick={()=>setBackgroundColor(DEFAULT_BACKGROUND_COLOR)}>Reset background</button>}
       <button type="button" aria-pressed={tool==='select'} title="Select items or drag empty space to draw a selection rectangle" onClick={()=>{setTool('select');cancelConnection();setStringHint('')}}><MousePointer2 size={16}/>Select</button><button type="button" aria-pressed={tool==='pan'} onClick={()=>{setTool('pan');cancelConnection();setStringHint('')}}><Hand size={16}/>Pan</button>
       <button type="button" onClick={()=>add('note')}><StickyNote size={16}/>Sticky note</button><button type="button" disabled={photoBusy} onClick={()=>fileInput.current.click()}><ImagePlus size={16}/>{photoBusy?'Adding…':'Photo'}</button><button type="button" onClick={()=>add('pin')}><Pin size={16}/>Thumbtack</button>
       <button type="button" aria-pressed={tool==='string'||!!connecting} onClick={()=>{cancelConnection();setStringHint('');setTool(tool==='string'?'select':'string')}} title="Connect two items, or drag directly from any pin"><Link2 size={16}/>Connect items</button>
@@ -634,6 +643,7 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
     <DetectiveWallZoom zoomTo={zoomTo} fit={fit} zoomListener={zoomListener}/>
     <div
       ref={viewport}
+      style={doc.state.backgroundColor?{'--wall-background':doc.state.backgroundColor}:undefined}
       className={['detective-viewport',`tool-${tool}`,panning?'is-panning':''].filter(Boolean).join(' ')}
       tabIndex={0}
       aria-label="Corkboard. Drag to pan in Pan mode. In Select mode, drag empty space to select items in a rectangle."
