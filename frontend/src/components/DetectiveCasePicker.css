@@ -15,3 +15,7 @@
 .detective-case-setting-toggles{display:flex;gap:8px 14px;flex-wrap:wrap;margin-top:11px}
 .detective-case-setting-toggles label{display:flex;align-items:center;gap:5px;font-size:12px}
 .detective-case-settings p{margin:10px 0 0;font-size:11px;color:var(--text-secondary)}
+
+.detective-case-credits{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;margin:0 0 12px;font-size:12px;color:var(--text-secondary)}
+.detective-case-credits strong{color:var(--text-primary)}
+.detective-case-credits a{color:var(--text-primary);text-decoration:underline;text-underline-offset:2px}

@@ -244,7 +244,10 @@ export function generateCaseBoard(caseId='meridian',options){
     connect(reference,scrap,'','#8c3d34',random(2,5))
     if(i%3===0)connect(scrap,clusters[(i+3)%clusters.length].junction,'','#ad7846',3)
   })
-  const legend=note(`red = linked evidence\nblue = interpretation\nrest = theory\n\n${theme.source} / fictional case reconstruction`,5300,2460,'#ffffff',290,220)
+  const sourceCredit=theme.credits
+    ? [theme.source+' ('+theme.year+')',...theme.credits,'Unofficial fan-made reconstruction'].join('\n')
+    : 'Original fictional case created for Assignment Tracker'
+  const legend=note('red = linked evidence\nblue = interpretation\nrest = theory\n\n'+sourceCredit,5300,2460,'#ffffff',390,420)
   connect(legend,cipher,'','#ad7846',3)
   spreadCaseAcrossWall(nodes,strings)
   // Papers went up over several nights: some prints sit behind later notes.

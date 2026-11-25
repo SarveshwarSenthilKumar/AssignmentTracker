@@ -2,7 +2,8 @@ const cluster=(name,kind,code,notes)=>({name,kind,code,notes,color:'#fff1a8'})
 
 export const DETECTIVE_CASES=[
   {
-    id:'gone-girl',title:'Amy Dunne',source:'Gone Girl',code:'DUNNE',accent:'#a28b59',
+    id:'gone-girl',title:'Amy Dunne',source:'Gone Girl',year:2014,
+    credits:['Novel and screenplay by Gillian Flynn','Directed by David Fincher'],creditUrl:'https://catalog.afi.com/Catalog/moviedetails/70114',code:'DUNNE',accent:'#a28b59',
     description:'A disappearance, an anniversary treasure hunt, and two incompatible versions of a marriage.',
     tags:['Missing person','Unreliable accounts','Staged evidence'],
     center:'AMY DUNNE\n\nA disappearance — or a performance?\n\nSeparate what happened from what was planted.',
@@ -24,7 +25,8 @@ export const DETECTIVE_CASES=[
     linkLabel:'TWO ACCOUNTS'
   },
   {
-    id:'se7en',title:'The Seven Deadly Sins',source:'Se7en',code:'SE7EN',accent:'#92764b',
+    id:'se7en',title:'The Seven Deadly Sins',source:'Se7en',year:1995,
+    credits:['Screenplay by Andrew Kevin Walker','Directed by David Fincher'],creditUrl:'https://catalog.afi.com/Film/60087-SE7EN',code:'SE7EN',accent:'#92764b',
     description:'Somerset and Mills follow a deliberately ordered series of crimes toward a final trap.',
     tags:['Pattern analysis','Seven sins','A constructed ending'],
     center:'SE7EN\n\nThe scenes are a sequence.\nThe sequence is a message.\n\nWho is the final audience?',
@@ -46,7 +48,8 @@ export const DETECTIVE_CASES=[
     linkLabel:'THE FINAL TWO'
   },
   {
-    id:'knives-out',title:'The Thrombey Estate',source:'Knives Out',code:'THROMBEY',accent:'#8b775e',
+    id:'knives-out',title:'The Thrombey Estate',source:'Knives Out',year:2019,
+    credits:['Written and directed by Rian Johnson'],creditUrl:'https://app.powster.com/lionsgateus/knives-out/us/synopsis/',code:'THROMBEY',accent:'#8b775e',
     description:'An apparent suicide, a disputed inheritance, and a medication story that depends on reading the wrong labels.',
     tags:['Inheritance','Medication evidence','A false premise'],
     center:'HARLAN THROMBEY\n\nThe family has motives.\nThe medication has labels.\n\nWhich story depends on a false assumption?',

@@ -24,14 +24,14 @@ export default function DetectiveCasePicker({busy,error,onChoose,onClose}){
       event.stopImmediatePropagation()
       const formControl=event.target.closest?.('input,select')
       if(formControl&&event.key!=='Escape'&&event.key!=='Tab')return
-      if(event.key==='Enter'&&event.target.closest?.('button')&&!event.target.closest('[data-picker-generate]'))return
+      if(event.key==='Enter'&&event.target.closest?.('button,a[href]')&&!event.target.closest('[data-picker-generate]'))return
       if(['ArrowLeft','ArrowUp','ArrowRight','ArrowDown','Enter','Escape'].includes(event.key)){
         event.preventDefault();if(state.busy||event.repeat)return
         if(event.key==='Escape')state.onClose()
         else if(event.key==='Enter')state.onChoose(DETECTIVE_CASES[state.index].id,state.options)
         else cycle(event.key==='ArrowLeft'||event.key==='ArrowUp'?-1:1)
       }else if(event.key==='Tab'){
-        const controls=[...root.current.querySelectorAll(':is(button,input,select):not(:disabled)')]
+        const controls=[...root.current.querySelectorAll(':is(button,input,select,a[href]):not(:disabled)')]
         const first=controls[0],last=controls.at(-1)
         if(!first){event.preventDefault();return}
         if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus()}
@@ -55,6 +55,10 @@ export default function DetectiveCasePicker({busy,error,onChoose,onClose}){
           <small>{index+1} / {DETECTIVE_CASES.length}</small>
         </article>
         <button type="button" disabled={busy} onClick={()=>cycle(1)} aria-label="Next fictional case"><ChevronRight size={24}/></button>
+      </div>
+      <div className="detective-case-credits" aria-live="polite">
+        {selected.credits?<><strong>{selected.source} ({selected.year})</strong><span>{selected.credits.join(' · ')}</span>
+          <a href={selected.creditUrl} target="_blank" rel="noopener noreferrer">Source credits</a></>:<span>Original case created for Assignment Tracker.</span>}
       </div>
       <div className="detective-picker-tabs" aria-label="Available cases">{DETECTIVE_CASES.map((item,i)=><button key={item.id} type="button" disabled={busy} aria-pressed={i===index} onClick={()=>setIndex(i)}>{item.source}</button>)}</div>
       <fieldset className="detective-case-settings" disabled={busy}>
