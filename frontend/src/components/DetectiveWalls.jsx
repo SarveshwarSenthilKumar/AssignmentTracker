@@ -1,5 +1,5 @@
 import {useEffect,useLayoutEffect,useRef,useState} from 'react'
-import {ArrowLeft,Plus,StickyNote,ImagePlus,Pin,Link2,Hand,Pencil,Move,MousePointer2,Undo2,Redo2,Trash2,ZoomIn,ZoomOut,RotateCw,Maximize,Minimize,EyeOff,Download,Save,X} from 'lucide-react'
+import {ArrowLeft,Plus,StickyNote,ImagePlus,Pin,Link2,Hand,Pencil,Move,MousePointer2,Undo2,Redo2,Trash2,ZoomIn,ZoomOut,RotateCw,Maximize,Minimize,EyeOff,Lock,Download,Save,X} from 'lucide-react'
 import {readApiJson} from '../lib/apiResponse'
 import {downloadBlob} from '../lib/documentFormats'
 import './DetectiveWalls.css'
@@ -52,7 +52,7 @@ const WALL_COLORS=[
 const wallColor=(state,key,fallback)=>state[key]??(key==='surroundColor'?state.backgroundColor:undefined)??fallback
 const BOARD_MARGIN=2000
 const FRAME_WIDTHS=[[0,'None'],[64,'Narrow'],[128,'Medium'],[192,'Wide']]
-const MIN_ZOOM=.02,MAX_ZOOM=3,INITIAL_ZOOM=.8
+const MIN_ZOOM=.02,MAX_ZOOM=3,INITIAL_ZOOM=.8,LOCKED_MIN_ZOOM=1/MAX_BOARD_DIMENSION
 const nodeFontSize=node=>node.fontSize??(node.type==='photo'?14:node.type==='pin'?12:20)
 const clamp=(n,min,max)=>Math.max(min,Math.min(max,n))
 const typing=target=>target.closest('input,textarea,select,[contenteditable="true"]')
@@ -161,6 +161,9 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
   const [panning,setPanning]=useState(false)
   const [fullscreen,setFullscreen]=useState(false)
   const [zenMode,setZenMode]=useState(false)
+  const [lockedView,setLockedView]=useState(false)
+  const viewLocked=useRef(false),lockedFullscreen=useRef(false)
+  const lockedExit=useRef(null),previousView=useRef(null)
   const enterZenMode=()=>{
     setZenMode(true)
     requestAnimationFrame(()=>viewport.current?.focus({preventScroll:true}))
@@ -178,7 +181,12 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
   useEffect(()=>{
     const changed=()=>{
       if(document.fullscreenElement===editorRoot.current&&editorRoot.current)ownsFullscreen.current=true
-      else if(ownsFullscreen.current){ownsFullscreen.current=false;setFullscreen(false);setZenMode(false)}
+      else if(ownsFullscreen.current){
+        ownsFullscreen.current=false
+        lockedFullscreen.current=false
+        viewLocked.current=false
+        setFullscreen(false);setZenMode(false);setLockedView(false)
+      }
     }
     document.addEventListener('fullscreenchange',changed)
     return()=>{document.removeEventListener('fullscreenchange',changed);if(fullscreenRoot.current&&document.fullscreenElement===fullscreenRoot.current)document.exitFullscreen?.().catch(()=>{})}
@@ -285,6 +293,10 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
   useEffect(()=>{
     const key=event=>{
       if(event.defaultPrevented||event.target.closest?.('[data-case-picker]'))return
+      if(lockedView){
+        if(event.key==='Escape'){event.preventDefault();exitLockedView()}
+        return
+      }
       if(isCaseBoardShortcut(event)&&!typing(event.target)){
         event.preventDefault();event.stopImmediatePropagation()
         onGenerateDemo(()=>{clearTimeout(timer.current);return save()})
@@ -603,7 +615,7 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
   }
   const zoomTo=(value,location=null,center=null)=>{
     if(gesture.current?.kind==='board-resize')return
-    value=clamp(value,MIN_ZOOM,MAX_ZOOM)
+    value=clamp(value,viewLocked.current ? .000001:MIN_ZOOM,MAX_ZOOM)
     const view=viewport.current,world=worldSize.current
     if(!view||!world||(value===requestedZoom()&&!center))return
     pendingZoom.current={value,location,center}
@@ -637,18 +649,19 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
     const view=viewport.current;if(!view)return
     const wheel=event=>{
       event.preventDefault()
+      if(viewLocked.current)return
       const delta=event.deltaY*(event.deltaMode===1?16:event.deltaMode===2?view.clientHeight:1)
       if(delta)zoomTo(requestedZoom()*Math.exp(-delta*.002),{x:event.clientX,y:event.clientY})
     }
     let pinch=null
     const touchStart=event=>{
-      if(event.touches.length!==2)return
+      if(event.touches.length!==2||viewLocked.current)return
       event.preventDefault();cancelGesture()
       const [a,b]=event.touches
       pinch={distance:Math.max(1,Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY)),zoom:requestedZoom()}
     }
     const touchMove=event=>{
-      if(!pinch||event.touches.length!==2)return
+      if(!pinch||event.touches.length!==2||viewLocked.current)return
       event.preventDefault();const [a,b]=event.touches
       zoomTo(pinch.zoom*Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY)/pinch.distance,{x:(a.clientX+b.clientX)/2,y:(a.clientY+b.clientY)/2})
     }
@@ -671,7 +684,7 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
     })
     const left=wholeBoard||!bounds.length?-frameWidth:Math.min(...bounds.map(b=>b.left))-60,top=wholeBoard||!bounds.length?-frameWidth:Math.min(...bounds.map(b=>b.top))-60
     const right=wholeBoard||!bounds.length?size.width+frameWidth:Math.max(...bounds.map(b=>b.right))+60,bottom=wholeBoard||!bounds.length?size.height+frameWidth:Math.max(...bounds.map(b=>b.bottom))+60
-    const next=clamp(Math.min((view.clientWidth-32)/(right-left),(view.clientHeight-32)/(bottom-top)),MIN_ZOOM,1)
+    const next=clamp(Math.min((view.clientWidth-32)/(right-left),(view.clientHeight-32)/(bottom-top)),viewLocked.current?LOCKED_MIN_ZOOM:MIN_ZOOM,1)
     zoomTo(next,null,{x:(left+right)/2,y:(top+bottom)/2})
   }
   useEffect(()=>{
@@ -679,6 +692,56 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
     const frame=requestAnimationFrame(()=>{fit(false);initialOverview.current=false})
     return()=>cancelAnimationFrame(frame)
   },[loading])
+  const enterLockedView=()=>{
+    const view=viewport.current,root=editorRoot.current
+    if(!view||!root||viewLocked.current)return
+    cancelGesture();cancelConnection()
+    setSelected(null);setResizingBoard(false);setZenMode(false)
+    previousView.current={zoom:zoomRef.current,left:view.scrollLeft,top:view.scrollTop,focus:document.activeElement}
+    viewLocked.current=true
+    setLockedView(true)
+    if(root.requestFullscreen&&!document.fullscreenElement){
+      fullscreenRoot.current=root
+      lockedFullscreen.current=true
+      root.requestFullscreen().then(()=>{
+        if(!viewLocked.current&&document.fullscreenElement===root)document.exitFullscreen().catch(()=>{})
+      }).catch(()=>{lockedFullscreen.current=false})
+    }
+  }
+  const exitLockedView=()=>{
+    const exitNative=lockedFullscreen.current&&document.fullscreenElement===editorRoot.current
+    lockedFullscreen.current=false
+    viewLocked.current=false
+    setLockedView(false)
+    if(exitNative)document.exitFullscreen?.().catch(()=>{})
+  }
+  useLayoutEffect(()=>{
+    const view=viewport.current,world=worldSize.current
+    if(!view||!world)return
+    world.inert=lockedView
+    if(!lockedView){
+      const previous=previousView.current
+      if(!previous)return
+      previousView.current=null
+      world.style.setProperty('--wall-zoom',previous.zoom)
+      zoomRef.current=previous.zoom
+      zoomListener.current?.(previous.zoom)
+      view.scrollTo(previous.left,previous.top)
+      previous.focus?.focus({preventScroll:true})
+      return
+    }
+    lockedExit.current?.focus({preventScroll:true})
+    fit(true)
+    const observer=new ResizeObserver(()=>fit(true))
+    observer.observe(view)
+    return()=>{
+      observer.disconnect()
+      cancelAnimationFrame(zoomFrame.current)
+      zoomFrame.current=null
+      pendingZoom.current=null
+    }
+  },[lockedView])
+
   const leave=async()=>{clearTimeout(timer.current);if(await save())window.location.hash='/detective-wall'}
   const changeFrameWidth=(width,patch={})=>{
     const state=current.current.state
@@ -731,7 +794,9 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
   const isSelected=(type,id)=>selected?.type===type&&selected.id===id||!!selectedGroup?.[type==='node'?'nodes':'strings'].includes(id)
   const path=(a,b,slack)=>`M ${a.x} ${a.y} Q ${(a.x+b.x)/2} ${(a.y+b.y)/2+(slack??Math.min(140,Math.abs(a.x-b.x)*.12+35))} ${b.x} ${b.y}`
   const start=connecting&&nodes.get(connecting)?anchor(nodes.get(connecting)):null
-  return <section ref={editorRoot} className={`detective-editor${fullscreen?' is-fullscreen':''}${zenMode?' is-zen':''}`} aria-label="Interactive detective wall">
+  return <section ref={editorRoot} className={`detective-editor${fullscreen?' is-fullscreen':''}${zenMode?' is-zen':''}${lockedView?' is-locked-view':''}`} aria-label="Interactive detective wall">
+    {lockedView&&<button ref={lockedExit} type="button" className="detective-zen-exit" title="Unlock board view (Escape)"
+      aria-label="Unlock board view" onClick={exitLockedView}><Lock size={18}/><span>Unlock board</span></button>}
     {zenMode&&<button type="button" className="detective-zen-exit" aria-label="Exit Zen mode" title="Exit Zen mode (Escape)" onClick={()=>setZenMode(false)}><X size={18}/><span>Exit Zen</span></button>}
     {fullscreen&&<div className="detective-focus-controls" role="group" aria-label="Fullscreen board controls">
       <button type="button" onClick={()=>zoomTo(requestedZoom()/1.25)} aria-label="Zoom out" title="Zoom out"><ZoomOut size={17}/></button>
@@ -739,9 +804,10 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
       <button type="button" onClick={()=>fit(false)} aria-label="Fit all items" title="Fit all items"><Maximize size={17}/></button>
       <button type="button" onClick={save} aria-label="Save wall" title="Save wall"><Save size={17}/></button>
       <button type="button" onClick={enterZenMode} aria-label="Enter Zen mode" title="Zen mode — board and current tool only"><EyeOff size={17}/></button>
+      <button type="button" onClick={enterLockedView} aria-label="Lock fullscreen board view" title="Lock fullscreen board view"><Lock size={17}/></button>
       <button type="button" onClick={exitFullscreen} aria-label="Exit fullscreen" title="Exit fullscreen (Escape)"><Minimize size={17}/></button>
     </div>}
-    <header className="detective-header"><button type="button" onClick={leave} title="Back to walls"><ArrowLeft size={18}/></button><input aria-label="Wall name" maxLength={120} value={doc.name} onFocus={()=>{historyRef.current={undo:[...historyRef.current.undo.slice(-19),current.current],redo:[]};setHistory(historyRef.current)}} onChange={event=>apply({...current.current,name:event.target.value},false)}/><span role="status">{status==='saving'?'Saving…':status==='saved'?'Saved':status==='error'?'Save failed':'Unsaved changes'}</span><button type="button" onClick={save}><Save size={16}/><span>Save</span></button><button type="button" onClick={exportWall} title="Export wall backup"><Download size={16}/><span>Backup</span></button><button type="button" onClick={fullscreen?exitFullscreen:enterFullscreen} aria-label={fullscreen?'Exit fullscreen':'Enter fullscreen'} title={fullscreen?'Exit fullscreen (Escape)':'Enter fullscreen'}>{fullscreen?<Minimize size={16}/>:<Maximize size={16}/>}<span>Fullscreen</span></button><button type="button" onClick={enterZenMode} title="Hide controls and keep the current tool. Escape exits." aria-label="Enter Zen mode"><EyeOff size={16}/><span>Zen mode</span></button></header>
+    <header className="detective-header"><button type="button" onClick={leave} title="Back to walls"><ArrowLeft size={18}/></button><input aria-label="Wall name" maxLength={120} value={doc.name} onFocus={()=>{historyRef.current={undo:[...historyRef.current.undo.slice(-19),current.current],redo:[]};setHistory(historyRef.current)}} onChange={event=>apply({...current.current,name:event.target.value},false)}/><span role="status">{status==='saving'?'Saving…':status==='saved'?'Saved':status==='error'?'Save failed':'Unsaved changes'}</span><button type="button" onClick={save}><Save size={16}/><span>Save</span></button><button type="button" onClick={exportWall} title="Export wall backup"><Download size={16}/><span>Backup</span></button><button type="button" onClick={fullscreen?exitFullscreen:enterFullscreen} aria-label={fullscreen?'Exit fullscreen':'Enter fullscreen'} title={fullscreen?'Exit fullscreen (Escape)':'Enter fullscreen'}>{fullscreen?<Minimize size={16}/>:<Maximize size={16}/>}<span>Fullscreen</span></button><button type="button" onClick={enterZenMode} title="Hide controls and keep the current tool. Escape exits." aria-label="Enter Zen mode"><EyeOff size={16}/><span>Zen mode</span></button><button type="button" onClick={enterLockedView} title="Show only the board and lock its view"><Lock size={16}/><span>Lock fullscreen</span></button></header>
     <div className="detective-toolbar" role="toolbar" aria-label="Wall tools">
       <div className="detective-wall-colors" role="group" aria-label="Board colors">
         {WALL_COLORS.map(([key,label,fallback])=><label key={key} className="detective-color">{label}
@@ -786,9 +852,10 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
         '--wall-frame-width':(doc.state.frameWidth??0)+'px'
       }}
       className={['detective-viewport',`tool-${tool}`,panning?'is-panning':''].filter(Boolean).join(' ')}
-      tabIndex={0}
-      aria-label="Corkboard. Drag to pan in Pan mode. In Select mode, drag empty space to select items in a rectangle."
+      tabIndex={lockedView?-1:0}
+      aria-label={lockedView?'Locked corkboard view':'Corkboard. Drag to pan in Pan mode. In Select mode, drag empty space to select items in a rectangle.'}
       onPointerDown={event=>{
+        if(lockedView){event.preventDefault();return}
         if(event.button===1||tool==='pan'){
           startPan(event)
         }else if(event.button===0&&(event.target===event.currentTarget||event.target.dataset.wallBackground)){
@@ -803,10 +870,11 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
       onDragOver={event=>{if(event.dataTransfer.types.includes('Files'))event.preventDefault()}}
       onDrop={event=>{
         event.preventDefault()
+        if(lockedView)return
         addPhoto([...event.dataTransfer.files].find(file=>file.type.startsWith('image/')))
       }}
       onPaste={event=>{
-        if(typing(event.target))return
+        if(lockedView||typing(event.target))return
         const file=[...event.clipboardData.files].find(file=>file.type.startsWith('image/'))
         if(file){event.preventDefault();addPhoto(file)}
       }}

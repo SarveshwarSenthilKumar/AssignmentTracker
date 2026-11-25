@@ -105,3 +105,9 @@ body:has(.detective-editor.is-zen) .assistant-launcher{display:none!important}
 .detective-board-resize.is-width{top:50%;cursor:ew-resize}
 .detective-board-resize.is-height{left:50%;cursor:ns-resize}
 .detective-board-resize.is-both{cursor:nwse-resize}
+
+.detective-editor.is-locked-view>:is(.detective-header,.detective-toolbar,.detective-hint,.detective-board-zoom,.detective-properties,.detective-focus-controls,.detective-notice){display:none!important}
+.detective-editor.is-locked-view>.detective-viewport{overflow:hidden;scrollbar-width:none;scrollbar-gutter:auto;touch-action:none;overscroll-behavior:none;cursor:default}
+.detective-editor.is-locked-view .detective-viewport::-webkit-scrollbar{display:none}
+body:has(.detective-editor.is-locked-view) .assistant-launcher{display:none!important}
+@media(hover:none){.detective-editor.is-locked-view .detective-zen-exit{opacity:.7}}
