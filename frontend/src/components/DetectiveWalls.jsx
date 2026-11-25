@@ -8,7 +8,7 @@ import StickyNoteInk from './StickyNoteInk'
 import DetectiveCasePicker from './DetectiveCasePicker'
 import DetectiveSelectionSize from './DetectiveSelectionSize'
 import DetectiveStringWidth from './DetectiveStringWidth'
-import {MAX_WALL_SIZE,MIN_TEXT_SIZE} from '../lib/detectiveWallLimits'
+import {MAX_WALL_SIZE,MIN_TEXT_SIZE,DEFAULT_WALL_WIDTH,DEFAULT_WALL_HEIGHT} from '../lib/detectiveWallLimits'
 import {MAX_NOTE_STROKES} from '../lib/stickyNoteInk'
 import {pivotDelta} from '../lib/insertGeometry'
 import {spreadGrowingCards} from '../lib/detectiveWallSpacing'
@@ -17,9 +17,9 @@ import {isCaseBoardShortcut} from '../lib/detectiveWallDemo'
 const EMPTY_NOTE_INK=[]
 const uid=()=>crypto.randomUUID()
 const colors=['#fff1a8','#ffd0c5','#ccebd2','#cce3ff','#e1d2f5','#ffffff']
-const W=12000,H=8000
-const wallHeight=state=>Math.min(MAX_WALL_SIZE*2,Math.max(H,...state.nodes.map(node=>node.y+node.height+80)))
-const wallWidth=state=>Math.min(MAX_WALL_SIZE*2,Math.max(W,...state.nodes.map(node=>node.x+node.width+80)))
+
+const wallHeight=state=>Math.min(MAX_WALL_SIZE*2,Math.max(DEFAULT_WALL_HEIGHT,...state.nodes.map(node=>node.y+node.height+80)))
+const wallWidth=state=>Math.min(MAX_WALL_SIZE*2,Math.max(DEFAULT_WALL_WIDTH,...state.nodes.map(node=>node.x+node.width+80)))
 const pinPosition=node=>{const angle=node.rotation*Math.PI/180,dy=(node.type==='pin'?node.height*.35:14)-node.height/2;return {x:node.x+node.width/2-dy*Math.sin(angle),y:node.y+node.height/2+dy*Math.cos(angle)}}
 const resizeCorners=['nw','ne','sw','se']
 const itemBounds=node=>{

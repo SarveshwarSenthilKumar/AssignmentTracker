@@ -1,5 +1,6 @@
 // Hidden, entirely fictional case-board prop. No external images or AI requests.
 import {DETECTIVE_CASES} from './detectiveCaseTemplates'
+import {DEFAULT_WALL_WIDTH,DEFAULT_WALL_HEIGHT} from './detectiveWallLimits'
 export const isCaseBoardShortcut=event=>!event.repeat&&!event.isComposing&&(event.ctrlKey||event.metaKey)&&event.altKey&&event.shiftKey&&event.code==='KeyD'
 
 function themedEvidence(kind,index,title,theme,entry){
@@ -114,6 +115,38 @@ function evidenceImage(kind,index,title,theme,entry){
   return canvas.toDataURL('image/jpeg',.86)
 }
 
+function spreadCaseAcrossWall(nodes,strings){
+  const margin=180
+  const bounds=nodes.map(node=>{
+    const angle=node.rotation*Math.PI/180
+    const halfWidth=(node.width*Math.abs(Math.cos(angle))+node.height*Math.abs(Math.sin(angle)))/2
+    const halfHeight=(node.width*Math.abs(Math.sin(angle))+node.height*Math.abs(Math.cos(angle)))/2
+    const x=node.x+node.width/2,y=node.y+node.height/2
+    return {left:x-halfWidth,right:x+halfWidth,top:y-halfHeight,bottom:y+halfHeight}
+  })
+  const left=Math.min(...bounds.map(box=>box.left)),right=Math.max(...bounds.map(box=>box.right))
+  const top=Math.min(...bounds.map(box=>box.top)),bottom=Math.max(...bounds.map(box=>box.bottom))
+  const scaleX=(DEFAULT_WALL_WIDTH-2*margin)/(right-left)
+  const scaleY=(DEFAULT_WALL_HEIGHT-2*margin)/(bottom-top)
+  // Spread centers independently while keeping notes and images in proportion.
+  const itemScale=Math.min(scaleX,scaleY)
+  for(const node of nodes){
+    const x=margin+(node.x+node.width/2-left)*scaleX
+    const y=margin+(node.y+node.height/2-top)*scaleY
+    node.width*=itemScale
+    node.height*=itemScale
+    node.x=x-node.width/2
+    node.y=y-node.height/2
+    node.fontSize=(node.fontSize??12)*itemScale
+    if(node.imageHeight!==undefined)node.imageHeight*=itemScale
+  }
+  for(const string of strings){
+    string.width*=itemScale
+    string.fontSize=15*itemScale
+    string.slack*=scaleY
+  }
+}
+
 export function generateCaseBoard(caseId='meridian'){
   const theme=DETECTIVE_CASES.find(item=>item.id===caseId)||DETECTIVE_CASES.find(item=>item.id==='meridian')
   const nodes=[],strings=[],id=()=>crypto.randomUUID(),edges=new Set()
@@ -194,6 +227,7 @@ export function generateCaseBoard(caseId='meridian'){
   })
   const legend=note(`red = linked evidence\nblue = interpretation\nrest = theory\n\n${theme.source} / fictional case reconstruction`,5300,2460,'#ffffff',290,220)
   connect(legend,cipher,'','#ad7846',3)
+  spreadCaseAcrossWall(nodes,strings)
   // Papers went up over several nights: some prints sit behind later notes.
   const layers=shuffle(nodes)
   layers.sort((a,b)=>(a.type==='photo'?0:1)-(b.type==='photo'?0:1))
