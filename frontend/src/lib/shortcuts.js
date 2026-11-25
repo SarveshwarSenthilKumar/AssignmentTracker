@@ -1,4 +1,5 @@
 export const SHORTCUTS = [
+  {id:'platform-fullscreen',scope:'Platform',label:'Toggle fullscreen for the entire platform',key:'f',alt:true,shift:true,typing:true,keys:'Alt + Shift + F'},
   {id:'study-phone',scope:'Companion',label:'Open or close the study phone beside PDFs and notes',key:'p',alt:true,typing:true,keys:'Alt + P'},
   {id:'calendar-undo',scope:'Calendar',label:'Undo the latest saved calendar change outside text fields',key:'z',mod:true,keys:'Ctrl / Cmd + Z'},
   {id:'nav-workspace',scope:'Platform',label:'Open the customizable workspace',key:'9',alt:true,typing:true,keys:'Alt + 9'},
