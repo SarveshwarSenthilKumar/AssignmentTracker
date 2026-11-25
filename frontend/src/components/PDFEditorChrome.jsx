@@ -14,7 +14,7 @@ import {History} from 'lucide-react'
 
 const annotationTools=[['read','Select text',TextSelect],['pen','Pen',Pen],['highlighter','Highlight',Highlighter],['text','Text',Type],['select','Move',Move],['eraser','Erase',Eraser]]
 
-export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,insert,onRuler,onStickyNote,onSearch,onTutorial,searchActions,bookView,onBookView,onQuickActions}){
+export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,insert,onRuler,onStickyNote,onSearch,onTutorial,searchActions,bookView,onBookView,onQuickActions,whiteboardAppearance}){
   const searchable = []
   useEffect(() => {
     if (!searchActions) return
@@ -101,6 +101,7 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
   const viewMenu=menu('view','View',Maximize,<>
     {action(Minimize2,'Zen mode',view.onZen,{detail:'Hide everything and keep your current tool · Escape to exit'})}
     {action(SlidersHorizontal,'Editor layout',view.onVisibility,{detail:'Show or hide editor panels and controls'})}
+    {whiteboardAppearance&&<>{whiteboardAppearance}<hr/></>}
     {!doc.exportImage&&!doc.whiteboard&&action(Files,'Book view',onBookView,{active:bookView,detail:'Read two pages side by side and flip through spreads'})}
     <label className="pc-field">Toolbar position<select value={view.toolbarPosition} onChange={event=>view.onToolbarPosition(event.target.value)}><option value="auto">Automatic</option><option value="top">Top</option><option value="bottom">Bottom</option><option value="left">Left · vertical</option><option value="right">Right · vertical</option></select></label>
     <div className="pc-zoom-controls">{iconButton(ZoomOut,'Zoom out',view.onZoomOut)}<span>{Math.round(view.scale*100)}%</span>{iconButton(ZoomIn,'Zoom in',view.onZoomIn)}</div>

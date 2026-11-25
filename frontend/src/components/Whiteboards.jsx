@@ -2,9 +2,12 @@ import {useEffect,useRef,useState} from 'react'
 import {Plus,Presentation,Users,Share2,RefreshCw,ExternalLink,Search,Link2} from 'lucide-react'
 import {readApiJson} from '../lib/apiResponse'
 import DocumentShareLink from './DocumentShareLink'
+import {WhiteboardAppearanceFields} from './WhiteboardAppearance'
+import {DEFAULT_WHITEBOARD_APPEARANCE} from '../lib/whiteboardAppearance'
 import './Whiteboards.css'
 
 export default function Whiteboards({token,documents,onDocumentsChange,onOpen}){
+  const [appearance,setAppearance]=useState(DEFAULT_WHITEBOARD_APPEARANCE)
   const [name,setName]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('')
   const [query,setQuery]=useState(''),[share,setShare]=useState(null),[shared,setShared]=useState([]),[loading,setLoading]=useState(true),[sharedError,setSharedError]=useState(''),[version,setVersion]=useState(0),[link,setLink]=useState('')
   const lock=useRef(false)
@@ -27,7 +30,7 @@ export default function Whiteboards({token,documents,onDocumentsChange,onOpen}){
     event.preventDefault();if(lock.current||!name.trim())return
     lock.current=true;setBusy(true);setError('')
     try{
-      const response=await fetch('/api/pdfs/blank-notebook',{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({name:name.trim(),pageCount:1,pageSize:'letter',whiteboard:true})})
+      const response=await fetch('/api/pdfs/blank-notebook',{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({name:name.trim(),pageCount:1,pageSize:'letter',whiteboard:true,whiteboardAppearance:appearance})})
       const file=await readApiJson(response)
       if(!response.ok)throw new Error(file.message||'Could not create the whiteboard.')
       if(!file._id)throw new Error('No whiteboard was returned. Refresh Documents before retrying.')
@@ -50,7 +53,7 @@ export default function Whiteboards({token,documents,onDocumentsChange,onOpen}){
   return <div className="whiteboards-page">
     <section className="whiteboards-intro"><Presentation size={28}/><div><h2>A shared space for your team</h2><p>Sketch ideas, type, add sticky notes and images, and move objects together in real time. Use <strong>Extend board</strong> in the editor or at the bottom of the canvas to keep adding room below.</p><p>Create a board, then use <strong>Share → Editor</strong> to invite teammates. Choose Viewer for people who should only watch. Everyone works on the same board.</p></div></section>
     <div className="whiteboards-setup">
-      <form onSubmit={create}><label htmlFor="new-whiteboard-name">Create a whiteboard</label><div><input id="new-whiteboard-name" value={name} onChange={event=>setName(event.target.value)} maxLength={120} placeholder="Team brainstorm" required disabled={busy}/><button type="submit" disabled={busy||!name.trim()}><Plus size={16}/>{busy?'Creating…':'Create & open'}</button></div><small>2400 × 1600 starting area · Extend downward whenever you need more space</small></form>
+      <form onSubmit={create}><label htmlFor="new-whiteboard-name">Create a whiteboard</label><div><input id="new-whiteboard-name" value={name} onChange={event=>setName(event.target.value)} maxLength={120} placeholder="Team brainstorm" required disabled={busy}/><button type="submit" disabled={busy||!name.trim()}><Plus size={16}/>{busy?'Creating…':'Create & open'}</button></div><WhiteboardAppearanceFields value={appearance} onChange={setAppearance} disabled={busy}/><small>2400 × 1600 starting area · Extend downward whenever you need more space</small></form>
       <form onSubmit={join}><label htmlFor="join-whiteboard-link">Join with a team link</label><div><input id="join-whiteboard-link" type="text" inputMode="url" value={link} onChange={event=>setLink(event.target.value)} placeholder="Paste a whiteboard sharing link"/><button type="submit" disabled={!link.trim()}><Link2 size={16}/>Join</button></div><small>Open a link while signed in to keep it in Shared with me.</small></form>
     </div>
     {error&&<p role="alert" className="whiteboards-error">{error}</p>}

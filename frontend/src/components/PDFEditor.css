@@ -381,3 +381,8 @@
 .pdf-resize-handle.pdf-move-handle{right:calc(100% + 8px)}
 :is(.pdf-pivot-handle,.pdf-move-handle):active{cursor:grabbing}
 @media(pointer:coarse){.pdf-resize-handle:is(.pdf-pivot-handle,.pdf-move-handle){width:28px;height:28px}}
+
+.pdf-whiteboard :is(.pdf-continuous-surface,.pdf-thumbnail-surface,.pdf-reference-surface){isolation:isolate;background-color:var(--board-color,#fff);background-image:var(--board-pattern,none);background-size:var(--board-spacing,32px) var(--board-spacing,32px)}
+.pdf-whiteboard :is(.pdf-continuous-surface,.pdf-thumbnail-surface,.pdf-reference-surface) .react-pdf__Page{background-color:transparent!important}
+.pdf-whiteboard :is(.pdf-continuous-surface,.pdf-thumbnail-surface,.pdf-reference-surface) .react-pdf__Page__canvas{mix-blend-mode:multiply}
+.pdf-whiteboard .pdf-thumbnail-surface{--board-spacing:8px}

@@ -1,0 +1,10 @@
+.whiteboard-appearance-fields{display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px 14px;margin:10px 0;padding:8px;border:1px solid var(--border-strong);border-radius:8px}
+.whiteboard-appearance-fields legend{padding:0 4px;font-size:12px;font-weight:600}
+.whiteboard-appearance-fields label{display:grid;gap:4px;font-size:11px}
+.whiteboard-appearance-fields input[type=color]{width:100%;min-width:58px;height:34px;padding:3px}
+.whiteboard-appearance-fields select{min-height:34px;padding:4px 8px;border:1px solid var(--border-strong);border-radius:6px;background:var(--surface-input);color:var(--text-primary)}
+.whiteboard-appearance-form{padding:0 6px 6px;font-size:11px}
+.whiteboard-appearance-form>div{display:flex;flex-wrap:wrap;gap:6px}
+.whiteboard-appearance-form button{padding:6px 8px;border:1px solid var(--border-strong);border-radius:6px;background:var(--surface-raised);color:var(--text-primary)}
+.whiteboard-appearance-form button:disabled{opacity:.45}
+.whiteboard-appearance-form p{margin-top:7px}

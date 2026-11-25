@@ -270,6 +270,7 @@ const pdfSchema = new mongoose.Schema({
   originalBackup: { type: Buffer, default: null },
   copiedFromName: { type: String, default: '' },
   documentKind: { type: String, enum: ['document','whiteboard'], default: 'document' },
+  whiteboardAppearance: mongoose.Schema.Types.Mixed,
   pdfData: {
     type: Buffer,
     required: true,
@@ -1624,6 +1625,7 @@ app.post('/api/pdfs/:id/copy', authenticateToken, async (req, res) => {
       name: await copyName(source, includeAnnotations?'copy':'without annotations'),
       copiedFromName: source.name,
       documentKind: source.documentKind,
+      whiteboardAppearance: source.whiteboardAppearance,
       originalName: source.originalName,
       mimeType: source.mimeType,
       pdfData: source.pdfData,
@@ -1651,6 +1653,7 @@ app.post('/api/pdfs/:id/clean-copy', authenticateToken, async (req, res) => {
       name: await copyName(source, 'clean copy'),
       copiedFromName: source.name,
       documentKind: source.documentKind,
+      whiteboardAppearance: source.whiteboardAppearance,
       originalName: source.originalName,
       mimeType: source.mimeType,
       pdfData: Buffer.from(source.originalBackup || source.pdfData),
@@ -1666,13 +1669,38 @@ app.post('/api/pdfs/:id/clean-copy', authenticateToken, async (req, res) => {
 });
 
 // Upload a new PDF
+function cleanWhiteboardAppearance(value) {
+  if (!value || typeof value.color !== 'string' || !/^#[a-f\d]{6}$/i.test(value.color) ||
+    !['blank','dots','grid','lined'].includes(value.pattern)) return null;
+  return {color:value.color.toLowerCase(),pattern:value.pattern};
+}
+
+app.put('/api/pdfs/:id/whiteboard-appearance', authenticateToken, async (req, res) => {
+  const appearance=cleanWhiteboardAppearance(req.body);
+  if(!appearance)return res.status(400).json({message:'Choose a valid background color and pattern.'});
+  if(!mongoose.isValidObjectId(req.params.id))return res.status(404).json({message:'Whiteboard not found.'});
+  try{
+    const board=await PDF.findOneAndUpdate(
+      {_id:req.params.id,user:req.user.userId,documentKind:'whiteboard',deletedAt:null},
+      {$set:{whiteboardAppearance:appearance}},
+      {new:true}
+    ).select('whiteboardAppearance').lean();
+    if(!board)return res.status(404).json({message:'Whiteboard not found.'});
+    res.json(board.whiteboardAppearance);
+  }catch{
+    res.status(503).json({message:'Could not save the whiteboard appearance.'});
+  }
+});
+
 app.post('/api/pdfs/blank-notebook', authenticateToken, async (req, res) => {
-  const { name, pageCount, pageSize, folderId, plainPdf = false, whiteboard = false } = req.body || {};
+  const { name, pageCount, pageSize, folderId, plainPdf = false, whiteboard = false, whiteboardAppearance } = req.body || {};
   if (typeof name !== 'string' || !name.trim() || name.length > 120 ||
       !Number.isInteger(pageCount) || pageCount < 1 || pageCount > 500 ||
       !['a4', 'letter'].includes(pageSize) || typeof plainPdf !== 'boolean' || typeof whiteboard !== 'boolean' || (whiteboard && pageCount !== 1)) {
     return res.status(400).json({ message: 'Enter a notebook name, select a page size, and choose 1–500 pages.' });
   }
+  const appearance=whiteboardAppearance===undefined?undefined:cleanWhiteboardAppearance(whiteboardAppearance);
+  if(whiteboardAppearance!==undefined&&(!whiteboard||!appearance))return res.status(400).json({message:'Choose a valid whiteboard background color and pattern.'});
   try {
     const user = req.user.userId;
     if (folderId && (typeof folderId !== 'string' || !mongoose.isValidObjectId(folderId) || !await PDFFolder.exists({ _id: folderId, user }))) {
@@ -1692,6 +1720,7 @@ app.post('/api/pdfs/blank-notebook', authenticateToken, async (req, res) => {
       user,
       pdfFolder: folderId || null,
       documentKind: whiteboard ? 'whiteboard' : 'document',
+      ...(appearance&&{whiteboardAppearance:appearance}),
       tags: whiteboard ? ['whiteboard'] : plainPdf ? [] : ['notes', 'handwritten-notebook']
     });
     const metadata = file.toObject();

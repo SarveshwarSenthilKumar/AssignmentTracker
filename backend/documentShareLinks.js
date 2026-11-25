@@ -30,6 +30,8 @@ module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDF
   const sharedAccess=req=>({...collaboratorAccess.filter(req.documentCollaborator),...unexpired()});
   const liveInk = require('./liveInk')(app, auth, { PDF, User, isLocked, hashToken, validId, collaboratorAccess });
   const contentRevision = file => createHash('sha256').update(file.pdfData).digest('hex');
+  const editorRevision=(file,annotations,bytes=file.pdfData)=>createHash('sha256').update(bytes)
+    .update(JSON.stringify(annotations)).update(file.whiteboardAppearance?JSON.stringify(file.whiteboardAppearance):'').digest('hex');
   const normalized = annotations => (annotations || []).map((item, index) => item.id ? item : { ...item, id: `legacy-${index}-${createHash('sha256').update(JSON.stringify(item)).digest('hex').slice(0, 16)}` });
   const live = shared => async (req, res) => {
     res.set({ 'Cache-Control': 'private, no-store', 'Referrer-Policy': 'no-referrer' });
@@ -65,10 +67,10 @@ module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDF
           if (!result.matchedCount) continue;
           liveInk.saved(file._id);
         }
-        const revision = createHash('sha256').update(file.pdfData).update(JSON.stringify(annotations)).digest('hex');
+        const revision = editorRevision(file,annotations);
         res.set('X-Share-Revision', revision);
         if (req.method === 'GET' && req.query.revision === revision && req.query.contentRevision === content) return res.status(204).end();
-        return res.json({ _id: file._id, name: file.name, documentKind:file.documentKind, copiedFromName:file.copiedFromName, originalName: file.originalName, mimeType: file.mimeType, tags: file.tags, annotations, contentRevision: content, revision,
+        return res.json({ _id: file._id, name: file.name, documentKind:file.documentKind, copiedFromName:file.copiedFromName, originalName: file.originalName, mimeType: file.mimeType, tags: file.tags, whiteboardAppearance:file.whiteboardAppearance, annotations, contentRevision: content, revision,
           ...(req.method === 'GET' && req.query.contentRevision !== content && { pdfData: file.pdfData.toString('base64') }) });
       }
       res.status(409).json({ message: 'Other edits are arriving. Retrying will merge your changes.' });
@@ -238,7 +240,7 @@ module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDF
       const filter = owner ? { _id: req.params.id, user: req.user.userId, deletedAt: null } : { shareLinkHash: hashToken(req.params.token), shareLinkRole:allowView?{$in:['view','edit']}:'edit', deletedAt: null, ...sharedAccess(req) };
       const file = await PDF.findOne(filter).select('+editHistory +shareLinkRole');
       if (!file || await isLocked(file)) return res.status(404).json({ message: 'This editor link is unavailable.' });
-      const revision = createHash('sha256').update(file.pdfData).update(JSON.stringify(normalized(file.annotations))).digest('hex');
+      const revision = editorRevision(file,normalized(file.annotations));
       const save = async (changes,details={}) => {
         if (req.get('X-Share-Revision') !== revision) {
           res.status(409).json({ message: 'This document changed. Download your draft before reopening the latest version.' });
@@ -249,7 +251,7 @@ module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDF
         const result = await PDF.updateOne({ ...filter,...(!owner?sharedAccess(req):{}), _id: file._id, updatedAt: file.updatedAt, pdfFolder: file.pdfFolder ?? null, pdfData: file.pdfData, annotations: file.annotations }, { $set: { ...changes, editHistory:appendHistory(file,actor,{...changes,action,pages:req.params.pageNumber?[Number(req.params.pageNumber)]:[],...details}),updatedAt: new Date() } }, { runValidators: true });
         if (!result.matchedCount) { res.status(409).json({ message: 'This document changed or its link was revoked. Reopen the link.' }); return false; }
         liveInk.saved(file._id);
-        const next = createHash('sha256').update(changes.pdfData || file.pdfData).update(JSON.stringify(changes.annotations || file.annotations || [])).digest('hex');
+        const next = editorRevision(file,normalized(changes.annotations || file.annotations),changes.pdfData || file.pdfData);
         res.set('X-Share-Revision', next);
         return true;
       };
@@ -262,7 +264,7 @@ module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDF
       editor: file.shareLinkRole!=='edit'?'view':editable(file) && file.pdfData.length <= 1024 * 1024 && Buffer.from(file.pdfData.toString('utf8')).equals(file.pdfData) ? 'text' : file.mimeType === 'application/pdf' || /\.pdf$/i.test(file.originalName) ? 'pdf' : 'file' });
   },false,true));
   app.get('/api/shared-document/:token/document', editor((req, res, file) => {
-    res.json({ _id: file._id, name: file.name, documentKind:file.documentKind, copiedFromName:file.copiedFromName, originalName: file.originalName, mimeType: file.mimeType, pdfData: file.pdfData.toString('base64'), annotations: file.annotations, tags: file.tags });
+    res.json({ _id: file._id, name: file.name, documentKind:file.documentKind, copiedFromName:file.copiedFromName, originalName: file.originalName, mimeType: file.mimeType, pdfData: file.pdfData.toString('base64'), annotations: file.annotations, tags: file.tags, whiteboardAppearance:file.whiteboardAppearance });
   }));
   app.get('/api/shared-document/:token/document/download', editor((req, res, file) => res.attachment(file.originalName).type('application/octet-stream').send(file.pdfData)));
   app.put('/api/shared-document/:token/document/annotations', editor(async (req, res, file, save) => {

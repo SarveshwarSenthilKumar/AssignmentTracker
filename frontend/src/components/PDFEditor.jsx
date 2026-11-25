@@ -60,6 +60,8 @@ import {
 import { PDFDocument, rgb, degrees, StandardFonts, LineCapStyle, pushGraphicsState, popGraphicsState, translate, rotateDegrees, scale as scaleGraphics, setCharacterSpacing } from 'pdf-lib'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.js?url'
 import './PDFEditor.css'
+import WhiteboardAppearance from './WhiteboardAppearance'
+import {DEFAULT_WHITEBOARD_APPEARANCE,whiteboardAppearanceStyle} from '../lib/whiteboardAppearance'
 import InsertHandles from './InsertHandles'
 import { moveInsert, resizeFromCorner, snapInsert, rotatePoint, pivotDelta } from '../lib/insertGeometry'
 import { pdfTextLines, stickyNoteSize, pdfObjectSize } from '../lib/pdfTextBox'
@@ -682,6 +684,23 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   useEffect(()=>{try{localStorage.setItem('pdf-editor-show-clock',String(showClock))}catch{}},[showClock])
   const [continuousPreference,setContinuousView]=useState(()=>{try{return localStorage.getItem('pdf-editor-continuous')!=='false'}catch{return true}})
   const isWhiteboard=pdfData?.documentKind==='whiteboard'
+  const boardAppearance=pdfData?.whiteboardAppearance??DEFAULT_WHITEBOARD_APPEARANCE
+  const mergeWhiteboardAppearance=useCallback(appearance=>{
+    if(!appearance)return
+    setPdfData(previous=>previous&&(
+      previous.whiteboardAppearance?.color!==appearance.color||previous.whiteboardAppearance?.pattern!==appearance.pattern
+    )?{...previous,whiteboardAppearance:appearance}:previous)
+  },[])
+  const saveWhiteboardAppearance=async appearance=>{
+    const response=await fetch('/api/pdfs/'+pdfId+'/whiteboard-appearance',{
+      method:'PUT',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
+      body:JSON.stringify(appearance)
+    })
+    const saved=await readApiJson(response)
+    if(!response.ok)throw new Error(saved.message||'Could not save the whiteboard appearance.')
+    if(!saved.color||!saved.pattern)throw new Error('The server did not confirm the whiteboard appearance.')
+    mergeWhiteboardAppearance(saved)
+  }
   const continuousView = !exportImage && (isWhiteboard||continuousPreference)
   const whiteboardScrollTarget=useRef(null)
   useEffect(()=>{if(!exportImage){try{localStorage.setItem('pdf-editor-continuous',String(continuousPreference))}catch{}}},[continuousPreference,exportImage])
@@ -997,6 +1016,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
           redoStack.current = redoStack.current.map(items => rebaseAnnotations(snapshot, items, data.annotations))
           liveState.current.annotations = data.annotations
           sharedRevision.current = data.revision
+          mergeWhiteboardAppearance(data.whiteboardAppearance)
           updatePaths(merged, { silent: true })
           const remaining=annotationChanges(data.annotations,cleanForSave(merged))
           dirtyRef.current=remaining.upserts.length>0||remaining.removed.length>0
@@ -1179,6 +1199,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         }
         liveState.current.annotations = data.annotations
         sharedRevision.current = data.revision
+        mergeWhiteboardAppearance(data.whiteboardAppearance)
         setLiveStatus('Live · changes synchronized')
       } catch (error) {
         if (!controller.signal.aborted) setLiveStatus(`${error.message} Reconnecting…`)
@@ -2694,7 +2715,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   )
 
   return (
-    <div ref={editorRootRef} data-hidden-editor={Object.keys(editorVisibility).filter(key=>!editorVisibility[key]).join(' ')} className={cn("pdf-editor fixed inset-0 bg-slate-950 flex flex-col z-50",focusMode&&"pdf-focus-mode",zenMode&&"pdf-zen-mode",isWhiteboard&&"pdf-whiteboard","pdf-touch-tracked",fingerScroll&&"pdf-finger-scroll",currentTool==='read'&&'pdf-reading-mode')} role="region" aria-label="Visual document editor" aria-busy={deletingPage} onPointerDownCapture={e => { if (deletingPage && !e.target.closest('.document-access-notice')) { e.preventDefault(); e.stopPropagation() } }} onKeyDownCapture={e => { if (deletingPage && !e.target.closest('.document-access-notice')) { e.preventDefault(); e.stopPropagation() } }}>
+    <div ref={editorRootRef} style={isWhiteboard?whiteboardAppearanceStyle(boardAppearance,scale):undefined} data-hidden-editor={Object.keys(editorVisibility).filter(key=>!editorVisibility[key]).join(' ')} className={cn("pdf-editor fixed inset-0 bg-slate-950 flex flex-col z-50",focusMode&&"pdf-focus-mode",zenMode&&"pdf-zen-mode",isWhiteboard&&"pdf-whiteboard","pdf-touch-tracked",fingerScroll&&"pdf-finger-scroll",currentTool==='read'&&'pdf-reading-mode')} role="region" aria-label="Visual document editor" aria-busy={deletingPage} onPointerDownCapture={e => { if (deletingPage && !e.target.closest('.document-access-notice')) { e.preventDefault(); e.stopPropagation() } }} onKeyDownCapture={e => { if (deletingPage && !e.target.closest('.document-access-notice')) { e.preventDefault(); e.stopPropagation() } }}>
       {deletingPage && <div className="inline-operation-status" role="status"><Loader2 className="animate-spin" size={17} />Updating pages…</div>}
       <InlineConfirmation {...confirmation} />
       {quickActionNotice&&<div className="inline-operation-status" role="status">{quickActionNotice}</div>}
@@ -2708,6 +2729,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         bookView={bookView}
         onBookView={()=>{handleTextDragEnd();commitText();setPageLocked(false);setBookView(previous=>!previous)}}
         searchActions={searchActions}
+        whiteboardAppearance={isWhiteboard&&token&&!shareToken?<WhiteboardAppearance value={boardAppearance} onSave={saveWhiteboardAppearance}/>:null}
         onQuickActions={canOpenQuickActions?openQuickActions:undefined}
         onTutorial={() => setShowTutorial(previous => !previous)}
         onSearch={() => setShowSearch(previous => !previous)}
