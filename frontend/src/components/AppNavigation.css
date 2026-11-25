@@ -12,3 +12,6 @@
 .an-calendar-new-tab:hover{background:var(--surface-raised);color:var(--text-primary)}
 .an-mobile-panel .an-calendar-links>.an-link{flex:1}
 .an-mobile-panel .an-calendar-new-tab{min-width:36px;min-height:36px}
+
+.app-navigation .an-fullscreen{width:100%;background:transparent;text-align:left;cursor:pointer}
+.app-navigation .an-fullscreen:disabled{opacity:.5;cursor:default}

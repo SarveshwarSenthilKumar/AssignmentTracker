@@ -4,6 +4,7 @@ import App from './App.jsx'
 import PublicDocumentEditor from './components/PublicDocumentEditor'
 import { installOfflineWorkspace } from './lib/offlineWorkspace'
 import { SHORTCUTS, matchesShortcut } from './lib/shortcuts'
+import { canTogglePlatformFullscreen, togglePlatformFullscreen } from './lib/platformFullscreen'
 import './index.css'
 import './responsive.css'
 import { AuthProvider, GuestAuthProvider } from './contexts/AuthContext'
@@ -17,13 +18,11 @@ function Root() {
   React.useLayoutEffect(()=>{
     const handleFullscreen=event=>{
       if(event.isComposing||!matchesShortcut(event,fullscreenShortcut))return
-      const target=document.documentElement
-      if(!(document.fullscreenElement?document.exitFullscreen:target.requestFullscreen))return
+      if(!canTogglePlatformFullscreen())return
       event.preventDefault()
       event.stopImmediatePropagation()
       if(event.repeat)return
-      const operation=document.fullscreenElement?document.exitFullscreen():target.requestFullscreen()
-      operation.catch(()=>{})
+      togglePlatformFullscreen()
     }
     window.addEventListener('keydown',handleFullscreen,true)
     return()=>window.removeEventListener('keydown',handleFullscreen,true)
