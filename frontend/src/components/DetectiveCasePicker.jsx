@@ -78,7 +78,7 @@ export default function DetectiveCasePicker({busy,error,onChoose,onClose}){
         </div>
         <p aria-live="polite">{options.groups} evidence groups · {options.photos?options.groups*2:0} evidence images</p>
       </fieldset>
-      <p className="detective-picker-spoilers">Includes major plot spoilers. Fan-made evidence illustrations and notes, rather than official film stills or case documents.</p>
+      <p className="detective-picker-spoilers">These demonstration cases and their evidence are fictional. Some are unofficial fan-made interpretations and may contain major plot spoilers. Assignment Tracker is independent of the referenced works and their rights holders.</p>
       {error&&<p className="detective-picker-error" role="alert">{error}</p>}
       <footer><span>A separate wall with a fresh, messy layout.</span><button type="button" data-picker-generate disabled={busy} onClick={()=>onChoose(selected.id,options)}>{busy?'Assembling evidence…':'Generate case board'}</button></footer>
     </section>

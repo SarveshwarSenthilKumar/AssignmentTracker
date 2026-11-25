@@ -48,7 +48,7 @@ mongoose.connect(process.env.MONGODB_URI)
   .catch(() => undefined);
 
 // User Schema
-const TERMS_VERSION='1.14';
+const TERMS_VERSION='1.15';
 const PRIVACY_VERSION='1.14';
 const userSchema = new mongoose.Schema({
   approvalPending: { type: Boolean, default: false },
