@@ -65,5 +65,3 @@ add ability to add sports events to calendar including f1
 add an option to create a copy with annotations and without annotations and make them both be at the top of the pdf editor, add remove access
 
 add like a friends system for docs sharing
-
-add setup where it warns you ot set up api key and other tasks
