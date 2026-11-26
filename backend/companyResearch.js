@@ -22,8 +22,9 @@ function readable(page){
   const text=(lines.join('\n')||root.text().replace(/\s+/g,' ').trim()).slice(0,3500);
   return {title:title||new URL(page.url).hostname,text,url:page.url};
 }
-module.exports=async function companyResearch(value,{signal,company}={}){
-  const url=companyURL(value),cached=cache.get(url.href);
+module.exports=async function companyResearch(value,{signal,company,maxPages=3}={}){
+  if(!Number.isInteger(maxPages)||maxPages<1||maxPages>5)throw new Error('Choose a supported research depth.');
+  const url=companyURL(value),cacheKey=maxPages+':'+url.href,cached=cache.get(cacheKey);
   if(cached&&Date.now()-cached.at<30*60000)return checkIdentity({...cached.result,cached:true},company);
   const controller=new AbortController(),abort=()=>controller.abort(),timer=setTimeout(abort,18000);
   if(signal?.aborted)controller.abort();else signal?.addEventListener('abort',abort,{once:true});
@@ -33,7 +34,7 @@ module.exports=async function companyResearch(value,{signal,company}={}){
     const home=await fetchPage(url.href),homeURL=companyURL(home.url),first=readable(home);
     if(first.text.length<120)throw new Error('The website did not provide readable public company information (it may require JavaScript or block automated access).');
     const $=cheerio.load(home.html),links=[];
-    $('a[href]').each((_,node)=>{
+    if(maxPages>1)$('a[href]').each((_,node)=>{
       try{
         const next=new URL($(node).attr('href'),homeURL),label=$(node).text().replace(/\s+/g,' ').trim();
         if(next.protocol!=='https:'||next.hostname!==homeURL.hostname||next.username||next.password||next.pathname===homeURL.pathname)return;
@@ -44,7 +45,7 @@ module.exports=async function companyResearch(value,{signal,company}={}){
       }catch{}
     });
     links.sort((a,b)=>b.score-a.score);
-    const additional=await Promise.allSettled(links.slice(0,2).map(item=>fetchPage(item.url)));
+    const additional=await Promise.allSettled(links.slice(0,maxPages-1).map(item=>fetchPage(item.url)));
     const sources=[first];
     for(const result of additional){
       if(result.status==='fulfilled'){
@@ -55,7 +56,7 @@ module.exports=async function companyResearch(value,{signal,company}={}){
     }
     const result={requestedUrl:url.href,sources,warnings,fetchedAt:new Date().toISOString(),cached:false};
     if(cache.size>=40)cache.delete(cache.keys().next().value);
-    cache.set(url.href,{at:Date.now(),result});return checkIdentity(result,company);
-  }catch(error){if(signal?.aborted)throw error;return {requestedUrl:url.href,sources:[],warnings:[`Company website research was unavailable: ${safeMessage(error.message)||'The public pages could not be read.'} Tailoring used only your selected documents and job details; no company facts were guessed.`],fetchedAt:new Date().toISOString()}}
+    cache.set(cacheKey,{at:Date.now(),result});return checkIdentity(result,company);
+  }catch(error){if(signal?.aborted)throw error;return {requestedUrl:url.href,sources:[],warnings:[`Company website research was unavailable: ${safeMessage(error.message)||'The public pages could not be read.'} Drafting used only the details and documents you supplied.`],fetchedAt:new Date().toISOString()}}
   finally{clearTimeout(timer);signal?.removeEventListener('abort',abort)}
 };
