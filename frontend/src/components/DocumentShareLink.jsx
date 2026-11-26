@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link2, Mail, X } from 'lucide-react'
 import RecentShareRecipients from './RecentShareRecipients'
+import DocumentFriendShares from './DocumentFriendShares'
 import useRecentShareRecipients from '../hooks/useRecentShareRecipients'
 
 const localTime=value=>{if(!value)return '';const date=new Date(value),pad=value=>String(value).padStart(2,'0');return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;}
@@ -100,6 +101,7 @@ export default function DocumentShareLink({ file, token, onClose }) {
         <h3 id="document-share-title">Share {file.name}</h3>
         <button type="button" autoFocus disabled={busy} aria-label="Close share link" onClick={onClose}><X size={18}/></button>
       </div>
+      {token&&!file.canManageLinks&&<DocumentFriendShares key={file._id} file={file} token={token} onClose={onClose}/>}
       <label>Link permission
         <select disabled={busy || active === null} value={role} onChange={event => setRole(event.target.value)}>
           <option value="view">Viewer</option>

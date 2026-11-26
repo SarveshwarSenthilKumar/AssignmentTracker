@@ -12,7 +12,8 @@ const editable = file => /\.(md|markdown|txt)$/i.test(file.originalName || '') &
 
 module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDFFolder }) {
   const collaboratorAccess = require('./documentCollaboratorAccess')({User});
-  const received=require('./sharedWithMe')(app,auth,{PDF,User,PDFFolder,collaboratorAccess,isLocked});
+  const friends=require('./friendSharing')(app,auth,{User,PDF,collaboratorAccess,isLocked});
+  const received=require('./sharedWithMe')(app,auth,{PDF,User,PDFFolder,collaboratorAccess,isLocked,friends});
   app.use('/api/shared-document/:token',async(req,res,next)=>{
     res.set('Cache-Control','private, no-store');
     if(!/^[A-Za-z0-9_-]{43}$/.test(req.params.token))return res.status(404).json({message:'This document link is unavailable.'});

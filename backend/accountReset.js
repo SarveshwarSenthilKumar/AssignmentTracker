@@ -24,6 +24,10 @@ async function resetAccountWorkspace({ userId, models, startSession }) {
       if (models.CoverLetterDraft) await models.CoverLetterDraft.deleteMany(owner, {session});
       if (models.TaskDeletionRecovery) await models.TaskDeletionRecovery.deleteMany(owner, {session});
       if (models.CalendarChange) await models.CalendarChange.deleteMany(owner, {session});
+      if (models.Friendship) {
+        await models.Friendship.deleteMany({$or:[{sender:userId},{recipient:userId}]},{session});
+        await models.PDF.updateMany({'friendShares.recipient':userId},{$pull:{friendShares:{recipient:userId}}},{session,timestamps:false});
+      }
       const result = await models.User.updateOne({ _id: userId }, { $set: { canvasUrl: null, canvasToken: null, lastCanvasSync: null }, $unset: { githubTokenEncrypted:1,'socialConnections.github':1,geminiApiKeyEncrypted: 1, geminiApiKeyLastFour: 1, geminiApiKeyUpdatedAt: 1, workflowLayout: 1, taskSortBy:1, taskSortOrder:1, hiddenCalendarIds: 1, interestedCalendarIds: 1, calendarDayNotes: 1, hideTxstEvents: 1, calendarUniversity: 1, calendarColors: 1, calendarCategories:1 }, $inc: { workflowRevision: 1,'socialConnectionVersions.github':1 } }, { session });
       if (result.matchedCount !== 1) throw new Error('Account no longer exists.');
     });

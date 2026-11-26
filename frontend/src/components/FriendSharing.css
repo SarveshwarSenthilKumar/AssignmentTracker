@@ -1,0 +1,13 @@
+.friend-sharing{min-width:0;display:grid;gap:9px}
+.friend-sharing h2,.friend-sharing h3,.friend-sharing h4,.friend-sharing p{margin:0}
+.friend-sharing form.friend-sharing-form,.friend-sharing .friend-sharing-form{display:flex;align-items:end;flex-wrap:wrap;gap:8px}
+.friend-sharing-form label{display:grid;gap:4px}
+.friend-sharing input,.friend-sharing select,.friend-sharing button{min-height:34px;padding:5px 8px;border:1px solid var(--border-strong);border-radius:6px;background:var(--surface-input);color:var(--text-primary)}
+.friend-sharing button{width:max-content;cursor:pointer}
+.friend-sharing button:disabled{opacity:.55;cursor:default}
+.friend-sharing a{text-decoration:underline;text-underline-offset:2px}
+.friend-sharing ul{margin:5px 0 0;padding:0;list-style:none}
+.friend-sharing li{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 0}
+.friend-sharing li strong{min-width:0;overflow-wrap:anywhere}
+.document-friend-sharing{padding-bottom:12px;border-bottom:1px solid var(--border)}
+.friend-document-download{display:grid;gap:5px;justify-items:start}

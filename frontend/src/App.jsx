@@ -48,6 +48,7 @@ import ConfirmationSettings from './components/ConfirmationSettings'
 import { readApiJson } from './lib/apiResponse'
 import AccountAISettings from './components/AccountAISettings'
 import SetupBanner from './components/SetupBanner'
+import AccountFriends from './components/AccountFriends'
 import SetupBannerSettings from './components/SetupBannerSettings'
 import Whiteboards from './components/Whiteboards'
 import DetectiveWalls from './components/DetectiveWalls'
@@ -2247,6 +2248,7 @@ function App() {
         {/* Profile Modal */}
         {page === 'account' && (
           <div className="account-page">
+            <AccountFriends key={user?.id} token={token}/>
             <section className="account-overview account-card" aria-labelledby="account-profile-title">
               <div className="account-profile-heading">
                 <h2 id="account-profile-title">Your profile</h2>
