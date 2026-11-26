@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
 import PublicDocumentEditor from './components/PublicDocumentEditor'
+import PublicTaskFolder from './components/PublicTaskFolder'
 import { installOfflineWorkspace } from './lib/offlineWorkspace'
 import { SHORTCUTS, matchesShortcut } from './lib/shortcuts'
 import { canTogglePlatformFullscreen, togglePlatformFullscreen } from './lib/platformFullscreen'
@@ -31,6 +32,10 @@ function Root() {
   const hash = React.useSyncExternalStore(subscribeToHash, readHash)
   const shareToken = /^#\/shared-document\/([A-Za-z0-9_-]{43})$/.exec(hash)?.[1]
   if (shareToken||hash.startsWith('#/shared-document/')) return <GuestAuthProvider><PublicDocumentEditor key={shareToken||hash} shareToken={shareToken||''}/></GuestAuthProvider>
+  if(hash.startsWith('#/shared-task-folder/')){
+    const folderToken=/^#\/shared-task-folder\/([A-Za-z0-9_-]{43})$/.exec(hash)?.[1]
+    return <PublicTaskFolder key={hash} token={folderToken}/>
+  }
   return <AuthProvider><App/></AuthProvider>
 }
 

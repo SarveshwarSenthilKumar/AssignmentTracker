@@ -133,6 +133,8 @@ const assistantCredentials = createAssistantCredentials(User);
 
 // Folder Schema
 const folderSchema = new mongoose.Schema({
+  taskShareHash: { type:String,select:false,index:{sparse:true} },
+  taskShareSecret: { type:String,select:false },
   attachmentIds:[{type:mongoose.Schema.Types.ObjectId,ref:'PDF'}],
   description:{type:String,default:'',maxlength:2000},
   parentId:{type:mongoose.Schema.Types.ObjectId,ref:'Folder',default:null,index:true},
@@ -1217,6 +1219,7 @@ app.delete('/api/todos/clear-inbox', authenticateToken, async (req, res) => {
 // Folder Routes
 require('./folderHierarchy')(app,authenticateToken,{mongoose,User,Folder,PDFFolder,Todo,PDF});
 require('./sharedFolders')(app,authenticateToken,{User,PDF,PDFFolder});
+require('./taskFolderShares')(app,authenticateToken,{Folder,Todo,User});
 require('./documentShareLinks')(app,authenticateToken,{User,PDF,PDFFolder});
 require('./folderAttachments')(app,authenticateToken,{mongoose,User,Folder,PDFFolder,PDF,upload});
 // Get all folders

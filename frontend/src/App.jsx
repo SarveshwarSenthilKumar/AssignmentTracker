@@ -49,6 +49,7 @@ import { readApiJson } from './lib/apiResponse'
 import AccountAISettings from './components/AccountAISettings'
 import SetupBanner from './components/SetupBanner'
 import AccountFriends from './components/AccountFriends'
+import TaskFolderSharing from './components/TaskFolderSharing'
 import SetupBannerSettings from './components/SetupBannerSettings'
 import Whiteboards from './components/Whiteboards'
 import DetectiveWalls from './components/DetectiveWalls'
@@ -1919,6 +1920,7 @@ function App() {
         </div>
 
         <FolderHierarchyControls folders={folders} selected={selectedFolder} token={token} base="/api/folders" documents={pdfs} onDocumentsChange={setPdfs} onOpenDocument={openDocument} onFoldersChange={setFolders} onSelect={setSelectedFolder} onCreate={id=>{setNewFolderParent(id);setNewFolderName('');setShowFolderModal(true)}} disabled={loading}/>
+        {folders.filter(folder=>folder._id===selectedFolder).map(folder=><TaskFolderSharing key={folder._id} folder={folder} token={token}/>)}
         <form onSubmit={addTodo} className="task-create-form mb-6">
           <div className="task-create-fields flex gap-3">
             <input
