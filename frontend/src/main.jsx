@@ -5,6 +5,7 @@ import PublicDocumentEditor from './components/PublicDocumentEditor'
 import PublicTaskFolder from './components/PublicTaskFolder'
 import { installOfflineWorkspace } from './lib/offlineWorkspace'
 import { SHORTCUTS, matchesShortcut } from './lib/shortcuts'
+import { updatePageFavicon } from './lib/pageFavicon'
 import { canTogglePlatformFullscreen, togglePlatformFullscreen } from './lib/platformFullscreen'
 import './index.css'
 import './responsive.css'
@@ -30,6 +31,7 @@ function Root() {
   },[])
   const readHash = () => window.location.hash
   const hash = React.useSyncExternalStore(subscribeToHash, readHash)
+  React.useEffect(()=>updatePageFavicon(hash),[hash])
   const shareToken = /^#\/shared-document\/([A-Za-z0-9_-]{43})$/.exec(hash)?.[1]
   if (shareToken||hash.startsWith('#/shared-document/')) return <GuestAuthProvider><PublicDocumentEditor key={shareToken||hash} shareToken={shareToken||''}/></GuestAuthProvider>
   if(hash.startsWith('#/shared-task-folder/')){
