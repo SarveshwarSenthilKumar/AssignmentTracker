@@ -30,6 +30,9 @@ const pages={
   'shared-task-folder':['#427152','M3 6h6l2 2h10v12H3zM8 14l3 3 5-5'],
 }
 
+const defaultIcon=['#245a78','M3 11.5 12 4l9 7.5M5.5 10v10H10v-5h4v5h4.5V10']
+const colorKeyPrefix='platform-favicon-color:'
+const sessionColors=new Map()
 const preferenceKey='platform-favicon-mode'
 const preferenceChanged='platform-favicon-mode-changed'
 let sessionMode='page'
@@ -47,8 +50,10 @@ export function saveFaviconMode(mode){
   window.dispatchEvent(new Event(preferenceChanged))
 }
 
-export function subscribeToFaviconMode(callback){
-  const storage=event=>{if(event.key===preferenceKey||event.key===null)callback()}
+export function subscribeToFaviconPreferences(callback){
+  const storage=event=>{
+    if(event.key===preferenceKey||event.key===null||event.key.startsWith(colorKeyPrefix))callback()
+  }
   window.addEventListener(preferenceChanged,callback)
   window.addEventListener('storage',storage)
   return()=>{
@@ -57,22 +62,71 @@ export function subscribeToFaviconMode(callback){
   }
 }
 
-export function updatePageFavicon(hash,mode){
+function pageIdentity(hash){
+  const [rawPath,rawQuery]=hash.replace(/^#\/?/,'').split('?')
+  const path=(rawPath.replace(/\/+$/,'')||'home').replace(/^(detective-wall\/[a-f0-9]{24})\/overview$/i,'$1')
+  const query=new URLSearchParams(rawQuery)
+  query.sort()
+  const search=query.toString()
+  return search?path+'?'+search:path
+}
+
+function faviconColorKey(hash){
+  // Fingerprint the URL so bearer tokens from shared pages are never saved as keys.
+  let fingerprint=14695981039346656037n
+  for(const character of pageIdentity(hash)){
+    fingerprint=BigInt.asUintN(64,(fingerprint^BigInt(character.codePointAt(0)))*1099511628211n)
+  }
+  return colorKeyPrefix+fingerprint.toString(16)
+}
+
+const validColor=color=>typeof color==='string'&&/^#[a-f\d]{6}$/i.test(color)
+
+export function readPageFaviconColor(hash){
+  const key=faviconColorKey(hash)
+  if(sessionColors.has(key))return sessionColors.get(key)
+  try{
+    const color=localStorage.getItem(key)
+    return validColor(color)?color:null
+  }catch{return null}
+}
+
+export function savePageFaviconColor(hash,color){
+  if(color!==null&&!validColor(color))return
+  const key=faviconColorKey(hash)
+  try{
+    if(color===null)localStorage.removeItem(key)
+    else localStorage.setItem(key,color)
+    sessionColors.delete(key)
+  }catch{sessionColors.set(key,color)}
+  window.dispatchEvent(new Event(preferenceChanged))
+}
+
+function iconForPage(hash){
+  const segments=pageIdentity(hash).split('?')[0].split('/')
+  const section=segments[0],subsection=segments.slice(0,2).join('/')
+  return Object.hasOwn(pages,subsection)?pages[subsection]:Object.hasOwn(pages,section)?pages[section]:null
+}
+
+export function defaultPageFaviconColor(hash){
+  return (iconForPage(hash)??defaultIcon)[0]
+}
+
+export function updatePageFavicon(hash,mode,color){
   const link=document.getElementById('page-favicon')
   if(!link)return
-  const route=hash.replace(/^#\/?/,'').split('?')[0]
-  const segments=route.split('/')
-  const section=segments[0],subsection=segments.slice(0,2).join('/')
-  const icon=Object.hasOwn(pages,subsection)?pages[subsection]:Object.hasOwn(pages,section)?pages[section]:null
+  const icon=iconForPage(hash)
   const href=mode==='hidden'?link.dataset.hiddenHref:
-    mode==='page'&&icon?faviconUrl(...icon):link.dataset.defaultHref
+    mode==='page'&&(icon||color)?faviconUrl(color??icon[0],(icon??defaultIcon)[1]):link.dataset.defaultHref
   if(link.getAttribute('href')!==href)link.setAttribute('href',href)
 }
 
 function faviconUrl(color,path){
+  const [r,g,b]=color.slice(1).match(/../g).map(value=>parseInt(value,16))
+  const stroke=r*.299+g*.587+b*.114>=156?'#18212d':'#fff'
   const svg='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">'+
     '<rect width="32" height="32" rx="7" fill="'+color+'"/>'+
-    '<path transform="translate(4 4)" d="'+path+'" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>'+
+    '<path transform="translate(4 4)" d="'+path+'" fill="none" stroke="'+stroke+'" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>'+
     '</svg>'
   return 'data:image/svg+xml,'+encodeURIComponent(svg)
 }

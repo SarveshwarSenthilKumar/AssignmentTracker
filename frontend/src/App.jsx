@@ -76,7 +76,7 @@ import './Navigation.css'
 import './components/AccountPage.css'
 import AccountAdminBadge from './components/AccountAdminBadge'
 import ChangePasswordSettings from './components/ChangePasswordSettings'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import { AlertCircle, Plus, Trash2, Check, X, Loader2, FolderPlus, Folder, LogOut, Sparkles, Link2, ChevronDown, ChevronUp, Edit2, Copy, Save, User, Trophy, Target, Calendar, ArrowUpDown, RefreshCw, Terminal, ChevronRight, FileText, Keyboard, Star } from 'lucide-react'
 import { cn } from './lib/utils'
 import { useAuth } from './contexts/AuthContext'
@@ -85,7 +85,7 @@ import DocumentLibrary from './components/DocumentLibrary'
 import DocumentEditor from './components/DocumentEditor'
 import PDFUploadModal from './components/PDFUploadModal'
 
-function App() {
+function App({onFaviconPage}) {
   const { isAuthenticated, token, logout, user, updatePreferences, loading: authLoading } = useAuth()
   const [adminToken, setAdminToken] = useState(null)
   const isAdmin = !!token && adminToken === token
@@ -330,6 +330,14 @@ function App() {
     const folder = window.location.hash.match(/^#\/documents\/folder\/([a-f\d]{24}|all|inbox|trash|starred|shared)$/i)?.[1]
     return folder === 'inbox' ? null : folder || 'all'
   })
+  useLayoutEffect(()=>{
+    const folder=page==='documents'?selectedPDFFolder:page==='tasks'?selectedFolder:null
+    const path=selectedPDF?documentRoute(selectedPDF):
+      folder&&/^[a-f\d]{24}$/i.test(folder)?page+'/folder/'+folder:null
+    onFaviconPage?.(path?'#/'+path:null)
+    return()=>onFaviconPage?.(null)
+  },[page,selectedPDF,selectedFolder,selectedPDFFolder,onFaviconPage])
+
   const [assistantOpen,setAssistantOpen]=useState(false),[assistantGeneration,setAssistantGeneration]=useState(0),[assistantCalendarId,setAssistantCalendarId]=useState(()=>new URLSearchParams(window.location.hash.split('?')[1]).get('event'))
   useEffect(()=>{
     if(!isAuthenticated){setAssistantOpen(false);return}

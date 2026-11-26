@@ -2,11 +2,11 @@ import {useRef,useState,useSyncExternalStore} from 'react'
 import {Sun,Moon,Monitor,Globe} from 'lucide-react'
 import {useAuth} from '../contexts/AuthContext'
 import {readApiJson} from '../lib/apiResponse'
-import {readFaviconMode,saveFaviconMode,subscribeToFaviconMode} from '../lib/pageFavicon'
+import {readFaviconMode,saveFaviconMode,subscribeToFaviconPreferences} from '../lib/pageFavicon'
 
 export default function AppearanceSettings(){
   const {user,token,updatePreferences}=useAuth()
-  const faviconMode=useSyncExternalStore(subscribeToFaviconMode,readFaviconMode)
+  const faviconMode=useSyncExternalStore(subscribeToFaviconPreferences,readFaviconMode)
   const [busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('')
   const lock=useRef(false),mode=['light','system'].includes(user?.themeMode)?user.themeMode:'dark'
   const labels={light:'Light',dark:'Dark',system:'Match device'}
