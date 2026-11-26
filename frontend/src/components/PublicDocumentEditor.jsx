@@ -1,3 +1,5 @@
+import {Palette} from 'lucide-react'
+import {openPageFaviconPicker} from '../lib/pageFavicon'
 import { Component, useEffect, useRef, useState } from 'react'
 import SharedTextEditor from './SharedTextEditor'
 import PDFEditor from './PDFEditor'
@@ -77,7 +79,10 @@ export default function PublicDocumentEditor({ shareToken }) {
   if(denied)return <DocumentAccessNotice message={denied} onClose={close} onRetry={()=>window.location.reload()}/>
   return <main className="platform-viewport min-h-screen px-4 py-8">
     <div className="mx-auto max-w-4xl">
-      <h1 className="text-xl font-semibold">{file?.name || 'Shared document'}</h1>
+      <div className="tab-color-page-heading">
+        <h1 className="text-xl font-semibold">{file?.name || 'Shared document'}</h1>
+        <button type="button" onClick={openPageFaviconPicker}><Palette size={16} aria-hidden="true"/>Tab icon color</button>
+      </div>
       {!file && !error && <p role="status">Opening shared file…</p>}
       {error && <p role="alert">{error}</p>}
       {file && <>

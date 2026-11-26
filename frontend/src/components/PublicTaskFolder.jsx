@@ -4,6 +4,8 @@ import {taskDueLabel} from '../lib/calendar'
 import {STATUS_LABELS} from '../lib/taskVisualization'
 import CopyTaskFolderLink from './CopyTaskFolderLink'
 import './TaskFolderSharing.css'
+import {Palette} from 'lucide-react'
+import {openPageFaviconPicker} from '../lib/pageFavicon'
 
 export default function PublicTaskFolder({token}){
   const [folder,setFolder]=useState(null),[error,setError]=useState(''),[version,setVersion]=useState(0)
@@ -22,7 +24,10 @@ export default function PublicTaskFolder({token}){
   },[token,version])
   return <main className="public-task-folder">
     <a href="#/tasks">Assignment Tracker</a>
-    <h1>{folder?.name||'Shared task folder'}</h1>
+    <div className="tab-color-page-heading">
+      <h1>{folder?.name||'Shared task folder'}</h1>
+      <button type="button" onClick={openPageFaviconPicker}><Palette size={16} aria-hidden="true"/>Tab icon color</button>
+    </div>
     {error&&<p role="alert">{error}</p>}
     {!folder&&!error&&<p role="status">Loading shared tasks…</p>}
     {folder&&<>

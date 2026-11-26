@@ -1,8 +1,9 @@
 import {useEffect,useLayoutEffect,useRef,useState} from 'react'
-import {ArrowLeft,Plus,StickyNote,ImagePlus,Pin,Link2,Hand,Pencil,Move,MousePointer2,Undo2,Redo2,Trash2,ZoomIn,ZoomOut,RotateCw,Maximize,Minimize,EyeOff,Lock,Download,Save,BookOpen,X} from 'lucide-react'
+import {ArrowLeft,Plus,StickyNote,ImagePlus,Pin,Link2,Hand,Pencil,Move,MousePointer2,Undo2,Redo2,Trash2,ZoomIn,ZoomOut,RotateCw,Maximize,Minimize,EyeOff,Lock,Download,Save,BookOpen,Palette,X} from 'lucide-react'
 import {readApiJson} from '../lib/apiResponse'
 import {downloadBlob} from '../lib/documentFormats'
 import './DetectiveWalls.css'
+import {openPageFaviconPicker} from '../lib/pageFavicon'
 import DetectiveWallText from './DetectiveWallText'
 import StickyNoteInk from './StickyNoteInk'
 import DetectiveCasePicker from './DetectiveCasePicker'
@@ -811,6 +812,7 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
     </div>}
     <header className="detective-header"><button type="button" onClick={leave} title="Back to walls"><ArrowLeft size={18}/></button><input aria-label="Wall name" maxLength={120} value={doc.name} onFocus={()=>{historyRef.current={undo:[...historyRef.current.undo.slice(-19),current.current],redo:[]};setHistory(historyRef.current)}} onChange={event=>apply({...current.current,name:event.target.value},false)}/><span role="status">{status==='saving'?'Saving…':status==='saved'?'Saved':status==='error'?'Save failed':'Unsaved changes'}</span><button type="button" onClick={save}><Save size={16}/><span>Save</span></button><button type="button" onClick={exportWall} title="Export wall backup"><Download size={16}/><span>Backup</span></button><button type="button" onClick={fullscreen?exitFullscreen:enterFullscreen} aria-label={fullscreen?'Exit fullscreen':'Enter fullscreen'} title={fullscreen?'Exit fullscreen (Escape)':'Enter fullscreen'}>{fullscreen?<Minimize size={16}/>:<Maximize size={16}/>}<span>Fullscreen</span></button><button type="button" onClick={enterZenMode} title="Hide controls and keep the current tool. Escape exits." aria-label="Enter Zen mode"><EyeOff size={16}/><span>Zen mode</span></button><button type="button" onClick={enterLockedView} title="Show only the board and lock its view"><Lock size={16}/><span>Lock fullscreen</span></button></header>
     <div className="detective-toolbar" role="toolbar" aria-label="Wall tools">
+      <button type="button" onClick={openPageFaviconPicker} title="Change this board’s tab icon color" aria-label="Tab icon color"><Palette size={16}/>Tab color</button>
       <button type="button" onClick={openSampleBoards} title="Browse sample boards" aria-label="Browse sample boards"><BookOpen size={16}/>Sample boards</button>
       <div className="detective-wall-colors" role="group" aria-label="Board colors">
         {WALL_COLORS.map(([key,label,fallback])=><label key={key} className="detective-color">{label}

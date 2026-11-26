@@ -6,7 +6,7 @@ import PublicTaskFolder from './components/PublicTaskFolder'
 import FaviconColorDialog from './components/FaviconColorDialog'
 import { installOfflineWorkspace } from './lib/offlineWorkspace'
 import { SHORTCUTS, matchesShortcut } from './lib/shortcuts'
-import { defaultPageFaviconColor, readFaviconMode, readPageFaviconColor, savePageFaviconColor, subscribeToFaviconPreferences, updatePageFavicon } from './lib/pageFavicon'
+import { OPEN_PAGE_FAVICON_PICKER, defaultPageFaviconColor, readFaviconMode, readPageFaviconColor, savePageFaviconColor, subscribeToFaviconPreferences, updatePageFavicon } from './lib/pageFavicon'
 import { canTogglePlatformFullscreen, togglePlatformFullscreen } from './lib/platformFullscreen'
 import './index.css'
 import './responsive.css'
@@ -33,6 +33,7 @@ function Root() {
   React.useEffect(()=>updatePageFavicon(route,faviconMode,faviconColor),[route,faviconMode,faviconColor])
   React.useEffect(()=>{setColorEditor(previous=>previous===route?previous:null)},[route])
   React.useLayoutEffect(()=>{
+    const openColorEditor=()=>setColorEditor(currentRoute.current)
     const handleFullscreen=event=>{
       if(event.isComposing)return
       if(event.key==='Escape'){
@@ -47,7 +48,7 @@ function Root() {
       if(matchesShortcut(event,faviconColorShortcut)){
         event.preventDefault()
         event.stopImmediatePropagation()
-        if(!event.repeat)setColorEditor(currentRoute.current)
+        if(!event.repeat)openColorEditor()
         return
       }
       if(!matchesShortcut(event,fullscreenShortcut))return
@@ -58,7 +59,11 @@ function Root() {
       togglePlatformFullscreen()
     }
     window.addEventListener('keydown',handleFullscreen,true)
-    return()=>window.removeEventListener('keydown',handleFullscreen,true)
+    window.addEventListener(OPEN_PAGE_FAVICON_PICKER,openColorEditor)
+    return()=>{
+      window.removeEventListener('keydown',handleFullscreen,true)
+      window.removeEventListener(OPEN_PAGE_FAVICON_PICKER,openColorEditor)
+    }
   },[])
 
   const shareToken = /^#\/shared-document\/([A-Za-z0-9_-]{43})$/.exec(hash)?.[1]
@@ -73,7 +78,7 @@ function Root() {
   }
   return <>
     {content}
-    {colorEditor===route&&<FaviconColorDialog key={route} color={faviconColor} defaultColor={defaultPageFaviconColor(route)} mode={faviconMode}
+    {colorEditor===route&&<FaviconColorDialog key={route} page={route} color={faviconColor} defaultColor={defaultPageFaviconColor(route)} mode={faviconMode}
       onSave={color=>savePageFaviconColor(route,color)} onClose={()=>setColorEditor(null)}/>}
   </>
 }

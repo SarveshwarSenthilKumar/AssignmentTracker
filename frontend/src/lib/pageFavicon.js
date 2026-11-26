@@ -108,6 +108,16 @@ function iconForPage(hash){
   return Object.hasOwn(pages,subsection)?pages[subsection]:Object.hasOwn(pages,section)?pages[section]:null
 }
 
+export const OPEN_PAGE_FAVICON_PICKER='open-page-favicon-picker'
+export function openPageFaviconPicker(){
+  window.dispatchEvent(new Event(OPEN_PAGE_FAVICON_PICKER))
+}
+
+export function previewPageFavicon(hash,color){
+  const icon=iconForPage(hash)??defaultIcon
+  return faviconUrl(color,icon[1])
+}
+
 export function defaultPageFaviconColor(hash){
   return (iconForPage(hash)??defaultIcon)[0]
 }

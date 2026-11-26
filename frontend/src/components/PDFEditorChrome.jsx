@@ -9,7 +9,8 @@ import PDFCountdown from './PDFCountdown'
 import PDFFingerMode from './PDFFingerMode'
 import PDFScrollSettings from './PDFScrollSettings'
 import './PDFEditorChrome.css'
-import { Share2 } from 'lucide-react'
+import { Palette, Share2 } from 'lucide-react'
+import {openPageFaviconPicker} from '../lib/pageFavicon'
 import {History} from 'lucide-react'
 
 const annotationTools=[['read','Select text',TextSelect],['pen','Pen',Pen],['highlighter','Highlight',Highlighter],['text','Text',Type],['select','Move',Move],['eraser','Erase',Eraser]]
@@ -101,6 +102,7 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
   const viewMenu=menu('view','View',Maximize,<>
     {action(Minimize2,'Zen mode',view.onZen,{detail:'Hide everything and keep your current tool · Escape to exit'})}
     {action(SlidersHorizontal,'Editor layout',view.onVisibility,{detail:'Show or hide editor panels and controls'})}
+    {action(Palette,'Tab icon color',openPageFaviconPicker,{detail:'Customize this document’s browser tab'})}
     {whiteboardAppearance&&<>{whiteboardAppearance}<hr/></>}
     {!doc.exportImage&&!doc.whiteboard&&action(Files,'Book view',onBookView,{active:bookView,detail:'Read two pages side by side and flip through spreads'})}
     <label className="pc-field">Toolbar position<select value={view.toolbarPosition} onChange={event=>view.onToolbarPosition(event.target.value)}><option value="auto">Automatic</option><option value="top">Top</option><option value="bottom">Bottom</option><option value="left">Left · vertical</option><option value="right">Right · vertical</option></select></label>
