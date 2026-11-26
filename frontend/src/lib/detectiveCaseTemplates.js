@@ -1,3 +1,5 @@
+import {ORIGINAL_DETECTIVE_CASES} from './originalDetectiveCases'
+
 const cluster=(name,kind,code,notes)=>({name,kind,code,notes,color:'#fff1a8'})
 
 export const DETECTIVE_CASES=[
@@ -70,5 +72,6 @@ export const DETECTIVE_CASES=[
     scribbles:['labels ≠ contents','check the blood test','who had access to the bag?','the will changes everything','why destroy this record?','what did Fran see?','the helpful person has leverage','the premise is WRONG','follow the missing antidote','compare belief with evidence','who knew about the inheritance?','reconstruct the attempt','Marta knows the medicine','the cover-up leaves a second trail','ask what actually caused the death'],
     linkLabel:'LABELS vs CONTENTS'
   },
-  {id:'meridian',title:'The Meridian Signal',source:'Original fictional case',code:'M-47',accent:'#648477',description:'Eight locations, contradictory records, and seventeen missing minutes. An original mystery with a new messy layout each time.',tags:['Original mystery','Coded signals','Missing interval']}
+  {id:'meridian',title:'The Meridian Signal',source:'Original fictional case',code:'M-47',accent:'#648477',description:'Eight locations, contradictory records, and seventeen missing minutes. An original mystery with a new messy layout each time.',tags:['Original mystery','Coded signals','Missing interval']},
+  ...ORIGINAL_DETECTIVE_CASES
 ]

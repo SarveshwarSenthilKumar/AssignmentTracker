@@ -60,7 +60,7 @@ export default function DetectiveCasePicker({busy,error,onChoose,onClose}){
         {selected.credits?<><strong>{selected.source} ({selected.year})</strong><span>{selected.credits.join(' · ')}</span>
           <a href={selected.creditUrl} target="_blank" rel="noopener noreferrer">Source credits</a></>:<span>Original case created for Assignment Tracker.</span>}
       </div>
-      <div className="detective-picker-tabs" aria-label="Available cases">{DETECTIVE_CASES.map((item,i)=><button key={item.id} type="button" disabled={busy} aria-pressed={i===index} onClick={()=>setIndex(i)}>{item.source}</button>)}</div>
+      <div className="detective-picker-tabs" aria-label="Available cases">{DETECTIVE_CASES.map((item,i)=><button key={item.id} type="button" disabled={busy} aria-pressed={i===index} onClick={()=>setIndex(i)}>{item.credits?item.source:item.title}</button>)}</div>
       <fieldset className="detective-case-settings" disabled={busy}>
         <legend>Board settings</legend>
         <div className="detective-case-setting-grid">

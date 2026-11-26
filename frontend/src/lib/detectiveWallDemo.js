@@ -36,7 +36,7 @@ function themedEvidence(kind,index,title,theme,entry){
     c.strokeStyle='#a43d31';c.lineWidth=3;c.beginPath();c.ellipse(310,207,260,45,-.035,0,Math.PI*2);c.stroke()
   }
   for(let i=0;i<900;i++){c.fillStyle=i%2?'#fff9de19':'#77563212';c.fillRect(Math.random()*640,Math.random()*460,2,1)}
-  c.fillStyle='#6d5e4a';c.font='12px monospace';c.fillText(`${theme.source.toUpperCase()} / FAN-MADE VISUAL RECONSTRUCTION`,23,442)
+  c.fillStyle='#6d5e4a';c.font='12px monospace';c.fillText(theme.credits?theme.source.toUpperCase()+' / FAN-MADE VISUAL RECONSTRUCTION':'ASSIGNMENT TRACKER / ORIGINAL FICTIONAL EXHIBIT',23,442)
   return canvas.toDataURL('image/jpeg',.85)
 }
 
