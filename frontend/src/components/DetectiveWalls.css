@@ -111,3 +111,5 @@ body:has(.detective-editor.is-zen) .assistant-launcher{display:none!important}
 .detective-editor.is-locked-view .detective-viewport::-webkit-scrollbar{display:none}
 body:has(.detective-editor.is-locked-view) .assistant-launcher{display:none!important}
 @media(hover:none){.detective-editor.is-locked-view .detective-zen-exit{opacity:.7}}
+
+.detective-lobby .detective-sample-boards{margin-bottom:14px}

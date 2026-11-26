@@ -1,21 +1,41 @@
-.detective-picker-backdrop{position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;padding:20px;background:#080b10bf;backdrop-filter:blur(6px)}
-.detective-case-picker{width:680px;max-width:100%;max-height:calc(100dvh - 40px);overflow:auto;padding:24px;border:1px solid var(--border-strong);border-radius:16px;background:var(--surface-panel);color:var(--text-primary);box-shadow:0 24px 90px #0009}
-.detective-case-picker header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}.detective-picker-eyebrow{font:10px/1.6 monospace;letter-spacing:2px;color:var(--text-secondary)}.detective-case-picker h2{font-size:21px;font-weight:650;margin:5px 0 0}.detective-case-picker>p{font-size:12px;line-height:1.7;color:var(--text-secondary);margin:12px 0}
-.detective-case-picker button{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:42px;padding:8px 12px;border:1px solid var(--border-strong);border-radius:8px;background:var(--surface-raised);color:var(--text-primary);font-size:12px;cursor:pointer}.detective-case-picker button:disabled{opacity:.5;cursor:default}.detective-case-picker button:focus-visible{outline:2px solid var(--case-accent);outline-offset:4px}
-.detective-case-carousel{display:flex;align-items:center;gap:12px;margin:20px 0 14px}.detective-case-carousel>button{padding:7px;flex-shrink:0}.detective-case-preview{flex:1;min-width:0;min-height:300px;padding:24px;background:linear-gradient(125deg,#e1d5b8,#cdc0a3);color:#312e29;border:1px solid #b4a487;border-radius:3px;box-shadow:3px 6px 16px #0005;transform:rotate(-.6deg)}
-.detective-case-stamp{display:flex;align-items:center;justify-content:space-between;color:#814237;font:12px monospace;border-bottom:1px solid #8e7a5e66;padding-bottom:12px;margin-bottom:18px}.detective-case-preview>p:first-of-type{font:12px monospace;text-transform:uppercase;letter-spacing:1px}.detective-case-preview h3{font:700 28px/1.15 Georgia,serif;margin:8px 0 16px;overflow-wrap:anywhere}.detective-case-preview>p{font-size:13px;line-height:1.65}.detective-case-tags{display:flex;gap:6px;flex-wrap:wrap;margin:16px 0}.detective-case-tags span{padding:4px 7px;background:#fff4;border:1px solid #87715144;font-size:10px;border-radius:3px}.detective-case-preview>small{font:11px monospace;color:#6d5d45}
-.detective-picker-tabs{display:flex;justify-content:center;gap:7px;flex-wrap:wrap}.detective-picker-tabs button[aria-pressed=true]{border-color:var(--case-accent);box-shadow:inset 0 -2px var(--case-accent)}.detective-case-picker .detective-picker-spoilers{font-size:11px}.detective-case-picker .detective-picker-error{color:#e6a59c}.detective-case-picker footer{display:flex;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid var(--border);margin-top:16px;padding-top:16px}.detective-case-picker footer>span{font-size:11px;color:var(--text-secondary);max-width:230px}.detective-case-picker footer>button{background:var(--accent-solid);color:#fff;font-weight:600}
-@media(max-width:550px){.detective-picker-backdrop{padding:10px}.detective-case-picker{padding:16px;max-height:calc(100dvh - 20px)}.detective-case-carousel{gap:7px}.detective-case-carousel>button{padding:3px;min-width:30px}.detective-case-preview{padding:16px;min-height:330px}.detective-case-preview h3{font-size:24px}.detective-case-picker footer{flex-direction:column;align-items:stretch}.detective-case-picker footer>span{max-width:none}.detective-case-picker footer>button{min-height:46px}}
-
-.detective-case-settings{margin:16px 0 0;padding:12px;border:1px solid var(--border-strong);border-radius:8px}
+.detective-picker-backdrop{position:fixed;inset:0;z-index:200;display:grid;place-items:center;padding:20px;background:#080b10bf;backdrop-filter:blur(6px)}
+.detective-case-picker{display:flex;flex-direction:column;width:min(100%,680px);max-height:calc(100dvh - 40px);border:1px solid var(--border-strong);border-radius:16px;background:var(--surface-panel);color:var(--text-primary);box-shadow:0 24px 90px #0009;overflow:hidden}
+.detective-case-picker>header,.detective-case-picker>footer{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:15px 20px;flex-shrink:0}
+.detective-case-picker>header{align-items:flex-start;border-bottom:1px solid var(--border)}
+.detective-case-picker h2{font-size:21px;font-weight:650;margin:0}
+.detective-case-picker p{font-size:12px;line-height:1.55;margin:5px 0 0;color:var(--text-secondary)}
+.detective-picker-body{overflow:auto;min-height:0;padding:15px 20px;overscroll-behavior:contain}
+.detective-case-picker button{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:42px;padding:8px 12px;border:1px solid var(--border-strong);border-radius:8px;background:var(--surface-raised);color:var(--text-primary);font-size:12px;cursor:pointer}
+.detective-case-picker button:disabled{opacity:.5;cursor:default}
+.detective-case-picker :is(button,select,input,a):focus-visible{outline:2px solid var(--case-accent);outline-offset:2px}
+.detective-picker-categories{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:13px}
+.detective-picker-categories button[aria-pressed=true]{border-color:var(--case-accent);box-shadow:inset 0 -2px var(--case-accent);font-weight:650}
+.detective-case-select-row{display:flex;align-items:end;gap:6px;margin-bottom:12px}
+.detective-case-select-row>label{flex:1;min-width:0}
+.detective-case-select-row>button{padding:7px;min-width:42px;flex-shrink:0}
+.detective-case-picker label{display:grid;gap:4px;font-size:12px}
+.detective-case-picker select{width:100%;min-height:42px;padding:6px 8px;border:1px solid var(--border-strong);border-radius:6px;background:var(--surface-input);color:var(--text-primary);font:inherit}
+.detective-case-preview{padding:15px;border:1px solid var(--border-strong);border-left:4px solid var(--case-accent);border-radius:8px;background:var(--surface-raised)}
+.detective-case-preview h3{font:650 24px/1.18 Georgia,serif;margin:0;overflow-wrap:anywhere}
+.detective-case-tags{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}
+.detective-case-tags span{padding:2px 6px;border:1px solid var(--border-strong);border-radius:4px;font-size:11px;color:var(--text-secondary)}
+.detective-case-credits{display:flex;flex-wrap:wrap;align-items:baseline;gap:3px 8px;font-size:11px;color:var(--text-secondary)}
+.detective-case-credits strong,.detective-case-credits a{color:var(--text-primary)}
+.detective-case-credits a{text-decoration:underline;text-underline-offset:2px}
+.detective-case-picker .detective-picker-spoilers{margin-top:8px;font-size:11px}
+.detective-case-settings{margin:13px 0 0;padding:10px;border:1px solid var(--border-strong);border-radius:8px}
 .detective-case-settings legend{padding:0 5px;font-size:13px;font-weight:600}
-.detective-case-setting-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(124px,1fr));gap:9px}
-.detective-case-setting-grid label{display:grid;gap:4px;font-size:12px}
-.detective-case-setting-grid select{width:100%;min-height:38px;padding:5px 8px;border:1px solid var(--border-strong);border-radius:6px;background:var(--surface-input);color:var(--text-primary);font:inherit}
-.detective-case-setting-toggles{display:flex;gap:8px 14px;flex-wrap:wrap;margin-top:11px}
-.detective-case-setting-toggles label{display:flex;align-items:center;gap:5px;font-size:12px}
-.detective-case-settings p{margin:10px 0 0;font-size:11px;color:var(--text-secondary)}
-
-.detective-case-credits{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;margin:0 0 12px;font-size:12px;color:var(--text-secondary)}
-.detective-case-credits strong{color:var(--text-primary)}
-.detective-case-credits a{color:var(--text-primary);text-decoration:underline;text-underline-offset:2px}
+.detective-case-setting-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px}
+.detective-case-setting-toggles{display:flex;gap:8px 14px;flex-wrap:wrap;margin-top:10px}
+.detective-case-setting-toggles label{display:flex;align-items:center;gap:5px}
+.detective-case-picker .detective-picker-error{color:#e6a59c}
+.detective-case-picker>footer{border-top:1px solid var(--border)}
+.detective-case-picker>footer>span{font-size:12px;color:var(--text-secondary)}
+.detective-case-picker>footer>button{background:var(--accent-solid);color:#fff;font-weight:600}
+@media(max-width:550px){
+  .detective-picker-backdrop{padding:10px}
+  .detective-case-picker{max-height:calc(100dvh - 20px)}
+  .detective-case-picker>header,.detective-case-picker>footer,.detective-picker-body{padding:12px}
+  .detective-case-preview{padding:12px}
+  .detective-case-preview h3{font-size:20px}
+}
