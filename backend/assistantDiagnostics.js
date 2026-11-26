@@ -1,4 +1,5 @@
 const { randomUUID } = require('node:crypto');
+const { SAFETY_INSTRUCTIONS } = require('./assistantSafetyPolicy');
 const { setTimeout: delay } = require('node:timers/promises');
 const safeToken = value => typeof value === 'string' ? value.replace(/[^a-zA-Z0-9_.:\[\]-]/g,'').slice(0,150)||null : null;
 function safeMessage(value, secrets=[]) {
@@ -46,7 +47,15 @@ class AssistantAPIError extends Error {
   constructor(diagnostics,status=502){super(diagnostics.message);this.diagnostics=diagnostics;this.status=status;}
 }
 async function callAssistantAPI(payload,{apiKey,signal,fetcher=fetch,traceId=randomUUID(),metadata={}}={}) {
-  const {model,...body}=payload,started=Date.now(),base={traceId,model:safeMessage(model,[apiKey]),stage:'gemini',...metadata};
+  const { model, systemInstruction, ...requestBody } = payload;
+  const started=Date.now(),base={traceId,model:safeMessage(model,[apiKey]),stage:'gemini',...metadata};
+  const body = {
+    ...requestBody,
+    systemInstruction: {
+      ...systemInstruction,
+      parts: [{ text: SAFETY_INSTRUCTIONS }, ...(systemInstruction?.parts ?? [])]
+    }
+  };
   const url=`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model.replace(/^models\//,''))}:generateContent`;
   const request={method:'POST',headers:{'x-goog-api-key':apiKey.trim(),'Content-Type':'application/json'},body:JSON.stringify(body),signal};
   let response;
