@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { Download, FolderOpen, Users } from 'lucide-react'
 import { downloadBlob } from '../lib/documentFormats'
 import SharedTextEditor from './SharedTextEditor'
+import RecentShareRecipients from './RecentShareRecipients'
+import useRecentShareRecipients from '../hooks/useRecentShareRecipients'
 
 const base = '/api/shared-folders'
 
@@ -11,6 +13,7 @@ export default function SharedFolders({ token, selectedFolder, folderName,receiv
   const [active, setActive] = useState(null)
   const [members, setMembers] = useState(null)
   const [email, setEmail] = useState('')
+  const recent=useRecentShareRecipients()
   const [role, setRole] = useState('view')
   const [editing, setEditing] = useState(null)
   const [busy, setBusy] = useState(false)
@@ -87,10 +90,12 @@ export default function SharedFolders({ token, selectedFolder, folderName,receiv
         <h3>Share {folderName}</h3>
         <p>Members can download files. Editors can also edit Markdown and plain-text files live. Share subfolders individually.</p>
         <button type="button" disabled={busy || !!editing} onClick={() => openFolder(ownerFolder)}>Open collaborative files</button>
+        <RecentShareRecipients emails={recent.emails} onChoose={setEmail} onClear={recent.clear} disabled={busy}/>
         <form onSubmit={event => {
           event.preventDefault()
           run(async () => {
             await saveAccess(email, role)
+            recent.remember(email)
             setEmail('')
           })
         }}>

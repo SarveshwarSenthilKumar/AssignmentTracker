@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Link2, X } from 'lucide-react'
+import { Link2, Mail, X } from 'lucide-react'
+import RecentShareRecipients from './RecentShareRecipients'
+import useRecentShareRecipients from '../hooks/useRecentShareRecipients'
 
 const localTime=value=>{if(!value)return '';const date=new Date(value),pad=value=>String(value).padStart(2,'0');return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;}
 
@@ -8,6 +10,8 @@ export default function DocumentShareLink({ file, token, onClose }) {
   const [role, setRole] = useState('view')
   const [canEdit, setCanEdit] = useState(false)
   const [link, setLink] = useState('')
+  const [recipient,setRecipient]=useState('')
+  const recent=useRecentShareRecipients()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
@@ -76,6 +80,18 @@ export default function DocumentShareLink({ file, token, onClose }) {
     }
   }
 
+  function openEmailDraft(event){
+    event.preventDefault()
+    if(!link||expired||busy)return
+    const email=recipient.trim()
+    if(!email)return
+    const address=encodeURIComponent(email).replace('%40','@')
+    const subject=encodeURIComponent('Shared document: '+file.name)
+    const body=encodeURIComponent('Here is the link to '+file.name+':\n\n'+link)
+    recent.remember(email)
+    window.location.href='mailto:'+address+'?subject='+subject+'&body='+body
+  }
+
   return <div className="library-modal-backdrop" onKeyDown={event => {
     if (event.key === 'Escape' && !busy) { event.stopPropagation(); onClose() }
   }}>
@@ -112,6 +128,13 @@ export default function DocumentShareLink({ file, token, onClose }) {
         <button type="button" className="library-primary" disabled={busy || active === null || (needsOriginal&&!original.trim())} onClick={() => change('POST')}><Link2 size={16} aria-hidden="true"/>{active ? needsOriginal?'Recover existing link':'Save sharing settings' : 'Create link'}</button>
         {active && <button type="button" disabled={busy} onClick={() => change('DELETE')}>Revoke link</button>}
       </div>
+      {link&&!expired&&<form className="library-share-email" onSubmit={openEmailDraft}>
+        <RecentShareRecipients emails={recent.emails} onChoose={setRecipient} onClear={recent.clear} disabled={busy}/>
+        <label>Recipient email<input type="email" value={recipient} required maxLength={254}
+          onChange={event=>setRecipient(event.target.value)} disabled={busy}/></label>
+        <button className="library-primary" type="submit" disabled={busy||!recipient.trim()}><Mail size={16} aria-hidden="true"/>Open email draft</button>
+        <small>Your email app opens with the link. Anyone who gets the link can use its saved permissions.</small>
+      </form>}
       {notice && <p role="status">{notice}</p>}
       {error && <p role="alert" className="library-modal-error">{error}</p>}
     </div>
