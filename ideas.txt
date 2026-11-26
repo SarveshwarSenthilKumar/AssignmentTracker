@@ -51,12 +51,6 @@ ai chat bot with no self harm response
 update terms and conditions
 update private policy
 optimize for various screens continuously
-create advanced analytics for admins
-add cold email generator with research
-
-add favicon.ico for all pages
-add number line detection and fix
-add group editing for group projects
 
 add a feature to have a small database which would store the ai summary for a day and would only refresh if more than 200 people selected it to report
 
