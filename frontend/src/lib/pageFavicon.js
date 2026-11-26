@@ -30,14 +30,42 @@ const pages={
   'shared-task-folder':['#427152','M3 6h6l2 2h10v12H3zM8 14l3 3 5-5'],
 }
 
-export function updatePageFavicon(hash){
+const preferenceKey='platform-favicon-mode'
+const preferenceChanged='platform-favicon-mode-changed'
+let sessionMode='page'
+
+export function readFaviconMode(){
+  try{
+    const stored=localStorage.getItem(preferenceKey)
+    return stored==='default'||stored==='hidden'?stored:'page'
+  }catch{return sessionMode}
+}
+
+export function saveFaviconMode(mode){
+  sessionMode=mode
+  try{localStorage.setItem(preferenceKey,mode)}catch{/* Keep the choice for this tab. */}
+  window.dispatchEvent(new Event(preferenceChanged))
+}
+
+export function subscribeToFaviconMode(callback){
+  const storage=event=>{if(event.key===preferenceKey||event.key===null)callback()}
+  window.addEventListener(preferenceChanged,callback)
+  window.addEventListener('storage',storage)
+  return()=>{
+    window.removeEventListener(preferenceChanged,callback)
+    window.removeEventListener('storage',storage)
+  }
+}
+
+export function updatePageFavicon(hash,mode){
   const link=document.getElementById('page-favicon')
   if(!link)return
   const route=hash.replace(/^#\/?/,'').split('?')[0]
   const segments=route.split('/')
   const section=segments[0],subsection=segments.slice(0,2).join('/')
   const icon=Object.hasOwn(pages,subsection)?pages[subsection]:Object.hasOwn(pages,section)?pages[section]:null
-  const href=icon?faviconUrl(...icon):import.meta.env.BASE_URL+'favicon.svg'
+  const href=mode==='hidden'?link.dataset.hiddenHref:
+    mode==='page'&&icon?faviconUrl(...icon):link.dataset.defaultHref
   if(link.getAttribute('href')!==href)link.setAttribute('href',href)
 }
 

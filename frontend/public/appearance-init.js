@@ -2,6 +2,10 @@
 (function () {
   var mode = 'dark';
   try {
+    var favicon = document.getElementById('page-favicon');
+    if (favicon && localStorage.getItem('platform-favicon-mode') === 'hidden') favicon.href = favicon.dataset.hiddenHref;
+  } catch (_) { /* Use the default icon if browser storage is unavailable. */ }
+  try {
     var account = JSON.parse(localStorage.getItem('user') || 'null');
     if (localStorage.getItem('token') && account && typeof account.id === 'string') {
       if (account.themeMode === 'light') mode = 'light';
