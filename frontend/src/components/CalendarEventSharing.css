@@ -1,0 +1,10 @@
+.calendar-event-share{margin-block:12px;padding:14px;border:1px solid var(--border);border-radius:10px;background:var(--surface-panel);color:var(--text-primary);overflow-wrap:anywhere}
+.calendar-event-share :is(h2,h3,h5){font-weight:650}
+.calendar-event-share p{margin-block:8px;color:var(--text-secondary)}
+.calendar-share-copy label{display:grid;gap:5px;font-size:13px}
+.calendar-share-copy input{width:100%;padding:8px;border:1px solid var(--border);border-radius:7px;background:var(--surface-input)}
+.shared-calendar-event{max-width:680px;padding:clamp(16px,4vw,28px)}
+.shared-calendar-event h2{font-size:22px}
+.shared-calendar-event ul{list-style:disc;padding-inline-start:22px;margin-block:8px 16px}
+.shared-calendar-notes{white-space:pre-wrap}
+.shared-calendar-event .calendar-detail-actions button{padding:8px 12px}

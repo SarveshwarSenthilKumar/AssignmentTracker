@@ -242,6 +242,9 @@ const Todo = mongoose.model('Todo', todoSchema);
 const CalendarEntry = mongoose.model('CalendarEntry', new mongoose.Schema({
   seriesId: { type: String, index: true },
   seriesRule: { type: mongoose.Schema.Types.Mixed },
+  eventShareHash: { type: String, index: { sparse: true }, select: false },
+  eventShareDocumentIds: { type: [mongoose.Schema.Types.ObjectId], default: undefined, select: false },
+  sharedFromEventId: { type: mongoose.Schema.Types.ObjectId },
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
   title: { type: String, required: true, maxlength: 200 },
   kind: { type: String, enum: ['appointment','marker','sports','class'], required: true },
@@ -876,6 +879,7 @@ require('./calendarCategories')(app,authenticateToken,{User,CalendarEntry,histor
 require('./calendarColors').registerCalendarColors(app,authenticateToken,{User,Todo,CalendarEntry,history:calendarHistory});
 require('./calendarSeries').registerCalendarSeries(app,authenticateToken,{CalendarEntry,history:calendarHistory,linksOwned:calendarLinksOwned});
 calendarHistory.register(app,authenticateToken);
+require('./calendarEventSharing')(app,authenticateToken,{User,CalendarEntry,PDF,PDFFolder,history:calendarHistory,documentNames,nameKey});
 require('./f1Calendar')(app,authenticateToken,{CalendarEntry,history:calendarHistory});
 registerTxstCalendar(app, authenticateToken, User, calendarHistory);
 require('./eventAttendance')(app,authenticateToken,mongoose);
