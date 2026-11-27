@@ -7,10 +7,14 @@ import { defaultNavigationPins, navigationPages } from './AppNavigation'
 import './NavigationSettings.css'
 
 const labels = Object.fromEntries(navigationPages)
+const newTabPages = [...navigationPages, ['account', 'Account settings']]
 
 export default function NavigationSettings() {
   const { user, token, updatePreferences } = useAuth()
   const saved = Array.isArray(user?.navigationPins) ? user.navigationPins : defaultNavigationPins
+  const savedNewTabs = user?.navigationNewTabs || []
+  const [newTabDraft, setNewTabDraft] = useState(null)
+  const newTabs = newTabDraft ?? savedNewTabs
   const [draft, setDraft] = useState(null)
   const [chosen, setChosen] = useState('')
   const [busy, setBusy] = useState(false)
@@ -20,7 +24,7 @@ export default function NavigationSettings() {
   const available = id => featureVisible(user?.hiddenFeatures, id)
   const choices = navigationPages.filter(([id]) => available(id) && !pins.includes(id))
   const selection = choices.some(([id]) => id === chosen) ? chosen : choices[0]?.[0] || ''
-  const dirty = pins.length !== saved.length || pins.some((id, index) => id !== saved[index])
+  const dirty = pins.length !== saved.length || pins.some((id, index) => id !== saved[index]) || newTabs.length !== savedNewTabs.length || newTabs.some(id => !savedNewTabs.includes(id))
 
   function edit(next) {
     setDraft(next)
@@ -36,20 +40,21 @@ export default function NavigationSettings() {
     edit(next)
   }
 
-  async function save(value) {
+  async function save(value, newTabValues) {
     setBusy(true); setError(''); setStatus('')
     try {
       const response = await fetch('/api/account/preferences', {
         method: 'PUT',
         headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ navigationPins: value }),
+        body: JSON.stringify({ navigationPins: value, navigationNewTabs: newTabValues }),
       })
       const data = await readApiJson(response)
       if (!response.ok) throw new Error(data.message || 'Could not save navigation settings.')
-      if (data.navigationPins !== null && !Array.isArray(data.navigationPins)) throw new Error('Restart the updated backend and try again.')
-      updatePreferences({ navigationPins: data.navigationPins })
+      if ((data.navigationPins !== null && !Array.isArray(data.navigationPins)) || !Array.isArray(data.navigationNewTabs)) throw new Error('Restart the updated backend and try again.')
+      updatePreferences({ navigationPins: data.navigationPins, navigationNewTabs: data.navigationNewTabs })
+      setNewTabDraft(null)
       setDraft(null)
-      setStatus(value === null ? 'Default navigation restored.' : 'Navigation saved.')
+      setStatus('Navigation saved.')
     } catch (failure) { setError(failure.message) }
     finally { setBusy(false) }
   }
@@ -74,10 +79,22 @@ export default function NavigationSettings() {
       </select>
       <button type="button" disabled={busy} onClick={() => edit([...pins, selection])}>Pin page</button>
     </div>}
+    <details className="navigation-new-tab-settings">
+      <summary>Open in new tab buttons</summary>
+      <p>Turn on a separate new-tab button beside any page in the bar or menus.</p>
+      {newTabPages.map(([id, label]) => <label key={id}>
+        <span>{label}{!available(id) && <small>Hidden in Platform visibility</small>}</span>
+        <input type="checkbox" role="switch" checked={newTabs.includes(id)} disabled={busy} onChange={event => {
+          setNewTabDraft(event.target.checked ? [...newTabs, id] : newTabs.filter(route => route !== id))
+          setStatus('')
+          setError('')
+        }}/>
+      </label>)}
+    </details>
     <div className="navigation-settings-actions">
-      <button type="button" disabled={busy || !dirty} onClick={() => save(pins)}>{busy ? 'Saving…' : 'Save navigation'}</button>
-      {dirty && <button type="button" disabled={busy} onClick={() => edit(null)}>Cancel changes</button>}
-      <button type="button" disabled={busy || (!dirty && user?.navigationPins == null)} onClick={() => save(null)}>Restore defaults</button>
+      <button type="button" disabled={busy || !dirty} onClick={() => save(draft === null ? user?.navigationPins ?? null : pins, newTabs)}>{busy ? 'Saving…' : 'Save navigation'}</button>
+      {dirty && <button type="button" disabled={busy} onClick={() => { edit(null); setNewTabDraft(null) }}>Cancel changes</button>}
+      <button type="button" disabled={busy || (!dirty && user?.navigationPins == null && !savedNewTabs.length)} onClick={() => save(null, [])}>Restore defaults</button>
     </div>
     {status && <p role="status">{status}</p>}
     {error && <p role="alert">{error}</p>}
