@@ -8,7 +8,10 @@ import './AppNavigation.css'
 const primary=[['home','Home',Home],['workspace','Workspace',Layers],['tasks','Tasks',CheckSquare],['calendar','Calendar',CalendarDays],['documents','Documents',FolderOpen]]
 const career=[['prep','Prep',Briefcase,'Practice interviews and prepare application materials'],['resumes','Resumes',FileText,'Store and tailor your experience'],['cover-letters','Cover letters',Mail,'Write in your own voice'],['jobs','Saved jobs',Briefcase,'Keep opportunities in one place']]
 const tools=[['bookmarks','Bookmarks',Bookmark,'Save platform pages and external links'],['detective-wall','Detective wall',Pin,'Pin notes and photos, then connect the threads'],['whiteboards','Team whiteboards',Users,'Brainstorm and draw together in real time'],['tutorial','Tutorial',BookOpen,'Learn every part of AssignmentTracker step by step'],['calendar-tab','Open Calendar in new tab',CalendarDays,'Open Calendar separately in your browser'],['suggest-feature','Suggest a feature',Sparkles,'Propose improvements and track their progress'],['report-bug','Report a bug',Bug,'Send a section-specific issue report'],['roadmap','Site roadmap',Layers,'Suggestions, planned features and work in progress'],['analytics','Analytics',BarChart3,'Storage, counts, activity and task health'],['study','Question bank',Star,'Save questions, answers and study topics'],['assistant','AI assistant',Sparkles,'Think, write and work with your files'],['visualization','Visualization',Network,'Explore tasks and connections'],['canvas','Canvas',RefreshCw,'Manage your course integration'],['shortcuts','Keyboard shortcuts',Keyboard,'Move around a little faster']]
-const routes=[...primary,...career,...tools.filter(item=>item[0]!=='calendar-tab'),['account','Account',Settings]]
+const pinnable = [...primary, ...career, ...tools.filter(item => item[0] !== 'calendar-tab')]
+export const navigationPages = pinnable.map(([id, label]) => [id, label])
+export const defaultNavigationPins = primary.map(([id]) => id)
+const routes = [...pinnable, ['account','Account',Settings]]
 
 export default function AppNavigation({page,user,onSignOut,lockActions=[],hiddenFeatures}){
   const [open,setOpen]=useState(null),root=useRef(null),trigger=useRef(null),id=useId()
@@ -37,10 +40,15 @@ export default function AppNavigation({page,user,onSignOut,lockActions=[],hidden
   </button>
   const highlightTutorial = Number.isFinite(tutorialUntil) && now < tutorialUntil
   const available = route => featureVisible(hiddenFeatures, route)
-  const visiblePrimary = primary.filter(([route]) => available(route))
-  const visibleCareer = career.filter(([route]) => available(route))
-  const visibleTools = (highlightTutorial ? tools : [...tools.filter(item=>item[0]!=='tutorial'), tools.find(item=>item[0]==='tutorial')])
-    .filter(([route]) => available(route))
+  const pinIds = Array.isArray(user?.navigationPins) ? user.navigationPins : defaultNavigationPins
+  const visiblePrimary = pinIds.flatMap(id => {
+    const item = pinnable.find(([route]) => route === id)
+    return item && available(id) ? [item] : []
+  })
+  const isUnpinned = ([route]) => available(route) && !pinIds.includes(route)
+  const visibleCareer = career.filter(isUnpinned)
+  const orderedTools = highlightTutorial ? tools : [...tools.filter(item=>item[0]!=='tutorial'), tools.find(item=>item[0]==='tutorial')]
+  const visibleTools = [...primary, ...orderedTools].filter(isUnpinned)
   useEffect(()=>{
     if(!Number.isFinite(tutorialUntil)||tutorialUntil<=Date.now())return
     const timer=setTimeout(()=>setNow(Date.now()),Math.min(tutorialUntil-Date.now()+1,2147483647))
@@ -91,7 +99,7 @@ export default function AppNavigation({page,user,onSignOut,lockActions=[],hidden
     {available('global-search') && <button type="button" className="an-global-search" onClick={()=>{setOpen(null);window.dispatchEvent(new Event('global-search-open'))}} aria-label="Search the entire platform (Ctrl or Cmd K)"><Search size={16}/><span>Search</span><kbd>⌘ / Ctrl K</kbd></button>}
     <div className="an-account"><button className={`an-avatar-trigger${open==='account'?' is-open':''}`} type="button" aria-label={`Account menu for ${displayName}`} aria-expanded={open==='account'} aria-controls={open==='account'?`${id}-account`:undefined} onClick={event=>toggle('account',event)} onKeyDown={event=>{if(event.key==='ArrowDown'){event.preventDefault();trigger.current=event.currentTarget;setOpen('account');focusPanel()}}}><span className="an-avatar">{initial}</span><span className="an-account-name">{displayName}</span><ChevronDown size={12}/></button>{open==='account'&&<div data-nav-panel id={`${id}-account`} className="an-panel an-account-panel" aria-label="Account actions"><div className="an-user"><strong>{displayName}</strong><span>Manage your workspace</span></div>{link(['account','Account settings',Settings],true)}{lockActions.length > 0 && <><div className="an-panel-divider"/>{lockActions.map(({label,icon:Icon,onClick})=><button key={label} type="button" className="an-account-action" onClick={()=>{setOpen(null);onClick()}}><Icon size={16} aria-hidden="true"/>{label}</button>)}</>}<div className="an-panel-divider"/><button type="button" className="an-signout" onClick={()=>{setOpen(null);onSignOut()}}><LogOut size={16}/>Sign out</button></div>}</div>
     <button type="button" className="an-mobile-toggle" aria-label={open==='mobile'?'Close navigation':'Open navigation'} aria-expanded={open==='mobile'} aria-controls={open==='mobile'?`${id}-mobile`:undefined} onClick={event=>toggle('mobile',event)}>{open==='mobile'?<X size={19}/>:<Menu size={19}/>}</button>
-    {open==='mobile'&&<div data-nav-panel id={`${id}-mobile`} className="an-mobile-panel" aria-label="All navigation"><nav className="an-section" aria-label="Workspace pages"><p className="an-panel-label">Workspace</p>{visiblePrimary.map(primaryLink)}</nav><nav className="an-section" aria-label="Career pages"><p className="an-panel-label">Career</p>{visibleCareer.map(item=>link(item))}</nav><nav className="an-section" aria-label="Tools and settings"><p className="an-panel-label">Tools & settings</p>{fullscreenButton(false)}{tabColorButton(false)}{visibleTools.map(item=>link(item))}{link(['account','Account settings',Settings])}</nav></div>}
+    {open==='mobile'&&<div data-nav-panel id={`${id}-mobile`} className="an-mobile-panel" aria-label="All navigation"><nav className="an-section" aria-label="Pinned pages"><p className="an-panel-label">Pinned pages</p>{visiblePrimary.map(primaryLink)}</nav><nav className="an-section" aria-label="Career pages"><p className="an-panel-label">Career</p>{visibleCareer.map(item=>link(item))}</nav><nav className="an-section" aria-label="Tools and settings"><p className="an-panel-label">Tools & settings</p>{fullscreenButton(false)}{tabColorButton(false)}{visibleTools.map(item=>link(item))}{link(['account','Account settings',Settings])}</nav></div>}
   </header>
 }
 

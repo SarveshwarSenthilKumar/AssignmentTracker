@@ -1,0 +1,9 @@
+.navigation-settings ol{display:grid;gap:6px;max-width:36rem;margin:12px 0;padding-inline-start:24px}
+.navigation-settings li{display:list-item;list-style:decimal;border-bottom:1px solid var(--border);padding:6px 0}
+.navigation-settings li>span{display:inline-block;margin-inline-end:8px}
+.navigation-settings li small{display:block;color:var(--text-muted)}
+.navigation-settings-actions{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-block:8px}
+.navigation-settings li .navigation-settings-actions{display:inline-flex;margin:0;vertical-align:middle}
+.navigation-settings-actions :is(button,select){padding:6px 9px;border:1px solid var(--border);border-radius:7px;background:var(--surface-input)}
+.navigation-settings-actions button:disabled{opacity:.4}
+.navigation-settings-actions :is(button,select):focus-visible{outline:2px solid var(--accent);outline-offset:2px}

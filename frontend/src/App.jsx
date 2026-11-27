@@ -1,3 +1,4 @@
+import NavigationSettings from './components/NavigationSettings'
 import FeatureVisibilitySettings from './components/FeatureVisibilitySettings'
 import { featureVisible } from './lib/featureVisibility'
 import { SharedCalendarEvent } from './components/CalendarEventSharing'
@@ -2352,6 +2353,7 @@ function App({onFaviconPage}) {
               <h2 id="account-preferences-title">Preferences</h2>
               <div className="account-settings-grid">
                 <AppearanceSettings/>
+                <NavigationSettings/>
                 {unavailablePage && <p role="status">That section is turned off. You can restore it below.</p>}
                 <FeatureVisibilitySettings isAdmin={isAdmin} onSaved={unavailablePage ? ()=>navigate('account') : undefined}/>
                 <SetupBannerSettings/>

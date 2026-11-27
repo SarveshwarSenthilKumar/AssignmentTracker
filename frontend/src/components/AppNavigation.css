@@ -15,3 +15,6 @@
 
 .app-navigation :is(.an-fullscreen,.an-menu-button){width:100%;background:transparent;text-align:left;cursor:pointer}
 .app-navigation .an-fullscreen:disabled{opacity:.5;cursor:default}
+
+.app-navigation .an-desktop{overflow-x:auto;overscroll-behavior-inline:contain;scrollbar-width:thin}
+.an-desktop-groups .an-panel{max-height:calc(100dvh - 120px);overflow-y:auto}
