@@ -19,3 +19,14 @@
 .platform-tutorial button:disabled{opacity:.4}
 .platform-tutorial :is(a,button,input):focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 @media(max-width:720px){.platform-tutorial-layout{grid-template-columns:minmax(0,1fr)}.platform-tutorial nav{display:flex;overflow:auto;padding-bottom:6px}.platform-tutorial nav button{flex-shrink:0}}
+
+.platform-tutorial-topics{min-width:0}
+.platform-tutorial-topics>label{display:grid;gap:6px;margin-bottom:14px;font-size:13px}
+.platform-tutorial-topics input[type=search]{min-width:0;width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface-input);color:var(--text-primary)}
+.platform-tutorial-topics nav{gap:16px;max-height:min(62vh,680px);overflow:auto;padding:4px}
+.platform-tutorial-topic{display:grid;gap:4px}
+.platform-tutorial-topic h2{margin:0 0 4px;font-size:13px;font-weight:650;color:var(--text-secondary)}
+.platform-tutorial-instructions{list-style:decimal;max-width:75ch;padding-inline-start:24px;line-height:1.7;color:var(--text-secondary)}
+.platform-tutorial-instructions li+li{margin-top:10px}
+.platform-tutorial-practice h4{margin:0;font-weight:650}
+@media(max-width:720px){.platform-tutorial-topics nav{display:grid;max-height:235px}}

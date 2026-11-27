@@ -18,3 +18,5 @@
 .pdf-tutorial-header-actions,.pdf-tutorial-actions { display:flex;flex-wrap:wrap;gap:6px; }
 .pdf-tutorial-actions { margin-block:12px; }
 .pdf-tutorial-actions button[aria-pressed=true] { background:var(--surface-raised);border-color:var(--accent); }
+
+.pdf-tutorial-instructions{list-style:decimal;padding-inline-start:24px;margin-block:0 14px;font-size:14px;line-height:1.65}
