@@ -1,5 +1,5 @@
-import { useMemo, useRef, useState } from 'react'
-import { ArrowUpRight, Bookmark, Pencil, Plus, Trash2 } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { ArrowLeft, ArrowUpRight, Bookmark, Folder, Pencil, Plus, Trash2 } from 'lucide-react'
 import { documentRoute } from '../lib/openInTab'
 import { descriptionParts, documentTaskIds } from '../lib/taskAttachments'
 import './BookmarksPage.css'
@@ -95,7 +95,8 @@ function workspaceSuggestions(tasks, folders, documents) {
 export default function BookmarksPage({ userId, tasks, folders, documentFolders, documents, showSuggestions = true }) {
   const storageKey = 'platform-bookmarks:' + userId
   const [{ bookmarks, folders: bookmarkFolders }, setLibrary] = useState(() => readBookmarks(storageKey))
-  const [folderFilter, setFolderFilter] = useState('all')
+  const [folderFilter, setFolderFilter] = useState(null)
+  const [formOpen, setFormOpen] = useState(false)
   const [folderDraft, setFolderDraft] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const currentFolder = bookmarkFolders.find(folder => folder.id === folderFilter)
@@ -110,6 +111,10 @@ export default function BookmarksPage({ userId, tasks, folders, documentFolders,
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const titleField = useRef(null)
+  const savedView = folderFilter === 'all' || folderFilter === '' || Boolean(currentFolder)
+  useEffect(() => {
+    if (formOpen) titleField.current?.focus()
+  }, [formOpen, editing])
   const shown = bookmarks.filter(item => (folderFilter === 'all' || item.folderId === folderFilter) && (item.title + ' ' + item.url).toLowerCase().includes(query.trim().toLowerCase()))
 
   const save = (next, message, nextFolders = bookmarkFolders) => {
@@ -142,7 +147,7 @@ export default function BookmarksPage({ userId, tasks, folders, documentFolders,
     if (save(next, editing ? 'Bookmark updated.' : 'Bookmark added.')) {
       setEditing(null)
       setDraft({ ...emptyDraft, folderId: record.folderId })
-      if (folderFilter !== 'all') setFolderFilter(record.folderId)
+      setFormOpen(false)
       setQuery('')
     }
   }
@@ -151,7 +156,11 @@ export default function BookmarksPage({ userId, tasks, folders, documentFolders,
     setFolderFilter(id)
     setConfirmDelete(false)
     setFolderDraft(null)
-    if (!editing) setDraft(previous => ({ ...previous, folderId: id === 'all' ? '' : id }))
+    setEditing(null)
+    setFormOpen(false)
+    setQuery('')
+    setError('')
+    setDraft({ ...emptyDraft, folderId: bookmarkFolders.some(folder => folder.id === id) ? id : '' })
   }
 
   const saveFolder = event => {
@@ -164,34 +173,41 @@ export default function BookmarksPage({ userId, tasks, folders, documentFolders,
     }
     const folder = { id: folderDraft.id || crypto.randomUUID(), name }
     const next = folderDraft.id ? bookmarkFolders.map(item => item.id === folder.id ? folder : item) : [...bookmarkFolders, folder]
-    if (save(bookmarks, folderDraft.id ? 'Folder renamed.' : 'Folder created.', next)) selectFolder(folder.id)
+    if (save(bookmarks, folderDraft.id ? 'Folder renamed.' : 'Folder created.', next)) {
+      selectFolder(folder.id)
+      setDraft({ ...emptyDraft, folderId: folder.id })
+    }
   }
 
   const removeFolder = () => {
     const id = currentFolder.id
     const next = bookmarks.map(item => item.folderId === id ? { ...item, folderId: '' } : item)
     if (!save(next, 'Folder removed. Its bookmarks are in Unfiled.', bookmarkFolders.filter(folder => folder.id !== id))) return
-    if (draft.folderId === id) setDraft(previous => ({ ...previous, folderId: '' }))
-    selectFolder('')
+    selectFolder(null)
   }
 
   return <section className="bookmarks-page" aria-label="Bookmarks">
     <section className="bookmark-folders" aria-labelledby="bookmark-folders-title">
-      <h2 id="bookmark-folders-title">Folders</h2>
-      <label>Show bookmarks
-        <select value={folderFilter} onChange={event => selectFolder(event.target.value)}>
-          <option value="all">All bookmarks</option>
-          <option value="">Unfiled</option>
-          {bookmarkFolders.map(folder => <option key={folder.id} value={folder.id}>{folder.name}</option>)}
-        </select>
-      </label>
-      <div className="bookmark-actions">
-        <button type="button" onClick={() => { setFolderDraft({ name: '' }); setConfirmDelete(false); setError('') }}>New folder</button>
+      <h2 id="bookmark-folders-title">{folderFilter === null ? 'Folders' : currentFolder?.name ?? ({ all: 'All bookmarks', '': 'Unfiled', suggestions: 'Suggested links', quick: 'Quick links' })[folderFilter]}</h2>
+      {folderFilter === null ? <>
+        <ul className="bookmark-folder-grid">
+          {[['all', 'All bookmarks', Bookmark], ['', 'Unfiled', Folder], ...bookmarkFolders.map(folder => [folder.id, folder.name, Folder])].map(([id, name, Icon]) =>
+            <li key={id}><button type="button" onClick={() => selectFolder(id)}><Icon size={16} aria-hidden="true"/>{name}</button></li>
+          )}
+          {showSuggestions && <li><button type="button" onClick={() => selectFolder('suggestions')}>Suggested links</button></li>}
+          <li><button type="button" onClick={() => selectFolder('quick')}>Quick links</button></li>
+        </ul>
+        <div className="bookmark-actions"><button type="button" onClick={() => { setFolderDraft({ name: '' }); setError('') }}>New folder</button></div>
+      </> : <div className="bookmark-actions">
+        <button type="button" onClick={() => { setNotice(''); selectFolder(null) }}><ArrowLeft size={16} aria-hidden="true"/>Back to folders</button>
+        {savedView && !formOpen && <button type="button" onClick={() => {
+          setDraft({ ...emptyDraft, folderId: defaultFolderId }); setError(''); setNotice(''); setFormOpen(true)
+        }}><Plus size={16} aria-hidden="true"/>Add bookmark</button>}
         {currentFolder && <>
           <button type="button" onClick={() => { setFolderDraft({ ...currentFolder }); setConfirmDelete(false); setError('') }}>Rename folder</button>
           <button type="button" onClick={() => { setConfirmDelete(true); setFolderDraft(null) }}>Remove folder</button>
         </>}
-      </div>
+      </div>}
       {folderDraft && <form onSubmit={saveFolder}>
         <label>Folder name<input value={folderDraft.name} onChange={event => setFolderDraft({ ...folderDraft, name: event.target.value })} maxLength={100} required /></label>
         <div className="bookmark-actions">
@@ -210,7 +226,7 @@ export default function BookmarksPage({ userId, tasks, folders, documentFolders,
       {notice && <p role="status">{notice}</p>}
     </section>
 
-    <form className="bookmark-form" onSubmit={submit}>
+    {savedView && formOpen && <form className="bookmark-form" onSubmit={submit}>
       <h2>{editing ? 'Edit bookmark' : 'Add a bookmark'}</h2>
       <label>Name<input ref={titleField} value={draft.title} onChange={event => setDraft({ ...draft, title: event.target.value })} maxLength={100} required /></label>
       <label>Link<input value={draft.url} onChange={event => setDraft({ ...draft, url: event.target.value })} placeholder="https://example.com or #/tasks" maxLength={2048} required /></label>
@@ -222,11 +238,11 @@ export default function BookmarksPage({ userId, tasks, folders, documentFolders,
       </label>}
       <div className="bookmark-actions">
         <button type="submit"><Plus size={16} aria-hidden="true" />{editing ? 'Save changes' : 'Add bookmark'}</button>
-        {editing && <button type="button" onClick={() => { setEditing(null); setDraft({ ...emptyDraft, folderId: defaultFolderId }); setError('') }}>Cancel</button>}
+        <button type="button" onClick={() => { setFormOpen(false); setEditing(null); setDraft({ ...emptyDraft, folderId: defaultFolderId }); setError('') }}>Cancel</button>
       </div>
-    </form>
+    </form>}
 
-    <section className="bookmark-list" aria-labelledby="saved-bookmarks-title">
+    {savedView && <section className="bookmark-list" aria-labelledby="saved-bookmarks-title">
       <h2 id="saved-bookmarks-title">{currentFolder?.name ?? (folderFilter === 'all' ? "Saved bookmarks" : "Unfiled")}</h2>
       {bookmarks.length > 0 && <label>Find a bookmark<input type="search" value={query} onChange={event => setQuery(event.target.value)} /></label>}
       {shown.length ? <ul>{shown.map(item => {
@@ -238,22 +254,27 @@ export default function BookmarksPage({ userId, tasks, folders, documentFolders,
           </a>
           <div className="bookmark-actions">
             <button type="button" aria-label={'Edit ' + item.title} onClick={() => {
-              setEditing(item.id); setDraft({ title: item.title, url: item.url, folderId: item.folderId }); setError(''); setNotice(''); titleField.current?.focus()
+              setEditing(item.id); setDraft({ title: item.title, url: item.url, folderId: item.folderId }); setError(''); setNotice(''); setFormOpen(true)
             }}><Pencil size={15} aria-hidden="true" /></button>
             <button type="button" aria-label={'Remove ' + item.title} onClick={() => {
               if (save(bookmarks.filter(entry => entry.id !== item.id), 'Bookmark removed.') && editing === item.id) {
-                setEditing(null); setDraft({ ...emptyDraft, folderId: defaultFolderId })
+                setFormOpen(false); setEditing(null); setDraft({ ...emptyDraft, folderId: defaultFolderId })
               }
             }}><Trash2 size={15} aria-hidden="true" /></button>
           </div>
         </li>
       })}</ul> : <p>{query.trim() ? 'No bookmarks match your search.' : folderFilter !== 'all' ? 'This folder is empty.' : 'Add a link to keep it handy.'}</p>}
       <p className="bookmark-note">Bookmarks are saved for your account in this browser.</p>
-    </section>
+    </section>}
 
-    {showSuggestions && <section className="bookmark-list bookmark-suggestions" aria-labelledby="bookmark-suggestions-title">
-      <h2 id="bookmark-suggestions-title">Suggested links</h2>
-      {currentFolder && <p>Suggestions will be saved to {currentFolder.name}.</p>}
+    {showSuggestions && folderFilter === 'suggestions' && <section className="bookmark-list bookmark-suggestions" aria-labelledby="bookmark-suggestions-title">
+      <h2 id="bookmark-suggestions-title">Choose where to save suggestions</h2>
+      {bookmarkFolders.length > 0 && <label>Destination folder
+        <select value={draft.folderId} onChange={event => setDraft({ ...emptyDraft, folderId: event.target.value })}>
+          <option value="">Unfiled</option>
+          {bookmarkFolders.map(folder => <option key={folder.id} value={folder.id}>{folder.name}</option>)}
+        </select>
+      </label>}
       {suggestions.length ? <ul>{suggestions.slice(0, suggestionLimit).map(item => {
         const newTab = opensInNewTab(item.url)
         const [firstSource] = item.sources
@@ -265,7 +286,7 @@ export default function BookmarksPage({ userId, tasks, folders, documentFolders,
           <div className="bookmark-actions">
             <button type="button" aria-label={'Save bookmark for ' + item.url} onClick={() => {
               setNotice('')
-              if (save([{ id: crypto.randomUUID(), title: item.title, url: item.url, folderId: defaultFolderId }, ...bookmarks], 'Bookmark added.')) setQuery('')
+              if (save([{ id: crypto.randomUUID(), title: item.title, url: item.url, folderId: draft.folderId }, ...bookmarks], 'Bookmark added.')) setQuery('')
             }}><Bookmark size={15} aria-hidden="true" />Save</button>
           </div>
         </li>
@@ -275,9 +296,9 @@ export default function BookmarksPage({ userId, tasks, folders, documentFolders,
       </div>}
     </section>}
 
-    <section className="bookmark-quick-links" aria-labelledby="bookmark-quick-links-title">
+    {folderFilter === 'quick' && <section className="bookmark-quick-links" aria-labelledby="bookmark-quick-links-title">
       <h2 id="bookmark-quick-links-title">Quick links</h2>
       <ul>{quickLinks.map(([title, url]) => <li key={url}><a href={url}>{title}<ArrowUpRight size={14} aria-hidden="true" /></a></li>)}</ul>
-    </section>
+    </section>}
   </section>
 }
