@@ -1,12 +1,14 @@
+import { featureVisible } from '../lib/featureVisibility'
 import {useId,useLayoutEffect,useRef,useState} from 'react'
 import {calendarDay,entryDraft,entryPayload} from '../lib/calendar'
 import {taskDuePayload} from './TaskDueInput'
 import {activeTimeZone} from '../lib/timeZone'
 import './DocumentFolderNavigation.css'
 
-export default function PDFQuickActions({token,onTaskCreated,onSaved,onClose}){
+export default function PDFQuickActions({token,onTaskCreated,onSaved,onClose,hiddenFeatures}){
   const dialog=useRef(null),saving=useRef(false)
   const heading=useId()
+  const tasksEnabled=featureVisible(hiddenFeatures,'tasks'), calendarEnabled=featureVisible(hiddenFeatures,'calendar')
   const [action,setAction]=useState(null)
   const [task,setTask]=useState({title:'',due:''})
   const [draft,setDraft]=useState(()=>entryDraft(calendarDay(new Date())))
@@ -60,11 +62,11 @@ export default function PDFQuickActions({token,onTaskCreated,onSaved,onClose}){
     onClose={onClose} onCancel={event=>{if(saving.current)event.preventDefault()}} onKeyDown={event=>event.stopPropagation()}>
     {!action ? <div className="pdf-quick-action-list">
       <h2 id={heading}>Quick actions</h2>
-      <button type="button" data-quick-focus onClick={()=>choose('task')}>New task</button>
-      <button type="button" onClick={()=>choose('event')}>New calendar event</button>
-      <a href="#/tasks" target="_blank" rel="noopener noreferrer">Open Tasks in a new tab</a>
-      <a href="#/calendar" target="_blank" rel="noopener noreferrer">Open Calendar in a new tab</a>
-      <a href="#/workspace" target="_blank" rel="noopener noreferrer">Open Workspace in a new tab</a>
+      {tasksEnabled && <button type="button" data-quick-focus onClick={()=>choose('task')}>New task</button>}
+      {calendarEnabled && <button type="button" onClick={()=>choose('event')}>New calendar event</button>}
+      {tasksEnabled && <a href="#/tasks" target="_blank" rel="noopener noreferrer">Open Tasks in a new tab</a>}
+      {calendarEnabled && <a href="#/calendar" target="_blank" rel="noopener noreferrer">Open Calendar in a new tab</a>}
+      {featureVisible(hiddenFeatures,'workspace') && <a href="#/workspace" target="_blank" rel="noopener noreferrer">Open Workspace in a new tab</a>}
       <footer><button type="button" onClick={()=>dialog.current.close()}>Close</button></footer>
     </div> : <form onSubmit={save}>
       {action==='task' ? <>

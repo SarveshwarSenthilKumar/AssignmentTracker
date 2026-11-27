@@ -1,3 +1,4 @@
+import { featureVisible } from '../lib/featureVisibility'
 import {useEffect,useState} from 'react'
 import {CheckCircle2,ChevronDown,KeyRound,Settings2,X} from 'lucide-react'
 import {PDF_FINGER_MODE_CHANGED,readPDFFingerMode,savePDFFingerMode} from '../lib/pdfFingerMode'
@@ -5,7 +6,7 @@ import './SetupBanner.css'
 
 const readProgress=id=>{try{return JSON.parse(localStorage.getItem(`workspace-setup:${id}`)||'{}')||{}}catch{return {}}}
 
-export default function SetupBanner({token,userId,page,canvasStatus}){
+export default function SetupBanner({token,userId,page,canvasStatus,hiddenFeatures}){
   const [progress,setProgress]=useState(()=>readProgress(userId))
   const [fingerMode,setFingerMode]=useState(readPDFFingerMode)
   useEffect(()=>{
@@ -48,7 +49,8 @@ export default function SetupBanner({token,userId,page,canvasStatus}){
     {id:'pdf-finger',title:'Choose how one finger works in PDFs',description:'Scroll is the default. You can switch modes anytime in the PDF toolbar.',done:!!progress['pdf-finger']},
     {id:'tutorial',title:'Explore the platform tutorial',description:'Learn the editor, tasks, calendar and sharing tools.',done:!!progress.tutorial,route:'tutorial'},
     {id:'canvas',title:'Connect Canvas (optional)',description:'Import your courses and assignments, or skip this step.',done:!!canvasStatus?.hasCredentials||!!progress.canvas,automatic:!!canvasStatus?.hasCredentials,route:'canvas',optional:true}
-  ]
+  ].filter(task => featureVisible(hiddenFeatures, task.id === 'pdf-finger' ? 'documents' : task.route))
+  const keyTask = tasks.find(task => task.id === 'key')
   const remaining=tasks.filter(task=>!task.done)
   const openTask=(event,task)=>{
     if(event.ctrlKey||event.metaKey||event.shiftKey||event.altKey)return
@@ -60,7 +62,7 @@ export default function SetupBanner({token,userId,page,canvasStatus}){
       {remaining.length?<KeyRound size={19} aria-hidden="true"/>:<CheckCircle2 size={19} aria-hidden="true"/>}
       <div><strong>{remaining.length?'Finish setting up your workspace':'Your workspace is ready'}</strong><p>{credentials&&!hasKey?'Set up your Gemini API key to use AI features. ':''}{remaining.length?`${remaining.length} setup ${remaining.length===1?'item':'items'} remaining.`:'All setup items are complete.'}</p></div>
       <div className="setup-banner-actions">
-        {credentials&&!hasKey&&<a href="#/account" onClick={event=>openTask(event,tasks[0])}>Set up API key</a>}
+        {credentials&&!hasKey&&<a href="#/account" onClick={event=>openTask(event,keyTask)}>Set up API key</a>}
         <button type="button" aria-expanded={expanded} aria-controls="workspace-setup-checklist" onClick={()=>setExpanded(value=>!value)}>Checklist<ChevronDown size={15} className={expanded?'is-expanded':''}/></button>
         <button type="button" aria-label="Dismiss setup banner" title="Dismiss; reopen using Setup checklist" onClick={()=>update({dismissed:true})}><X size={17}/></button>
       </div>

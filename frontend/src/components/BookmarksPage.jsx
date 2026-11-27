@@ -86,14 +86,14 @@ function workspaceSuggestions(tasks, folders, documents) {
   return [...results.values()]
 }
 
-export default function BookmarksPage({ userId, tasks, folders, documentFolders, documents }) {
+export default function BookmarksPage({ userId, tasks, folders, documentFolders, documents, showSuggestions = true }) {
   const storageKey = 'platform-bookmarks:' + userId
   const [bookmarks, setBookmarks] = useState(() => readBookmarks(storageKey))
   const [draft, setDraft] = useState(emptyDraft)
   const [editing, setEditing] = useState(null)
   const [query, setQuery] = useState('')
   const [suggestionLimit, setSuggestionLimit] = useState(12)
-  const candidates = useMemo(() => workspaceSuggestions(tasks, [...folders, ...documentFolders], documents), [tasks, folders, documentFolders, documents])
+  const candidates = useMemo(() => showSuggestions ? workspaceSuggestions(tasks, [...folders, ...documentFolders], documents) : [], [showSuggestions, tasks, folders, documentFolders, documents])
   const savedUrls = new Set(bookmarks.map(item => item.url))
   const suggestions = candidates.filter(item => !savedUrls.has(item.url))
   const [error, setError] = useState('')
@@ -173,7 +173,7 @@ export default function BookmarksPage({ userId, tasks, folders, documentFolders,
       <p className="bookmark-note">Bookmarks are saved for your account in this browser.</p>
     </section>
 
-    <section className="bookmark-list bookmark-suggestions" aria-labelledby="bookmark-suggestions-title">
+    {showSuggestions && <section className="bookmark-list bookmark-suggestions" aria-labelledby="bookmark-suggestions-title">
       <h2 id="bookmark-suggestions-title">Suggested links</h2>
       {suggestions.length ? <ul>{suggestions.slice(0, suggestionLimit).map(item => {
         const newTab = opensInNewTab(item.url)
@@ -194,7 +194,7 @@ export default function BookmarksPage({ userId, tasks, folders, documentFolders,
       {suggestions.length > suggestionLimit && <div className="bookmark-actions bookmark-more">
         <button type="button" onClick={() => setSuggestionLimit(value => value + 12)}>Show more links</button>
       </div>}
-    </section>
+    </section>}
 
     <section className="bookmark-quick-links" aria-labelledby="bookmark-quick-links-title">
       <h2 id="bookmark-quick-links-title">Quick links</h2>

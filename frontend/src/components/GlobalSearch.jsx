@@ -1,3 +1,4 @@
+import { featureVisible, searchFeatures, shortcutVisible } from '../lib/featureVisibility'
 import {useEffect,useId,useRef,useState} from 'react'
 import {createPortal} from 'react-dom'
 import {Search,X,ArrowUpRight,Loader2} from 'lucide-react'
@@ -8,7 +9,7 @@ import './GlobalSearch.css'
 
 const PAGES=[['bookmarks','Bookmarks','Saved links favorites quick links'],['study','Study stars','Starred questions topics answers review learning notes'],['home','Home','Dashboard overview today'],['tasks','Tasks','Assignments deadlines todos folders subfolders drag drop sort priorities undo delete completion progress'],['calendar','Calendar','Appointments events sports F1 categories season import'],['documents','Documents','PDF editor notes handwriting calculator graph markdown OneNote folders subfolders upload annotation pen highlight eraser stylus palm finger scrolling pinch zoom fullscreen continuous pages delete reorder copy paste snippets cleanup stopwatch timer clock fonts text editing'],['workspace','Workspace','Windows tools layout'],['resumes','Resumes','Resume tailoring job application'],['cover-letters','Cover letters','Generate tailor cleanup letters'],['jobs','Jobs','Saved jobs Handshake import OCR'],['assistant','AI assistant','Chats conversations Gemini'],['visualization','Visualization','Task graph dependencies'],['canvas','Canvas','Courses sync ICS import'],['account','Account','Profile time zone AI access API keys settings connections preferences GitHub LinkedIn confirmation permissions'],['shortcuts','Keyboard shortcuts','Hotkeys help']]
 const LABELS={study:'Starred questions & topics',pages:'Pages & features',shortcuts:'Keyboard shortcuts',tasks:'Tasks & Canvas items',documents:'Documents, notes, resumes & letters',events:'Calendar events',jobs:'Saved jobs',chats:'Assistant conversations',taskFolders:'Task folders',documentFolders:'Document folders',categories:'Calendar categories',campus:'TXST public events'}
-export default function GlobalSearch({token,onChoose}){
+export default function GlobalSearch({token,onChoose,hiddenFeatures}){
   const [open,setOpen]=useState(false),[query,setQuery]=useState(''),[groups,setGroups]=useState([]),[categories,setCategories]=useState([]),[busy,setBusy]=useState(false),[error,setError]=useState(''),[indexing,setIndexing]=useState(null),[trash,setTrash]=useState(false),[active,setActive]=useState(0)
   const root=useRef(null),input=useRef(null),previous=useRef(null),serial=useRef(0),id=useId()
   const {campus}=useTxstEvents(token,open)
@@ -43,10 +44,10 @@ export default function GlobalSearch({token,onChoose}){
     return()=>{controller.abort();clearTimeout(timer);clearTimeout(poll)}
   },[query,open,token,trash,indexRevision])
   const terms=query.trim().toLowerCase().split(/\s+/).filter(Boolean)
-  const pageResults=PAGES.filter(page=>!terms.length||terms.every(term=>page.join(' ').toLowerCase().includes(term))).map(([route,title,detail])=>({id:route,type:'pages',title,detail,route}))
-  const shortcutResults=terms.length?SHORTCUTS.filter(item=>terms.every(term=>`${item.label} ${item.scope} ${item.keys}`.toLowerCase().includes(term))).map(item=>({id:item.id,type:'shortcuts',title:item.label,detail:item.keys,route:'shortcuts'})):[]
+  const pageResults=PAGES.filter(page=>featureVisible(hiddenFeatures,page[0])&&(!terms.length||terms.every(term=>page.join(' ').toLowerCase().includes(term)))).map(([route,title,detail])=>({id:route,type:'pages',title,detail,route}))
+  const shortcutResults=terms.length&&featureVisible(hiddenFeatures,'shortcuts')?SHORTCUTS.filter(item=>shortcutVisible(hiddenFeatures,item)&&terms.every(term=>`${item.label} ${item.scope} ${item.keys}`.toLowerCase().includes(term))).map(item=>({id:item.id,type:'shortcuts',title:item.label,detail:item.keys,route:'shortcuts'})):[]
   const campusResults=query.trim().length>=2&&!campus.hideTxstEvents?(campus.events||[]).filter(item=>!(campus.hiddenCalendarIds||[]).includes(`txst:${item.id}`)&&terms.every(term=>JSON.stringify(item).toLowerCase().includes(term))).map(item=>({type:'campus',id:String(item.id),title:item.name||'TXST event',detail:String(item.description||'Public campus event').replace(/<[^>]*>/g,'').slice(0,200),url:item.url})):[]
-  const sections=[{type:'pages',items:pageResults},{type:'shortcuts',items:shortcutResults},...groups,{type:'categories',items:categories},{type:'campus',items:campusResults}]
+  const sections=[{type:'pages',items:pageResults},{type:'shortcuts',items:shortcutResults},...groups,{type:'categories',items:categories},{type:'campus',items:campusResults}].filter(group=>!searchFeatures[group.type]||featureVisible(hiddenFeatures,searchFeatures[group.type]))
   const results=sections.flatMap(group=>group.items),activeIndex=Math.min(active,Math.max(0,results.length-1))
   useEffect(()=>{if(open)root.current?.querySelector(`[data-search-index="${activeIndex}"]`)?.scrollIntoView({block:'nearest'})},[activeIndex,open])
   const choose=async (result,event)=>{if(!event?.ctrlKey&&!event?.metaKey)close();try{await onChoose(result,event)}catch(error){setOpen(true);setError(error.message)}}

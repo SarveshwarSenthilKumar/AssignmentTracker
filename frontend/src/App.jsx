@@ -1,3 +1,5 @@
+import FeatureVisibilitySettings from './components/FeatureVisibilitySettings'
+import { featureVisible } from './lib/featureVisibility'
 import { SharedCalendarEvent } from './components/CalendarEventSharing'
 import BookmarksPage from './components/BookmarksPage'
 import CanvasWorkload, { canvasEstimateLabel } from './components/CanvasWorkload'
@@ -92,7 +94,9 @@ function App({onFaviconPage}) {
   const { isAuthenticated, token, logout, user, updatePreferences, loading: authLoading } = useAuth()
   const [adminToken, setAdminToken] = useState(null)
   const isAdmin = !!token && adminToken === token
-  const hiddenPages = HIDDEN_PAGES.filter(item => !item.adminOnly || isAdmin)
+  const hiddenFeatures = user?.hiddenFeatures
+  const available = route => featureVisible(hiddenFeatures, route)
+  const hiddenPages = HIDDEN_PAGES.filter(item => (!item.adminOnly || isAdmin) && available(item.route))
   useEffect(() => {
     if (!token) return
     const controller = new AbortController()
@@ -117,10 +121,11 @@ function App({onFaviconPage}) {
   const pendingLibraryTask = useRef(null)
   const pageFindScope = useRef(null)
   const [requestedPage, setPage] = useState(readPage)
-  const page = requestedPage === 'admin' && !isAdmin ? 'home' : requestedPage
+  const unavailablePage = !available(requestedPage) || (requestedPage === 'shared-calendar-event' && !available('calendar-sharing'))
+  const page = unavailablePage ? 'account' : requestedPage === 'admin' && !isAdmin ? (available('home') ? 'home' : 'account') : requestedPage
   const [editorAssistantHost,setEditorAssistantHost]=useState(null)
   const [assistantRouteId,setAssistantRouteId]=useState(()=>window.location.hash.match(/^#\/assistant\/([a-f\d]{24})$/i)?.[1]||null)
-  const navigate = (next, event) => { if(openInTab(event,next))return; if(next==='assistant')setAssistantRouteId(null); window.location.hash = `/${next}`; setPage(next.split('/')[0]); setShowCommandMenu(false); window.scrollTo({top:0}) }
+  const navigate = (next, event) => { if(!available(next))return false; if(openInTab(event,next))return; if(next==='assistant')setAssistantRouteId(null); window.location.hash = `/${next}`; setPage(next.split('/')[0]); setShowCommandMenu(false); window.scrollTo({top:0}) }
   useEffect(() => { const change = () => { setPage(readPage()); setAssistantRouteId(window.location.hash.match(/^#\/assistant\/([a-f\d]{24})$/i)?.[1]||null); setShowCommandMenu(false); setContextMenu(null); setSelectedTask(pendingLibraryTask.current); pendingLibraryTask.current = null; setShowFolderModal(false); window.scrollTo({top:0}) }; window.addEventListener('hashchange',change); return () => window.removeEventListener('hashchange',change) }, [])
   const [todos, setTodos] = useState([])
   const [taskSearch,setTaskSearch]=useState(''),[taskSearchAll,setTaskSearchAll]=useState(true)
@@ -303,7 +308,7 @@ function App({onFaviconPage}) {
   const [errorDetails, setErrorDetails] = useState(null)
   const [showErrorDetails, setShowErrorDetails] = useState(false)
   const [showPDFUploadModal, setShowPDFUploadModal] = useState(false)
-  const [selectedPDF, setSelectedPDF] = useState(() => window.location.hash.match(/^#\/documents\/([a-f\d]{24})$/i)?.[1] || null)
+  const [selectedPDF, setSelectedPDF] = useState(() => available('documents') && window.location.hash.match(/^#\/documents\/([a-f\d]{24})$/i)?.[1] || null)
   useEffect(() => {
     if (selectedPDF || !/^#\/documents\/[a-f\d]{24}$/i.test(window.location.hash)) return
     window.history.replaceState(window.history.state, '', '#/documents')
@@ -318,6 +323,7 @@ function App({onFaviconPage}) {
     return () => window.removeEventListener('beforeunload', confirmExit)
   }, [selectedPDF])
   const openDocument = async (id, event) => {
+    if (!available('documents')) return false
     if (openInTab(event, documentRoute(id))) return
     if (id === selectedPDF) return
     if (selectedPDF) {
@@ -346,21 +352,22 @@ function App({onFaviconPage}) {
     const shortcut=SHORTCUTS.find(item=>item.id==='assistant-toggle')
     const listener=event=>{
       if(event.repeat||event.isComposing)return
-      if(matchesShortcut(event,SHORTCUTS.find(item=>item.id==='nav-workspace'))){event.preventDefault();event.stopImmediatePropagation();setAssistantOpen(false);navigate('workspace');return}
-      if(matchesShortcut(event,SHORTCUTS.find(item=>item.id==='nav-assistant'))){event.preventDefault();event.stopImmediatePropagation();setAssistantOpen(false);navigate('assistant');return}
-      if(matchesShortcut(event,shortcut)){event.preventDefault();event.stopImmediatePropagation();if(page==='assistant'&&!selectedPDF)document.getElementById('assistant-question')?.focus();else setAssistantOpen(previous=>!previous)}
+      if(available('workspace')&&matchesShortcut(event,SHORTCUTS.find(item=>item.id==='nav-workspace'))){event.preventDefault();event.stopImmediatePropagation();setAssistantOpen(false);navigate('workspace');return}
+      if(available('assistant')&&matchesShortcut(event,SHORTCUTS.find(item=>item.id==='nav-assistant'))){event.preventDefault();event.stopImmediatePropagation();setAssistantOpen(false);navigate('assistant');return}
+      if(available('assistant')&&matchesShortcut(event,shortcut)){event.preventDefault();event.stopImmediatePropagation();if(page==='assistant'&&!selectedPDF)document.getElementById('assistant-question')?.focus();else setAssistantOpen(previous=>!previous)}
     }
     window.addEventListener('keydown',listener,true);return()=>window.removeEventListener('keydown',listener,true)
-  },[isAuthenticated,page,selectedPDF])
+  },[isAuthenticated,page,selectedPDF,hiddenFeatures])
   const openAssistantSource=source=>{
     if(selectedPDF && !(source.type==='document'&&source.id===selectedPDF))return false
-    if(source.type==='document'){setSelectedPDF(source.id);return true}
+    if(source.type==='document'){if(!available('documents'))return false;setSelectedPDF(source.id);return true}
     if(source.type==='task'){
+      if(!available('tasks'))return false
       const task=todos.find(task=>task._id===source.id);if(!task)return false
       setSelectedFolder('all');if(page==='tasks')setSelectedTask(task);else {pendingLibraryTask.current=task;navigate('tasks')}
       return true
     }
-    if(source.type==='calendar'){setAssistantCalendarId(source.id);navigate('calendar');return true}
+    if(source.type==='calendar'){if(!available('calendar'))return false;setAssistantCalendarId(source.id);navigate('calendar');return true}
     return false
   }
 
@@ -386,7 +393,7 @@ function App({onFaviconPage}) {
     'nav-calendar': () => navigate('calendar'), 'nav-canvas': () => navigate('canvas'), 'nav-account': () => navigate('account'),
     'nav-visualization': () => navigate('visualization'), 'nav-shortcuts': () => navigate('shortcuts'), help: () => navigate('shortcuts'),
     dismiss: () => { if(!showCommandMenu&&!showFolderModal&&!showPDFUploadModal&&!selectedTask&&!contextMenu)return false; setShowCommandMenu(false); setShowFolderModal(false); setShowPDFUploadModal(false); setSelectedTask(null); setContextMenu(null) },
-    commands: () => { setShowCommandMenu(true); setTimeout(() => commandInputRef.current?.focus(),0) },
+    commands: () => { if(!available('commands'))return false; setShowCommandMenu(true); setTimeout(() => commandInputRef.current?.focus(),0) },
     search: () => { const field = page === 'documents' ? document.querySelector('[aria-label="Search documents"]') : page === 'shortcuts' ? document.querySelector('[aria-label="Search keyboard shortcuts"]') : page === 'tasks' ? taskSearchRef.current : null; if(!field)return false; field.focus() },
   }, isAuthenticated && !assistantOpen && !selectedPDF && !taskConfirmation.pending)
   useShortcuts('Tasks', { 'new-task': () => inputRef.current?.focus(), 'task-folder': () => setShowFolderModal(true),
@@ -398,7 +405,7 @@ function App({onFaviconPage}) {
 
   useShortcuts('Canvas', {
     'calendar-file': () => document.querySelector('[data-canvas-import] input[type="file"]')?.click(),
-    'calendar-import': () => { if(icsFile) document.querySelector('[data-canvas-import] form')?.requestSubmit(); else setError('Choose an ICS calendar file first.') },
+    'calendar-import': () => { if(icsFile) document.querySelector('[data-canvas-import] form[data-ics-import]')?.requestSubmit(); else setError('Choose an ICS calendar file first.') },
   }, isAuthenticated && !assistantOpen && page === 'canvas' && !selectedPDF && !syncing)
 
   // Click outside to save edit
@@ -841,7 +848,7 @@ function App({onFaviconPage}) {
     })
   }
 
-  const commandTaskSearch=commandInput.match(/^\s*(?:search|find|task)\s+([\s\S]*)$/i)
+  const commandTaskSearch=available('tasks') && commandInput.match(/^\s*(?:search|find|task)\s+([\s\S]*)$/i)
   const commandTaskQuery=commandTaskSearch?.[1]?.trim()||''
   const normalizeCommandText=value=>String(value||'').normalize('NFKD').replace(/\p{M}/gu,'').toLowerCase()
   const commandTaskTerms=normalizeCommandText(commandTaskQuery).split(/\s+/).filter(Boolean)
@@ -862,8 +869,12 @@ function App({onFaviconPage}) {
     const command = parts[0].toLowerCase()
     const args = parts.slice(1)
 
-    if(isAdmin&&((command==='admin'&&['stats','statistics'].includes(args[0]?.toLowerCase()))||command==='admin-stats')){
+    if(isAdmin&&available('admin')&&((command==='admin'&&['stats','statistics'].includes(args[0]?.toLowerCase()))||command==='admin-stats')){
       setCommandNotice('');setCommandInput('');navigate('admin/stats');return
+    }
+    if (!available('tasks') && ['search','find','task','sort','folder','all','inbox','del'].includes(command)) {
+      setCommandNotice('Tasks is turned off in Account settings.')
+      return
     }
     if(['search','find','task'].includes(command)){
       setCommandInput(cmd.trim());setCommandNotice(args.join(' ').trim()?'Select a matching task below to open its details.':'Type search followed by a task name, description or folder.')
@@ -1721,9 +1732,9 @@ function App({onFaviconPage}) {
   return (
     <div className="platform-viewport min-h-screen py-8 px-4">
       <div ref={pageFindScope} className="app-shell w-full max-w-[1440px] mx-auto">
-        {user?.showSetupBanner!==false&&<SetupBanner key={user?.id} token={token} userId={user?.id} page={page} canvasStatus={canvasStatus}/>}
+        {user?.showSetupBanner!==false&&<SetupBanner hiddenFeatures={hiddenFeatures} key={user?.id} token={token} userId={user?.id} page={page} canvasStatus={canvasStatus}/>}
         <SectionLock key={token} section={['whiteboards','detective-wall'].includes(page)?'documents':page} token={token}
-          renderNavigation={lockActions => <AppNavigation page={page} user={user} lockActions={lockActions} onSignOut={() => selectedPDF ? closeEditorForNavigation(selectedPDF, logout) : logout()}/>}
+          renderNavigation={lockActions => <AppNavigation hiddenFeatures={hiddenFeatures} page={page} user={user} lockActions={lockActions} onSignOut={() => selectedPDF ? closeEditorForNavigation(selectedPDF, logout) : logout()}/>}
           fileId={selectedPDF} onLeaveFile={() => setSelectedPDF(null)}
           folderId={page === 'tasks' ? selectedFolder : page === 'documents' ? selectedPDFFolder : null}
           folders={page === 'tasks' ? folders : page === 'documents' ? pdfFolders : undefined}
@@ -1732,13 +1743,13 @@ function App({onFaviconPage}) {
             if (page === 'documents') setSelectedPDFFolder('all')
             if (window.location.hash.startsWith(`#/${page}/folder/`)) window.history.replaceState(window.history.state, '', `#/${page}`)
           }}>
-        <GlobalSearch token={token} onChoose={openSearchResult}/>
-        <PageFind key={page} scope={pageFindScope} disabled={!!(selectedPDF || assistantOpen)}/>
+        {available('global-search') && <GlobalSearch token={token} hiddenFeatures={hiddenFeatures} onChoose={openSearchResult}/>}
+        {available('page-find') && <PageFind key={page} scope={pageFindScope} disabled={!!(selectedPDF || assistantOpen)}/>}
         <OfflineWorkspaceStatus token={token}/>
         {page!=='home'&&page!=='tutorial'&&<div className="platform-page-title"><h1>{page==='tutorial'?'Platform tutorial':page==='shared-calendar-event'?'Shared calendar event':page==='bookmarks'?'Bookmarks':page==='admin'?'Admin portal':page==='suggest-feature'?'Feature suggestions':page==='report-bug'?'Report a bug':page==='roadmap'?'Site roadmap':page==='analytics'?'Analytics':page==='handbook'?'Product handbook':page==='logbook'?'Update logbook':page==='prep'?'Prep':page==='study'?'Question bank':page==='workspace'?'Workspace':page==='tasks'?'Tasks':page==='calendar'?'Calendar':page==='detective-wall'?'Detective wall':page==='whiteboards'?'Team whiteboards':page==='documents'?'Document library':page==='jobs'?'Jobs':page==='cover-letters'?'Cover letters':page==='resumes'?'Resumes':page==='visualization'?'Task visualization':page==='canvas'?'Canvas integration':page==='account'?'Account':page==='assistant'?'AI assistant':'Keyboard shortcuts'}</h1><p>{page==='tutorial'?'Guided lessons for your workspace, documents and study tools.':page==='shared-calendar-event'?'Review the event before adding it to your calendar.':page==='bookmarks'?'Save the pages and links you use often.':page==='admin'?'Review bug reports and feature suggestions from users.':page==='suggest-feature'?'Share ideas for improving the platform and follow their progress.':page==='report-bug'?'Report section-specific issues and follow their status.':page==='roadmap'?'Explore ideas, planned improvements and features in progress.':page==='analytics'?'Storage, activity, progress and your complete account inventory.':page==='handbook'?'Feature instructions and technical reference.':page==='logbook'?'Numbered platform changes, fixes and implementation history.':page==='prep'?'Prepare your resumes, cover letters and interview answers in one place.':page==='study'?'Save questions and topics, review answers, and track what you have studied.':page==='cover-letters'?'Store cover letters for your applications and keep versions ready to edit or download.':page==='jobs'?'Save job links and details alongside your resumes.':page==='resumes'?'Upload and keep your resumes ready for your next opportunity.':page==='workspace'?'Build a personal workflow with tabs, tools, and movable windows.':page==='tasks'?'Plan your work and track progress.':page==='calendar'?'Plan deadlines, assignments, and personal events in one place.':page==='detective-wall'?'Pin ideas, collect evidence and connect the threads.':page==='whiteboards'?'Draw, brainstorm and plan together on a live shared canvas.':page==='documents'?'Organize and edit your files.':page==='visualization'?'Explore relationships, deadlines, and progress across your workspace.':page==='canvas'?'Manage your course connection and imports.':page==='account'?'Review your profile and workspace activity.':page==='assistant'?'Think, write, learn, and work with your files in a dedicated conversation workspace.':'A searchable reference for navigation and actions.'}</p></div>}
         <InlineConfirmation {...taskConfirmation} reveal />
-        {page==='home'&&<HomePage user={user} token={token} tasks={todos} documents={pdfs} folders={folders} loading={loading} canvasStatus={canvasStatus} onNavigate={navigate} onOpenTask={(task,event)=>{if(!openInTab(event, `tasks/${task._id}`))setSelectedTask(task)}} onOpenDocument={openDocument} onOpenCalendar={(entry,event)=>{if(openInTab(event,`calendar/?event=${encodeURIComponent(entry._id)}`))return;setAssistantCalendarId(entry._id);navigate('calendar')}} onNewTask={()=>{setSelectedFolder('all');navigate('tasks');setTimeout(()=>inputRef.current?.focus(),0)}} onUpload={()=>{setSelectedPDFFolder('all');setShowPDFUploadModal(true)}} onRefresh={()=>Promise.all([fetchTodos(false),fetchPDFs()])}/>}
-        <WorkflowWorkspace key={'workspace:'+user?.id+':'+assistantGeneration} open={page==='workspace'} token={token} userId={user?.id} tasks={todos} folders={folders} documents={pdfs} documentFolders={pdfFolders} onTasksChange={setTodos} onOpenTask={(task,event)=>{if(!openInTab(event, `tasks/${task._id}`))setSelectedTask(task)}} onStatusChange={updateTodoStatus} onOpenDocument={openDocument} onUpload={()=>{setSelectedPDFFolder('all');setShowPDFUploadModal(true)}} onNavigate={navigate} onOpenCalendarEntry={entry=>{setAssistantCalendarId(entry._id);navigate('calendar')}} onOpenAssistant={()=>setAssistantOpen(true)} keyboardEnabled={!selectedPDF&&!assistantOpen&&!selectedTask&&!showPDFUploadModal&&!showCommandMenu}/>
+        {page==='home'&&<HomePage hiddenFeatures={hiddenFeatures} user={user} token={token} tasks={available('tasks') ? todos : []} documents={available('documents') ? pdfs : []} folders={folders} loading={loading} canvasStatus={canvasStatus} onNavigate={navigate} onOpenTask={(task,event)=>{if(!openInTab(event, `tasks/${task._id}`))setSelectedTask(task)}} onOpenDocument={openDocument} onOpenCalendar={(entry,event)=>{if(openInTab(event,`calendar/?event=${encodeURIComponent(entry._id)}`))return;setAssistantCalendarId(entry._id);navigate('calendar')}} onNewTask={()=>{setSelectedFolder('all');navigate('tasks');setTimeout(()=>inputRef.current?.focus(),0)}} onUpload={()=>{setSelectedPDFFolder('all');setShowPDFUploadModal(true)}} onRefresh={()=>Promise.all([fetchTodos(false),fetchPDFs()])}/>}
+        {available('workspace') && <WorkflowWorkspace hiddenFeatures={hiddenFeatures} key={'workspace:'+user?.id+':'+assistantGeneration} open={page==='workspace'} token={token} userId={user?.id} tasks={available('tasks') ? todos : []} folders={folders} documents={available('documents') ? pdfs : []} documentFolders={pdfFolders} onTasksChange={setTodos} onOpenTask={(task,event)=>{if(!openInTab(event, `tasks/${task._id}`))setSelectedTask(task)}} onStatusChange={updateTodoStatus} onOpenDocument={openDocument} onUpload={()=>{setSelectedPDFFolder('all');setShowPDFUploadModal(true)}} onNavigate={navigate} onOpenCalendarEntry={entry=>{setAssistantCalendarId(entry._id);navigate('calendar')}} onOpenAssistant={()=>setAssistantOpen(true)} keyboardEnabled={!selectedPDF&&!assistantOpen&&!selectedTask&&!showPDFUploadModal&&!showCommandMenu}/>}
         {page==='shared-calendar-event' && (() => {
           const shareToken = /^#\/shared-calendar-event\/([A-Za-z0-9_-]{43})$/.exec(window.location.hash)?.[1]
           return <SharedCalendarEvent key={shareToken ?? 'invalid'} shareToken={shareToken} token={token} onOpenEvent={id => {
@@ -1747,7 +1758,7 @@ function App({onFaviconPage}) {
             fetchPDFs()
           }}/>
         })()}
-        {page==='calendar' && <CalendarPage onTaskCreated={task=>setTodos(previous=>[...previous.filter(item=>item._id!==task._id),task])} focusCategoryId={searchCategoryId} onCategoryFocused={()=>setSearchCategoryId(null)} focusEntryId={assistantCalendarId} onEntryFocused={()=>setAssistantCalendarId(null)} documents={pdfs} documentFolders={pdfFolders} onDocumentsChange={setPdfs} onOpenDocument={openDocument} tasks={todos} token={token} keyboardEnabled={!selectedPDF&&!assistantOpen} onOpenTask={task=>{pendingLibraryTask.current=task;setSelectedFolder('all');navigate('tasks')}} onRefreshTasks={fetchTodos} onSyncCanvas={syncCanvas} onCanvasSettings={()=>navigate('canvas')} canvasStatus={canvasStatus} syncing={syncing} />}
+        {page==='calendar' && <CalendarPage sharingEnabled={available('calendar-sharing')} tasksEnabled={available('tasks')} canvasEnabled={available('canvas')} documentsEnabled={available('documents')} onTaskCreated={task=>setTodos(previous=>[...previous.filter(item=>item._id!==task._id),task])} focusCategoryId={searchCategoryId} onCategoryFocused={()=>setSearchCategoryId(null)} focusEntryId={assistantCalendarId} onEntryFocused={()=>setAssistantCalendarId(null)} documents={pdfs} documentFolders={pdfFolders} onDocumentsChange={setPdfs} onOpenDocument={openDocument} tasks={todos.filter(task=>task.canvasType==='calendar_event' ? available('canvas') : available('tasks'))} token={token} keyboardEnabled={!selectedPDF&&!assistantOpen} onOpenTask={task=>{pendingLibraryTask.current=task;setSelectedFolder('all');navigate('tasks')}} onRefreshTasks={fetchTodos} onSyncCanvas={syncCanvas} onCanvasSettings={()=>navigate('canvas')} canvasStatus={canvasStatus} syncing={syncing} />}
         {canvasNotice && <div role="status" className="calendar-feedback">{canvasNotice}<button onClick={()=>setCanvasNotice('')} aria-label="Dismiss Canvas sync notice"><X size={15}/></button></div>}
         {page==='cover-letters' && <CoverLettersPage token={token} documents={pdfs} onDocumentsChange={setPdfs} onOpen={openDocument}/>}
         {page==='jobs' && <JobsPage token={token} focusJobId={searchJobId} onJobFocused={()=>setSearchJobId(null)}/>}
@@ -1758,15 +1769,15 @@ function App({onFaviconPage}) {
         {page==='analytics' && <AnalyticsPage token={token} onOpenDocument={openDocument}/>}
         {page==='handbook' && <HandbookPage token={token}/>}
         {page==='logbook' && <UpdateLogbookPage token={token}/>}
-        {page==='prep' && <PrepPage token={token} documents={pdfs} onDocumentsChange={setPdfs} onOpen={openDocument}/>}
-        {page==='resumes' && <ResumesPage token={token} documents={pdfs} onDocumentsChange={setPdfs} onOpen={openDocument}/>}
+        {page==='prep' && <PrepPage hiddenFeatures={hiddenFeatures} token={token} documents={pdfs} onDocumentsChange={setPdfs} onOpen={openDocument}/>}
+        {page==='resumes' && <ResumesPage hiddenFeatures={hiddenFeatures} token={token} documents={pdfs} onDocumentsChange={setPdfs} onOpen={openDocument}/>}
         {page==='study' && <StudyPage token={token}/>}
         {page==='detective-wall' && <DetectiveWalls token={token} userId={user?.id}/>}
         {page==='whiteboards' && <Whiteboards token={token} documents={pdfs} onDocumentsChange={setPdfs} onOpen={openDocument}/>}
-        {page==='tutorial' && !selectedPDF && !selectedTask && <PlatformTutorial key={user?.id} userId={user?.id}
+        {page==='tutorial' && !selectedPDF && !selectedTask && <PlatformTutorial hiddenFeatures={hiddenFeatures} key={user?.id} userId={user?.id}
           startWithPDF={window.location.hash === '#/tutorial/pdf'}/>}
-        {page==='bookmarks' && <BookmarksPage key={user?.id} userId={user?.id} tasks={todos} folders={folders} documentFolders={pdfFolders} documents={pdfs}/>}
-        {page==='shortcuts' && <ShortcutsPage initialQuery={searchShortcutsQuery}/>}
+        {page==='bookmarks' && <BookmarksPage showSuggestions={available('bookmark-suggestions')} key={user?.id} userId={user?.id} tasks={available('tasks') ? todos : []} folders={available('tasks') ? folders : []} documentFolders={available('documents') ? pdfFolders : []} documents={available('documents') ? pdfs : []}/>}
+        {page==='shortcuts' && <ShortcutsPage hiddenFeatures={hiddenFeatures} initialQuery={searchShortcutsQuery}/>}
         {page==='visualization' && <TaskVisualization token={token} onTasksChange={setTodos} onOpenTask={task => { pendingLibraryTask.current = task; setSelectedFolder('all'); navigate('tasks') }} loading={loading} keyboardEnabled={!selectedPDF&&!assistantOpen} tasks={todos} folders={folders} documents={pdfs} onOpenDocument={openDocument} onStatusChange={updateTodoStatus} onEditTask={task=>{setSelectedFolder('all');navigate('tasks');startEditing(task)}} />}
 
         {error && (
@@ -2341,6 +2352,8 @@ function App({onFaviconPage}) {
               <h2 id="account-preferences-title">Preferences</h2>
               <div className="account-settings-grid">
                 <AppearanceSettings/>
+                {unavailablePage && <p role="status">That section is turned off. You can restore it below.</p>}
+                <FeatureVisibilitySettings isAdmin={isAdmin} onSaved={unavailablePage ? ()=>navigate('account') : undefined}/>
                 <SetupBannerSettings/>
                 <BirthdaySettings/>
                 <TimeZoneSettings/>
@@ -2409,7 +2422,7 @@ function App({onFaviconPage}) {
                 </button>
               </div>
 
-              <form onSubmit={importCalendar} className="space-y-4">
+              <form data-ics-import onSubmit={importCalendar} className="space-y-4">
                 <div>
                   <label className="block text-slate-400 text-sm mb-2">ICS Calendar File</label>
                   <input
@@ -2453,7 +2466,7 @@ function App({onFaviconPage}) {
         )}
 
         {/* Command Menu */}
-        {showCommandMenu && (
+        {available('commands') && showCommandMenu && (
           <div className="app-inline-panel">
             <div className="bg-slate-900 border border-white/10 rounded-2xl p-6 w-full max-w-md max-h-[85dvh] overflow-y-auto">
               <div className="flex items-center justify-between mb-6">
@@ -2512,7 +2525,7 @@ function App({onFaviconPage}) {
         )}
 
         {/* Task Detail Modal */}
-        {selectedTask && (
+        {available('tasks') && selectedTask && (
           <div className="app-inline-panel">
             <div className="task-detail-modal bg-slate-900 border border-white/10 rounded-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between mb-6">
@@ -2729,7 +2742,7 @@ function App({onFaviconPage}) {
         )}
 
         {/* PDF Upload Modal */}
-        {showPDFUploadModal && (
+        {available('documents') && showPDFUploadModal && (
           <PDFUploadModal
             onClose={() => setShowPDFUploadModal(false)}
             token={token}
@@ -2740,18 +2753,19 @@ function App({onFaviconPage}) {
           />
         )}
 
-        {!selectedPDF&&!assistantOpen&&page!=='assistant'&&<button data-assistant-ui type="button" className="assistant-launcher" onClick={()=>setAssistantOpen(true)} aria-expanded={false} aria-label="Open workspace assistant"><span>Ask assistant</span><kbd>Alt + J</kbd></button>}
-        <AssistantChat portalTarget={editorAssistantHost} key={`${user?.id}:${assistantGeneration}`} open={assistantOpen||(page==='assistant'&&!selectedPDF)} mode={page==='assistant'&&!selectedPDF?'page':'panel'} routeConversationId={assistantRouteId} onConversationChange={id=>{if(page!=='assistant')return;const hash=id?'#/assistant/'+id:'#/assistant';window.history.replaceState(null,'',hash);setAssistantRouteId(id)}} onOpenPage={()=>{setAssistantOpen(false);navigate('assistant')}} documents={pdfs} onDocumentsChange={setPdfs} onClose={()=>setAssistantOpen(false)} token={token} section={page} documentId={selectedPDF} documentName={pdfs.find(file=>file._id===selectedPDF)?.name} onOpenSource={openAssistantSource}/>
+        {available('assistant')&&!selectedPDF&&!assistantOpen&&page!=='assistant'&&<button data-assistant-ui type="button" className="assistant-launcher" onClick={()=>setAssistantOpen(true)} aria-expanded={false} aria-label="Open workspace assistant"><span>Ask assistant</span><kbd>Alt + J</kbd></button>}
+        {available('assistant') && <AssistantChat portalTarget={editorAssistantHost} key={`${user?.id}:${assistantGeneration}`} open={assistantOpen||(page==='assistant'&&!selectedPDF)} mode={page==='assistant'&&!selectedPDF?'page':'panel'} routeConversationId={assistantRouteId} onConversationChange={id=>{if(page!=='assistant')return;const hash=id?'#/assistant/'+id:'#/assistant';window.history.replaceState(null,'',hash);setAssistantRouteId(id)}} onOpenPage={()=>{setAssistantOpen(false);navigate('assistant')}} documents={pdfs} onDocumentsChange={setPdfs} onClose={()=>setAssistantOpen(false)} token={token} section={page} documentId={selectedPDF} documentName={pdfs.find(file=>file._id===selectedPDF)?.name} onOpenSource={openAssistantSource}/>}
 
         <footer className="platform-legal-footer"><a href={`#/suggest-feature/${encodeURIComponent(page)}`}>Suggest a feature</a><span aria-hidden="true"> · </span><a href={`#/report-bug/${encodeURIComponent(page)}`}>Report a bug</a><span aria-hidden="true"> · </span><a href="#/terms">Terms and Conditions</a><span aria-hidden="true"> · </span><a href="#/privacy">Privacy Policy</a></footer>
         <StudyPhone key={'phone:'+user?.id+':'+assistantGeneration} userId={user?.id} token={token} tasks={todos} enabled={user?.studyPhoneEnabled!==false}/>
-        <CalendarReminderNotifications key={user?.id} userId={user?.id} token={token} onOpen={selectedPDF?undefined:id=>{setAssistantCalendarId(id);navigate('calendar')}}/>
+        {available('calendar') && available('calendar-reminders') && <CalendarReminderNotifications key={user?.id} userId={user?.id} token={token} onOpen={selectedPDF?undefined:id=>{setAssistantCalendarId(id);navigate('calendar')}}/>}
         {/* PDF Editor */}
-        {selectedPDF && (
+        {available('documents') && selectedPDF && (
           <DocumentEditor
             onTaskCreated={task=>setTodos(previous=>[task,...previous.filter(item=>item._id!==task._id)])}
             assistantOpen={assistantOpen}
-            onToggleAssistant={()=>setAssistantOpen(previous=>!previous)}
+            onToggleAssistant={available('assistant') ? ()=>setAssistantOpen(previous=>!previous) : undefined}
+            hiddenFeatures={hiddenFeatures}
             onAssistantHost={setEditorAssistantHost}
             onOpenTutorial={() => {
               setSelectedPDF(null)

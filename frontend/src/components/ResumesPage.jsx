@@ -1,3 +1,4 @@
+import { featureVisible } from '../lib/featureVisibility'
 import ResumeQuiz from './ResumeQuiz'
 import ResumeTemplateGallery from './ResumeTemplateGallery'
 import { useRef, useState } from 'react'
@@ -7,7 +8,7 @@ import { downloadBlob } from '../lib/documentFormats'
 import './ResumesPage.css'
 import CoverLetterGenerator from './CoverLetterGenerator'
 
-export default function ResumesPage({token,documents,onDocumentsChange,onOpen}){
+export default function ResumesPage({hiddenFeatures,token,documents,onDocumentsChange,onOpen}){
   const [file,setFile]=useState(null),[name,setName]=useState(''),[busy,setBusy]=useState(false),[downloading,setDownloading]=useState(null),[error,setError]=useState(''),[notice,setNotice]=useState(''),[dragging,setDragging]=useState(false)
   const [selectedTemplate,setSelectedTemplate]=useState('')
   const [quizDocument,setQuizDocument]=useState('')
@@ -57,7 +58,7 @@ export default function ResumesPage({token,documents,onDocumentsChange,onOpen}){
   return <section className="resumes-page" aria-label="Resume storage">
     <nav className="resume-job-navigation" aria-label="Resume tools"><a href="#/prep">Prep & interview practice</a><a href="#/resumes" aria-current="page">Your resumes</a><a href="#/cover-letters">Cover letters</a><a href="#/jobs">Saved jobs &amp; link import</a></nav>
     <div className="resume-heading"><div><h2>Your resumes</h2><p>Keep versions ready to view, edit, or download.</p></div><span>{resumes.length} saved</span></div>
-    <ResumeQuiz token={token} documents={documents} selectedDocumentId={quizDocument}/>
+    {featureVisible(hiddenFeatures,'interview-practice') && <ResumeQuiz token={token} documents={documents} selectedDocumentId={quizDocument}/>}
     <ResumeTemplateGallery token={token} onCreated={document=>{onDocumentsChange(previous=>[document,...previous]);setSelectedTemplate(document._id);setNotice('Resume template saved. It is selected in the tailoring tool below and available in Documents.')}}/>
     <CoverLetterGenerator selectedTemplateId={selectedTemplate} documentType="resume" token={token} documents={documents} onDocumentsChange={onDocumentsChange} onOpen={onOpen}/>
     <form onSubmit={upload} className="resume-upload-form">

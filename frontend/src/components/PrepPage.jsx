@@ -1,3 +1,4 @@
+import { featureVisible } from '../lib/featureVisibility'
 import {useState} from 'react'
 import ResumeQuiz from './ResumeQuiz'
 import InterviewCoach from './InterviewCoach'
@@ -11,17 +12,21 @@ import './PrepPage.css'
 
 const tabs=[['coach','Interview coach','Chat about your target interview, answer adaptive questions, and cross-check against your resume.'],['emails','Cold emails','Draft personalized outreach with an editable subject and message.'],['practice','Interview practice','Quiz yourself on a resume or project with hints and answer feedback.'],['questions','Question bank','Save your own questions, answers and notes by subject.'],['resumes','Resumes & templates','Choose a layout, build a resume, or tailor an existing version.'],['letters','Cover letters','Prepare and refine letters using your existing documents.'],['jobs','Saved jobs','Keep target roles and job requirements ready for preparation.']]
 
-export default function PrepPage({token,documents,onDocumentsChange,onOpen}){
+export default function PrepPage({token,documents,onDocumentsChange,onOpen,hiddenFeatures}){
   const [active,setActive]=useState('coach'),[visited,setVisited]=useState(['coach'])
+  const routes = { coach: 'interview-coach', emails: 'cold-emails', practice: 'interview-practice', questions: 'study', letters: 'cover-letters' }
+  const enabled = tabs.filter(([id]) => featureVisible(hiddenFeatures, routes[id] || id))
+  const current = enabled.some(([id]) => id === active) ? active : enabled[0]?.[0]
+  const mounted = [...new Set([...visited, current])].filter(id => enabled.some(([key]) => key === id))
   const select=id=>{setActive(id);setVisited(previous=>previous.includes(id)?previous:[...previous,id])}
-  return <section className="prep-page" aria-label="Career preparation"><div className="prep-intro"><h2>Your preparation workspace</h2><p>Describe your next interview to the Interview coach for a conversation grounded in your resume. You can also practice a structured resume quiz or project deep dive in Interview practice.</p></div>
-    <nav className="prep-tabs" aria-label="Preparation tools">{tabs.map(([id,title,description])=><button key={id} type="button" aria-pressed={active===id} aria-controls={`prep-panel-${id}`} onClick={()=>select(id)}><strong>{title}</strong><span>{description}</span></button>)}</nav>
+  return <section className="prep-page" aria-label="Career preparation"><div className="prep-intro"><h2>Your preparation workspace</h2>{!enabled.length && <p>Restore a preparation tool in Account settings to use it here.</p>}</div>
+    <nav className="prep-tabs" aria-label="Preparation tools">{enabled.map(([id,title,description])=><button key={id} type="button" aria-pressed={current===id} aria-controls={`prep-panel-${id}`} onClick={()=>select(id)}><strong>{title}</strong><span>{description}</span></button>)}</nav>
     <p className="prep-session-note">Switching tools here keeps your sessions and email draft in place. Leaving Prep clears interview practice and unsaved email drafts; saved documents and jobs remain in your account.</p>
-    {visited.map(id=><section key={id} id={`prep-panel-${id}`} aria-label={tabs.find(tab=>tab[0]===id)[1]} hidden={active!==id}>
+    {mounted.map(id=><section key={id} id={`prep-panel-${id}`} aria-label={tabs.find(tab=>tab[0]===id)[1]} hidden={current!==id}>
       {id==='coach'&&<InterviewCoach token={token} documents={documents}/>}
       {id==='emails'&&<ColdEmailGenerator token={token} documents={documents}/>}
       {id==='practice'&&<div className="resumes-page prep-practice"><ResumeQuiz token={token} documents={documents} initiallyOpen/></div>}
-      {id==='resumes'&&<ResumesPage token={token} documents={documents} onDocumentsChange={onDocumentsChange} onOpen={onOpen}/>}
+      {id==='resumes'&&<ResumesPage hiddenFeatures={hiddenFeatures} token={token} documents={documents} onDocumentsChange={onDocumentsChange} onOpen={onOpen}/>}
       {id==='letters'&&<CoverLettersPage token={token} documents={documents} onDocumentsChange={onDocumentsChange} onOpen={onOpen}/>}
       {id==='jobs'&&<JobsPage token={token}/>}
       {id==='questions'&&<StudyPage token={token} questionsOnly/>}

@@ -15,7 +15,7 @@ import {History} from 'lucide-react'
 
 const annotationTools=[['read','Select text',TextSelect],['pen','Pen',Pen],['highlighter','Highlight',Highlighter],['text','Text',Type],['select','Move',Move],['eraser','Erase',Eraser]]
 
-export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,insert,onRuler,onStickyNote,onSearch,onTutorial,searchActions,bookView,onBookView,onQuickActions,whiteboardAppearance}){
+export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,insert,onRuler,onStickyNote,onSearch,onTutorial,searchActions,bookView,onBookView,onQuickActions,whiteboardAppearance,showGlobalSearch=true}){
   const searchable = []
   useEffect(() => {
     if (!searchActions) return
@@ -26,7 +26,7 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
         label, description:'Open controls', run:()=>{setCompact(false);setOpen(['insert','pages','view','tools','color','brush','scroll'][index])}
       })).filter(item=>item.label!=='Insert'&&!(doc.exportImage&&item.label==='Pages')),
       {label:'Sticky note',description:'Add an editable note',run:onStickyNote,disabled:!pages.canAdd},
-      {label:'Tutorial',description:'Learn editor tools and shortcuts',run:onTutorial},
+      ...(onTutorial?[{label:'Tutorial',description:'Learn editor tools and shortcuts',run:onTutorial}]:[]),
       {label:'Insert',run:()=>{close();setCompact(false);requestAnimationFrame(()=>root.current?.querySelector('.insert-trigger')?.click())}},
       {label:'Document',run:()=>{setCompact(false);setOpen('document')}},
       {label:'Find',run:onSearch},
@@ -123,7 +123,7 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
     <hr/>{action(Trash2,`Delete page ${pages.current}`,pages.onDelete,{danger:true,disabled:!pages.count||pages.count<=1||pages.busy})}
   </>)
   const utilityMenu=menu('tools','More tools',SlidersHorizontal,<>
-    {action(FileText,'Search the platform',()=>window.dispatchEvent(new Event('global-search-open')),{detail:'Ctrl / Cmd + K · tasks, files, events and more'})}
+    {showGlobalSearch&&action(FileText,'Search the platform',()=>window.dispatchEvent(new Event('global-search-open')),{detail:'Ctrl / Cmd + K · tasks, files, events and more'})}
     {doc.onCleanup&&action(Pen,'Clean up PDF',doc.onCleanup,{disabled:pages.busy,detail:'Describe changes and review before applying'})}
     <label className="pc-checkbox"><input type="checkbox" checked={utilities.timer} onChange={event=>utilities.onTimer(event.target.checked)}/>Show countdown timer</label>
     <label className="pc-checkbox"><input type="checkbox" checked={utilities.stopwatch} onChange={event=>utilities.onStopwatch(event.target.checked)}/>Show stopwatch</label>
@@ -214,7 +214,7 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
       <div className="pc-tool-menus">{pagesMenu}{viewMenu}{utilityMenu}</div>
       <button type="button" className="pc-button" onClick={()=>{close();onSearch()}} title="Search document (Ctrl/Cmd+F)">Find</button>
       {onQuickActions&&<button type="button" className="pc-button" onClick={()=>{close();onQuickActions()}} title="Quick actions (N)">Quick actions</button>}
-      <button type="button" className="pc-button" onClick={()=>{close();onTutorial()}} title="Learn the PDF editor">Tutorial</button>
+      {onTutorial && <button type="button" className="pc-button" onClick={()=>{close();onTutorial()}} title="Learn the PDF editor">Tutorial</button>}
       <button type="button" className="pc-button pc-page-lock" aria-pressed={input.pageLocked}
         onClick={()=>{close();input.onPageLock(!input.pageLocked)}}
         title="Lock scrolling and draw with your finger">

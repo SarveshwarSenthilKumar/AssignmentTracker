@@ -97,6 +97,7 @@ const userSchema = new mongoose.Schema({
   taskSortOrder:{type:String,enum:['asc','desc'],default:'asc'},
   studyPhoneEnabled: { type: Boolean, default: true },
   showSetupBanner: { type: Boolean, default: true },
+  hiddenFeatures: { type: [String], default: [] },
   username: {
     type: String,
     required: true,
@@ -520,7 +521,7 @@ app.post('/api/auth/register', async (req, res) => {
         username: user.username, createdAt: user.createdAt,
         email: user.email,
         timeZone: user.timeZone || '',
-        studyPhoneEnabled: user.studyPhoneEnabled!==false, showSetupBanner:user.showSetupBanner!==false,
+        studyPhoneEnabled: user.studyPhoneEnabled!==false, showSetupBanner:user.showSetupBanner!==false,hiddenFeatures:user.hiddenFeatures||[],
         themeMode: ['light','system'].includes(user.themeMode)?user.themeMode:'dark',
       },
     });
@@ -567,7 +568,7 @@ app.post('/api/auth/login', async (req, res) => {
         username: user.username, createdAt: user.createdAt,
         email: user.email,
         timeZone: user.timeZone || '',
-        studyPhoneEnabled: user.studyPhoneEnabled!==false, showSetupBanner:user.showSetupBanner!==false,
+        studyPhoneEnabled: user.studyPhoneEnabled!==false, showSetupBanner:user.showSetupBanner!==false,hiddenFeatures:user.hiddenFeatures||[],
         themeMode: ['light','system'].includes(user.themeMode)?user.themeMode:'dark',
       },
     });
@@ -809,13 +810,13 @@ app.put('/api/account/section-locks', authenticateToken, async (req, res) => {
 
 app.get('/api/account/preferences', authenticateToken, async (req, res) => {
   try {
-    const user = await User.findById(req.user.userId).select('createdAt themeMode timeZone confirmTaskDeletion confirmOtherActions showInProgressColumn showTaskStreaks showTaskContributionGraph studyPhoneEnabled showSetupBanner taskSortBy taskSortOrder completedTaskRetentionDays deletedTaskRetentionDays +birthday');
+    const user = await User.findById(req.user.userId).select('createdAt themeMode timeZone confirmTaskDeletion confirmOtherActions showInProgressColumn showTaskStreaks showTaskContributionGraph studyPhoneEnabled showSetupBanner hiddenFeatures taskSortBy taskSortOrder completedTaskRetentionDays deletedTaskRetentionDays +birthday');
     if (!user) return res.status(404).json({ message: 'Account not found.' });
-    res.json({ createdAt:user.createdAt,themeMode:['light','system'].includes(user.themeMode)?user.themeMode:'dark',timeZone: user.timeZone || '', confirmTaskDeletion:user.confirmTaskDeletion!==false, confirmOtherActions:user.confirmOtherActions!==false, showInProgressColumn:user.showInProgressColumn!==false,showTaskStreaks:user.showTaskStreaks!==false,showTaskContributionGraph:user.showTaskContributionGraph!==false,studyPhoneEnabled:user.studyPhoneEnabled!==false,showSetupBanner:user.showSetupBanner!==false,taskSortBy:user.taskSortBy||'dueDate',taskSortOrder:user.taskSortOrder||'asc',birthday:user.birthday||'',completedTaskRetentionDays:user.completedTaskRetentionDays||0,deletedTaskRetentionDays:user.deletedTaskRetentionDays??7 });
+    res.json({ createdAt:user.createdAt,themeMode:['light','system'].includes(user.themeMode)?user.themeMode:'dark',timeZone: user.timeZone || '', confirmTaskDeletion:user.confirmTaskDeletion!==false, confirmOtherActions:user.confirmOtherActions!==false, showInProgressColumn:user.showInProgressColumn!==false,showTaskStreaks:user.showTaskStreaks!==false,showTaskContributionGraph:user.showTaskContributionGraph!==false,studyPhoneEnabled:user.studyPhoneEnabled!==false,showSetupBanner:user.showSetupBanner!==false,hiddenFeatures:user.hiddenFeatures||[],taskSortBy:user.taskSortBy||'dueDate',taskSortOrder:user.taskSortOrder||'asc',birthday:user.birthday||'',completedTaskRetentionDays:user.completedTaskRetentionDays||0,deletedTaskRetentionDays:user.deletedTaskRetentionDays??7 });
   } catch { res.status(500).json({ message: 'Could not load account preferences.' }); }
 });
 app.put('/api/account/preferences', authenticateToken, async (req, res) => {
-  const { themeMode,timeZone,confirmTaskDeletion,confirmOtherActions,showInProgressColumn,showTaskStreaks,showTaskContributionGraph,studyPhoneEnabled,showSetupBanner,taskSortBy,taskSortOrder,birthday } = req.body;
+  const { themeMode,timeZone,confirmTaskDeletion,confirmOtherActions,showInProgressColumn,showTaskStreaks,showTaskContributionGraph,studyPhoneEnabled,showSetupBanner,hiddenFeatures,taskSortBy,taskSortOrder,birthday } = req.body;
   const update={};
   if (req.body.completedTaskRetentionDays !== undefined) {
     const days = req.body.completedTaskRetentionDays;
@@ -830,6 +831,18 @@ app.put('/api/account/preferences', authenticateToken, async (req, res) => {
   if (birthday !== undefined) {
     if (typeof birthday !== 'string' || (birthday !== '' && !validCalendarDay(`2000-${birthday}`))) return res.status(400).json({ message: 'Choose a valid birthday month and day.' });
     update.birthday = birthday;
+  }
+  if (hiddenFeatures !== undefined) {
+    const allowed = new Set([
+      'home','workspace','tasks','calendar','visualization','canvas','documents','detective-wall','whiteboards','bookmarks',
+      'study','assistant','prep','interview-coach','interview-practice','cold-emails','resumes','cover-letters','jobs','tutorial','shortcuts','analytics','roadmap','report-bug',
+      'suggest-feature','handbook','logbook','admin','global-search','commands','page-find','calendar-reminders',
+      'pdf-quick-actions','workspace-notes','workspace-focus','home-metrics','home-quick-actions','bookmark-suggestions','calendar-sharing',
+    ]);
+    if (!Array.isArray(hiddenFeatures) || hiddenFeatures.length > allowed.size || hiddenFeatures.some(id => !allowed.has(id))) {
+      return res.status(400).json({ message: 'Choose valid platform sections.' });
+    }
+    update.hiddenFeatures = [...new Set(hiddenFeatures)];
   }
   if(themeMode!==undefined){if(!['dark','light','system'].includes(themeMode))return res.status(400).json({message:'Choose light, dark, or match device mode.'});update.themeMode=themeMode;}
   if(timeZone!==undefined){
@@ -847,9 +860,9 @@ app.put('/api/account/preferences', authenticateToken, async (req, res) => {
   if(taskSortOrder!==undefined){if(!['asc','desc'].includes(taskSortOrder))return res.status(400).json({message:'Choose a valid sort direction.'});update.taskSortOrder=taskSortOrder;}
   if(!Object.keys(update).length)return res.status(400).json({message:'Choose a preference to update.'});
   try {
-    const user = await User.findByIdAndUpdate(req.user.userId, { $set: update }, { new: true }).select('createdAt themeMode timeZone confirmTaskDeletion confirmOtherActions showInProgressColumn showTaskStreaks showTaskContributionGraph studyPhoneEnabled showSetupBanner taskSortBy taskSortOrder completedTaskRetentionDays deletedTaskRetentionDays +birthday');
+    const user = await User.findByIdAndUpdate(req.user.userId, { $set: update }, { new: true }).select('createdAt themeMode timeZone confirmTaskDeletion confirmOtherActions showInProgressColumn showTaskStreaks showTaskContributionGraph studyPhoneEnabled showSetupBanner hiddenFeatures taskSortBy taskSortOrder completedTaskRetentionDays deletedTaskRetentionDays +birthday');
     if (!user) return res.status(404).json({ message: 'Account not found.' });
-    res.json({ createdAt:user.createdAt,themeMode:['light','system'].includes(user.themeMode)?user.themeMode:'dark',timeZone: user.timeZone || '',confirmTaskDeletion:user.confirmTaskDeletion!==false,confirmOtherActions:user.confirmOtherActions!==false, showInProgressColumn:user.showInProgressColumn!==false,showTaskStreaks:user.showTaskStreaks!==false,showTaskContributionGraph:user.showTaskContributionGraph!==false,studyPhoneEnabled:user.studyPhoneEnabled!==false,showSetupBanner:user.showSetupBanner!==false,taskSortBy:user.taskSortBy||'dueDate',taskSortOrder:user.taskSortOrder||'asc',birthday:user.birthday||'',completedTaskRetentionDays:user.completedTaskRetentionDays||0,deletedTaskRetentionDays:user.deletedTaskRetentionDays??7 });
+    res.json({ createdAt:user.createdAt,themeMode:['light','system'].includes(user.themeMode)?user.themeMode:'dark',timeZone: user.timeZone || '',confirmTaskDeletion:user.confirmTaskDeletion!==false,confirmOtherActions:user.confirmOtherActions!==false, showInProgressColumn:user.showInProgressColumn!==false,showTaskStreaks:user.showTaskStreaks!==false,showTaskContributionGraph:user.showTaskContributionGraph!==false,studyPhoneEnabled:user.studyPhoneEnabled!==false,showSetupBanner:user.showSetupBanner!==false,hiddenFeatures:user.hiddenFeatures||[],taskSortBy:user.taskSortBy||'dueDate',taskSortOrder:user.taskSortOrder||'asc',birthday:user.birthday||'',completedTaskRetentionDays:user.completedTaskRetentionDays||0,deletedTaskRetentionDays:user.deletedTaskRetentionDays??7 });
   } catch { res.status(500).json({ message: 'Could not save your account preferences.' }); }
 });
 app.post('/api/user/reset', authenticateToken, async (req, res) => {

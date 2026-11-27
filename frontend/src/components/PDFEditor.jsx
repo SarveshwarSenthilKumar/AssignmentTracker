@@ -1,3 +1,4 @@
+import { featureVisible } from '../lib/featureVisibility'
 import useDocumentTabTitle from '../hooks/useDocumentTabTitle'
 import PDFSearch from './PDFSearch'
 import PDFQuickActions from './PDFQuickActions'
@@ -553,7 +554,7 @@ const PagePreview=memo(function PagePreview({ pageNumber, items=[], whiteboard=f
 /* ------------------------------------------------------------------ */
 /* Main editor                                                         */
 /* ------------------------------------------------------------------ */
-export default function PDFEditor({ pdfId, onClose, token, initialDocument = null, shareToken = null, shareRevision = null, exportImage = false, onCleanCopy, assistantOpen=false, onToggleAssistant, onAssistantHost, renderFolderNavigation, onTaskCreated, onOpenTutorial }) {
+export default function PDFEditor({ pdfId, onClose, token, initialDocument = null, shareToken = null, shareRevision = null, exportImage = false, onCleanCopy, assistantOpen=false, onToggleAssistant, onAssistantHost, renderFolderNavigation, onTaskCreated, onOpenTutorial, hiddenFeatures }) {
   const [showCleanup,setShowCleanup]=useState(false)
   const [copyParagraphs,setCopyParagraphs]=useState(()=>{try{return localStorage.getItem('pdf-copy-paragraphs')!=='false'}catch{return true}})
   useEffect(()=>{try{localStorage.setItem('pdf-copy-paragraphs',String(copyParagraphs))}catch{}},[copyParagraphs])
@@ -2185,7 +2186,8 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     if(!item||!pageBase||currentTool!=='select')return
     positionInsert(item, { x: item.x + dx, y: item.y + dy })
   }
-  const canOpenQuickActions=Boolean(token&&!shareToken&&!exportImage&&!isWhiteboard)
+  const available = route => featureVisible(hiddenFeatures, route)
+  const canOpenQuickActions=Boolean(token&&!shareToken&&!exportImage&&!isWhiteboard&&available('pdf-quick-actions')&&['tasks','calendar','workspace'].some(available))
   const openQuickActions=()=>{
     if(!canOpenQuickActions||loading||deletingPage||confirmation.pending||liveInk.accessRevoked||accessDenied||inserting||showLayout||showSettings||showSearch||showShare||document.querySelector('dialog[open]'))return false
     setQuickActionNotice('')
@@ -2717,7 +2719,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       {deletingPage && <div className="inline-operation-status" role="status"><Loader2 className="animate-spin" size={17} />Updating pages…</div>}
       <InlineConfirmation {...confirmation} />
       {quickActionNotice&&<div className="inline-operation-status" role="status">{quickActionNotice}</div>}
-      {showQuickActions&&<PDFQuickActions token={token} onSaved={setQuickActionNotice} onTaskCreated={onTaskCreated} onClose={()=>setShowQuickActions(false)}/>}
+      {canOpenQuickActions&&showQuickActions&&<PDFQuickActions hiddenFeatures={hiddenFeatures} token={token} onSaved={setQuickActionNotice} onTaskCreated={onTaskCreated} onClose={()=>setShowQuickActions(false)}/>}
       <PDFCollaborationPresence editRevision={revisionRef.current} root={editorRootRef} enabled={liveEnabled} participants={liveInk.participants} publish={liveInk.publishPresence} activity={()=>stylusGesture.current?.action==='eraser'?{tool:'eraser',eraserSize:stylusExtra.size,eraserShape:stylusExtra.shape,transform:null}:{tool:currentTool,eraserSize,eraserShape,transform:dragRef.current?(dragRef.current.corner?'resize':'move'):null}} tool={currentTool} selectedId={selectedInsertId} activeTextId={activeTextId} eraserSize={eraserSize} eraserShape={eraserShape} scale={scale} box={collaborationBox} page={pageNumber} pageBase={pageBase}/>
       {showStylusStudio&&<PDFStylusSettings barrel={stylusBarrel} onBarrel={setStylusBarrel} tip={stylusEraser?stylusExtra.tip:'none'} onTip={tip=>{setStylusEraser(tip!=='none');setStylusExtra(previous=>({...previous,tip}))}} extra={stylusExtra} onExtra={setStylusExtra} onReset={()=>{setStylusBarrel('eraser');setStylusEraser(true);setStylusExtra({secondary:'none',tip:'eraser',mode:'precision',size:20,shape:'round'})}} onClose={()=>setShowStylusStudio(false)}/>}
 
@@ -2727,13 +2729,14 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         bookView={bookView}
         onBookView={()=>{handleTextDragEnd();commitText();setPageLocked(false);setBookView(previous=>!previous)}}
         searchActions={searchActions}
+        showGlobalSearch={available('global-search')}
         whiteboardAppearance={isWhiteboard&&token&&!shareToken?<WhiteboardAppearance value={boardAppearance} onSave={saveWhiteboardAppearance}/>:null}
         onQuickActions={canOpenQuickActions?openQuickActions:undefined}
-        onTutorial={() => {
+        onTutorial={available('tutorial') ? () => {
           setShowSearch(false)
           if (onOpenTutorial) return leave(onOpenTutorial)
           window.open('#/tutorial/pdf', '_blank', 'noopener,noreferrer')
-        }}
+        } : undefined}
         onSearch={() => setShowSearch(previous => !previous)}
         onStickyNote={() => {
           if (pageBase?.page !== pageNumber || inserting || deletingPage) return
