@@ -1756,7 +1756,7 @@ function App({onFaviconPage}) {
         {page==='whiteboards' && <Whiteboards token={token} documents={pdfs} onDocumentsChange={setPdfs} onOpen={openDocument}/>}
         {page==='tutorial' && !selectedPDF && !selectedTask && <PlatformTutorial key={user?.id} userId={user?.id}
           startWithPDF={window.location.hash === '#/tutorial/pdf'}/>}
-        {page==='bookmarks' && <BookmarksPage key={user?.id} userId={user?.id}/>}
+        {page==='bookmarks' && <BookmarksPage key={user?.id} userId={user?.id} tasks={todos} folders={folders} documentFolders={pdfFolders} documents={pdfs}/>}
         {page==='shortcuts' && <ShortcutsPage initialQuery={searchShortcutsQuery}/>}
         {page==='visualization' && <TaskVisualization token={token} onTasksChange={setTodos} onOpenTask={task => { pendingLibraryTask.current = task; setSelectedFolder('all'); navigate('tasks') }} loading={loading} keyboardEnabled={!selectedPDF&&!assistantOpen} tasks={todos} folders={folders} documents={pdfs} onOpenDocument={openDocument} onStatusChange={updateTodoStatus} onEditTask={task=>{setSelectedFolder('all');navigate('tasks');startEditing(task)}} />}
 

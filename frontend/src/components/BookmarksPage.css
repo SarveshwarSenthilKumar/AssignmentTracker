@@ -17,3 +17,5 @@
 .bookmark-quick-links ul{grid-template-columns:repeat(auto-fit,minmax(144px,1fr))}
 .bookmark-quick-links a{justify-content:space-between}
 @media(max-width:720px){.bookmarks-page{grid-template-columns:minmax(0,1fr)}}
+.bookmark-suggestions{grid-column:1/-1}
+.bookmark-more{margin-top:12px}

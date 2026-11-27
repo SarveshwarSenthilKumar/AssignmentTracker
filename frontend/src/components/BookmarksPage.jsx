@@ -1,5 +1,7 @@
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { ArrowUpRight, Bookmark, Pencil, Plus, Trash2 } from 'lucide-react'
+import { documentRoute } from '../lib/openInTab'
+import { descriptionParts, documentTaskIds } from '../lib/taskAttachments'
 import './BookmarksPage.css'
 
 const quickLinks = [
@@ -18,6 +20,10 @@ function bookmarkUrl(input) {
   return url.href
 }
 
+function opensInNewTab(url) {
+  return !url.startsWith('#/') || /^#\/(?:documents|tasks)\//.test(url)
+}
+
 function readBookmarks(key) {
   try {
     const records = JSON.parse(localStorage.getItem(key) || '[]')
@@ -30,12 +36,66 @@ function readBookmarks(key) {
   } catch { return [] }
 }
 
-export default function BookmarksPage({ userId }) {
+function linksInText(text) {
+  if (typeof text !== 'string') return []
+  return Array.from(text.matchAll(/(?:https?:\/\/|#\/)[^\s<>"\x27]+/gi), ([match]) => {
+    let url = match.replace(/[.,;:!?]+$/, '')
+    const pairs = [['(', ')'], ['[', ']'], ['{', '}']]
+    for (const [open, close] of pairs) {
+      while (url.endsWith(close) && url.split(close).length > url.split(open).length) url = url.slice(0, -1)
+    }
+    return url.replace(/&amp;/gi, '&')
+  })
+}
+
+function workspaceSuggestions(tasks, folders, documents) {
+  const results = new Map()
+  const files = new Map(documents.filter(file => !file.deletedAt).map(file => [String(file._id), file]))
+  const tasksById = new Map(tasks.map(task => [String(task._id), task]))
+  const add = (value, origin, title) => {
+    try {
+      const url = bookmarkUrl(value)
+      if (url.length > 2048) return
+      const existing = results.get(url)
+      if (existing) {
+        existing.sources.add(origin)
+        return
+      }
+      results.set(url, { url, title: (title || (url.startsWith('#/') ? url : new URL(url).hostname)).slice(0, 100), sources: new Set([origin]) })
+    } catch { /* The link is unsupported. */ }
+  }
+  for (const task of tasks) {
+    const origin = task.text || 'Task'
+    for (const url of [...(task.links || []), ...linksInText(task.text), ...linksInText(task.description), ...linksInText(task.canvasInstructions)]) {
+      add(url, origin, task.text)
+    }
+    for (const part of descriptionParts(task.description || '')) {
+      const file = files.get(part.documentId?.toLowerCase())
+      if (file) add('#/' + documentRoute(file._id), origin, file.name)
+    }
+  }
+  for (const file of files.values()) {
+    for (const id of documentTaskIds(file)) {
+      const task = tasksById.get(id)
+      if (task) add('#/' + documentRoute(file._id), task.text || 'Task', file.name)
+    }
+  }
+  for (const folder of folders) {
+    for (const url of linksInText(folder.description)) add(url, folder.name || 'Folder', folder.name)
+  }
+  return [...results.values()]
+}
+
+export default function BookmarksPage({ userId, tasks, folders, documentFolders, documents }) {
   const storageKey = 'platform-bookmarks:' + userId
   const [bookmarks, setBookmarks] = useState(() => readBookmarks(storageKey))
   const [draft, setDraft] = useState(emptyDraft)
   const [editing, setEditing] = useState(null)
   const [query, setQuery] = useState('')
+  const [suggestionLimit, setSuggestionLimit] = useState(12)
+  const candidates = useMemo(() => workspaceSuggestions(tasks, [...folders, ...documentFolders], documents), [tasks, folders, documentFolders, documents])
+  const savedUrls = new Set(bookmarks.map(item => item.url))
+  const suggestions = candidates.filter(item => !savedUrls.has(item.url))
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const titleField = useRef(null)
@@ -92,11 +152,11 @@ export default function BookmarksPage({ userId }) {
       <h2 id="saved-bookmarks-title">Saved bookmarks</h2>
       {bookmarks.length > 0 && <label>Find a bookmark<input type="search" value={query} onChange={event => setQuery(event.target.value)} /></label>}
       {shown.length ? <ul>{shown.map(item => {
-        const external = !item.url.startsWith('#/')
+        const newTab = opensInNewTab(item.url)
         return <li key={item.id}>
-          <a href={item.url} target={external ? '_blank' : undefined} rel={external ? 'noopener noreferrer' : undefined}>
+          <a href={item.url} target={newTab ? '_blank' : undefined} rel={newTab ? 'noopener noreferrer' : undefined}>
             <Bookmark size={16} aria-hidden="true" /><span><strong>{item.title}</strong><small>{item.url}</small></span>
-            {external && <ArrowUpRight size={15} aria-label="Opens in a new tab" />}
+            {newTab && <ArrowUpRight size={15} aria-label="Opens in a new tab" />}
           </a>
           <div className="bookmark-actions">
             <button type="button" aria-label={'Edit ' + item.title} onClick={() => {
@@ -111,6 +171,29 @@ export default function BookmarksPage({ userId }) {
         </li>
       })}</ul> : <p>{bookmarks.length ? 'No bookmarks match your search.' : 'Add a link to keep it handy.'}</p>}
       <p className="bookmark-note">Bookmarks are saved for your account in this browser.</p>
+    </section>
+
+    <section className="bookmark-list bookmark-suggestions" aria-labelledby="bookmark-suggestions-title">
+      <h2 id="bookmark-suggestions-title">Suggested links</h2>
+      {suggestions.length ? <ul>{suggestions.slice(0, suggestionLimit).map(item => {
+        const newTab = opensInNewTab(item.url)
+        const [firstSource] = item.sources
+        return <li key={item.url}>
+          <a href={item.url} target={newTab ? '_blank' : undefined} rel={newTab ? 'noopener noreferrer' : undefined}>
+            <span><strong>{item.title}</strong><small>{item.url}</small><small>From {firstSource}{item.sources.size > 1 ? ' and ' + (item.sources.size - 1) + ' more' : ''}</small></span>
+            {newTab && <ArrowUpRight size={15} aria-label="Opens in a new tab" />}
+          </a>
+          <div className="bookmark-actions">
+            <button type="button" aria-label={'Save bookmark for ' + item.url} onClick={() => {
+              setNotice('')
+              if (save([{ id: crypto.randomUUID(), title: item.title, url: item.url }, ...bookmarks], 'Bookmark added.')) setQuery('')
+            }}><Bookmark size={15} aria-hidden="true" />Save</button>
+          </div>
+        </li>
+      })}</ul> : <p>Unsaved links from your tasks and folder descriptions will appear here.</p>}
+      {suggestions.length > suggestionLimit && <div className="bookmark-actions bookmark-more">
+        <button type="button" onClick={() => setSuggestionLimit(value => value + 12)}>Show more links</button>
+      </div>}
     </section>
 
     <section className="bookmark-quick-links" aria-labelledby="bookmark-quick-links-title">
