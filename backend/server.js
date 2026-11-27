@@ -12,6 +12,9 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const https = require('https');
+const dns = require('node:dns');
+const { isIP } = require('node:net');
+const { publicV4 } = require('./jobs');
 const { documentAction } = require('./documentActions');
 const { deletePDFPage, insertPDFPages, mergePDFDocuments } = require('./pdfPages');
 const {appendHistory}=require('./documentEditHistory');
@@ -26,6 +29,7 @@ const { calendarLinksOwned: validateCalendarLinks } = require('./calendarLinks')
 const { collectCanvasPages } = require('./canvasPagination');
 const { parseCalendarICS } = require('./calendarICS');
 const { canvasIdentity, canvasTaskFields } = require('./canvasTasks');
+const { assignmentDetails, assignmentEstimate } = require('./canvasAssignmentEstimate');
 const { assistantRequest, workspaceContext, responsePayload, responseText, responseSources } = require('./assistant');
 const { diagnostic, callAssistantAPI, AssistantAPIError, safeMessage } = require('./assistantDiagnostics');
 const { randomUUID } = require('node:crypto');
@@ -216,6 +220,12 @@ const todoSchema = new mongoose.Schema({
   calendarLastDate: { type: String, default: null },
   calendarLocation: { type: String, default: '' },
   calendarContext: { type: String, default: '' },
+  canvasInstructions: { type: String },
+  canvasSubmittedAt: { type: Date, default: undefined },
+  canvasEstimate: {
+    type: new mongoose.Schema({ low: Number, high: Number, reason: String }, { _id: false }),
+    default: undefined,
+  },
   canvasId: {
     type: String,
     default: null,
@@ -1234,13 +1244,29 @@ app.get('/api/folders', authenticateToken, async (req, res) => {
 
 // Create a new folder
 // Canvas Integration Routes
+function canvasOrigin(value) {
+  let url;
+  try { url = new URL(value); } catch { throw new Error('Enter your school’s public HTTPS Canvas URL.'); }
+  if (url.protocol !== 'https:' || url.username || url.password || url.port ||
+      !url.hostname.includes('.') || isIP(url.hostname) || /\.(?:local|internal)\.?$/i.test(url.hostname)) {
+    throw new Error('Enter your school’s public HTTPS Canvas URL.');
+  }
+  return url.origin;
+}
+
 // Update Canvas credentials
 app.put('/api/user/canvas', authenticateToken, async (req, res) => {
   try {
     const { canvasUrl, canvasToken } = req.body;
+    if (typeof canvasUrl !== 'string' || typeof canvasToken !== 'string' || !/^[!-~]{1,2048}$/.test(canvasToken.trim())) {
+      return res.status(400).json({ message: 'Enter a Canvas URL and access token.' });
+    }
+    let origin;
+    try { origin = canvasOrigin(canvasUrl.trim()); }
+    catch (error) { return res.status(400).json({ message: error.message }); }
     const user = await User.findOneAndUpdate(
       { _id: req.user.userId },
-      { canvasUrl, canvasToken },
+      { canvasUrl: origin, canvasToken: canvasToken.trim() },
       { new: true }
     );
     if (!user) {
@@ -1274,7 +1300,7 @@ app.post('/api/canvas/test', authenticateToken, async (req, res) => {
   try {
     const { canvasUrl, canvasToken } = req.body;
 
-    if (!canvasUrl || !canvasToken) {
+    if (typeof canvasUrl !== 'string' || typeof canvasToken !== 'string' || !/^[!-~]{1,2048}$/.test(canvasToken.trim())) {
 
       return res.status(400).json({ success: false, error: 'Canvas credentials not provided' });
     }
@@ -1283,13 +1309,13 @@ app.post('/api/canvas/test', authenticateToken, async (req, res) => {
 
 
     try {
-      // Test with calendar endpoint instead (may have different permissions)
-      const { items: testResponse } = await fetchCanvasPage(canvasUrl, canvasToken, '/api/v1/calendar_events?per_page=1');
+      const { items: testResponse } = await fetchCanvasPage(canvasOrigin(canvasUrl), canvasToken.trim(), '/api/v1/courses?per_page=1');
 
+      if (!Array.isArray(testResponse)) throw new Error('Canvas did not return a course list.');
       res.json({
         success: true,
         message: 'Canvas connection successful',
-        response: Array.isArray(testResponse) ? `Found ${testResponse.length} calendar events` : 'Response received'
+        response: Array.isArray(testResponse) ? `Found ${testResponse.length} courses on the first page` : 'Response received'
       });
     } catch (e) {
 
@@ -1309,11 +1335,21 @@ app.post('/api/canvas/test', authenticateToken, async (req, res) => {
 const fetchCanvasPage = (canvasUrl, canvasToken, endpoint) => {
   return new Promise((resolve, reject) => {
     try {
-      // Ensure canvasUrl doesn't have trailing slash
-      const cleanUrl = canvasUrl.replace(/\/$/, '');
-      const url = new URL(endpoint, cleanUrl);
+      const origin = canvasOrigin(canvasUrl);
+      const url = new URL(endpoint, origin);
+      if (url.origin !== origin || url.username || url.password) throw new Error('Invalid Canvas destination.');
 
       const options = {
+        agent: false,
+        lookup(hostname, options, callback) {
+          dns.lookup(hostname, { all: true, family: 4 }, (error, addresses) => {
+            if (error) return callback(error);
+            if (!addresses.length || addresses.some(entry => !publicV4(entry.address))) {
+              return callback(new Error('Canvas must resolve to a public address.'));
+            }
+            return options.all ? callback(null, addresses) : callback(null, addresses[0].address, 4);
+          });
+        },
         headers: {
           'Authorization': `Bearer ${canvasToken}`,
           'Accept': 'application/json+canvas-string-ids'
@@ -1325,14 +1361,21 @@ const fetchCanvasPage = (canvasUrl, canvasToken, endpoint) => {
 
       const request = https.get(url, options, (res) => {
         let data = '';
-        res.on('data', chunk => data += chunk);
+        res.on('error', reject);
+        res.setEncoding('utf8');
+        let bytes = 0;
+        res.on('data', chunk => {
+          bytes += Buffer.byteLength(chunk);
+          if (bytes > 12 * 1024 * 1024) request.destroy(new Error('Canvas response exceeded the size limit.'));
+          else data += chunk;
+        });
         res.on('end', () => {
 
 
 
 
-          if (res.statusCode >= 400) {
-            reject(new Error(`Canvas API returned status ${res.statusCode}: ${data.substring(0, 200)}`));
+          if (res.statusCode < 200 || res.statusCode >= 300) {
+            reject(new Error(`Canvas API returned status ${res.statusCode}`));
             return;
           }
 
@@ -1350,7 +1393,7 @@ const fetchCanvasPage = (canvasUrl, canvasToken, endpoint) => {
             if (data.toLowerCase().includes('<html') || data.toLowerCase().includes('<!doctype')) {
               reject(new Error('Canvas returned HTML instead of JSON. API token may be invalid or expired.'));
             } else {
-              reject(new Error(`Failed to parse Canvas response: ${e.message}. Response: ${data.substring(0, 200)}`));
+              reject(new Error(`Canvas returned invalid JSON.`));
             }
           }
         });
@@ -1358,7 +1401,8 @@ const fetchCanvasPage = (canvasUrl, canvasToken, endpoint) => {
 
         reject(new Error(`Canvas API request failed: ${e.message}`));
       });
-      request.setTimeout(20000, () => request.destroy(new Error('Canvas request timed out.')));
+      const timeout = setTimeout(() => request.destroy(new Error('Canvas request timed out.')), 20_000);
+      request.once('close', () => clearTimeout(timeout));
     } catch (e) {
 
       reject(new Error(`Invalid Canvas URL: ${e.message}`));
@@ -1395,7 +1439,7 @@ app.post('/api/canvas/sync', authenticateToken, async (req, res) => {
           const courseAssignments = await fetchFromCanvas(
             user.canvasUrl,
             user.canvasToken,
-            `/api/v1/courses/${course.id}/assignments?per_page=100`
+            `/api/v1/courses/${course.id}/assignments?per_page=100&include%5B%5D=submission`
           );
 
 
@@ -1403,10 +1447,18 @@ app.post('/api/canvas/sync', authenticateToken, async (req, res) => {
           for (const assignment of courseAssignments) {
             const existingTodo = await Todo.findOne(canvasIdentity(req.user.userId, assignment, 'assignment'));
 
+            const instructions = assignmentDetails(assignment.description);
+            const assignmentFields = {
+              ...canvasTaskFields(assignment, 'assignment', course.name),
+              canvasInstructions: instructions,
+              canvasSubmittedAt: Number.isFinite(Date.parse(assignment.submission?.submitted_at))
+                ? new Date(assignment.submission.submitted_at) : null,
+              canvasEstimate: assignmentEstimate(assignment.name, instructions),
+            };
             if (!existingTodo) {
               const todo = new Todo({
-                ...canvasTaskFields(assignment, 'assignment', course.name),
-                description: assignment.description || '',
+                ...assignmentFields,
+                description: instructions,
                 links: assignment.html_url ? [assignment.html_url] : [],
                 status: 'todo',
                 user: req.user.userId,
@@ -1417,7 +1469,7 @@ app.post('/api/canvas/sync', authenticateToken, async (req, res) => {
               syncedCount++;
 
             } else {
-              Object.assign(existingTodo, canvasTaskFields(assignment, 'assignment', course.name));
+              Object.assign(existingTodo, assignmentFields);
               await existingTodo.save(); syncedCount++;
             }
           }

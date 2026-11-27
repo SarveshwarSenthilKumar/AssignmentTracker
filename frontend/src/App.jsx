@@ -1,3 +1,4 @@
+import CanvasWorkload, { canvasEstimateLabel } from './components/CanvasWorkload'
 import DocumentFolderNavigation from './components/DocumentFolderNavigation'
 import AdminPortal from './components/AdminPortal'
 import FeatureSuggestionsPage from './components/FeatureSuggestionsPage'
@@ -261,7 +262,6 @@ function App({onFaviconPage}) {
   const [editingFolder, setEditingFolder] = useState(null)
   const [editFolderName, setEditFolderName] = useState('')
   const [contextMenu, setContextMenu] = useState(null)
-  const [showCanvasModal, setShowCanvasModal] = useState(false)
   const [canvasUrl, setCanvasUrl] = useState('')
   const [canvasToken, setCanvasToken] = useState('')
   const [canvasStatus, setCanvasStatus] = useState(null)
@@ -373,11 +373,11 @@ function App({onFaviconPage}) {
   }, [isAuthenticated])
 
   useEffect(() => {
-    if (!(showFolderModal || showProfileModal || showCanvasModal || showPDFUploadModal || showCommandMenu || selectedTask || contextMenu)) return
+    if (!(showFolderModal || showProfileModal || showPDFUploadModal || showCommandMenu || selectedTask || contextMenu)) return
     const panels = document.querySelectorAll('.app-inline-panel')
     const panel = panels[panels.length - 1]
     panel?.scrollIntoView({ block: 'start', behavior: 'smooth' })
-  }, [showFolderModal, showProfileModal, showCanvasModal, showPDFUploadModal, showCommandMenu, selectedTask, contextMenu])
+  }, [showFolderModal, showProfileModal, showPDFUploadModal, showCommandMenu, selectedTask, contextMenu])
 
   useShortcuts('Platform', {
     'nav-tasks': () => navigate('tasks'), 'nav-documents': () => navigate('documents'),
@@ -1490,10 +1490,11 @@ function App({onFaviconPage}) {
       return
     }
 
+    setCanvasNotice('')
     setSyncing(true)
     try {
       const response = await fetch('/api/user/canvas', {
-        method: 'POST',
+        method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
@@ -1510,8 +1511,9 @@ function App({onFaviconPage}) {
         throw new Error(errorMessage)
       }
       await fetchCanvasStatus()
-      setShowCanvasModal(false)
       setCanvasToken('')
+      setError(null)
+      setCanvasNotice('Canvas connection saved. Sync Canvas to fetch your assignments.')
     } catch (err) {
       if (err.message === 'Invalid or expired token') {
         logout()
@@ -1571,6 +1573,7 @@ function App({onFaviconPage}) {
       return
     }
 
+    setCanvasNotice('')
     setTesting(true)
     try {
       const response = await fetch('/api/canvas/test', {
@@ -1583,7 +1586,8 @@ function App({onFaviconPage}) {
       })
       const data = await readApiJson(response)
       if (data.success) {
-        setError(`Canvas connection successful: ${data.response}`)
+        setError(null)
+        setCanvasNotice('Canvas connection successful. Save the connection to sync assignments.')
       } else {
         setError(`Canvas connection failed: ${data.error || 'Unknown error'}`)
       }
@@ -1635,7 +1639,6 @@ function App({onFaviconPage}) {
       await fetchFolders()
       setError(null); setCanvasNotice(`Imported ${data.importedCount} calendar items. Their dates are now available in Calendar.`)
       setIcsFile(null)
-      setShowCanvasModal(false)
     } catch (err) {
       if (err.message === 'Invalid or expired token') {
         logout()
@@ -2363,7 +2366,26 @@ function App({onFaviconPage}) {
 
         {/* Canvas Integration Modal */}
         {page === 'canvas' && (
-          <div className="app-inline-panel" data-canvas-import>
+          <div className="app-inline-panel space-y-6" data-canvas-import>
+            <section className="rounded-2xl border border-white/10 bg-slate-900 p-6" aria-labelledby="canvas-connection-title">
+              <h2 id="canvas-connection-title" className="text-xl font-semibold">Connect to Canvas</h2>
+              <p className="my-3 text-sm text-slate-300">Enter your school’s Canvas URL and a personal access token from Canvas Account → Settings, if your school allows tokens. Sync Canvas to import assignments and estimate your workload.</p>
+              <form className="space-y-3" onSubmit={saveCanvasCredentials}>
+                <label className="block">School Canvas URL
+                  <input className="mt-1 block w-full max-w-lg rounded-lg border border-white/10 bg-white/5 p-2" type="url" value={canvasUrl} onChange={event => setCanvasUrl(event.target.value)} placeholder="https://your-school.instructure.com" required disabled={syncing || testing}/>
+                </label>
+                <label className="block">Canvas access token
+                  <input className="mt-1 block w-full max-w-lg rounded-lg border border-white/10 bg-white/5 p-2" type="password" autoComplete="off" value={canvasToken} onChange={event => setCanvasToken(event.target.value)} required disabled={syncing || testing}/>
+                </label>
+                <div className="flex flex-wrap gap-3">
+                  <button type="submit" className="rounded-lg bg-purple-700 px-4 py-2 disabled:opacity-50" disabled={syncing || testing}>Save connection</button>
+                  <button type="button" className="rounded-lg border border-white/10 px-4 py-2 disabled:opacity-50" disabled={syncing || testing || !canvasUrl || !canvasToken} onClick={testCanvasConnection}>{testing ? 'Testing…' : 'Test connection'}</button>
+                  <button type="button" className="rounded-lg border border-white/10 px-4 py-2 disabled:opacity-50" disabled={syncing || testing || !canvasStatus?.hasCredentials} onClick={syncCanvas}>Sync Canvas</button>
+                </div>
+              </form>
+              {canvasStatus?.hasCredentials && <p className="mt-3 text-sm text-slate-300">Saved connection: {canvasStatus.canvasUrl}{canvasStatus.lastCanvasSync && ' · Last sync ' + new Date(canvasStatus.lastCanvasSync).toLocaleString()}</p>}
+            </section>
+            <CanvasWorkload tasks={todos} onOpenTask={setSelectedTask}/>
             <div className="bg-slate-900 border border-white/10 rounded-2xl p-6 w-full max-w-md">
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-2xl font-bold text-white">Import Calendar</h3>
@@ -2534,6 +2556,16 @@ function App({onFaviconPage}) {
                 <TaskAttachments key={selectedTask._id} taskId={selectedTask._id} links={selectedTask.links} onLinksChange={links=>updateTaskLinks(selectedTask._id, links)} documents={pdfs} folders={pdfFolders} token={token} onDocumentsChange={setPdfs} onOpen={openDocument} onLibrary={() => { setSelectedPDFFolder('all'); navigate('documents') }} />
               </div>
 
+              {selectedTask.canvasType === 'assignment' && <section className="mb-6" aria-label="Canvas assignment details">
+                <h3 className="mb-2 font-semibold">Canvas assignment</h3>
+                <p className="text-sm text-slate-300">{selectedTask.canvasEstimate
+                  ? canvasEstimateLabel(selectedTask.canvasEstimate) + ' estimated. ' + selectedTask.canvasEstimate.reason
+                  : selectedTask.canvasInstructions === undefined ? 'Sync Canvas to check for an estimate.' : 'No time estimate available.'}</p>
+                {selectedTask.canvasInstructions && <details className="mt-2">
+                  <summary>Latest instructions from Canvas</summary>
+                  <p className="mt-2 whitespace-pre-wrap break-words text-sm">{selectedTask.canvasInstructions}</p>
+                </details>}
+              </section>}
               {selectedTask.canvasType!=='calendar_event'&&<TaskSchedule task={selectedTask} token={token} onSaved={updated=>{setTodos(previous=>previous.map(task=>task._id===updated._id?updated:task));setSelectedTask(updated)}}/>}
               {/* Due Date */}
               <div className="mb-6">

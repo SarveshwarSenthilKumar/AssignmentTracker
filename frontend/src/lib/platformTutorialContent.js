@@ -39,7 +39,7 @@ export const tutorialTopics = [
       'Press T to jump to today or / to search. Outside text fields, Ctrl/Cmd+Z can undo the latest supported saved calendar change.'
     ], 'Create an appointment and confirm that it appears on the expected day in Agenda.'],
     ['imports', 'Bring in courses and calendars', 'canvas', 'Canvas integration', [
-      'Use Canvas integration to connect your course account and choose the supported assignments and events to sync. Use the ICS importer on the same page for a calendar file.',
+      'In Canvas integration, enter your school’s Canvas URL and personal access token, save the connection and choose Sync Canvas. Review assignment instructions, effort estimates and the total in Canvas assignment workload. Use the ICS importer for calendar dates if your school does not allow tokens.',
       'In Calendar, use Class schedule to enter repeating meetings or import a schedule file with Gemini. Confirm effective dates, days, times and locations before saving.',
       'Calendar also offers university events and an F1 season import. Pick the relevant source and use calendar filters to show or hide those entries. University events start at None.'
     ], 'Open the Canvas connection or inspect an ICS file before importing it.'],

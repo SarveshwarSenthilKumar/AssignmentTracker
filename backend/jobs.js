@@ -71,3 +71,5 @@ module.exports=function registerJobs(app,auth,mongoose){
 };
 module.exports.pageHTML=pageHTML;
 module.exports.safeURL=safeURL;
+
+module.exports.publicV4 = publicV4;
