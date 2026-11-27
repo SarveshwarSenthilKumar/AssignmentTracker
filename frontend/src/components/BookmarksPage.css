@@ -19,3 +19,9 @@
 @media(max-width:720px){.bookmarks-page{grid-template-columns:minmax(0,1fr)}}
 .bookmark-suggestions{grid-column:1/-1}
 .bookmark-more{margin-top:12px}
+.bookmark-folders{grid-column:1/-1}
+.bookmark-folders label{max-width:24rem}
+.bookmark-folders form{margin-top:12px}
+.bookmarks-page select{min-width:0;width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:8px;background:var(--surface-input);color:var(--text-primary)}
+.bookmark-folders .bookmark-actions{flex-wrap:wrap}
+.bookmarks-page select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
