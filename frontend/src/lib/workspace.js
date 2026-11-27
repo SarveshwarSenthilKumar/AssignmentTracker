@@ -1,4 +1,31 @@
-export const TOOLS={tasks:{label:'Tasks',description:'Search, plan and update your tasks.'},calendar:{label:'Agenda',description:'Deadlines, appointments and date markers.'},documents:{label:'Documents',description:'Your files, folders and media.'},graph:{label:'Task map',description:'Explore progress and task connections.'},notes:{label:'Notes',description:'A saved scratchpad for this workflow.'},focus:{label:'Focus timer',description:'A quiet countdown for focused work.'},assistant:{label:'AI assistant',description:'Open your saved AI conversations.'}}
+export const TOOLS={tasks:{label:'Tasks',description:'Search, plan and update your tasks.'},calendar:{label:'Agenda',description:'Check deadlines and appointments. Open an event to edit or share it.'},documents:{label:'Documents',description:'Your files, folders and media.'},graph:{label:'Task map',description:'Explore progress and task connections.'},notes:{label:'Notes',description:'A saved scratchpad for this workflow.'},focus:{label:'Focus timer',description:'A quiet countdown for focused work.'},assistant:{label:'AI assistant',description:'Open your saved AI conversations.'}}
+
+const pageTools = {
+  home: ['Home', 'See your dashboard, upcoming schedule and recent files.'],
+  canvas: ['Canvas workload', 'Review assignment time estimates and sync your Canvas courses.'],
+  bookmarks: ['Bookmarks', 'Open bookmark folders, suggested links and quick links.'],
+  'detective-wall': ['Detective wall', 'Open your pinboards or start from a sample mystery.'],
+  whiteboards: ['Team whiteboards', 'Open a shared board to draw and collaborate.'],
+  study: ['Question bank', 'Review saved questions, answers and study topics.'],
+  prep: ['Career prep', 'Open interview coaching, practice and cold email drafting.'],
+  resumes: ['Resumes', 'Open saved resumes, templates and tailoring tools.'],
+  'cover-letters': ['Cover letters', 'Open saved letters and writing tools.'],
+  jobs: ['Saved jobs', 'Open your job list and import job postings.'],
+  analytics: ['Analytics', 'Review account activity and storage.'],
+  tutorial: ['Tutorial', 'Open platform and PDF editor lessons.'],
+  shortcuts: ['Keyboard shortcuts', 'Find shortcuts for the platform and editors.'],
+  account: ['Account settings', 'Manage navigation pins, visibility, friends and preferences.'],
+  roadmap: ['Site roadmap', 'See planned improvements and work in progress.'],
+  'report-bug': ['Report a bug', 'Report an issue or follow an existing report.'],
+  'suggest-feature': ['Feature suggestions', 'Suggest an improvement or check its status.'],
+  handbook: ['Product handbook', 'Open the platform reference guide.'],
+  logbook: ['Update logbook', 'Read the platform change history.'],
+}
+
+for (const [route, [label, description]] of Object.entries(pageTools)) {
+  TOOLS[route] = { label, description, route }
+}
+
 export const workspaceId=()=>crypto.randomUUID()
 export const paneFor=type=>({id:workspaceId(),type,note:''})
 export function windowFor(type,index=0){const pane=paneFor(type);return {id:workspaceId(),panes:[pane],activePaneId:pane.id,x:24+index*36,y:24+index*36,width:500,height:440,minimized:false,maximized:false}}

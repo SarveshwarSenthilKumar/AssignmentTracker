@@ -1,3 +1,5 @@
+import CanvasWorkload from './CanvasWorkload'
+import { TOOLS } from '../lib/workspace'
 import DocumentFileIcon from './DocumentFileIcon'
 import {StudyPhoneButton} from './StudyPhone'
 import useCalendarColors from '../hooks/useCalendarColors'
@@ -128,5 +130,20 @@ export default function WorkflowTools({pane,onNoteChange,active,...props}){
   if(pane.type==='notes')return <NotesPane pane={pane} onNoteChange={onNoteChange}/>
   if(pane.type==='focus')return <FocusPane {...props}/>
   if(pane.type==='graph')return <div className="workflow-graph"><TaskVisualization tasks={mapTasks} folders={props.folders} documents={props.documents} token={props.token} onTasksChange={props.onTasksChange} onOpenTask={props.onOpenTask} onEditTask={props.onOpenTask} onStatusChange={props.onStatusChange} onOpenDocument={props.onOpenDocument} keyboardEnabled={active&&props.keyboardEnabled}/></div>
+  const tool = TOOLS[pane.type]
+  if (pane.type === 'canvas') return <div className="workflow-page-tool workflow-canvas-workload">
+    <div className="workflow-page-actions">
+      <button type="button" onClick={() => props.onNavigate('canvas')}>Open Canvas integration ↗</button>
+      <button type="button" disabled={!props.canvasStatus?.hasCredentials || props.syncing} onClick={props.onSyncCanvas}>
+        {props.syncing ? 'Syncing…' : 'Sync Canvas'}
+      </button>
+    </div>
+    {props.canvasTasksEnabled && <CanvasWorkload tasks={props.tasks} onOpenTask={props.onOpenTask} />}
+  </div>
+  if (tool.route) return <div className="workflow-ai-launch">
+    <h3>{tool.label}</h3>
+    <p>{tool.description}</p>
+    <button type="button" onClick={() => props.onNavigate(tool.route)}>Open {tool.label} ↗</button>
+  </div>
   return <div className="workflow-ai-launch"><MessageSquare size={30}/><h3>Your AI workspace</h3><p>Ask about visible work, attached files, deadlines or any topic. The floating assistant can sit beside these windows.</p><button type="button" onClick={props.onOpenAssistant}>Open floating assistant · Alt + J</button><button type="button" onClick={()=>props.onNavigate('assistant')}>Go to full AI workspace ↗</button><small>Uses the API key saved to your account.</small></div>
 }

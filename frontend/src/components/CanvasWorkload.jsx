@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useId, useMemo, useState } from 'react'
 import { taskDueLabel } from '../lib/calendar'
 
 function minutes(value) {
@@ -12,6 +12,7 @@ export function canvasEstimateLabel({ low, high }) {
 }
 
 export default function CanvasWorkload({ tasks, onOpenTask }) {
+  const headingId = useId()
   const [showCompleted, setShowCompleted] = useState(false)
   const [limit, setLimit] = useState(20)
   const assignments = useMemo(() => tasks.filter(task => task.canvasType === 'assignment' &&
@@ -23,8 +24,8 @@ export default function CanvasWorkload({ tasks, onOpenTask }) {
     count: result.count + 1,
   } : result, { low: 0, high: 0, count: 0 })
 
-  return <section className="rounded-2xl border border-white/10 bg-slate-900 p-6" aria-labelledby="canvas-workload-title">
-    <h2 id="canvas-workload-title" className="text-xl font-semibold">Canvas assignment workload</h2>
+  return <section className="rounded-2xl border border-white/10 bg-slate-900 p-6" aria-labelledby={headingId}>
+    <h2 id={headingId} className="text-xl font-semibold">Canvas assignment workload</h2>
     <p className="mt-2 text-sm text-slate-300">Sync to refresh instructions and estimates. Estimates represent focused work time and use the details available in Canvas. Linked files and external tools may add work.</p>
     <label className="mt-4 flex items-center gap-2">
       <input type="checkbox" checked={showCompleted} onChange={event => { setShowCompleted(event.target.checked); setLimit(20) }}/>

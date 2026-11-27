@@ -1,4 +1,8 @@
-const TYPES=new Set(['tasks','calendar','documents','graph','notes','focus','assistant']);
+const TYPES = new Set([
+  'tasks', 'calendar', 'documents', 'graph', 'notes', 'focus', 'assistant', 'home', 'canvas', 'bookmarks',
+  'detective-wall', 'whiteboards', 'study', 'prep', 'resumes', 'cover-letters', 'jobs', 'analytics',
+  'tutorial', 'shortcuts', 'account', 'roadmap', 'report-bug', 'suggest-feature', 'handbook', 'logbook',
+]);
 const id=value=>typeof value==='string'&&/^[a-zA-Z0-9_-]{1,80}$/.test(value);
 const number=(value,min,max)=>typeof value==='number'&&Number.isFinite(value)&&value>=min&&value<=max;
 function cleanLayout(value){
