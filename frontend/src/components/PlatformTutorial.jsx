@@ -9,7 +9,7 @@ const topics = [...tutorialTopics, pdfTutorialTopic]
 const lessons = topics.flatMap(group => group.lessons)
 const editorShortcuts = SHORTCUTS.filter(item => item.scope === 'Visual editor')
 
-export default function PlatformTutorial({ userId, startWithPDF = false, hiddenFeatures }) {
+export default function PlatformTutorial({ userId, startWithPDF = false, hiddenFeatures, headerAction }) {
   const key = `platform-tutorial:${userId}`
   const startingLesson = startWithPDF ? pdfTutorialTopic.lessons[0].id : null
   const [progress,setProgress]=useState(()=>{
@@ -41,7 +41,7 @@ export default function PlatformTutorial({ userId, startWithPDF = false, hiddenF
   useEffect(()=>{heading.current?.focus({preventScroll:true})},[lesson?.id])
   const choose=id=>setProgress(previous=>({...previous,current:id}))
   return <section className="platform-tutorial" aria-label="Platform tutorial">
-    <header><h1>Platform tutorial</h1>
+    <header><h1>Platform tutorial</h1>{headerAction}
       <span>{completedCount} of {enabledLessons.length} completed</span></header>
     <progress value={completedCount} max={Math.max(1, enabledLessons.length)} aria-label="Tutorial progress"/>
     <div className="platform-tutorial-layout">

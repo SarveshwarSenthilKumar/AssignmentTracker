@@ -64,25 +64,15 @@ export default function AppNavigation({page,user,onSignOut,lockActions=[],hidden
   },[open])
   const toggle=(name,event)=>{trigger.current=event.currentTarget;setOpen(previous=>previous===name?null:name)}
   const focusPanel=()=>requestAnimationFrame(()=>root.current?.querySelector('[data-nav-panel] a,[data-nav-panel] button')?.focus())
-  const newTabs = new Set(user?.navigationNewTabs || [])
   const link=(item,details=false)=>{
     const [key,label,Icon,description]=item
     const href = '#/' + key + (['report-bug','suggest-feature'].includes(key) ? '/' + encodeURIComponent(page) : '')
-    const pageLink = <a className={'an-link' + (details ? ' an-detail-link' : '')} href={href}
+    return <a className={'an-link' + (details ? ' an-detail-link' : '')} href={href}
       data-new-tutorial={key === 'tutorial' && highlightTutorial ? 'true' : undefined}
       key={key} aria-current={page===key?'page':undefined} onClick={()=>setOpen(null)}>
       <Icon size={16}/><span><strong>{label}</strong>{details&&description&&<small>{description}</small>}</span>
-      {details&&!newTabs.has(key)&&<ArrowUpRight size={13} className="an-link-arrow"/>}
+      {details&&<ArrowUpRight size={13} className="an-link-arrow"/>}
     </a>
-    if (!newTabs.has(key)) return pageLink
-    const newTabLabel = 'Open ' + label + ' in a new tab'
-    return <div className="an-page-links" key={key}>
-      {pageLink}
-      <a className="an-new-tab" href={href} target="_blank" rel="noopener noreferrer"
-        title={newTabLabel} aria-label={newTabLabel} onClick={()=>setOpen(null)}>
-        <ArrowUpRight size={15} aria-hidden="true"/>
-      </a>
-    </div>
   }
   const group=(name,label,Icon,items)=>{
     const selected=items.some(item=>item[0]===page)

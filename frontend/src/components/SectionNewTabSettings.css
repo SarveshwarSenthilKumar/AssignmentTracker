@@ -1,0 +1,4 @@
+.platform-page-title-row{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
+.section-new-tab-button{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface-input);color:var(--text-primary);font-size:12px;text-decoration:none}
+.section-new-tab-button:hover{border-color:var(--accent);color:var(--accent)}
+.section-new-tab-button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}

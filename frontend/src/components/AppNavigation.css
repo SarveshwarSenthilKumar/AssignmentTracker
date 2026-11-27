@@ -7,11 +7,6 @@
 .an-group>.an-panel{max-height:calc(100dvh - 110px);overflow-y:auto;overscroll-behavior:contain}
 .app-navigation a.an-detail-link[data-new-tutorial=true]{background:var(--surface-raised);border:1px solid var(--border);margin-bottom:6px}
 
-.an-page-links{display:flex;align-items:center;flex-shrink:0;gap:1px}
-.an-new-tab{display:inline-flex;align-items:center;justify-content:center;min-width:28px;min-height:32px;border-radius:7px;color:var(--text-muted)}
-.an-new-tab:hover{background:var(--surface-raised);color:var(--text-primary)}
-:is(.an-mobile-panel,.an-panel) .an-page-links>.an-link{flex:1;min-width:0}
-.an-mobile-panel .an-new-tab{min-width:36px;min-height:36px}
 
 .app-navigation :is(.an-fullscreen,.an-menu-button){width:100%;background:transparent;text-align:left;cursor:pointer}
 .app-navigation .an-fullscreen:disabled{opacity:.5;cursor:default}
