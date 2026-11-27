@@ -99,7 +99,7 @@ const userSchema = new mongoose.Schema({
   showSetupBanner: { type: Boolean, default: true },
   hiddenFeatures: { type: [String], default: [] },
   navigationPins: { type: [String], default: undefined },
-  navigationNewTabs: { type: [String], default: [] },
+  navigationNewTabs: { type: [String], default: undefined },
   username: {
     type: String,
     required: true,
@@ -523,7 +523,7 @@ app.post('/api/auth/register', async (req, res) => {
         username: user.username, createdAt: user.createdAt,
         email: user.email,
         timeZone: user.timeZone || '',
-        studyPhoneEnabled: user.studyPhoneEnabled!==false, showSetupBanner:user.showSetupBanner!==false,hiddenFeatures:user.hiddenFeatures||[],navigationPins:user.navigationPins??null,navigationNewTabs:user.navigationNewTabs||[],
+        studyPhoneEnabled: user.studyPhoneEnabled!==false, showSetupBanner:user.showSetupBanner!==false,hiddenFeatures:user.hiddenFeatures||[],navigationPins:user.navigationPins??null,navigationNewTabs:user.navigationNewTabs??null,
         themeMode: ['light','system'].includes(user.themeMode)?user.themeMode:'dark',
       },
     });
@@ -570,7 +570,7 @@ app.post('/api/auth/login', async (req, res) => {
         username: user.username, createdAt: user.createdAt,
         email: user.email,
         timeZone: user.timeZone || '',
-        studyPhoneEnabled: user.studyPhoneEnabled!==false, showSetupBanner:user.showSetupBanner!==false,hiddenFeatures:user.hiddenFeatures||[],navigationPins:user.navigationPins??null,navigationNewTabs:user.navigationNewTabs||[],
+        studyPhoneEnabled: user.studyPhoneEnabled!==false, showSetupBanner:user.showSetupBanner!==false,hiddenFeatures:user.hiddenFeatures||[],navigationPins:user.navigationPins??null,navigationNewTabs:user.navigationNewTabs??null,
         themeMode: ['light','system'].includes(user.themeMode)?user.themeMode:'dark',
       },
     });
@@ -814,7 +814,7 @@ app.get('/api/account/preferences', authenticateToken, async (req, res) => {
   try {
     const user = await User.findById(req.user.userId).select('createdAt themeMode timeZone confirmTaskDeletion confirmOtherActions showInProgressColumn showTaskStreaks showTaskContributionGraph studyPhoneEnabled showSetupBanner hiddenFeatures navigationPins navigationNewTabs taskSortBy taskSortOrder completedTaskRetentionDays deletedTaskRetentionDays +birthday');
     if (!user) return res.status(404).json({ message: 'Account not found.' });
-    res.json({ createdAt:user.createdAt,themeMode:['light','system'].includes(user.themeMode)?user.themeMode:'dark',timeZone: user.timeZone || '', confirmTaskDeletion:user.confirmTaskDeletion!==false, confirmOtherActions:user.confirmOtherActions!==false, showInProgressColumn:user.showInProgressColumn!==false,showTaskStreaks:user.showTaskStreaks!==false,showTaskContributionGraph:user.showTaskContributionGraph!==false,studyPhoneEnabled:user.studyPhoneEnabled!==false,showSetupBanner:user.showSetupBanner!==false,hiddenFeatures:user.hiddenFeatures||[],navigationPins:user.navigationPins??null,navigationNewTabs:user.navigationNewTabs||[],taskSortBy:user.taskSortBy||'dueDate',taskSortOrder:user.taskSortOrder||'asc',birthday:user.birthday||'',completedTaskRetentionDays:user.completedTaskRetentionDays||0,deletedTaskRetentionDays:user.deletedTaskRetentionDays??7 });
+    res.json({ createdAt:user.createdAt,themeMode:['light','system'].includes(user.themeMode)?user.themeMode:'dark',timeZone: user.timeZone || '', confirmTaskDeletion:user.confirmTaskDeletion!==false, confirmOtherActions:user.confirmOtherActions!==false, showInProgressColumn:user.showInProgressColumn!==false,showTaskStreaks:user.showTaskStreaks!==false,showTaskContributionGraph:user.showTaskContributionGraph!==false,studyPhoneEnabled:user.studyPhoneEnabled!==false,showSetupBanner:user.showSetupBanner!==false,hiddenFeatures:user.hiddenFeatures||[],navigationPins:user.navigationPins??null,navigationNewTabs:user.navigationNewTabs??null,taskSortBy:user.taskSortBy||'dueDate',taskSortOrder:user.taskSortOrder||'asc',birthday:user.birthday||'',completedTaskRetentionDays:user.completedTaskRetentionDays||0,deletedTaskRetentionDays:user.deletedTaskRetentionDays??7 });
   } catch { res.status(500).json({ message: 'Could not load account preferences.' }); }
 });
 app.put('/api/account/preferences', authenticateToken, async (req, res) => {
@@ -882,7 +882,7 @@ app.put('/api/account/preferences', authenticateToken, async (req, res) => {
   try {
     const user = await User.findByIdAndUpdate(req.user.userId, { $set: update }, { new: true }).select('createdAt themeMode timeZone confirmTaskDeletion confirmOtherActions showInProgressColumn showTaskStreaks showTaskContributionGraph studyPhoneEnabled showSetupBanner hiddenFeatures navigationPins navigationNewTabs taskSortBy taskSortOrder completedTaskRetentionDays deletedTaskRetentionDays +birthday');
     if (!user) return res.status(404).json({ message: 'Account not found.' });
-    res.json({ createdAt:user.createdAt,themeMode:['light','system'].includes(user.themeMode)?user.themeMode:'dark',timeZone: user.timeZone || '',confirmTaskDeletion:user.confirmTaskDeletion!==false,confirmOtherActions:user.confirmOtherActions!==false, showInProgressColumn:user.showInProgressColumn!==false,showTaskStreaks:user.showTaskStreaks!==false,showTaskContributionGraph:user.showTaskContributionGraph!==false,studyPhoneEnabled:user.studyPhoneEnabled!==false,showSetupBanner:user.showSetupBanner!==false,hiddenFeatures:user.hiddenFeatures||[],navigationPins:user.navigationPins??null,navigationNewTabs:user.navigationNewTabs||[],taskSortBy:user.taskSortBy||'dueDate',taskSortOrder:user.taskSortOrder||'asc',birthday:user.birthday||'',completedTaskRetentionDays:user.completedTaskRetentionDays||0,deletedTaskRetentionDays:user.deletedTaskRetentionDays??7 });
+    res.json({ createdAt:user.createdAt,themeMode:['light','system'].includes(user.themeMode)?user.themeMode:'dark',timeZone: user.timeZone || '',confirmTaskDeletion:user.confirmTaskDeletion!==false,confirmOtherActions:user.confirmOtherActions!==false, showInProgressColumn:user.showInProgressColumn!==false,showTaskStreaks:user.showTaskStreaks!==false,showTaskContributionGraph:user.showTaskContributionGraph!==false,studyPhoneEnabled:user.studyPhoneEnabled!==false,showSetupBanner:user.showSetupBanner!==false,hiddenFeatures:user.hiddenFeatures||[],navigationPins:user.navigationPins??null,navigationNewTabs:user.navigationNewTabs??null,taskSortBy:user.taskSortBy||'dueDate',taskSortOrder:user.taskSortOrder||'asc',birthday:user.birthday||'',completedTaskRetentionDays:user.completedTaskRetentionDays||0,deletedTaskRetentionDays:user.deletedTaskRetentionDays??7 });
   } catch { res.status(500).json({ message: 'Could not save your account preferences.' }); }
 });
 app.post('/api/user/reset', authenticateToken, async (req, res) => {

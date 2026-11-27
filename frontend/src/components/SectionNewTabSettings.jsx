@@ -8,9 +8,10 @@ import './SectionNewTabSettings.css'
 
 const sectionPages = [...navigationPages, ['account', 'Account settings']]
 const sectionLabels = Object.fromEntries(sectionPages)
+const defaultNewTabs = ['tasks', 'documents', 'workspace', 'calendar']
 
 export function SectionNewTabButton({ page, enabled }) {
-  if (!enabled?.includes(page) || !sectionLabels[page]) return null
+  if (!(enabled ?? defaultNewTabs).includes(page) || !sectionLabels[page]) return null
   const hash = window.location.hash
   const currentPage = hash.replace(/^#\/?/, '').split(/[/?]/)[0]
   return <a className="section-new-tab-button" href={currentPage === page ? hash : '#/' + page}
@@ -21,7 +22,7 @@ export function SectionNewTabButton({ page, enabled }) {
 
 export default function SectionNewTabSettings() {
   const { user, token, updatePreferences } = useAuth()
-  const saved = user?.navigationNewTabs || []
+  const saved = user?.navigationNewTabs ?? defaultNewTabs
   const [draft, setDraft] = useState(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
