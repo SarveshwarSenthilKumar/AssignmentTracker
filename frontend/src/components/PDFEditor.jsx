@@ -1,6 +1,5 @@
 import useDocumentTabTitle from '../hooks/useDocumentTabTitle'
 import PDFSearch from './PDFSearch'
-import PDFEditorTutorial from './PDFEditorTutorial'
 import PDFQuickActions from './PDFQuickActions'
 import PDFBookView from './PDFBookView'
 import {detectNumberLine} from '../lib/pdfNumberLine'
@@ -554,7 +553,7 @@ const PagePreview=memo(function PagePreview({ pageNumber, items=[], whiteboard=f
 /* ------------------------------------------------------------------ */
 /* Main editor                                                         */
 /* ------------------------------------------------------------------ */
-export default function PDFEditor({ pdfId, onClose, token, initialDocument = null, shareToken = null, shareRevision = null, exportImage = false, onCleanCopy, assistantOpen=false, onToggleAssistant, onAssistantHost, renderFolderNavigation, onTaskCreated }) {
+export default function PDFEditor({ pdfId, onClose, token, initialDocument = null, shareToken = null, shareRevision = null, exportImage = false, onCleanCopy, assistantOpen=false, onToggleAssistant, onAssistantHost, renderFolderNavigation, onTaskCreated, onOpenTutorial }) {
   const [showCleanup,setShowCleanup]=useState(false)
   const [copyParagraphs,setCopyParagraphs]=useState(()=>{try{return localStorage.getItem('pdf-copy-paragraphs')!=='false'}catch{return true}})
   useEffect(()=>{try{localStorage.setItem('pdf-copy-paragraphs',String(copyParagraphs))}catch{}},[copyParagraphs])
@@ -640,7 +639,6 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   const [showSearch, setShowSearch] = useState(false)
   const [searchFocusRequest, setSearchFocusRequest] = useState(0)
   const searchActions = useRef([])
-  const [showTutorial, setShowTutorial] = useState(false)
   const [showQuickActions,setShowQuickActions]=useState(false)
   const [quickActionNotice,setQuickActionNotice]=useState('')
   useEffect(()=>{
@@ -2189,7 +2187,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   }
   const canOpenQuickActions=Boolean(token&&!shareToken&&!exportImage&&!isWhiteboard)
   const openQuickActions=()=>{
-    if(!canOpenQuickActions||loading||deletingPage||confirmation.pending||liveInk.accessRevoked||accessDenied||inserting||showLayout||showSettings||showSearch||showTutorial||showShare||document.querySelector('dialog[open]'))return false
+    if(!canOpenQuickActions||loading||deletingPage||confirmation.pending||liveInk.accessRevoked||accessDenied||inserting||showLayout||showSettings||showSearch||showShare||document.querySelector('dialog[open]'))return false
     setQuickActionNotice('')
     setShowQuickActions(true)
   }
@@ -2724,14 +2722,18 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       {showStylusStudio&&<PDFStylusSettings barrel={stylusBarrel} onBarrel={setStylusBarrel} tip={stylusEraser?stylusExtra.tip:'none'} onTip={tip=>{setStylusEraser(tip!=='none');setStylusExtra(previous=>({...previous,tip}))}} extra={stylusExtra} onExtra={setStylusExtra} onReset={()=>{setStylusBarrel('eraser');setStylusEraser(true);setStylusExtra({secondary:'none',tip:'eraser',mode:'precision',size:20,shape:'round'})}} onClose={()=>setShowStylusStudio(false)}/>}
 
       {zenMode&&<button type="button" className="pdf-zen-exit" aria-label="Exit Zen mode" title="Exit Zen mode (Escape)" onClick={()=>setZenMode(false)}><X size={18}/><span>Exit Zen</span></button>}
-      <PDFEditorVisibility onZen={()=>{handleTextDragEnd();commitText();setShowLayout(false);setShowSearch(false);setShowTutorial(false);setZenMode(true);viewerRef.current?.focus({preventScroll:true})}} value={editorVisibility} open={showLayout} onOpen={()=>setShowLayout(true)} onClose={()=>setShowLayout(false)} onChange={(key,visible)=>setEditorVisibility(previous=>({...previous,[key]:visible}))} onReset={()=>setEditorVisibility({...editorVisibilityDefaults})} onSave={handleSave} onExit={handleClose}/>
+      <PDFEditorVisibility onZen={()=>{handleTextDragEnd();commitText();setShowLayout(false);setShowSearch(false);setZenMode(true);viewerRef.current?.focus({preventScroll:true})}} value={editorVisibility} open={showLayout} onOpen={()=>setShowLayout(true)} onClose={()=>setShowLayout(false)} onChange={(key,visible)=>setEditorVisibility(previous=>({...previous,[key]:visible}))} onReset={()=>setEditorVisibility({...editorVisibilityDefaults})} onSave={handleSave} onExit={handleClose}/>
       <PDFEditorChrome
         bookView={bookView}
         onBookView={()=>{handleTextDragEnd();commitText();setPageLocked(false);setBookView(previous=>!previous)}}
         searchActions={searchActions}
         whiteboardAppearance={isWhiteboard&&token&&!shareToken?<WhiteboardAppearance value={boardAppearance} onSave={saveWhiteboardAppearance}/>:null}
         onQuickActions={canOpenQuickActions?openQuickActions:undefined}
-        onTutorial={() => setShowTutorial(previous => !previous)}
+        onTutorial={() => {
+          setShowSearch(false)
+          if (onOpenTutorial) return leave(onOpenTutorial)
+          window.open('#/tutorial/pdf', '_blank', 'noopener,noreferrer')
+        }}
         onSearch={() => setShowSearch(previous => !previous)}
         onStickyNote={() => {
           if (pageBase?.page !== pageNumber || inserting || deletingPage) return
@@ -2751,7 +2753,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         doc={{whiteboard:isWhiteboard,name:pdfData?.name,copiedFromName:pdfData?.copiedFromName,onHistory:()=>setShowHistory(true),onShare:pdfId&&!exportImage&&(token||shareCredential)&&(!shareToken||liveInk.members.some(member=>member.peer===liveInk.self&&['Owner','Admin'].includes(member.role)))?()=>{commitText();setShowShare(true)}:null,exportImage,saveStatus,history:historyCount,onUndo:undo,onRedo:redo,onSave:handleSave,onDownload:handleDownload,downloading,onCleanCopy:onCleanCopy?()=>handleCleanCopy(false):null,onCopyWithAnnotations:onCleanCopy?()=>handleCleanCopy(true):null,copying:copyingClean,onClose:handleClose,copyParagraphs,onCopyParagraphs:setCopyParagraphs,onCleanup:exportImage||shareToken?null:()=>{commitText();setCurrentTool('text');setShowCalculator(false);setShowGraph(false);setShowCleanup(true)}}}
         tools={{autoNumberLines,onAutoNumberLines:()=>setAutoNumberLines(previous=>!previous),autoDashedLines,onAutoDashedLines:()=>setAutoDashedLines(previous=>!previous),autoDottedLines,onAutoDottedLines:()=>setAutoDottedLines(previous=>!previous),lineUndoTimer,onLineUndoTimer:()=>setLineUndoTimer(previous=>!previous),autoStraightLines,onAutoStraightLines:()=>setAutoStraightLines(previous=>!previous),current:currentTool,onTool:tool=>{commitText();setCurrentTool(tool)},color:currentColor,onColor:handleColorChange,colors:COLORS,colorNames:COLOR_NAMES,fontSize,onFontSize:handleFontSizeChange,strokeWidth,onWidth:setStrokeWidth,usePressure,onPressure:()=>setUsePressure(previous=>!previous),eraser:{mode:eraserMode,onMode:setEraserMode,size:eraserSize,onSize:setEraserSize,shape:eraserShape,onShape:setEraserShape,target:eraserTarget,onTarget:setEraserTarget}}}
         pages={{onExtend:isWhiteboard?extendWhiteboard:null,count:numPages,current:pageNumber,showThumbnails:showPages,onToggleThumbnails:()=>{if(focusMode){exitFocusMode();setShowPages(true)}else setShowPages(previous=>!previous)},onNavigate:goToPage,onAddBlank:()=>handleAddPages({mode:'blank',placement:'after'}),onDelete:()=>handleDeletePage(),busy:deletingPage||inserting,canAdd:!!numPages&&!!pageBase&&pageBase.page===pageNumber&&!loading&&!deletingPage&&!inserting}}
-        view={{onZen:()=>{handleTextDragEnd();commitText();setShowLayout(false);setShowSearch(false);setShowTutorial(false);setZenMode(true);viewerRef.current?.focus({preventScroll:true})},onVisibility:()=>setShowLayout(true),toolbarPosition,onToolbarPosition:setToolbarPosition,scale,onZoomIn:handleZoomIn,onZoomOut:handleZoomOut,onFit:handleFitWidth,onRotate:handleRotate,dark:darkPages,onDark:()=>setDarkPages(previous=>!previous),continuous:continuousView,onContinuous:()=>{handleTextDragEnd();commitText();setContinuousView(previous=>!previous)},reference:showReference,onReference:toggleReference,focus:focusMode,onFocus:enterFocusMode,onExitFocus:exitFocusMode}}
+        view={{onZen:()=>{handleTextDragEnd();commitText();setShowLayout(false);setShowSearch(false);setZenMode(true);viewerRef.current?.focus({preventScroll:true})},onVisibility:()=>setShowLayout(true),toolbarPosition,onToolbarPosition:setToolbarPosition,scale,onZoomIn:handleZoomIn,onZoomOut:handleZoomOut,onFit:handleFitWidth,onRotate:handleRotate,dark:darkPages,onDark:()=>setDarkPages(previous=>!previous),continuous:continuousView,onContinuous:()=>{handleTextDragEnd();commitText();setContinuousView(previous=>!previous)},reference:showReference,onReference:toggleReference,focus:focusMode,onFocus:enterFocusMode,onExitFocus:exitFocusMode}}
         utilities={{onDetectNumberLine:()=>{commitText();setCurrentTool('number-line');setShowNumberLine(true);setShowGraph(false);setShowCalculator(false)},onNumberLine:()=>{setNumberLineSelection(null);commitText();setCurrentTool('select');setShowGraph(false);setShowCalculator(false);setShowNumberLine(true)},timer:showTimer,onTimer:setShowTimer,stopwatch:showStopwatch,onStopwatch:setShowStopwatch,clock:showClock,onGraph:()=>{commitText();setCurrentTool('graph');setShowGraph(true);setShowCalculator(false)},calculator:showCalculator,onCalculator:()=>{commitText();setShowGraph(false);setShowCalculator(previous=>!previous)},onScanFunction:()=>{commitText();setCurrentTool('function');setShowCalculator(true);setShowGraph(false)},onCalculate:()=>{commitText();setCurrentTool('calculate')},recognition:calculationMode,onRecognition:setCalculationMode,snippetReady:!!snippet,copying:copyingSnippet,onCopyRegion:()=>{commitText();setCurrentTool('snippet')},onArrowCopy:toggleArrowCopy,onPaste:pasteSnippet,canPaste:!!snippet&&!!pageBase&&pageBase.page===pageNumber&&!inserting&&!deletingPage,onStylus:()=>setShowStylusStudio(true),onSettings:shareToken?null:()=>setShowSettings(previous=>!previous),settingsOpen:showSettings,assistantOpen,onAssistant:onToggleAssistant}}
         input={{scroll:fingerScroll,onChange:setFingerInputMode,pageLocked,onPageLock:locked=>{if(locked)setFingerInputMode(false);setPageLocked(locked)},activity:inputActivity,scrollSettings,onScrollSettings:changeScrollSettings}}
         insert={<InsertPanel onPages={exportImage?undefined:handleAddPages} pageNumber={pageNumber} onFiles={insertFiles} onInsert={insertGenerated} color={currentColor} busy={inserting||!pageBase||pageBase.page!==pageNumber||deletingPage}/>}
@@ -2852,7 +2854,6 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
 
       {/* Settings Modal */}
       {showSearch && <PDFSearch file={pdfFile} image={exportImage} annotations={displayAnnotations} actions={searchActions} focusRequest={searchFocusRequest} onPage={goToPage} onClose={()=>setShowSearch(false)}/>}
-      {showTutorial && <PDFEditorTutorial actions={searchActions} onClose={()=>setShowTutorial(false)}/>}
       {showShare && pdfData && <div className="pdf-share-dialog" onPointerDown={event=>event.stopPropagation()} onKeyDown={event=>event.stopPropagation()}>
         <DocumentShareLink key={pdfId} file={{...pdfData,_id:pdfId}} token={token||shareCredential} onClose={()=>setShowShare(false)}/>
       </div>}

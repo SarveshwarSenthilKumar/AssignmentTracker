@@ -1,7 +1,3 @@
-import { useEffect, useRef, useState } from 'react'
-import { SHORTCUTS } from '../lib/shortcuts'
-import './PDFEditorTutorial.css'
-
 const lessons = [
   ['Getting around', [
     'Use Expand if the toolbar is collapsed. Drawing tools sit alongside Insert, Pages, View and More tools.',
@@ -42,7 +38,7 @@ const lessons = [
     'Press N outside a text field in an editable PDF, or choose Quick actions when available.',
     'Choose New task, enter a title and optional due date, and create it. Choose New calendar event for a timed or all-day event. Check the displayed time zone for timed entries.',
     'Use the links in Quick actions to open Tasks, Calendar or Workspace in a new tab while leaving the document open.'
-  ], 'Minimize the tutorial, press N in the editor, then inspect the timed and all-day options.'],
+  ], 'In the editor, press N outside a text field, then inspect the timed and all-day options.'],
   ['Unit circle and trigonometry', [
     'Open Insert, switch to Shapes, and choose Unit circle to place a reference with angles in degrees and radians and exact cosine and sine coordinates.',
     'Choose Trig reference to insert exact sine, cosine and tangent values with labeled 30°–60°–90° and 45°–45°–90° triangles.',
@@ -55,68 +51,15 @@ const lessons = [
   ], 'Open a whiteboard and locate the appearance settings and Extend whiteboard.']
 ]
 
-const lessonActions = [
-  ['View','Toolbar top','Toolbar bottom','Tab icon color'],
-  ['Select text','Pages','Page thumbnails','Side page','Continuous scrolling','Fit page width'],
-  ['Find'],
-  ['Pen','Highlight','Annotation color','Brush size','More tools'],
-  ['Erase','Move','Undo (Ctrl+Z)','Redo (Ctrl+Shift+Z)'],
-  ['Text','Move'],
-  ['Sticky note','Text','Move'],
-  ['Insert','Move'],
-  ['Copy region','Arrow copy','Paste snippet'],
-  ['Pages','Insert','Page thumbnails'],
-  ['Ruler','Calculator','Scan function → calculate','Graph selected region','Generate number line'],
-  ['Finger drawing','Finger scrolling','Lock page','Unlock page','Scroll & glide','Stylus setup'],
-  ['Countdown timer','Stopwatch','AI assistant','Clean up PDF'],
-  ['Save','Document','Document settings','Download annotated PDF'],
-  ['Document'],
-  [],
-  ['Insert','Move'],
-  ['View']
-]
-
-export default function PDFEditorTutorial({ onClose, actions }) {
-  const [step, setStep] = useState(0)
-  const [minimized,setMinimized]=useState(false)
-  const [notice,setNotice]=useState('')
-  const title = useRef(null)
-  const root = useRef(null)
-  useEffect(() => {
-    const previous = document.activeElement
-    return () => previous?.isConnected && previous.focus({ preventScroll: true })
-  }, [])
-  useEffect(() => { title.current?.focus({ preventScroll: true }); root.current?.scrollIntoView({ block: 'nearest' }) }, [step])
-  const [heading, description, exercise] = lessons[step]
-  const available = (actions?.current || []).filter(action => lessonActions[step].includes(action.label))
-  return <section ref={root} className={`pdf-tutorial${minimized?' is-minimized':''}`} role="region" aria-label="PDF editor tutorial" onKeyDown={event => {
-    event.stopPropagation()
-    if (event.key === 'Escape') { event.preventDefault(); onClose() }
-  }}>
-    <header><strong>{minimized ? heading : 'PDF editor tutorial'}</strong><div className="pdf-tutorial-header-actions"><button type="button" onClick={()=>setMinimized(previous=>!previous)}>{minimized?'Resume lesson':'Minimize'}</button><button type="button" onClick={onClose}>Close tutorial</button></div></header>
-    {notice && <p role="status">{notice}</p>}
-    {!minimized && <div className="pdf-tutorial-layout">
-      <nav aria-label="Tutorial topics">{lessons.map(([label], index) => <button type="button" key={label} aria-current={step === index ? 'step' : undefined} onClick={() => setStep(index)}>{label}</button>)}</nav>
-      <article>
-        <p>Step {step + 1} of {lessons.length}</p>
-        <h2 tabIndex={-1} ref={title}>{heading}</h2>
-        {Array.isArray(description) ? <ol className="pdf-tutorial-instructions">
-          {description.map(text => <li key={text}>{text}</li>)}
-        </ol> : <p>{description}</p>}
-        <p className="pdf-tutorial-exercise">{exercise}</p>
-        <div className="pdf-tutorial-actions" role="group" aria-label="Try this lesson's tools">
-          {available.map(action=><button key={action.label} type="button" disabled={action.disabled} aria-pressed={typeof action.active==='boolean'?action.active:undefined} onClick={()=>{
-            action.run?.()
-            setNotice(`${action.label} activated. Use the editor, then resume this lesson.`)
-            setMinimized(true)
-          }}>{action.label}{action.active?' · On':''}</button>)}
-        </div>
-        <small>These controls use the open document. Undo is available for supported edits.</small>
-        <details><summary>Editor keyboard shortcuts</summary><ul>{SHORTCUTS.filter(item => item.scope === 'Visual editor').map(item => <li key={item.id}><kbd>{item.keys}</kbd> {item.label}</li>)}<li><kbd>Ctrl / Cmd + F</kbd> Search this document</li></ul></details>
-        <footer><button type="button" disabled={step === 0} onClick={() => setStep(value => value - 1)}>Previous</button>
-          {step < lessons.length - 1 ? <button type="button" onClick={() => setStep(value => value + 1)}>Next</button> : <button type="button" onClick={onClose}>Finish tutorial</button>}
-        </footer>
-      </article>
-    </div>}
-  </section>
+export const pdfTutorialTopic = {
+  topic: 'PDF editor',
+  lessons: lessons.map(([title, description, practice]) => ({
+    id: 'pdf-' + title.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+    title,
+    route: 'documents',
+    destination: 'Documents',
+    steps: Array.isArray(description) ? description : [description],
+    practice,
+    editorShortcuts: true,
+  })),
 }

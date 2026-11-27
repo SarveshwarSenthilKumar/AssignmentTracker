@@ -56,11 +56,11 @@ export const tutorialTopics = [
       'Select multiple PDFs and choose Merge, arrange the input order, and save the resulting file. The individual source PDFs remain in the library.'
     ], 'Select a file and inspect its actions, then locate the library’s Trash view.'],
     ['editor', 'Annotate and navigate a PDF', 'documents', 'Documents', [
-      'Open a PDF and choose Tutorial in the editor toolbar for hands-on practice. Use Pages for thumbnails and page management, View for zoom and layout, and Find to jump to matching text and notes.',
+      'Choose Tutorial in the PDF toolbar to open the PDF lessons on the Tutorial page. Use Pages for thumbnails and page management, View for zoom and layout, and Find to jump to matching text and notes.',
       'Choose Pen, Highlight, Text or Sticky note. Use Move to select an annotation or insert. Drag its movement handle to reposition it, corners to resize, and the rotation handle where shown to change its angle.',
       'On touch devices, one finger scrolls by default. Use the 1 finger control to switch to drawing. Lock page helps hold the page steady while you annotate.',
       'Save with Ctrl/Cmd+S. Use Download annotated PDF to create a copy for use outside the editor.'
-    ], 'Open a PDF and try a drawing or sticky-note lesson in its tutorial.'],
+    ], 'Read a drawing or sticky-note lesson in the PDF editor topic, then open a PDF to practice.'],
     ['pdf-advanced', 'Use PDF quick actions and reference inserts', 'documents', 'Documents', [
       'Press N in an editable PDF outside a text field. Choose New task or New calendar event and fill in the form. Quick actions also opens Tasks, Calendar or Workspace in a separate tab.',
       'Open Insert and look for Unit circle or the trigonometry reference. Use the unit circle for angles in degrees and radians and exact coordinates. The trigonometry reference includes exact sine, cosine and tangent and labeled special triangles.',

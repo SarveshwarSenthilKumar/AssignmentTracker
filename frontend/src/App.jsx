@@ -1753,7 +1753,8 @@ function App({onFaviconPage}) {
         {page==='study' && <StudyPage token={token}/>}
         {page==='detective-wall' && <DetectiveWalls token={token} userId={user?.id}/>}
         {page==='whiteboards' && <Whiteboards token={token} documents={pdfs} onDocumentsChange={setPdfs} onOpen={openDocument}/>}
-        {page==='tutorial' && <PlatformTutorial key={user?.id} userId={user?.id}/>}
+        {page==='tutorial' && !selectedPDF && !selectedTask && <PlatformTutorial key={user?.id} userId={user?.id}
+          startWithPDF={window.location.hash === '#/tutorial/pdf'}/>}
         {page==='shortcuts' && <ShortcutsPage initialQuery={searchShortcutsQuery}/>}
         {page==='visualization' && <TaskVisualization token={token} onTasksChange={setTodos} onOpenTask={task => { pendingLibraryTask.current = task; setSelectedFolder('all'); navigate('tasks') }} loading={loading} keyboardEnabled={!selectedPDF&&!assistantOpen} tasks={todos} folders={folders} documents={pdfs} onOpenDocument={openDocument} onStatusChange={updateTodoStatus} onEditTask={task=>{setSelectedFolder('all');navigate('tasks');startEditing(task)}} />}
 
@@ -2741,6 +2742,12 @@ function App({onFaviconPage}) {
             assistantOpen={assistantOpen}
             onToggleAssistant={()=>setAssistantOpen(previous=>!previous)}
             onAssistantHost={setEditorAssistantHost}
+            onOpenTutorial={() => {
+              setSelectedPDF(null)
+              setAssistantOpen(false)
+              navigate('tutorial/pdf')
+              fetchPDFs()
+            }}
             key={selectedPDF}
             onCleanCopy={copy=>{setPdfs(previous=>[copy,...previous]);setSelectedPDF(copy._id)}}
             renderFolderNavigation={(leave, disabled) => (

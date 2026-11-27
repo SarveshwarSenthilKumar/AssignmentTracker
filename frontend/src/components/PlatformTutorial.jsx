@@ -1,20 +1,29 @@
 import { useEffect, useRef, useState } from 'react'
 import { tutorialTopics } from '../lib/platformTutorialContent'
+import { pdfTutorialTopic } from '../lib/pdfTutorialContent'
+import { SHORTCUTS } from '../lib/shortcuts'
 import './PlatformTutorial.css'
 
-const lessons = tutorialTopics.flatMap(group => group.lessons)
+const topics = [...tutorialTopics, pdfTutorialTopic]
+const lessons = topics.flatMap(group => group.lessons)
+const editorShortcuts = SHORTCUTS.filter(item => item.scope === 'Visual editor')
 
-export default function PlatformTutorial({ userId }) {
+export default function PlatformTutorial({ userId, startWithPDF = false }) {
   const key = `platform-tutorial:${userId}`
+  const startingLesson = startWithPDF ? pdfTutorialTopic.lessons[0].id : null
   const [progress,setProgress]=useState(()=>{
     try {
       const saved=JSON.parse(localStorage.getItem(key)||'{}')
-      return { current:lessons.some(item=>item.id===saved.current)?saved.current:lessons[0].id, completed:Array.isArray(saved.completed)?saved.completed.filter(id=>lessons.some(item=>item.id===id)):[] }
-    } catch { return {current:lessons[0].id,completed:[]} }
+      const savedLesson = lessons.find(item => item.id === saved.current)
+      return {
+        current: (startWithPDF && !savedLesson?.editorShortcuts ? startingLesson : savedLesson?.id) ?? lessons[0].id,
+        completed: Array.isArray(saved.completed) ? saved.completed.filter(id => lessons.some(item => item.id === id)) : [],
+      }
+    } catch { return {current:startingLesson ?? lessons[0].id,completed:[]} }
   })
   const [query, setQuery] = useState('')
   const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
-  const groups = tutorialTopics.map(group => ({
+  const groups = topics.map(group => ({
     ...group,
     lessons: group.lessons.filter(item => {
       const content = [group.topic, item.title, item.destination, ...item.steps, item.practice].join(' ').toLowerCase()
@@ -50,6 +59,12 @@ export default function PlatformTutorial({ userId }) {
         <ol className="platform-tutorial-instructions">
           {lesson.steps.map(text => <li key={text}>{text}</li>)}
         </ol>
+        {lesson.editorShortcuts && <details>
+          <summary>PDF editor keyboard shortcuts</summary>
+          <ul>{editorShortcuts.map(item => <li key={item.id}><kbd>{item.keys}</kbd> {item.label}</li>)}
+            <li><kbd>Ctrl / Cmd + F</kbd> Search the document</li>
+          </ul>
+        </details>}
         <div className="platform-tutorial-practice">
           <h4>Try it</h4>
           <p>{lesson.practice}</p>
