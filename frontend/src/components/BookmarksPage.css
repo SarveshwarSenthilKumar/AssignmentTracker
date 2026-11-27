@@ -1,0 +1,19 @@
+.bookmarks-page{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);align-items:start;gap:16px;color:var(--text-primary)}
+.bookmarks-page :is(form,section){min-width:0;border:1px solid var(--border);border-radius:14px;background:var(--surface-panel);padding:clamp(14px,3vw,22px)}
+.bookmarks-page h2{margin:0 0 14px;font-size:17px;font-weight:650}
+.bookmarks-page label{display:grid;gap:5px;margin-bottom:12px;font-size:13px;color:var(--text-secondary)}
+.bookmarks-page input{width:100%;min-width:0;padding:9px 11px;border:1px solid var(--border);border-radius:8px;background:var(--surface-input);color:var(--text-primary)}
+.bookmarks-page ul{display:grid;gap:8px;padding:0;list-style:none}
+.bookmark-list li{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px;border:1px solid var(--border);border-radius:9px}
+.bookmarks-page a,.bookmark-actions,.bookmark-actions button{display:flex;align-items:center;gap:8px}
+.bookmarks-page a{min-width:0;overflow-wrap:anywhere}
+.bookmarks-page svg{flex:none}
+.bookmarks-page small,.bookmark-note{display:block;color:var(--text-secondary);font-size:12px}
+.bookmarks-page p{margin:10px 0 0}
+.bookmark-actions button,.bookmark-quick-links a{padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--surface-input)}
+.bookmarks-page :is(a,button):hover{color:var(--accent)}
+.bookmarks-page :is(a,button,input):focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.bookmark-quick-links{grid-column:1/-1}
+.bookmark-quick-links ul{grid-template-columns:repeat(auto-fit,minmax(144px,1fr))}
+.bookmark-quick-links a{justify-content:space-between}
+@media(max-width:720px){.bookmarks-page{grid-template-columns:minmax(0,1fr)}}
