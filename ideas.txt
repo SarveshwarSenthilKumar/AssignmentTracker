@@ -2,22 +2,14 @@
 try to connect to canvas to see if you can get details of assignments and provide a time estimate
 add the ability to attach a file to something and add a prompt to an ai and for it to create a more digestible version
 add the ability to create specific questions based off of weaknesses and to grade it using ai
-only events by a certain group
+
 add grouped meetings for every week or regular time interval
 check every day by keeping track of last checked
-add an algorithm to only do most interesting
-add block events feature
-add location preferences
-add remove similar events button
-update priority of events
-highlight specific events
-create a summary of all the events for the day and present most interested
+
 link social media and get interests
-create a webpage which summarizes all the events for the day in just frontend and place qr code on apartment
+
 add the ability to connect to other unis and not js txst
-keep track of deleted and removed events for algorithm
-create a page to look at just events
-add all events despite preferences button
+
 add a page in settings to change all like wallpaper, the font size, general aesthetic, ai content toggle and update it to change the platform universally
 add a github style completion graph for tasks
 do complete iterative bug testing for each file
@@ -52,7 +44,19 @@ update terms and conditions
 update private policy
 optimize for various screens continuously
 
-add a feature to have a small database which would store the ai summary for a day and would only refresh if more than 200 people selected it to report
+
 
 add ability to add sports events to calendar including f1
 
+TXST events page:
+add a feature to have a small database which would store the ai summary for a day and would only refresh if more than 200 people selected it to report
+only events by a certain group
+add an algorithm to only do most interesting
+add location preferences
+add block events feature
+add remove similar events button
+update priority of events
+highlight specific events
+create a summary of all the events for the day and present most interested
+keep track of deleted and removed events for algorithm
+add all events despite preferences button
