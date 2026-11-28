@@ -1,0 +1,35 @@
+ASSIGNMENT TRACKER FEATURE IDEAS
+
+Planning and Canvas
+
+1. Personalize workload estimates. Let users log actual time on assignments and use their own history to refine future estimates for similar work.
+2. Turn assignments into work sessions. Suggest calendar blocks based on the due date, estimated effort, and the user’s available time. Let the user review and adjust every block before saving.
+3. Show what changed on Canvas. After a sync, summarize new assignments, moved deadlines, and changed instructions so users can spot what needs attention.
+4. Plan by capacity. Let users set a daily study limit and flag days where scheduled work exceeds it. Show the amount of time they would need to move.
+5. Add custom task stages. Let users define extra workflow columns per folder and choose which stages count toward completion.
+
+Documents and boards
+
+6. Compare document versions. Show two revisions side by side and highlight changes to text, annotations, or pages.
+7. Save reusable annotation kits. Bundle favorite pens, highlighters, sticky-note styles, stamps, and math references for quick switching between classes.
+8. Make pins actionable. Convert a Detective Wall or whiteboard sticky note into a task with a link back to its location on the board.
+9. Add board presentation stops. Save a sequence of zoomed-in views so users can walk through a large board one area at a time.
+10. Add PDF reading checkpoints. Save a page and position with a label such as “Resume here” or “Review before exam.”
+
+Sharing and collaboration
+
+11. Share an assignment handoff. Package selected tasks, files, and notes into a preview that shows exactly what the recipient will receive.
+12. Add a shared-file activity inbox. Group new shares, access changes, and comments in one place and link directly to the relevant file.
+13. Add review requests with comments. Let a user ask a friend to review a document and attach comments to specific pages or paragraphs.
+14. Offer audience-specific document links. Create separate links for different groups, each with its own message, access level, expiration, and revoke control.
+15. Let recipients compare event updates. Offer an optional update check for copied events and let recipients choose which changes to bring into their own copy.
+
+Personalization and study
+
+16. Save workspace profiles. Switch between layouts for class, exams, and job applications, with each profile remembering its own pinned pages and tools.
+17. Sync bookmark folders across devices. Keep bookmarks with the account and provide import and export so users can take their links elsewhere.
+18. Save reusable search filters. Name a search such as “Overdue labs” or “Shared lecture notes” and pin it for one-click access.
+19. Build a review queue. Schedule saved questions for spaced practice based on how confidently the user answered them.
+20. Link study questions to sources. Save a PDF page or note section with each question so users can revisit the original material after answering.
+
+Good first picks: Canvas change summaries, PDF reading checkpoints, and synced bookmarks. Each improves a workflow users already have.
