@@ -1,3 +1,4 @@
+import NavigationMenuSettings from './components/NavigationMenuSettings'
 import TutorialWelcomeBanner from './components/TutorialWelcomeBanner'
 import TaskColumnSettings from './components/TaskColumnSettings'
 import { taskColumnNames } from './lib/taskColumnNames'
@@ -2364,6 +2365,7 @@ function App({onFaviconPage}) {
                 <AppearanceSettings/>
                 <InterfaceAppearanceSettings/>
                 <NavigationSettings/>
+                <NavigationMenuSettings/>
                 <SectionNewTabSettings/>
                 {unavailablePage && <p role="status">That section is turned off. You can restore it below.</p>}
                 <FeatureVisibilitySettings isAdmin={isAdmin} onSaved={unavailablePage ? ()=>navigate('account') : undefined}/>

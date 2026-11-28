@@ -109,6 +109,7 @@ const userSchema = new mongoose.Schema({
   showSetupBanner: { type: Boolean, default: true },
   hiddenFeatures: { type: [String], default: [] },
   navigationPins: { type: [String], default: undefined },
+  navigationMenus: { type: mongoose.Schema.Types.Mixed, default: undefined },
   navigationNewTabs: { type: [String], default: undefined },
   username: {
     type: String,
@@ -533,7 +534,7 @@ app.post('/api/auth/register', async (req, res) => {
         username: user.username, createdAt: user.createdAt,
         email: user.email,
         timeZone: user.timeZone || '',
-        studyPhoneEnabled: user.studyPhoneEnabled!==false, showSetupBanner:user.showSetupBanner!==false,hiddenFeatures:user.hiddenFeatures||[],navigationPins:user.navigationPins??null,navigationNewTabs:user.navigationNewTabs??null,
+        studyPhoneEnabled: user.studyPhoneEnabled!==false, showSetupBanner:user.showSetupBanner!==false,hiddenFeatures:user.hiddenFeatures||[],navigationPins:user.navigationPins??null,navigationMenus:user.navigationMenus??null,navigationNewTabs:user.navigationNewTabs??null,
         themeMode: ['light','system'].includes(user.themeMode)?user.themeMode:'dark', appearance:user.appearance??null, taskColumnNames:user.taskColumnNames??null,
       },
     });
@@ -580,7 +581,7 @@ app.post('/api/auth/login', async (req, res) => {
         username: user.username, createdAt: user.createdAt,
         email: user.email,
         timeZone: user.timeZone || '',
-        studyPhoneEnabled: user.studyPhoneEnabled!==false, showSetupBanner:user.showSetupBanner!==false,hiddenFeatures:user.hiddenFeatures||[],navigationPins:user.navigationPins??null,navigationNewTabs:user.navigationNewTabs??null,
+        studyPhoneEnabled: user.studyPhoneEnabled!==false, showSetupBanner:user.showSetupBanner!==false,hiddenFeatures:user.hiddenFeatures||[],navigationPins:user.navigationPins??null,navigationMenus:user.navigationMenus??null,navigationNewTabs:user.navigationNewTabs??null,
         themeMode: ['light','system'].includes(user.themeMode)?user.themeMode:'dark', appearance:user.appearance??null, taskColumnNames:user.taskColumnNames??null,
       },
     });
@@ -822,13 +823,13 @@ app.put('/api/account/section-locks', authenticateToken, async (req, res) => {
 
 app.get('/api/account/preferences', authenticateToken, async (req, res) => {
   try {
-    const user = await User.findById(req.user.userId).select('createdAt themeMode appearance timeZone confirmTaskDeletion confirmOtherActions showInProgressColumn taskColumnNames showTaskStreaks showTaskContributionGraph studyPhoneEnabled showSetupBanner hiddenFeatures navigationPins navigationNewTabs taskSortBy taskSortOrder completedTaskRetentionDays deletedTaskRetentionDays +birthday');
+    const user = await User.findById(req.user.userId).select('createdAt themeMode appearance timeZone confirmTaskDeletion confirmOtherActions showInProgressColumn taskColumnNames showTaskStreaks showTaskContributionGraph studyPhoneEnabled showSetupBanner hiddenFeatures navigationPins navigationMenus navigationNewTabs taskSortBy taskSortOrder completedTaskRetentionDays deletedTaskRetentionDays +birthday');
     if (!user) return res.status(404).json({ message: 'Account not found.' });
-    res.json({ createdAt:user.createdAt,themeMode:['light','system'].includes(user.themeMode)?user.themeMode:'dark',appearance:user.appearance??null,timeZone: user.timeZone || '', confirmTaskDeletion:user.confirmTaskDeletion!==false, confirmOtherActions:user.confirmOtherActions!==false, showInProgressColumn:user.showInProgressColumn!==false,taskColumnNames:user.taskColumnNames??null,showTaskStreaks:user.showTaskStreaks!==false,showTaskContributionGraph:user.showTaskContributionGraph!==false,studyPhoneEnabled:user.studyPhoneEnabled!==false,showSetupBanner:user.showSetupBanner!==false,hiddenFeatures:user.hiddenFeatures||[],navigationPins:user.navigationPins??null,navigationNewTabs:user.navigationNewTabs??null,taskSortBy:user.taskSortBy||'dueDate',taskSortOrder:user.taskSortOrder||'asc',birthday:user.birthday||'',completedTaskRetentionDays:user.completedTaskRetentionDays||0,deletedTaskRetentionDays:user.deletedTaskRetentionDays??7 });
+    res.json({ createdAt:user.createdAt,themeMode:['light','system'].includes(user.themeMode)?user.themeMode:'dark',appearance:user.appearance??null,timeZone: user.timeZone || '', confirmTaskDeletion:user.confirmTaskDeletion!==false, confirmOtherActions:user.confirmOtherActions!==false, showInProgressColumn:user.showInProgressColumn!==false,taskColumnNames:user.taskColumnNames??null,showTaskStreaks:user.showTaskStreaks!==false,showTaskContributionGraph:user.showTaskContributionGraph!==false,studyPhoneEnabled:user.studyPhoneEnabled!==false,showSetupBanner:user.showSetupBanner!==false,hiddenFeatures:user.hiddenFeatures||[],navigationPins:user.navigationPins??null,navigationMenus:user.navigationMenus??null,navigationNewTabs:user.navigationNewTabs??null,taskSortBy:user.taskSortBy||'dueDate',taskSortOrder:user.taskSortOrder||'asc',birthday:user.birthday||'',completedTaskRetentionDays:user.completedTaskRetentionDays||0,deletedTaskRetentionDays:user.deletedTaskRetentionDays??7 });
   } catch { res.status(500).json({ message: 'Could not load account preferences.' }); }
 });
 app.put('/api/account/preferences', authenticateToken, async (req, res) => {
-  const { themeMode,appearance,timeZone,confirmTaskDeletion,confirmOtherActions,showInProgressColumn,taskColumnNames,showTaskStreaks,showTaskContributionGraph,studyPhoneEnabled,showSetupBanner,hiddenFeatures,navigationPins,navigationNewTabs,taskSortBy,taskSortOrder,birthday } = req.body;
+  const { themeMode,appearance,timeZone,confirmTaskDeletion,confirmOtherActions,showInProgressColumn,taskColumnNames,showTaskStreaks,showTaskContributionGraph,studyPhoneEnabled,showSetupBanner,hiddenFeatures,navigationPins,navigationMenus,navigationNewTabs,taskSortBy,taskSortOrder,birthday } = req.body;
   const update={};
   if (req.body.completedTaskRetentionDays !== undefined) {
     const days = req.body.completedTaskRetentionDays;
@@ -844,7 +845,7 @@ app.put('/api/account/preferences', authenticateToken, async (req, res) => {
     if (typeof birthday !== 'string' || (birthday !== '' && !validCalendarDay(`2000-${birthday}`))) return res.status(400).json({ message: 'Choose a valid birthday month and day.' });
     update.birthday = birthday;
   }
-  if (navigationPins !== undefined || navigationNewTabs !== undefined) {
+  if (navigationPins !== undefined || navigationNewTabs !== undefined || navigationMenus !== undefined) {
     const allowed = new Set([
       'home','workspace','tasks','calendar','documents','prep','resumes','cover-letters','jobs','bookmarks',
       'detective-wall','whiteboards','tutorial','suggest-feature','report-bug','roadmap','analytics','study',
@@ -856,6 +857,15 @@ app.put('/api/account/preferences', authenticateToken, async (req, res) => {
     if (navigationPins !== undefined) {
       if (navigationPins !== null && !valid(navigationPins)) return res.status(400).json({ message: 'Choose valid navigation pages.' });
       update.navigationPins = navigationPins;
+    }
+    if (navigationMenus !== undefined) {
+      const { tools, career, pages } = navigationMenus ?? {};
+      if (navigationMenus !== null && (
+        typeof tools !== 'boolean' || typeof career !== 'boolean' ||
+        !pages || typeof pages !== 'object' || Array.isArray(pages) ||
+        Object.entries(pages).some(([id, menu]) => !allowed.has(id) || !['tools','career','none'].includes(menu))
+      )) return res.status(400).json({ message: 'Choose valid navigation menus.' });
+      update.navigationMenus = navigationMenus === null ? null : { tools, career, pages };
     }
     if (navigationNewTabs !== undefined) {
       if (!valid(navigationNewTabs, true)) return res.status(400).json({ message: 'Choose valid pages for new-tab buttons.' });
@@ -920,9 +930,9 @@ app.put('/api/account/preferences', authenticateToken, async (req, res) => {
   if(taskSortOrder!==undefined){if(!['asc','desc'].includes(taskSortOrder))return res.status(400).json({message:'Choose a valid sort direction.'});update.taskSortOrder=taskSortOrder;}
   if(!Object.keys(update).length)return res.status(400).json({message:'Choose a preference to update.'});
   try {
-    const user = await User.findByIdAndUpdate(req.user.userId, { $set: update }, { new: true }).select('createdAt themeMode appearance timeZone confirmTaskDeletion confirmOtherActions showInProgressColumn taskColumnNames showTaskStreaks showTaskContributionGraph studyPhoneEnabled showSetupBanner hiddenFeatures navigationPins navigationNewTabs taskSortBy taskSortOrder completedTaskRetentionDays deletedTaskRetentionDays +birthday');
+    const user = await User.findByIdAndUpdate(req.user.userId, { $set: update }, { new: true }).select('createdAt themeMode appearance timeZone confirmTaskDeletion confirmOtherActions showInProgressColumn taskColumnNames showTaskStreaks showTaskContributionGraph studyPhoneEnabled showSetupBanner hiddenFeatures navigationPins navigationMenus navigationNewTabs taskSortBy taskSortOrder completedTaskRetentionDays deletedTaskRetentionDays +birthday');
     if (!user) return res.status(404).json({ message: 'Account not found.' });
-    res.json({ createdAt:user.createdAt,themeMode:['light','system'].includes(user.themeMode)?user.themeMode:'dark',appearance:user.appearance??null,timeZone: user.timeZone || '',confirmTaskDeletion:user.confirmTaskDeletion!==false,confirmOtherActions:user.confirmOtherActions!==false, showInProgressColumn:user.showInProgressColumn!==false,taskColumnNames:user.taskColumnNames??null,showTaskStreaks:user.showTaskStreaks!==false,showTaskContributionGraph:user.showTaskContributionGraph!==false,studyPhoneEnabled:user.studyPhoneEnabled!==false,showSetupBanner:user.showSetupBanner!==false,hiddenFeatures:user.hiddenFeatures||[],navigationPins:user.navigationPins??null,navigationNewTabs:user.navigationNewTabs??null,taskSortBy:user.taskSortBy||'dueDate',taskSortOrder:user.taskSortOrder||'asc',birthday:user.birthday||'',completedTaskRetentionDays:user.completedTaskRetentionDays||0,deletedTaskRetentionDays:user.deletedTaskRetentionDays??7 });
+    res.json({ createdAt:user.createdAt,themeMode:['light','system'].includes(user.themeMode)?user.themeMode:'dark',appearance:user.appearance??null,timeZone: user.timeZone || '',confirmTaskDeletion:user.confirmTaskDeletion!==false,confirmOtherActions:user.confirmOtherActions!==false, showInProgressColumn:user.showInProgressColumn!==false,taskColumnNames:user.taskColumnNames??null,showTaskStreaks:user.showTaskStreaks!==false,showTaskContributionGraph:user.showTaskContributionGraph!==false,studyPhoneEnabled:user.studyPhoneEnabled!==false,showSetupBanner:user.showSetupBanner!==false,hiddenFeatures:user.hiddenFeatures||[],navigationPins:user.navigationPins??null,navigationMenus:user.navigationMenus??null,navigationNewTabs:user.navigationNewTabs??null,taskSortBy:user.taskSortBy||'dueDate',taskSortOrder:user.taskSortOrder||'asc',birthday:user.birthday||'',completedTaskRetentionDays:user.completedTaskRetentionDays||0,deletedTaskRetentionDays:user.deletedTaskRetentionDays??7 });
   } catch { res.status(500).json({ message: 'Could not save your account preferences.' }); }
 });
 app.post('/api/user/reset', authenticateToken, async (req, res) => {

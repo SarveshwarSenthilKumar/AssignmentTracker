@@ -12,6 +12,8 @@ const tools=[['bookmarks','Bookmarks',Bookmark,'Save platform pages and external
 const pinnable = [...primary, ...career, ...tools]
 export const navigationPages = pinnable.map(([id, label]) => [id, label])
 export const defaultNavigationPins = primary.map(([id]) => id)
+const careerPages = new Set(career.map(([id]) => id))
+export const defaultNavigationMenu = page => careerPages.has(page) ? 'career' : 'tools'
 const routes = [...pinnable, ['account','Account',Settings]]
 
 export default function AppNavigation({page,user,onSignOut,lockActions=[],hiddenFeatures}){
@@ -47,9 +49,14 @@ export default function AppNavigation({page,user,onSignOut,lockActions=[],hidden
     return item && available(id) ? [item] : []
   })
   const isUnpinned = ([route]) => available(route) && !pinIds.includes(route)
-  const visibleCareer = career.filter(isUnpinned)
   const orderedTools = highlightTutorial ? tools : [...tools.filter(item=>item[0]!=='tutorial'), tools.find(item=>item[0]==='tutorial')]
-  const visibleTools = [...primary, ...orderedTools].filter(isUnpinned)
+  const menus = user?.navigationMenus
+  const menuFor = route => menus?.pages?.[route] ?? defaultNavigationMenu(route)
+  const availablePages = [...primary, ...career, ...orderedTools].filter(isUnpinned)
+  const visibleCareer = availablePages.filter(([route]) => menuFor(route) === 'career')
+  const visibleTools = availablePages.filter(([route]) => menuFor(route) === 'tools')
+  const showCareer = menus?.career !== false && visibleCareer.length > 0
+  const showTools = menus?.tools !== false
   useEffect(()=>{
     if(!Number.isFinite(tutorialUntil)||tutorialUntil<=Date.now())return
     const timer=setTimeout(()=>setNow(Date.now()),Math.min(tutorialUntil-Date.now()+1,2147483647))
@@ -90,12 +97,12 @@ export default function AppNavigation({page,user,onSignOut,lockActions=[],hidden
     <a className="an-brand" href={available('home') ? '#/home' : '#/account'} aria-label="Assignment Tracker" onClick={()=>setOpen(null)}><span className="an-brand-mark"><Layers size={20}/></span><span className="an-brand-copy"><strong>Assignment<span>Tracker</span></strong><small>YOUR PERSONAL WORKSPACE</small></span></a>
     <span className="an-divider" aria-hidden/>
     <nav className="an-desktop" aria-label="Main navigation">{visiblePrimary.map(item=>link(item))}</nav>
-    <div className="an-desktop-groups">{visibleCareer.length > 0 && group('career','Career',Briefcase,visibleCareer)}{group('tools','Tools',Command,visibleTools)}</div>
+    <div className="an-desktop-groups">{showCareer && group('career','Career',Briefcase,visibleCareer)}{showTools && group('tools','Tools',Command,visibleTools)}</div>
     <span className="an-mobile-current"><ActiveIcon size={15}/>{active[1]}</span>
     {available('global-search') && <button type="button" className="an-global-search" onClick={()=>{setOpen(null);window.dispatchEvent(new Event('global-search-open'))}} aria-label="Search the entire platform (Ctrl or Cmd K)"><Search size={16}/><span>Search</span><kbd>⌘ / Ctrl K</kbd></button>}
     <div className="an-account"><button className={`an-avatar-trigger${open==='account'?' is-open':''}`} type="button" aria-label={`Account menu for ${displayName}`} aria-expanded={open==='account'} aria-controls={open==='account'?`${id}-account`:undefined} onClick={event=>toggle('account',event)} onKeyDown={event=>{if(event.key==='ArrowDown'){event.preventDefault();trigger.current=event.currentTarget;setOpen('account');focusPanel()}}}><span className="an-avatar">{initial}</span><span className="an-account-name">{displayName}</span><ChevronDown size={12}/></button>{open==='account'&&<div data-nav-panel id={`${id}-account`} className="an-panel an-account-panel" aria-label="Account actions"><div className="an-user"><strong>{displayName}</strong><span>Manage your workspace</span></div>{link(['account','Account settings',Settings],true)}{lockActions.length > 0 && <><div className="an-panel-divider"/>{lockActions.map(({label,icon:Icon,onClick})=><button key={label} type="button" className="an-account-action" onClick={()=>{setOpen(null);onClick()}}><Icon size={16} aria-hidden="true"/>{label}</button>)}</>}<div className="an-panel-divider"/><button type="button" className="an-signout" onClick={()=>{setOpen(null);onSignOut()}}><LogOut size={16}/>Sign out</button></div>}</div>
     <button type="button" className="an-mobile-toggle" aria-label={open==='mobile'?'Close navigation':'Open navigation'} aria-expanded={open==='mobile'} aria-controls={open==='mobile'?`${id}-mobile`:undefined} onClick={event=>toggle('mobile',event)}>{open==='mobile'?<X size={19}/>:<Menu size={19}/>}</button>
-    {open==='mobile'&&<div data-nav-panel id={`${id}-mobile`} className="an-mobile-panel" aria-label="All navigation"><nav className="an-section" aria-label="Pinned pages"><p className="an-panel-label">Pinned pages</p>{visiblePrimary.map(item=>link(item))}</nav><nav className="an-section" aria-label="Career pages"><p className="an-panel-label">Career</p>{visibleCareer.map(item=>link(item))}</nav><nav className="an-section" aria-label="Tools and settings"><p className="an-panel-label">Tools & settings</p>{fullscreenButton(false)}{tabColorButton(false)}{visibleTools.map(item=>link(item))}{link(['account','Account settings',Settings])}</nav></div>}
+    {open==='mobile'&&<div data-nav-panel id={`${id}-mobile`} className="an-mobile-panel" aria-label="All navigation"><nav className="an-section" aria-label="Pinned pages"><p className="an-panel-label">Pinned pages</p>{visiblePrimary.map(item=>link(item))}</nav>{showCareer && <nav className="an-section" aria-label="Career pages"><p className="an-panel-label">Career</p>{visibleCareer.map(item=>link(item))}</nav>}<nav className="an-section" aria-label="Tools and settings"><p className="an-panel-label">{showTools ? "Tools & settings" : "Settings"}</p>{showTools && <>{fullscreenButton(false)}{tabColorButton(false)}{visibleTools.map(item=>link(item))}</>}{link(['account','Account settings',Settings])}</nav></div>}
   </header>
 }
 

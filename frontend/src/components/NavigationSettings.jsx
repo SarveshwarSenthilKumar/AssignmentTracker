@@ -56,7 +56,7 @@ export default function NavigationSettings() {
 
   return <section className="confirmation-settings navigation-settings" aria-label="Navigation bar">
     <h3>Navigation bar</h3>
-    <p>Pin and reorder pages in the top bar. Unpinned pages stay in Tools or Career. On smaller screens, pinned pages come first in the navigation menu.</p>
+    <p>Pin and reorder pages in the top bar. Manage unpinned pages under Navigation menus. On smaller screens, pinned pages come first in the navigation menu.</p>
     <ol aria-label="Pinned pages">
       {pins.map((id, index) => <li key={id}>
         <span>{labels[id] || id}{!available(id) && <small>Hidden in Platform visibility</small>}</span>
