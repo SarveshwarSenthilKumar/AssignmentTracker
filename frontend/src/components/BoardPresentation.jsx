@@ -4,13 +4,15 @@ import './BoardPresentation.css'
 
 const makeId = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), byte => byte.toString(16).padStart(2, '0')).join('')
 
-export default function BoardPresentation({ stops, onChange, capture, visit, onClose, onPresent, loading, loadError, onReload, disabled }) {
+export default function BoardPresentation({ stops, onChange, capture, visit, onClose, onPresent, loading, loadError, onReload, disabled, captureDisabled, checkpoints = false }) {
   const [activeId, setActiveId] = useState(null)
   const [editing, setEditing] = useState(null)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const pending = useRef(false)
   const close = useRef(null)
+  const heading = checkpoints ? 'Reading checkpoints' : 'Presentation stops'
+  const itemName = checkpoints ? 'checkpoint' : 'stop'
   const playing = activeId !== null
   const activeIndex = stops.findIndex(stop => stop.id === activeId)
   const active = stops[activeIndex]
@@ -61,9 +63,9 @@ export default function BoardPresentation({ stops, onChange, capture, visit, onC
 
   function startCapture(existing) {
     const position = capture()
-    if (!position) { setError('Wait until the board is ready before capturing a stop.'); return }
+    if (!position) { setError(checkpoints ? 'Open a page in single-page or continuous view before saving a checkpoint.' : 'Wait until the board is ready before capturing a stop.'); return }
     setError('')
-    setEditing({ ...position, id: existing?.id || makeId(), title: existing?.title || 'Stop ' + (stops.length + 1) })
+    setEditing({ ...position, id: existing?.id || makeId(), title: existing?.title || (checkpoints ? (stops.length ? '' : 'Resume here') : 'Stop ' + (stops.length + 1)) })
   }
 
   const shift = (index, offset) => {
@@ -81,16 +83,17 @@ export default function BoardPresentation({ stops, onChange, capture, visit, onC
     {error && <p role="alert">{error}</p>}
   </div>
 
-  return <section className="board-stop-panel" aria-label="Presentation stops"
+  return <section className="board-stop-panel" aria-label={heading}
     onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); if (!busy) onClose() } }}>
-    <header><h2>Presentation stops</h2><button ref={close} type="button" aria-label="Close presentation stops" onClick={onClose} disabled={busy}><X size={17}/></button></header>
-    {loading && <p role="status">Loading stops…</p>}
+    <header><h2>{heading}</h2><button ref={close} type="button" aria-label={'Close ' + heading.toLowerCase()} onClick={onClose} disabled={busy}><X size={17}/></button></header>
+    {loading && <p role="status">Loading saved views…</p>}
     {(loadError || error) && <p role="alert">{loadError || error}</p>}
-    {onReload && (loadError || error) && <button type="button" onClick={() => { setError(''); onReload() }} disabled={loading || busy}>Reload stops</button>}
+    {onReload && (loadError || error) && <button type="button" onClick={() => { setError(''); onReload() }} disabled={loading || busy}>Reload</button>}
     <div className="board-stop-actions">
-      {editable && <button type="button" disabled={busy || disabled || stops.length >= 40} onClick={() => startCapture()}><Plus size={16}/>Capture current view</button>}
-      {!!stops.length && <button type="button" disabled={busy || disabled} onClick={() => present(0)}><Play size={16}/>Present</button>}
+      {editable && <button type="button" disabled={busy || disabled || captureDisabled || stops.length >= 40} onClick={() => startCapture()}><Plus size={16}/>{checkpoints ? 'Save current position' : 'Capture current view'}</button>}
+      {!checkpoints && !!stops.length && <button type="button" disabled={busy || disabled} onClick={() => present(0)}><Play size={16}/>Present</button>}
     </div>
+    {captureDisabled && checkpoints && <p>Switch to single-page or continuous view to save your current position.</p>}
     {editing && <form onSubmit={event => {
       event.preventDefault()
       const title = editing.title.trim()
@@ -98,21 +101,26 @@ export default function BoardPresentation({ stops, onChange, capture, visit, onC
       const stop = { ...editing, title }
       save(stops.some(item => item.id === stop.id) ? stops.map(item => item.id === stop.id ? stop : item) : [...stops, stop])
     }}>
-      <label>Stop name<input autoFocus required maxLength={80} value={editing.title} disabled={busy}
+      <label>{checkpoints ? 'Label' : 'Stop name'}<input autoFocus required maxLength={80} value={editing.title} disabled={busy}
+        placeholder={checkpoints ? 'Review before exam' : undefined}
         onFocus={event => event.currentTarget.select()} onChange={event => setEditing({ ...editing, title: event.target.value })}/></label>
-      <button type="submit" disabled={busy || !editing.title.trim()}>{busy ? 'Saving…' : 'Save stop'}</button>
+      <button type="submit" disabled={busy || !editing.title.trim()}>{busy ? 'Saving…' : 'Save ' + itemName}</button>
       <button type="button" disabled={busy} onClick={() => setEditing(null)}>Cancel</button>
     </form>}
-    {!loading && !loadError && !stops.length && <p>{editable ? 'Pan and zoom to the area you want, then capture the view.' : 'This board has no presentation stops yet.'}</p>}
+    {!loading && !loadError && !stops.length && <p>{checkpoints ? 'Scroll to a spot you want to return to, then save its position.' : editable ? 'Pan and zoom to the area you want, then capture the view.' : 'This board has no presentation stops yet.'}</p>}
     <ol>{stops.map((stop, index) => <li key={stop.id}>
-      <button type="button" className="board-stop-preview" disabled={disabled} onClick={() => setError(visit(stop) === false ? 'This area is unavailable.' : '')}>
-        <span>{index + 1}. {stop.title}</span><small>{stop.page ? 'Section ' + stop.page + ' · ' : ''}{Math.round(stop.zoom * 100)}%</small>
+      <button type="button" className="board-stop-preview" disabled={disabled} onClick={() => {
+        if (visit(stop) === false) setError('This location is unavailable.')
+        else if (checkpoints) onClose()
+        else setError('')
+      }}>
+        <span>{!checkpoints && (index + 1) + '. '}{stop.title}</span><small>{stop.page ? (checkpoints ? 'Page ' : 'Section ') + stop.page + ' · ' : ''}{Math.round(stop.zoom * 100)}%</small>
       </button>
       {editable && <div className="board-stop-actions">
-        <button type="button" aria-label={'Move ' + stop.title + ' up'} disabled={busy || index === 0} onClick={() => shift(index, -1)}><ArrowUp size={14}/></button>
-        <button type="button" aria-label={'Move ' + stop.title + ' down'} disabled={busy || index === stops.length - 1} onClick={() => shift(index, 1)}><ArrowDown size={14}/></button>
+        {!checkpoints && <><button type="button" aria-label={'Move ' + stop.title + ' up'} disabled={busy || index === 0} onClick={() => shift(index, -1)}><ArrowUp size={14}/></button>
+        <button type="button" aria-label={'Move ' + stop.title + ' down'} disabled={busy || index === stops.length - 1} onClick={() => shift(index, 1)}><ArrowDown size={14}/></button></>}
         <button type="button" disabled={busy} onClick={() => setEditing(stop)}>Rename</button>
-        <button type="button" disabled={busy || disabled} onClick={() => startCapture(stop)}>Update view</button>
+        <button type="button" disabled={busy || disabled || captureDisabled} onClick={() => startCapture(stop)}>{checkpoints ? 'Update position' : 'Update view'}</button>
         <button type="button" disabled={busy} onClick={() => save(stops.filter(item => item.id !== stop.id))}>Remove</button>
       </div>}
     </li>)}</ol>

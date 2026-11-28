@@ -320,6 +320,7 @@ const pdfSchema = new mongoose.Schema({
   copiedFromName: { type: String, default: '' },
   documentKind: { type: String, enum: ['document','whiteboard'], default: 'document' },
   whiteboardAppearance: mongoose.Schema.Types.Mixed,
+  // Saved viewport positions for whiteboard stops and PDF reading checkpoints.
   presentationStops: { type: [mongoose.Schema.Types.Mixed], default: undefined, select: false },
   presentationRevision: { type: Number, default: 0, select: false },
   pdfData: {

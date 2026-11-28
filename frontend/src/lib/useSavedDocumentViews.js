@@ -3,7 +3,7 @@ import { readApiJson } from './apiResponse'
 import { sharedDocumentRequest } from './sharedDocumentRequest'
 
 const empty = { stops: [], revision: 0 }
-export function useWhiteboardPresentation(url, token, content) {
+export function useSavedDocumentViews(url, token, content) {
   const [data, setData] = useState(empty)
   const [loading, setLoading] = useState(Boolean(url))
   const [error, setError] = useState('')
@@ -18,7 +18,7 @@ export function useWhiteboardPresentation(url, token, content) {
     setError('')
     sharedDocumentRequest(url, { cache: 'no-store', signal: controller.signal, headers }).then(async response => {
       const result = await readApiJson(response)
-      if (!response.ok) throw new Error(result.message || 'Could not load stops.')
+      if (!response.ok) throw new Error(result.message || 'Could not load saved views.')
       if (generation.current === version) setData(result)
     }).catch(failure => {
       if (generation.current === version && !controller.signal.aborted) setError(failure.message)
@@ -29,14 +29,14 @@ export function useWhiteboardPresentation(url, token, content) {
   }, [url, token, content, reload])
 
   async function save(stops) {
-    if (!url || loading) throw new Error('Wait for presentation stops to load.')
+    if (!url || loading) throw new Error('Wait for the saved views to load.')
     const version = generation.current
     const response = await sharedDocumentRequest(url, {
       method: 'PUT', headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ stops, revision: data.revision }),
     })
     const result = await readApiJson(response)
-    if (!response.ok) throw new Error(result.message || 'Could not save presentation stops.')
+    if (!response.ok) throw new Error(result.message || 'Could not save these views.')
     if (version === generation.current) setData(result)
   }
 

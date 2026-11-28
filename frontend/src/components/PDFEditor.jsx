@@ -1,5 +1,5 @@
 import BoardPresentation from './BoardPresentation'
-import { useWhiteboardPresentation } from '../lib/useWhiteboardPresentation'
+import { useSavedDocumentViews } from '../lib/useSavedDocumentViews'
 import BoardPinTask from './BoardPinTask'
 import DocumentShareMessage from './DocumentShareMessage'
 import { featureVisible } from '../lib/featureVisibility'
@@ -701,9 +701,11 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   useEffect(()=>{try{localStorage.setItem('pdf-editor-show-clock',String(showClock))}catch{}},[showClock])
   const [continuousPreference,setContinuousView]=useState(()=>{try{return localStorage.getItem('pdf-editor-continuous')!=='false'}catch{return true}})
   const isWhiteboard=pdfData?.documentKind==='whiteboard'
-  const stopUrl = isWhiteboard && (token || shareToken)
-    ? (shareToken ? '/api/shared-document/' + shareToken : '/api/pdfs/' + pdfId) + '/presentation-stops' : null
-  const presentation = useWhiteboardPresentation(stopUrl, token, pdfFile)
+  const readingCheckpoints = !isWhiteboard && !exportImage && !!pdfData && !!token && !shareToken
+  const savedViewUrl = isWhiteboard && (token || shareToken)
+    ? (shareToken ? '/api/shared-document/' + shareToken : '/api/pdfs/' + pdfId) + '/presentation-stops'
+    : readingCheckpoints ? '/api/pdfs/' + pdfId + '/reading-checkpoints' : null
+  const savedViews = useSavedDocumentViews(savedViewUrl, token, pdfFile)
   const boardAppearance=pdfData?.whiteboardAppearance??DEFAULT_WHITEBOARD_APPEARANCE
   const mergeWhiteboardAppearance=useCallback(appearance=>{
     if(!appearance)return
@@ -2669,7 +2671,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
       } else if (performance.now() < deadline) frame = requestAnimationFrame(align)
       else {
         setPresentationTarget(null)
-        setActionError('This presentation stop could not be positioned. Try again once the section loads.')
+        setActionError(readingCheckpoints ? 'Could not restore the reading position. Try again once the page loads.' : 'This presentation stop could not be positioned. Try again once the section loads.')
       }
     }
     frame = requestAnimationFrame(align)
@@ -2677,12 +2679,12 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   }, [presentationTarget, ready, bookView, scale, rotation, continuousView])
 
   useEffect(() => {
-    if (!stopUrl || accessDenied || liveInk.accessRevoked) {
+    if (!savedViewUrl || accessDenied || liveInk.accessRevoked) {
       setShowStops(false)
       setPresenting(false)
       setPresentationTarget(null)
     }
-  }, [stopUrl, accessDenied, liveInk.accessRevoked])
+  }, [savedViewUrl, accessDenied, liveInk.accessRevoked])
 
   const quarterTurn = rotation % 180 !== 0
   const renderW = ready ? (quarterTurn ? pageBase.h : pageBase.w) * scale : 0
@@ -2886,9 +2888,9 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         <a className="underline" href={'#/tasks/' + pinTaskId} target="_blank" rel="noopener noreferrer">Open task</a>
         <button type="button" aria-label="Dismiss task notice" onClick={() => setPinTaskId(null)}><X size={16}/></button>
       </div>}
-      {showStops && stopUrl && !accessDenied && !liveInk.accessRevoked && <BoardPresentation
-        stops={presentation.stops} loading={presentation.loading} loadError={presentation.error} onReload={presentation.reload}
-        onChange={token && !shareToken ? presentation.save : undefined} capture={captureStop} visit={visitStop}
+      {showStops && savedViewUrl && !accessDenied && !liveInk.accessRevoked && <BoardPresentation
+        checkpoints={readingCheckpoints} captureDisabled={bookView} stops={savedViews.stops} loading={savedViews.loading} loadError={savedViews.error} onReload={savedViews.reload}
+        onChange={token && !shareToken ? savedViews.save : undefined} capture={captureStop} visit={visitStop}
         disabled={!numPages || deletingPage || inserting || !!presentationTarget}
         onPresent={setPresenting} onClose={() => setShowStops(false)}/>}
       <InlineConfirmation {...confirmation} />
@@ -2904,7 +2906,8 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         onBookView={()=>{handleTextDragEnd();commitText();setPageLocked(false);setBookView(previous=>!previous)}}
         searchActions={searchActions}
         showGlobalSearch={available('global-search')}
-        onPresentation={stopUrl && !accessDenied && !liveInk.accessRevoked ? () => setShowStops(value => !value) : undefined}
+        readingCheckpoints={readingCheckpoints}
+        onPresentation={savedViewUrl && !accessDenied && !liveInk.accessRevoked ? () => setShowStops(value => !value) : undefined}
         whiteboardAppearance={isWhiteboard&&token&&!shareToken?<WhiteboardAppearance value={boardAppearance} onSave={saveWhiteboardAppearance}/>:null}
         onQuickActions={canOpenQuickActions?openQuickActions:undefined}
         onTutorial={available('tutorial') ? () => {

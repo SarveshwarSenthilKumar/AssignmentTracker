@@ -16,8 +16,9 @@ import {History} from 'lucide-react'
 
 const annotationTools=[['read','Select text',TextSelect],['pen','Pen',Pen],['highlighter','Highlight',Highlighter],['text','Text',Type],['select','Move',Move],['eraser','Erase',Eraser]]
 
-export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,insert,onRuler,onStickyNote,onSearch,onTutorial,searchActions,bookView,onBookView,onQuickActions,whiteboardAppearance,onPresentation,annotationKits,showGlobalSearch=true}){
+export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,insert,onRuler,onStickyNote,onSearch,onTutorial,searchActions,bookView,onBookView,onQuickActions,whiteboardAppearance,onPresentation,readingCheckpoints,annotationKits,showGlobalSearch=true}){
   const searchable = []
+  const savedViewLabel = readingCheckpoints ? 'Reading checkpoints' : 'Presentation stops'
   useEffect(() => {
     if (!searchActions) return
     searchActions.current = [
@@ -26,7 +27,7 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
       ...['Insert','Pages','View','More tools','Annotation color','Brush size','Scroll & glide'].map((label,index)=>({
         label, description:'Open controls', run:()=>{setCompact(false);setOpen(['insert','pages','view','tools','color','brush','scroll'][index])}
       })).filter(item=>item.label!=='Insert'&&!(doc.exportImage&&item.label==='Pages')),
-      ...(onPresentation ? [{label:'Presentation stops',run:()=>{close();onPresentation()}}] : []),
+      ...(onPresentation ? [{label:savedViewLabel,run:()=>{close();onPresentation()}}] : []),
       ...(annotationKits ? [{label:'Annotation kits',description:'Switch or edit saved tool kits',run:()=>setOpen('kits')}] : []),
       {label:'Sticky note',description:'Add an editable note',run:onStickyNote,disabled:!pages.canAdd},
       ...(onTutorial?[{label:'Tutorial',description:'Learn editor tools and shortcuts',run:onTutorial}]:[]),
@@ -106,7 +107,7 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
     {action(Minimize2,'Zen mode',view.onZen,{detail:'Hide everything and keep your current tool · Escape to exit'})}
     {action(SlidersHorizontal,'Editor layout',view.onVisibility,{detail:'Show or hide editor panels and controls'})}
     {action(Palette,'Tab icon color',openPageFaviconPicker,{detail:'Customize this document’s browser tab'})}
-    {onPresentation&&action(Files,'Presentation stops',onPresentation)}
+    {onPresentation&&action(Files,savedViewLabel,onPresentation)}
     {whiteboardAppearance&&<>{whiteboardAppearance}<hr/></>}
     {!doc.exportImage&&!doc.whiteboard&&action(Files,'Book view',onBookView,{active:bookView,detail:'Read two pages side by side and flip through spreads'})}
     <label className="pc-field">Toolbar position<select value={view.toolbarPosition} onChange={event=>view.onToolbarPosition(event.target.value)}><option value="auto">Automatic</option><option value="top">Top</option><option value="bottom">Bottom</option><option value="left">Left · vertical</option><option value="right">Right · vertical</option></select></label>
@@ -218,7 +219,7 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
         { custom: <><Layers size={16}/><span className="annotation-kit-trigger-label">{annotationKits.active?.name || 'Annotation kits'}</span></> })}
       <div className="pc-insert-slot">{isValidElement(insert)?cloneElement(insert,{onOpen:close,closeSignal:`${open||''}:${compact}`}):insert}</div>
       <button type="button" className="pc-button" title="Add Sticky note" aria-label="Add Sticky note" disabled={!pages.canAdd} onClick={()=>{close();onStickyNote()}}><FileText size={18} aria-hidden="true"/><span>Sticky note</span></button>
-      {onPresentation&&<button type="button" className="pc-button" onClick={()=>{close();onPresentation()}} title="Presentation stops"><Files size={16}/><span>Stops</span></button>}
+      {onPresentation&&<button type="button" className="pc-button" onClick={()=>{close();onPresentation()}} title={savedViewLabel}><Files size={16}/><span>{readingCheckpoints ? 'Checkpoints' : 'Stops'}</span></button>}
       <div className="pc-tool-menus">{pagesMenu}{viewMenu}{utilityMenu}</div>
       <button type="button" className="pc-button" onClick={()=>{close();onSearch()}} title="Search document (Ctrl/Cmd+F)">Find</button>
       {onQuickActions&&<button type="button" className="pc-button" onClick={()=>{close();onQuickActions()}} title="Quick actions (N)">Quick actions</button>}

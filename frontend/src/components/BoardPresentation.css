@@ -27,7 +27,7 @@
 .board-stop-panel .board-stop-preview { width: 100%; justify-content: space-between; text-align: left; margin-bottom: 5px; overflow-wrap: anywhere; }
 .board-stop-panel form { margin: 8px 0; }
 .board-stop-panel form label { display: grid; gap: 3px; width: 100%; font-size: 12px; }
-.board-stop-panel [aria-label="Close presentation stops"] { flex: none; }
+.board-stop-panel header > button { flex: none; }
 .board-stop-player > div { max-width: min(190px, 40vw); margin: 0 4px; }
 .detective-editor.is-presenting-board > :is(.detective-header, .detective-toolbar, .detective-hint, .detective-board-zoom, .detective-focus-controls, .detective-properties),
 .pdf-editor.is-presenting-board > .pdf-chrome {
