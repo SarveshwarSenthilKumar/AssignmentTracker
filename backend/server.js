@@ -82,6 +82,8 @@ const userSchema = new mongoose.Schema({
   calendarUniversity: { type: String, enum: ['none', 'txst'], default: 'none' },
   workflowLayout: { type: mongoose.Schema.Types.Mixed, select: false },
   workflowRevision: { type: Number, default: 0, select: false },
+  annotationKits: { type: [mongoose.Schema.Types.Mixed], default: [], select: false },
+  annotationKitRevision: { type: Number, default: 0, select: false },
   bookmarkLibrary: { type: mongoose.Schema.Types.Mixed, select: false },
   bookmarkRevision: { type: Number, default: 0, select: false },
   geminiApiKeyEncrypted: { type: String, select: false },
@@ -644,6 +646,7 @@ function aiFailure(res,state,status,category,message,action,extra={}) {
 assistantCredentials.registerRoutes(app,authenticateToken,userId=>{const state=aiRequests.get(userId);if(state)state.lastResult=null});
 registerWorkspaceSettings(app,authenticateToken,User);
 require('./bookmarks')(app,authenticateToken,User);
+require('./annotationKits')(app,authenticateToken,User);
 require('./phoneReference')(app,authenticateToken);
 async function aiCredential(req,res,state,traceId){
   let credential;

@@ -1,0 +1,22 @@
+.pc-popover.pc-popover-kits { width: min(385px, calc(100vw - 28px)); }
+.annotation-kit-panel { padding: 4px 8px 10px; font-size: 12px; color: var(--text-secondary); }
+.annotation-kit-panel p { margin: 8px 0; }
+.annotation-kit-panel .annotation-kit-error { color: var(--danger, #ee9a9a); }
+.annotation-kit-list { margin: 8px 0; max-height: 180px; overflow: auto; }
+.annotation-kit-list button[aria-pressed=true] { background: var(--surface-raised); color: var(--text-primary); }
+.annotation-kit-panel button { white-space: normal; overflow-wrap: anywhere; }
+.annotation-kit-quick, .annotation-kit-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.annotation-kit-quick { border-top: 1px solid var(--border); padding-top: 9px; }
+.annotation-kit-form { display: grid; gap: 12px; min-width: 0; padding: 0; }
+.annotation-kit-form label { display: grid; gap: 3px; min-width: 0; }
+.annotation-kit-tools { display: grid; gap: 7px; min-width: 0; border: 1px solid var(--border); border-radius: 7px; padding: 8px; }
+.annotation-kit-tools legend { padding: 0 5px; font-weight: 600; color: var(--text-primary); }
+.annotation-kit-tools > button { justify-self: start; }
+.annotation-kit-fields { display: flex; flex-wrap: wrap; align-items: end; gap: 7px; }
+.annotation-kit-fields + .annotation-kit-fields { border-top: 1px solid var(--border); padding-top: 7px; }
+.annotation-kit-form input:not([type=checkbox]) { min-height: 32px; padding: 4px 6px; min-width: 0; border: 1px solid var(--border-strong); border-radius: 6px; background: var(--surface-input); color: var(--text-primary); }
+.annotation-kit-form input[type=color] { width: 42px; cursor: pointer; }
+.annotation-kit-form input[type=number] { width: 78px; }
+.annotation-kit-form .annotation-kit-check { display: flex; align-items: center; gap: 7px; }
+.annotation-kit-trigger-label { display: block; max-width: 118px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pdf-chrome:is(.is-left,.is-right) .annotation-kit-trigger-label { max-width: 85px; }

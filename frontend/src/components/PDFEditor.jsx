@@ -88,6 +88,7 @@ const WHITEBOARD_PAGE_SIZE={w:2400,h:1600,rotation:0}
 const COLORS = ['#000000', '#9e6464', '#526c83', '#62816f', '#9a835e', '#777487', '#967d87']
 const COLOR_NAMES = { '#000000': 'Black', '#9e6464': 'Muted red', '#526c83': 'Slate blue', '#62816f': 'Sage', '#9a835e': 'Ochre', '#777487': 'Violet gray', '#967d87': 'Rose gray' }
 
+const defaultNoteStyle = { background: '#fff1a8', color: '#292524', fontSize: 14 }
 const uid = () => `a_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`
 
 const hexToRgb = (hex) => {
@@ -608,7 +609,11 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   useEffect(()=>{try{localStorage.setItem('pdf-auto-straight-lines',String(autoStraightLines))}catch{}},[autoStraightLines])
   const [existingRuns,setExistingRuns]=useState({page:null,items:[]})
   const textLoadGeneration=useRef(0)
-  const [currentColor, setCurrentColor] = useState('#000000')
+  const [baseColor, setCurrentColor] = useState('#000000')
+  const [activeKit, setActiveKit] = useState(null)
+  const [kitBrushes, setKitBrushes] = useState({})
+  const colorTool = currentTool === 'ruler' ? 'pen' : currentTool
+  const currentColor = kitBrushes[colorTool]?.color || baseColor
   const [tipSizes,setTipSizes]=useState(()=>{
     let saved={};try{
       const stored=localStorage.getItem('pdf-tool-tip-sizes-v2')
@@ -620,10 +625,11 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     return {pen:size('pen'),highlighter:size('highlighter')}
   })
   const tipTool=currentTool==='highlighter'?'highlighter':'pen'
-  const strokeWidth=tipSizes[tipTool]
+  const strokeWidth=kitBrushes[tipTool]?.width ?? tipSizes[tipTool]
   const setStrokeWidth=value=>{
     if(!Number.isFinite(value)||value<=0)return
-    setTipSizes(previous=>({...previous,[tipTool]:value}))
+    if (kitBrushes[tipTool]) setKitBrushes(previous => ({ ...previous, [tipTool]: { ...previous[tipTool], width: value } }))
+    else setTipSizes(previous=>({...previous,[tipTool]:value}))
   }
   useEffect(()=>{try{localStorage.setItem('pdf-tool-tip-sizes-v2',JSON.stringify(tipSizes))}catch{}},[tipSizes])
   const [eraserOptions,setEraserOptions]=useState(()=>{
@@ -1303,7 +1309,8 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
 
   /* ---------- tool settings ---------- */
   const handleColorChange = (color) => {
-    setCurrentColor(color)
+    if (kitBrushes[colorTool]) setKitBrushes(previous => ({ ...previous, [colorTool]: { ...previous[colorTool], color } }))
+    else setCurrentColor(color)
     const id = activeTextIdRef.current
     if (id) updatePaths(prev => prev.map(i => (i.id === id ? { ...i, color } : i)))
   }
@@ -1573,9 +1580,48 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     } finally { insertingRef.current = false; setInserting(false) }
   }
 
-  const insertGenerated = (kind, options) => {
-    try { addImageInsert(makeInsert(kind, currentColor, options)); setActionError(null) }
+  const insertGenerated = (kind, options, color = currentColor) => {
+    if (pageBase?.page !== pageNumber || insertingRef.current || deletingPageRef.current) return false
+    try { addImageInsert(makeInsert(kind, color, options)); setActionError(null) }
     catch (error) { setActionError(error.message); return false }
+  }
+
+  const captureKitTools = () => ({
+    pen: kitBrushes.pen || { color: baseColor, width: tipSizes.pen },
+    highlighter: kitBrushes.highlighter || { color: baseColor, width: tipSizes.highlighter },
+    note: activeKit?.notes[0] || defaultNoteStyle,
+  })
+
+  const applyKit = kit => {
+    if (!kit) return
+    commitText()
+    setActiveKit(kit)
+    setKitBrushes({ pen: kit.pens[0], highlighter: kit.highlighters[0] })
+    if (kit.pens.length) setCurrentTool('pen')
+    else if (kit.highlighters.length) setCurrentTool('highlighter')
+  }
+
+  const applyKitBrush = (tool, brush) => {
+    commitText()
+    setKitBrushes(previous => ({ ...previous, [tool]: brush }))
+    setCurrentTool(tool)
+  }
+
+  const insertStickyNote = (style = activeKit?.notes[0] || defaultNoteStyle) => {
+    if (pageBase?.page !== pageNumber || insertingRef.current || deletingPageRef.current) return
+    commitText()
+    pushHistory()
+    const id = uid()
+    const width = Math.min(180, pageBase.w)
+    updatePaths(previous => [...previous, {
+      id, tool: 'text', stickyNote: true, noteColor: style.background,
+      text: '', textBoxWidth: width, noteHeight: 110, fontSize: style.fontSize, color: style.color,
+      x: Math.max(0, (pageBase.w - width) / 2), y: Math.max(0, (pageBase.h - 110) / 2), page: pageNumber,
+    }])
+    setFontSize(style.fontSize)
+    setCurrentColor(style.color)
+    setCurrentTool('text')
+    activate(id)
   }
 
   const resizeInsert = (id, factor) => {
@@ -2739,20 +2785,13 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
           window.open('#/tutorial/pdf', '_blank', 'noopener,noreferrer')
         } : undefined}
         onSearch={() => setShowSearch(previous => !previous)}
-        onStickyNote={() => {
-          if (pageBase?.page !== pageNumber || inserting || deletingPage) return
-          commitText()
-          pushHistory()
-          const id = uid()
-          const width = Math.min(180, pageBase.w)
-          updatePaths(previous => [...previous, {
-            id, tool: 'text', stickyNote: true, noteColor: '#fff1a8',
-            text: '', textBoxWidth: width, noteHeight: 110, fontSize: 14, color: '#292524',
-            x: Math.max(0, (pageBase.w - width) / 2), y: Math.max(0, (pageBase.h - 110) / 2), page: pageNumber
-          }])
-          setCurrentTool('text')
-          activate(id)
-        }}
+        onStickyNote={() => insertStickyNote()}
+        annotationKits={(token || shareCredential) && !liveInk.accessRevoked && !accessDenied ? {
+          token: token || shareCredential, active: activeKit, capture: captureKitTools, onApply: applyKit,
+          onClear: () => { setActiveKit(null); setKitBrushes({}) },
+          onBrush: applyKitBrush, onNote: insertStickyNote, onInsert: insertGenerated,
+          canInsert: !!pageBase && pageBase.page === pageNumber && !loading && !inserting && !deletingPage,
+        } : null}
         onRuler={()=>{commitText();setRulerGuide(null);setCurrentTool(currentTool==='ruler'?'select':'ruler')}}
         doc={{whiteboard:isWhiteboard,name:pdfData?.name,copiedFromName:pdfData?.copiedFromName,onHistory:()=>setShowHistory(true),onShare:pdfId&&!exportImage&&(token||shareCredential)&&(!shareToken||liveInk.members.some(member=>member.peer===liveInk.self&&['Owner','Admin'].includes(member.role)))?()=>{commitText();setShowShare(true)}:null,exportImage,saveStatus,history:historyCount,onUndo:undo,onRedo:redo,onSave:handleSave,onDownload:handleDownload,downloading,onCleanCopy:onCleanCopy?()=>handleCleanCopy(false):null,onCopyWithAnnotations:onCleanCopy?()=>handleCleanCopy(true):null,copying:copyingClean,onClose:handleClose,copyParagraphs,onCopyParagraphs:setCopyParagraphs,onCleanup:exportImage||shareToken?null:()=>{commitText();setCurrentTool('text');setShowCalculator(false);setShowGraph(false);setShowCleanup(true)}}}
         tools={{autoNumberLines,onAutoNumberLines:()=>setAutoNumberLines(previous=>!previous),autoDashedLines,onAutoDashedLines:()=>setAutoDashedLines(previous=>!previous),autoDottedLines,onAutoDottedLines:()=>setAutoDottedLines(previous=>!previous),lineUndoTimer,onLineUndoTimer:()=>setLineUndoTimer(previous=>!previous),autoStraightLines,onAutoStraightLines:()=>setAutoStraightLines(previous=>!previous),current:currentTool,onTool:tool=>{commitText();setCurrentTool(tool)},color:currentColor,onColor:handleColorChange,colors:COLORS,colorNames:COLOR_NAMES,fontSize,onFontSize:handleFontSizeChange,strokeWidth,onWidth:setStrokeWidth,usePressure,onPressure:()=>setUsePressure(previous=>!previous),eraser:{mode:eraserMode,onMode:setEraserMode,size:eraserSize,onSize:setEraserSize,shape:eraserShape,onShape:setEraserShape,target:eraserTarget,onTarget:setEraserTarget}}}

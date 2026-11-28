@@ -2,6 +2,7 @@ import {StudyPhoneButton} from './StudyPhone'
 import DocumentCopyNote from './DocumentCopyNote'
 import { cloneElement, isValidElement, useEffect, useId, useRef, useState } from 'react'
 import { FileText, ChevronDown, ChevronLeft, ChevronRight, Pen, Highlighter, Type, Move, Eraser, Undo, Redo, Save, Download, Files, Settings, X, Maximize, Sun, Moon, LineChart, Calculator, Plus, Trash2, RotateCw, ZoomIn, ZoomOut, MessageSquare, SlidersHorizontal, Copy, PanelLeft, Loader2, Minimize2, Maximize2, TextSelect, Ruler } from 'lucide-react'
+import PDFAnnotationKits from './PDFAnnotationKits'
 import PDFEraserControls from './PDFEraserControls'
 import PDFEditorClock from './PDFEditorClock'
 import PDFStopwatch from './PDFStopwatch'
@@ -9,13 +10,13 @@ import PDFCountdown from './PDFCountdown'
 import PDFFingerMode from './PDFFingerMode'
 import PDFScrollSettings from './PDFScrollSettings'
 import './PDFEditorChrome.css'
-import { Palette, Share2 } from 'lucide-react'
+import { Layers, Palette, Share2 } from 'lucide-react'
 import {openPageFaviconPicker} from '../lib/pageFavicon'
 import {History} from 'lucide-react'
 
 const annotationTools=[['read','Select text',TextSelect],['pen','Pen',Pen],['highlighter','Highlight',Highlighter],['text','Text',Type],['select','Move',Move],['eraser','Erase',Eraser]]
 
-export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,insert,onRuler,onStickyNote,onSearch,onTutorial,searchActions,bookView,onBookView,onQuickActions,whiteboardAppearance,showGlobalSearch=true}){
+export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,insert,onRuler,onStickyNote,onSearch,onTutorial,searchActions,bookView,onBookView,onQuickActions,whiteboardAppearance,annotationKits,showGlobalSearch=true}){
   const searchable = []
   useEffect(() => {
     if (!searchActions) return
@@ -25,6 +26,7 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
       ...['Insert','Pages','View','More tools','Annotation color','Brush size','Scroll & glide'].map((label,index)=>({
         label, description:'Open controls', run:()=>{setCompact(false);setOpen(['insert','pages','view','tools','color','brush','scroll'][index])}
       })).filter(item=>item.label!=='Insert'&&!(doc.exportImage&&item.label==='Pages')),
+      ...(annotationKits ? [{label:'Annotation kits',description:'Switch or edit saved tool kits',run:()=>setOpen('kits')}] : []),
       {label:'Sticky note',description:'Add an editable note',run:onStickyNote,disabled:!pages.canAdd},
       ...(onTutorial?[{label:'Tutorial',description:'Learn editor tools and shortcuts',run:onTutorial}]:[]),
       {label:'Insert',run:()=>{close();setCompact(false);requestAnimationFrame(()=>root.current?.querySelector('.insert-trigger')?.click())}},
@@ -138,7 +140,7 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
     <p className="pc-menu-note">Turn off to keep the notice until you choose Keep or Undo, draw another detected line, or leave the page. Saved on this device.</p><hr/>
     {action(Calculator,'Calculator',utilities.onCalculator,{active:utilities.calculator})}
     {action(Ruler,'Ruler',onRuler,{active:tools.current==='ruler',detail:'Drag to draw a straight line and see its length in PDF points'})}
-    {action(FileText,'Sticky note',onStickyNote,{disabled:!pages.canAdd,detail:'Add an editable yellow note to the page'})}
+    {action(FileText,'Sticky note',onStickyNote,{disabled:!pages.canAdd,detail:'Add an editable note to the page'})}
     {action(Calculator,'Calculate selected region',utilities.onCalculate,{active:tools.current==='calculate',detail:'Printed expressions or handwriting with AI'})}
     {action(Calculator,'Scan function → calculate',utilities.onScanFunction,{active:tools.current==='function',detail:'Select f(x), enter x, and calculate its value'})}
     {action(LineChart,'Graph selected region',utilities.onGraph,{active:tools.current==='graph',detail:'Plot a printed or handwritten function of x'})}
@@ -209,6 +211,9 @@ export default function PDFEditorChrome({doc,tools,pages,view,utilities,input,in
       {view.focus&&documentMenu}
       <div className="pc-annotation-group" role="group" aria-label="Annotation tools">{annotationTools.map(([key,label,Icon])=><button key={key} type="button" className={`pc-button pc-tool${tools.current===key?' is-active':''}`} aria-pressed={tools.current===key} title={label} aria-label={label} onClick={()=>{close();tools.onTool(key)}}><Icon size={18}/><span>{label}</span></button>)}</div>
       <div className="pc-brush-group">{colorMenu}{sizeMenu}</div>
+      {annotationKits && menu('kits', 'Annotation kits', Layers,
+        <PDFAnnotationKits key={annotationKits.token} {...annotationKits} onClose={close}/>,
+        { custom: <><Layers size={16}/><span className="annotation-kit-trigger-label">{annotationKits.active?.name || 'Annotation kits'}</span></> })}
       <div className="pc-insert-slot">{isValidElement(insert)?cloneElement(insert,{onOpen:close,closeSignal:`${open||''}:${compact}`}):insert}</div>
       <button type="button" className="pc-button" title="Add Sticky note" aria-label="Add Sticky note" disabled={!pages.canAdd} onClick={()=>{close();onStickyNote()}}><FileText size={18} aria-hidden="true"/><span>Sticky note</span></button>
       <div className="pc-tool-menus">{pagesMenu}{viewMenu}{utilityMenu}</div>
