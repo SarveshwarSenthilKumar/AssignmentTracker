@@ -1,0 +1,9 @@
+.tutorial-welcome-banner{display:flex;align-items:center;gap:12px;margin:0 0 18px;padding:12px 14px;border:1px solid var(--border-strong);border-inline-start:3px solid var(--accent);border-radius:var(--radius-panel);background:var(--surface-panel);color:var(--text-primary)}
+.tutorial-welcome-banner>svg{flex:none;color:var(--accent)}
+.tutorial-welcome-banner>div{flex:1}
+.tutorial-welcome-banner p{margin:3px 0 0;font-size:13px;color:var(--text-secondary)}
+.tutorial-welcome-banner :is(a,button){display:inline-flex;align-items:center;gap:6px;padding:7px 9px;border-radius:var(--radius-control);white-space:nowrap}
+.tutorial-welcome-banner a{border:1px solid var(--border-strong);background:var(--surface-input);font-size:13px}
+.tutorial-welcome-banner :is(a,button):hover{background:var(--surface-raised)}
+.tutorial-welcome-banner :is(a,button):focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media(max-width:580px){.tutorial-welcome-banner{flex-wrap:wrap}.tutorial-welcome-banner>div{flex-basis:calc(100% - 36px)}.tutorial-welcome-banner a{margin-inline-start:33px}}

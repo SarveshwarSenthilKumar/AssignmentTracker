@@ -1,3 +1,4 @@
+import { tutorialWelcomeDuration } from '../lib/platformTutorialContent'
 import { featureVisible } from '../lib/featureVisibility'
 import {useEffect,useId,useRef,useState} from 'react'
 import {Home,Layers,CheckSquare,CalendarDays,FolderOpen,Briefcase,FileText,Mail,Sparkles,Network,RefreshCw,Keyboard,Settings,LogOut,ChevronDown,ArrowUpRight,Menu,X,Command,Search,Star,BarChart3,Bug,BookOpen,Users,Pin,Maximize,Minimize,Palette,Bookmark} from 'lucide-react'
@@ -22,7 +23,7 @@ export default function AppNavigation({page,user,onSignOut,lockActions=[],hidden
     onClick={()=>{setOpen(null);trigger.current?.focus();openPageFaviconPicker()}}>
     <Palette size={16} aria-hidden="true"/><span><strong>Tab icon color</strong>{details&&<small>Customize this page’s browser tab</small>}</span>
   </button>
-  const tutorialUntil = Date.parse(user?.createdAt) + 3 * 24 * 60 * 60 * 1000
+  const tutorialUntil = Date.parse(user?.createdAt) + tutorialWelcomeDuration
   const [now, setNow] = useState(Date.now)
   const [fullscreen,setFullscreen]=useState(()=>Boolean(document.fullscreenElement))
   useEffect(()=>{

@@ -1,3 +1,4 @@
+import TutorialWelcomeBanner from './components/TutorialWelcomeBanner'
 import TaskColumnSettings from './components/TaskColumnSettings'
 import { taskColumnNames } from './lib/taskColumnNames'
 import InterfaceAppearanceSettings from './components/InterfaceAppearanceSettings'
@@ -1750,6 +1751,8 @@ function App({onFaviconPage}) {
             if (page === 'documents') setSelectedPDFFolder('all')
             if (window.location.hash.startsWith(`#/${page}/folder/`)) window.history.replaceState(window.history.state, '', `#/${page}`)
           }}>
+        {user?.showSetupBanner!==false && available('tutorial') && !selectedPDF &&
+          <TutorialWelcomeBanner key={'tutorial-welcome:'+user?.id} userId={user?.id} createdAt={user?.createdAt} page={page}/>}
         {available('global-search') && <GlobalSearch token={token} hiddenFeatures={hiddenFeatures} onChoose={openSearchResult}/>}
         {available('page-find') && <PageFind key={page} scope={pageFindScope} disabled={!!(selectedPDF || assistantOpen)}/>}
         <OfflineWorkspaceStatus token={token}/>

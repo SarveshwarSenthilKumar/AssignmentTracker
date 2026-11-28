@@ -1,3 +1,5 @@
+export const tutorialWelcomeDuration = 3 * 24 * 60 * 60 * 1000
+
 export const tutorialTopics = [
   ['Getting started', [
     ['home', 'Start with Home', 'home', 'Home', [
