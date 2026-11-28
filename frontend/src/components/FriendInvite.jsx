@@ -7,6 +7,7 @@ const endpoint = '/api/friend-invites'
 
 export function FriendInviteLink({ token }) {
   const [invite, setInvite] = useState({ expiresAt: null, url: '' })
+  const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState('')
@@ -43,7 +44,7 @@ export function FriendInviteLink({ token }) {
     revision.current++
     setBusy(true); setError(''); setNotice('')
     try {
-      const data = await friendRequest(token, endpoint, { method })
+      const data = await friendRequest(token, endpoint, { method, ...(method === 'POST' ? { body: JSON.stringify({ message: message.trim() }) } : {}) })
       if (method === 'DELETE') {
         setInvite({ expiresAt: null, url: '' })
         setNotice('Invite link revoked.')
@@ -51,6 +52,7 @@ export function FriendInviteLink({ token }) {
         const url = new URL('#' + data.path, location.href)
         url.search = ''
         setInvite({ expiresAt: data.expiresAt, url: url.href })
+        setMessage('')
         setNotice('Invite link ready to copy.')
       }
     } catch (failure) { setError(failure.message) }
@@ -62,6 +64,11 @@ export function FriendInviteLink({ token }) {
     <p>Anyone with this link can sign in and accept. Each link works once and expires after seven days.</p>
     {invite.expiresAt && <p>Active until {new Date(invite.expiresAt).toLocaleString()}. Creating a new link replaces it.</p>}
     <div className="friend-sharing-form">
+      <label className="friend-message-field">Message for the next link (optional)
+        <textarea value={message} onChange={event => setMessage(event.target.value)} maxLength={300}
+          disabled={loading || busy} rows={2} placeholder="Add a short note for the recipient"/>
+        <small>{message.length} / 300</small>
+      </label>
       <button type="button" disabled={loading || busy} onClick={() => change('POST')}>
         <Link2 size={15} aria-hidden="true"/> {invite.expiresAt ? 'Replace invite link' : 'Create invite link'}
       </button>
@@ -113,6 +120,7 @@ export function FriendInvitePage({ token, secret, onOpenFriends }) {
   return <section className="account-card friend-sharing" aria-label="Friend invitation">
     {invite && <>
       <h2>{invite.username} invited you to become friends</h2>
+      {invite.message && <p className="friend-request-note">{invite.message}</p>}
       {accepted || invite.alreadyFriends
         ? <p role="status">You and {invite.username} are friends.</p>
         : <><p>Accepting adds this account to your friends list.</p><button type="button" disabled={busy} onClick={accept}>{busy ? 'Accepting…' : 'Accept friend invite'}</button></>}

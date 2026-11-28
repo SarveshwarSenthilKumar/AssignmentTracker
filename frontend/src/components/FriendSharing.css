@@ -11,3 +11,8 @@
 .friend-sharing li strong{min-width:0;overflow-wrap:anywhere}
 .document-friend-sharing{padding-bottom:12px;border-bottom:1px solid var(--border)}
 .friend-document-download{display:grid;gap:5px;justify-items:start}
+
+.friend-sharing .friend-message-field{flex:1 1 100%;max-width:34rem}
+.friend-message-field textarea{width:100%;padding:7px 8px;border:1px solid var(--border-strong);border-radius:6px;background:var(--surface-input);color:var(--text-primary);resize:vertical}
+.friend-message-field small{color:var(--text-muted);font-size:11px}
+.friend-sharing .friend-request-note{margin-block:6px;padding:7px 9px;white-space:pre-wrap;overflow-wrap:anywhere;border-inline-start:2px solid var(--accent);background:var(--surface-input);color:var(--text-primary)}

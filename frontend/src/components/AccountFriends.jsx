@@ -9,6 +9,7 @@ export default function AccountFriends({token}){
   const {friends,loading,error}=useFriends(token)
   const [lookup, setLookup] = useState('email')
   const [identifier, setIdentifier] = useState('')
+  const [requestNote, setRequestNote] = useState('')
   const [busy,setBusy]=useState(false),[message,setMessage]=useState(''),[actionError,setActionError]=useState('')
   const lock=useRef(false)
   const run=async (operation,notice)=>{
@@ -23,9 +24,10 @@ export default function AccountFriends({token}){
     const value=identifier.trim()
     if(!value)return
     run(async()=>{
-      await friendRequest(token,'/api/friends',{method:'POST',body:JSON.stringify({[lookup]:value})})
+      await friendRequest(token,'/api/friends',{method:'POST',body:JSON.stringify({[lookup]:value,message:requestNote.trim()})})
       setIdentifier('')
-    },'Friend list updated.')
+      setRequestNote('')
+    },'Friend request sent.')
   }
   return <section className="account-card friend-sharing" aria-labelledby="account-friends-title">
     <h2 id="account-friends-title">Friends</h2>
@@ -38,6 +40,11 @@ export default function AccountFriends({token}){
         <input type={lookup === 'username' ? 'text' : 'email'} required maxLength={lookup === 'username' ? 1024 : 254}
           value={identifier} disabled={busy} onChange={event => setIdentifier(event.target.value)}
           autoCapitalize="none" autoCorrect="off" spellCheck={false} autoComplete="off"/>
+      </label>
+      <label className="friend-message-field">Message (optional)
+        <textarea value={requestNote} onChange={event => setRequestNote(event.target.value)} maxLength={300}
+          disabled={busy} rows={2} placeholder="Say how you know each other"/>
+        <small>{requestNote.length} / 300</small>
       </label>
       <button type="submit" disabled={busy||!identifier.trim()}>Send request</button>
     </form>
@@ -53,6 +60,7 @@ export default function AccountFriends({token}){
         {!entries.length&&!loading&&!error&&<p>None yet.</p>}
         {entries.length>0&&<ul>{entries.map(friend=><li key={friend.id}>
           <strong>{friend.username}</strong>
+          {friend.message && <p className="friend-request-note">{friend.message}</p>}
           {status==='incoming'&&<button type="button" disabled={busy} onClick={()=>run(
             ()=>friendRequest(token,'/api/friends/'+friend.id+'/accept',{method:'POST'}),'Friend request accepted.'
           )}>Accept</button>}

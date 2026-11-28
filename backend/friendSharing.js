@@ -2,6 +2,8 @@ const { createHash, randomBytes } = require('node:crypto');
 const inviteHash = secret => createHash('sha256').update(secret).digest('hex');
 const validInvite = value => typeof value === 'string' && /^[A-Za-z0-9_-]{43}$/.test(value);
 
+const readMessage = value => value === undefined ? '' :
+  typeof value === 'string' && value.trim().length <= 300 ? value.trim() : null;
 const validId=value=>typeof value==='string'&&/^[a-f\d]{24}$/i.test(value);
 const pairKey=(a,b)=>[String(a).toLowerCase(),String(b).toLowerCase()].sort().join(':');
 const same=(a,b)=>String(a)===String(b);
@@ -12,7 +14,8 @@ module.exports=function registerFriendSharing(app,auth,{User,PDF,isLocked,collab
     _id:String, generation:{type:Schema.Types.ObjectId,required:true,index:true},
     sender:{type:Schema.Types.ObjectId,required:true,index:true},
     recipient:{type:Schema.Types.ObjectId,required:true,index:true},
-    accepted:{type:Boolean,default:false}
+    accepted:{type:Boolean,default:false},
+    message:{type:String,maxlength:300,default:''}
   },{timestamps:true});
   const Friendship=PDF.db.models.Friendship||PDF.db.model('Friendship',schema);
   const activeAccount={deactivatedAt:null,approvalPending:{$ne:true}};
@@ -37,12 +40,14 @@ module.exports=function registerFriendSharing(app,auth,{User,PDF,isLocked,collab
     const names=new Map(accounts.map(account=>[String(account._id),account.username]));
     res.json(relations.flatMap(relation=>{
       const accountId=String(other(relation)),username=names.get(accountId);
-      return username?[{id:relation.generation,accountId,username,status:relation.accepted?'friend':same(relation.sender,user)?'outgoing':'incoming'}]:[];
+      return username?[{id:relation.generation,accountId,username,status:relation.accepted?'friend':same(relation.sender,user)?'outgoing':'incoming',...(!relation.accepted&&relation.message?{message:relation.message}:{})}]:[];
     }));
   }));
 
   app.post(friendsBase,...route(async(req,res)=>{
     const { email, username } = req.body || {};
+    const message = readMessage(req.body?.message);
+    if (message === null) return res.status(400).json({ message: 'Use up to 300 characters for the request message.' });
     if ((email === undefined) === (username === undefined)) {
       return res.status(400).json({message:'Enter either an account email or a username.'});
     }
@@ -59,13 +64,13 @@ module.exports=function registerFriendSharing(app,auth,{User,PDF,isLocked,collab
     const id=pairKey(user,recipient._id);
     const generation=new Types.ObjectId();
     try{
-      await Friendship.updateOne({_id:id},{$setOnInsert:{generation,sender:user,recipient:recipient._id,accepted:false}},{upsert:true});
+      await Friendship.updateOne({_id:id},{$setOnInsert:{generation,sender:user,recipient:recipient._id,accepted:false,message}},{upsert:true});
     }catch(error){if(error.code!==11000)throw error;}
     res.status(204).end();
   }));
 
   const inviteBase = '/api/friend-invites';
-  const inviteFields = { friendInviteHash: '', friendInviteExpiresAt: '' };
+  const inviteFields = { friendInviteHash: '', friendInviteExpiresAt: '', friendInviteMessage: '' };
   const activeInvite = secret => ({
     ...activeAccount, friendInviteHash: inviteHash(secret), friendInviteExpiresAt: { $gt: new Date() },
   });
@@ -77,10 +82,12 @@ module.exports=function registerFriendSharing(app,auth,{User,PDF,isLocked,collab
   }));
 
   app.post(inviteBase, ...route(async (req, res) => {
+    const message = readMessage(req.body?.message);
+    if (message === null) return res.status(400).json({ message: 'Use up to 300 characters for the invite message.' });
     const secret = randomBytes(32).toString('base64url');
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     const result = await User.updateOne({ _id: req.user.userId, ...activeAccount }, {
-      $set: { friendInviteHash: inviteHash(secret), friendInviteExpiresAt: expiresAt },
+      $set: { friendInviteHash: inviteHash(secret), friendInviteExpiresAt: expiresAt, friendInviteMessage: message },
     });
     if (!result.matchedCount) return res.status(404).json({ message: 'This account is unavailable.' });
     res.status(201).json({ path: '/friend-invite/' + secret, expiresAt });
@@ -92,11 +99,11 @@ module.exports=function registerFriendSharing(app,auth,{User,PDF,isLocked,collab
   }));
 
   app.get(inviteBase + '/:secret', ...route(async (req, res) => {
-    const inviter = await User.findOne(activeInvite(req.params.secret)).select('username +friendInviteExpiresAt').lean();
+    const inviter = await User.findOne(activeInvite(req.params.secret)).select('username +friendInviteExpiresAt +friendInviteMessage').lean();
     if (!inviter) return res.status(404).json({ message: 'This invite has expired, been used, or been revoked.' });
     if (same(inviter._id, req.user.userId)) return res.status(400).json({ message: 'Share this link with someone else to become friends.' });
     const alreadyFriends = Boolean(await Friendship.exists({ _id: pairKey(inviter._id, req.user.userId), accepted: true }));
-    res.json({ username: inviter.username, expiresAt: inviter.friendInviteExpiresAt, alreadyFriends });
+    res.json({ username: inviter.username, expiresAt: inviter.friendInviteExpiresAt, message: inviter.friendInviteMessage || '', alreadyFriends });
   }));
 
   app.post(inviteBase + '/:secret', ...route(async (req, res) => {
@@ -120,7 +127,7 @@ module.exports=function registerFriendSharing(app,auth,{User,PDF,isLocked,collab
         if (!consumed.matchedCount) { outcome = 'unavailable'; return; }
         await Friendship.updateOne({ _id: id }, {
           $setOnInsert: { generation: new Types.ObjectId(), sender: inviter._id, recipient },
-          $set: { accepted: true },
+          $set: { accepted: true }, $unset: { message: '' },
         }, { upsert: true, session });
         outcome = 'accepted';
       });
@@ -131,7 +138,7 @@ module.exports=function registerFriendSharing(app,auth,{User,PDF,isLocked,collab
   }));
 
   app.post(friendsBase+'/:id/accept',...route(async(req,res)=>{
-    const result=await Friendship.updateOne({generation:req.params.id,recipient:req.user.userId,accepted:false},{$set:{accepted:true}});
+    const result=await Friendship.updateOne({generation:req.params.id,recipient:req.user.userId,accepted:false},{$set:{accepted:true},$unset:{message:''}});
     if(!result.matchedCount)return res.status(404).json({message:'This friend request is unavailable.'});
     res.status(204).end();
   }));
