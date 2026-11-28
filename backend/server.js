@@ -34,7 +34,7 @@ const { assistantRequest, workspaceContext, responsePayload, responseText, respo
 const { diagnostic, callAssistantAPI, AssistantAPIError, safeMessage } = require('./assistantDiagnostics');
 const { randomUUID } = require('node:crypto');
 const { createAssistantCredentials } = require('./assistantCredentials');
-const { registerWorkspaceSettings } = require('./workspaceSettings');
+const { registerWorkspaceSettings, NAVIGATION_PAGES } = require('./workspaceSettings');
 const { AssistantConversation, registerConversationRoutes, prepareConversation, finishConversation } = require('./assistantConversations');
 
 const app = express();
@@ -80,6 +80,7 @@ const userSchema = new mongoose.Schema({
   searchIndexRevision:{type:Number,default:0},
   hideTxstEvents: { type: Boolean, default: false },
   calendarUniversity: { type: String, enum: ['none', 'txst'], default: 'none' },
+  workflowProfiles: { type: mongoose.Schema.Types.Mixed, select: false },
   workflowLayout: { type: mongoose.Schema.Types.Mixed, select: false },
   workflowRevision: { type: Number, default: 0, select: false },
   annotationKits: { type: [mongoose.Schema.Types.Mixed], default: [], select: false },
@@ -870,11 +871,7 @@ app.put('/api/account/preferences', authenticateToken, async (req, res) => {
     update.birthday = birthday;
   }
   if (navigationPins !== undefined || navigationNewTabs !== undefined || navigationMenus !== undefined) {
-    const allowed = new Set([
-      'home','workspace','tasks','calendar','documents','prep','resumes','cover-letters','jobs','bookmarks',
-      'detective-wall','whiteboards','tutorial','suggest-feature','report-bug','roadmap','analytics','study',
-      'assistant','visualization','canvas','shortcuts',
-    ]);
+    const allowed = NAVIGATION_PAGES;
     const valid = (items, includeAccount = false) => Array.isArray(items) &&
       items.length <= allowed.size + Number(includeAccount) && new Set(items).size === items.length &&
       items.every(id => allowed.has(id) || (includeAccount && id === 'account'));

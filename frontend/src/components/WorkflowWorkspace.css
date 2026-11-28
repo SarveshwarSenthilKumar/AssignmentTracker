@@ -36,3 +36,14 @@
 .workflow-tool-search input{padding:7px 9px;border:1px solid var(--border);border-radius:7px;background:var(--surface-input);color:var(--text-primary)}
 .workflow-page-tool{padding:12px}
 .workflow-page-actions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+
+.workspace-profile-controls {
+  padding: 10px 14px; border-bottom: 1px solid var(--border); background: var(--surface-panel);
+  max-height: 32dvh; overflow: auto; flex-shrink: 0;
+}
+.workspace-profile-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; }
+.workspace-profile-bar label { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
+.workspace-profile-bar select { max-width: min(230px, 46vw); }
+.workspace-profile-controls form, .workspace-profile-pins { border-top: 1px solid var(--border); padding-top: 8px; margin-top: 8px; }
+.workspace-profile-pin-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 7px; padding-top: 8px; }
+.workspace-profile-pin-list label { display: flex; align-items: center; gap: 6px; }

@@ -8,7 +8,7 @@ import './NavigationSettings.css'
 
 const labels = Object.fromEntries(navigationPages)
 
-export default function NavigationSettings() {
+export default function NavigationSettings({ activeWorkspaceProfile } = {}) {
   const { user, token, updatePreferences } = useAuth()
   const saved = Array.isArray(user?.navigationPins) ? user.navigationPins : defaultNavigationPins
   const [draft, setDraft] = useState(null)
@@ -57,6 +57,7 @@ export default function NavigationSettings() {
   return <section className="confirmation-settings navigation-settings" aria-label="Navigation bar">
     <h3>Navigation bar</h3>
     <p>Pin and reorder pages in the top bar. Manage unpinned pages under Navigation menus. On smaller screens, pinned pages come first in the navigation menu.</p>
+    {activeWorkspaceProfile && <p>{activeWorkspaceProfile} uses its own pinned pages. Edit them under <a href="#/workspace">Workspace → Pinned pages</a>.</p>}
     <ol aria-label="Pinned pages">
       {pins.map((id, index) => <li key={id}>
         <span>{labels[id] || id}{!available(id) && <small>Hidden in Platform visibility</small>}</span>

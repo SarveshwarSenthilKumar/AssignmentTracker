@@ -1,59 +1,190 @@
 import { useEffect, useRef, useState } from 'react'
 import { defaultWorkspace, importWorkspace } from '../lib/workspace'
 
-export default function useWorkspaceLayout({token,userId}){
-  const storageKey=`workflow-layout:${userId}`
-  const [layout,setLayout]=useState(null),[status,setStatus]=useState('loading'),[error,setError]=useState(''),[ready,setReady]=useState(false)
-  const current=useRef(null),revision=useRef(0),generation=useRef(0),savedGeneration=useRef(0),saving=useRef(false),alive=useRef(true),blocked=useRef(false),timer=useRef(null),resetting=useRef(false),loadVersion=useRef(0)
-  const local=(dirty=true)=>{if(resetting.current||!current.current)return;try{localStorage.setItem(storageKey,JSON.stringify({layout:current.current,revision:revision.current,dirty}))}catch{}}
-  const request=async(options={})=>{
-    const response=await fetch('/api/account/workspace-layout',{...options,headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'}})
-    const data=await response.json().catch(()=>({}));if(!response.ok){const error=new Error(data.message||'Could not access workspace settings.');error.status=response.status;throw error}return data
+const initialState = { library: null, status: 'loading', error: '', ready: false }
+const fromLayout = layout => ({
+  activeProfileId: 'default', profiles: [{ id: 'default', name: 'Default', pins: null, layout }],
+})
+
+function readLibrary(value) {
+  if (!Array.isArray(value?.profiles)) return value?.layout ? fromLayout(importWorkspace(value.layout)) : null
+  if (!value.profiles.some(profile => profile.id === value.activeProfileId)) throw new Error('The active workspace profile is missing.')
+  return {
+    activeProfileId: value.activeProfileId,
+    profiles: value.profiles.map(({ id, name, pins, layout }) => ({
+      id, name, pins: Array.isArray(pins) ? pins : null, layout: importWorkspace(layout),
+    })),
   }
-  const save=async()=>{
-    clearTimeout(timer.current)
-    if(saving.current||blocked.current||!current.current||generation.current===savedGeneration.current)return
-    saving.current=true;const started=generation.current,snapshot=current.current;if(alive.current)setStatus('saving')
-    try{
-      const data=await request({method:'PUT',body:JSON.stringify({revision:revision.current,layout:snapshot})})
-      if(resetting.current)return
-      revision.current=data.revision;savedGeneration.current=started;if(alive.current)local(generation.current!==started)
-      if(alive.current){setStatus(generation.current===started?'saved':'unsaved');setError('')}
-    }catch(error){blocked.current=error.status===409;if(alive.current){setStatus(blocked.current?'conflict':'error');setError(error.message)}local()}
-    finally{saving.current=false;if(alive.current&&!blocked.current&&savedGeneration.current!==generation.current&&savedGeneration.current>=started)timer.current=setTimeout(save,800)}
+}
+
+async function request(scope, options = {}) {
+  const response = await fetch('/api/account/workspace-layout', {
+    ...options, cache: 'no-store', headers: { Authorization: 'Bearer ' + scope.token, 'Content-Type': 'application/json' },
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    const error = new Error(data.message || 'Could not access workspace settings.')
+    error.status = response.status
+    throw error
   }
-  const load=async({discardLocal=false}={})=>{
-    const version=++loadVersion.current
-    setStatus('loading');setError('');blocked.current=false
-    try{
-      const data=await request();if(!alive.current||version!==loadVersion.current)return
-      revision.current=data.revision;let draft=null
-      if(!discardLocal){try{const value=JSON.parse(localStorage.getItem(storageKey)||'null');if(value?.dirty&&Number.isInteger(value.revision)&&value.revision>=0)draft={...value,layout:importWorkspace(value.layout)}}catch{}}
-      const value=draft?.layout||(data.layout?importWorkspace(data.layout):defaultWorkspace())
-      current.current=value;setLayout(value);generation.current=1;savedGeneration.current=draft?0:data.layout?1:0;setReady(true)
-      if(draft&&draft.revision!==data.revision){revision.current=draft.revision;blocked.current=true;setStatus('conflict');setError('This account has a different saved layout. Your local draft is preserved. Choose which version to keep.')}
-      else{setStatus(draft||!data.layout?'unsaved':'saved');if(draft||!data.layout)timer.current=setTimeout(save,800);else local(false)}
-    }catch(error){
-      if(!alive.current||version!==loadVersion.current)return
-      let draft=null;try{draft=importWorkspace(JSON.parse(localStorage.getItem(storageKey)||'null')?.layout)}catch{}
-      const value=draft||current.current||defaultWorkspace();current.current=value;setLayout(value);setReady(true);generation.current++;setStatus('error');setError(`${error.message} Changes will stay in a local draft until you reconnect.`);blocked.current=true
+  return data
+}
+
+function local(scope, dirty) {
+  if (!scope.active || !scope.library) return
+  try { localStorage.setItem(scope.storageKey, JSON.stringify({ ...scope.library, revision: scope.revision, dirty })) } catch {}
+}
+
+function readLocal(scope) {
+  try {
+    const data = JSON.parse(localStorage.getItem(scope.storageKey) || 'null')
+    const library = readLibrary(data)
+    if (library && Number.isSafeInteger(data.revision) && data.revision >= 0) return { ...data, library }
+  } catch {}
+  return null
+}
+
+export default function useWorkspaceLayout({ token, userId }) {
+  const [state, setState] = useState(initialState)
+  const connection = useRef(null)
+  const publish = (scope, changes) => {
+    if (scope.active) setState(previous => ({ ...previous, ...changes, library: scope.library, scope }))
+  }
+
+  function save(scope) {
+    clearTimeout(scope.timer)
+    if (!scope.active || scope.blocked || scope.inFlight || scope.generation === scope.saved) return scope.inFlight
+    const generation = scope.generation
+    const body = JSON.stringify({ ...scope.library, revision: scope.revision })
+    publish(scope, { status: 'saving' })
+    scope.inFlight = (async () => {
+      try {
+        const data = await request(scope, { method: 'PUT', body })
+        if (!scope.active) return
+        scope.revision = data.revision
+        scope.saved = generation
+        const dirty = scope.generation !== generation
+        local(scope, dirty)
+        publish(scope, { status: dirty ? 'unsaved' : 'saved', error: '' })
+      } catch (error) {
+        if (!scope.active) return
+        scope.blocked = error.status === 409
+        publish(scope, { status: scope.blocked ? 'conflict' : 'error', error: error.message })
+        local(scope, true)
+      } finally {
+        scope.inFlight = null
+        if (scope.active && !scope.blocked && scope.generation !== generation) scope.timer = setTimeout(() => save(scope), 900)
+      }
+    })()
+    return scope.inFlight
+  }
+
+  async function load(scope, discardLocal = false) {
+    scope.controller?.abort()
+    clearTimeout(scope.timer)
+    const controller = new AbortController()
+    scope.controller = controller
+    scope.blocked = true
+    publish(scope, { status: 'loading', error: '', ready: false })
+    try {
+      await scope.inFlight
+      if (!scope.active || controller.signal.aborted) return
+      const data = await request(scope, { signal: controller.signal })
+      if (!scope.active || controller.signal.aborted) return
+      const saved = readLibrary(data)
+      const draft = !discardLocal ? readLocal(scope) : null
+      const localDraft = draft?.dirty && (!saved || JSON.stringify(draft.library) !== JSON.stringify(saved)) ? draft : null
+      scope.library = localDraft?.library || saved || fromLayout(defaultWorkspace())
+      scope.revision = localDraft?.revision ?? data.revision
+      scope.generation = 1
+      scope.saved = localDraft || !saved ? 0 : 1
+      scope.blocked = !!localDraft && localDraft.revision !== data.revision
+      if (scope.blocked) {
+        publish(scope, { status: 'conflict', ready: true, error: 'Your saved profiles changed elsewhere. Choose which version to keep.' })
+      } else {
+        const dirty = scope.generation !== scope.saved
+        publish(scope, { status: dirty ? 'unsaved' : 'saved', ready: true, error: '' })
+        local(scope, dirty)
+        if (dirty) scope.timer = setTimeout(() => save(scope), 800)
+      }
+    } catch (error) {
+      if (!scope.active || controller.signal.aborted) return
+      const draft = readLocal(scope)
+      scope.library = scope.library || draft?.library || fromLayout(defaultWorkspace())
+      scope.revision = draft?.revision ?? scope.revision
+      scope.blocked = true
+      publish(scope, { status: 'error', ready: true, error: error.message + ' Changes will stay in a local draft until you reconnect.' })
     }
   }
-  useEffect(()=>{
-    alive.current=true
-    const reset=event=>{if(event.detail!==userId)return;resetting.current=true;blocked.current=true;loadVersion.current++;clearTimeout(timer.current);try{localStorage.removeItem(storageKey)}catch{}}
-    window.addEventListener('workspace-reset',reset);load()
-    return()=>{alive.current=false;loadVersion.current++;clearTimeout(timer.current);window.removeEventListener('workspace-reset',reset);if(current.current&&generation.current!==savedGeneration.current)local()}
-  },[token,userId])
-  const change=updater=>{
-    const next=typeof updater==='function'?updater(current.current):updater
-    if(!next||next===current.current||resetting.current)return
-    current.current=next;generation.current++;setLayout(next);local();if(!blocked.current)setStatus('unsaved');clearTimeout(timer.current);timer.current=setTimeout(save,900)
+
+  useEffect(() => {
+    if (!token || !userId) return
+    const start = () => {
+      const scope = {
+        userId, token, active: true, storageKey: 'workflow-layout:' + userId,
+        generation: 0, saved: 0, revision: 0,
+      }
+      connection.current = scope
+      load(scope)
+    }
+    const stop = (preserve = true) => {
+      const scope = connection.current
+      if (!scope) return
+      if (preserve && scope.generation !== scope.saved) local(scope, true)
+      scope.active = false
+      clearTimeout(scope.timer)
+      scope.controller?.abort()
+      connection.current = null
+    }
+    const reset = event => {
+      if (event.detail !== userId) return
+      stop(false)
+      try { localStorage.removeItem('workflow-layout:' + userId) } catch {}
+      start()
+    }
+    start()
+    window.addEventListener('workspace-reset', reset)
+    return () => { window.removeEventListener('workspace-reset', reset); stop() }
+  }, [token, userId])
+
+  const scope = connection.current
+  const visible = scope && state.scope === scope && scope.userId === userId && scope.token === token ? state : initialState
+  const active = visible.library?.profiles.find(profile => profile.id === visible.library.activeProfileId)
+  function changeProfiles(updater) {
+    if (!scope?.active || !visible.ready) return
+    const next = updater(scope.library)
+    if (!next || next === scope.library) return
+    scope.library = next
+    scope.generation++
+    local(scope, true)
+    publish(scope, scope.blocked ? {} : { status: 'unsaved' })
+    clearTimeout(scope.timer)
+    scope.timer = setTimeout(() => save(scope), 900)
   }
-  const keepLocal=async()=>{
-    if(saving.current)return
-    try{const data=await request();revision.current=data.revision;blocked.current=false;generation.current++;setError('');await save()}
-    catch(error){setStatus('error');setError(error.message)}
+
+  function change(updater) {
+    changeProfiles(library => {
+      const profile = library.profiles.find(item => item.id === library.activeProfileId)
+      if (profile.id !== active?.id) return library
+      const next = typeof updater === 'function' ? updater(profile.layout) : updater
+      if (!next || next === profile.layout) return library
+      return { ...library, profiles: library.profiles.map(item => item.id === profile.id ? { ...item, layout: next } : item) }
+    })
   }
-  return {layout,change,status,error,ready,save,reload:()=>load({discardLocal:true}),keepLocal}
+
+  async function keepLocal() {
+    if (!scope?.active || scope.inFlight || !visible.ready) return
+    const loadController = scope.controller
+    try {
+      const data = await request(scope)
+      if (!scope.active || scope.controller !== loadController) return
+      scope.revision = data.revision
+      scope.blocked = false
+      scope.generation++
+      await save(scope)
+    } catch (error) { publish(scope, { status: 'error', error: error.message }) }
+  }
+
+  return { ...visible, active, layout: active?.layout, change, changeProfiles,
+    reload: () => scope && load(scope, true), keepLocal }
 }

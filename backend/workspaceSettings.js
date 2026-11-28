@@ -1,3 +1,8 @@
+const NAVIGATION_PAGES = new Set([
+  'home', 'workspace', 'tasks', 'calendar', 'documents', 'prep', 'resumes', 'cover-letters', 'jobs', 'bookmarks',
+  'detective-wall', 'whiteboards', 'tutorial', 'suggest-feature', 'report-bug', 'roadmap', 'analytics', 'study',
+  'assistant', 'visualization', 'canvas', 'shortcuts',
+]);
 const TYPES = new Set([
   'tasks', 'calendar', 'documents', 'graph', 'notes', 'focus', 'assistant', 'home', 'canvas', 'bookmarks',
   'detective-wall', 'whiteboards', 'study', 'prep', 'resumes', 'cover-letters', 'jobs', 'analytics',
@@ -25,19 +30,56 @@ function cleanLayout(value){
   if(!tabs.some(tab=>tab.id===value.activeTabId))throw new Error('Choose an active workspace tab.');
   return {version:1,tabs,activeTabId:value.activeTabId,preferences:{snap:value.preferences?.snap!==false,grid:value.preferences?.grid!==false,density:value.preferences?.density==='compact'?'compact':'comfortable',canvasHeight:[720,1000,1400].includes(value.preferences?.canvasHeight)?value.preferences.canvasHeight:1000}};
 }
+function cleanProfiles(value) {
+  if (!Array.isArray(value?.profiles) || !value.profiles.length || value.profiles.length > 8 ||
+      Buffer.byteLength(JSON.stringify(value), 'utf8') > 2100000) {
+    throw new Error('Save between 1 and 8 workspace profiles.');
+  }
+  const names = new Set(), ids = new Set();
+  const profiles = value.profiles.map(profile => {
+    const name = typeof profile?.name === 'string' ? profile.name.trim() : '';
+    const normalized = name.toLowerCase();
+    if (!id(profile?.id) || ids.has(profile.id) || !name || name.length > 60 || names.has(normalized)) {
+      throw new Error('Give each workspace profile a distinct name of up to 60 characters.');
+    }
+    const pins = profile.pins ?? null;
+    if (pins !== null && (!Array.isArray(pins) || pins.length > NAVIGATION_PAGES.size ||
+        new Set(pins).size !== pins.length || pins.some(page => !NAVIGATION_PAGES.has(page)))) {
+      throw new Error('Choose valid pages to pin.');
+    }
+    ids.add(profile.id);
+    names.add(normalized);
+    return { id: profile.id, name, pins, layout: cleanLayout(profile.layout) };
+  });
+  if (!ids.has(value.activeProfileId)) throw new Error('Choose an active workspace profile.');
+  return { profiles, activeProfileId: value.activeProfileId };
+}
+
 function registerWorkspaceSettings(app,authenticateToken,User){
   app.get('/api/account/workspace-layout',authenticateToken,async(req,res)=>{
     res.set('Cache-Control','no-store');
-    try{const user=await User.findById(req.user.userId).select('_id +workflowLayout +workflowRevision').lean();if(!user)return res.status(404).json({message:'Account not found.'});res.json({layout:user.workflowLayout||null,revision:user.workflowRevision||0});}
+    try {
+      const user = await User.findById(req.user.userId).select('_id +workflowLayout +workflowProfiles +workflowRevision').lean();
+      if (!user) return res.status(404).json({ message: 'Account not found.' });
+      const layout = user.workflowLayout || null;
+      const library = user.workflowProfiles;
+      const profiles = library?.profiles.map(profile => profile.id === library.activeProfileId && layout ? { ...profile, layout } : profile);
+      res.json({ layout, revision: user.workflowRevision || 0, ...(profiles && { profiles, activeProfileId: library.activeProfileId }) });
+    }
     catch{res.status(503).json({message:'Could not load your workspace layout.'});}
   });
   app.put('/api/account/workspace-layout',authenticateToken,async(req,res)=>{
-    res.set('Cache-Control','no-store');let layout;
-    if(!Number.isInteger(req.body.revision)||req.body.revision<0)return res.status(400).json({message:'Refresh the saved workspace before trying again.'});
-    try{layout=cleanLayout(req.body.layout)}catch(error){return res.status(400).json({message:error.message});}
+    res.set('Cache-Control','no-store');let layout, library;
+    if(!Number.isSafeInteger(req.body?.revision)||req.body.revision<0||req.body.revision>=Number.MAX_SAFE_INTEGER)return res.status(400).json({message:'Refresh the saved workspace before trying again.'});
+    try {
+      if (req.body.profiles !== undefined) {
+        library = cleanProfiles(req.body);
+        layout = library.profiles.find(profile => profile.id === library.activeProfileId).layout;
+      } else layout = cleanLayout(req.body.layout);
+    } catch(error){return res.status(400).json({message:error.message});}
     const filter={_id:req.user.userId,...(req.body.revision===0?{$or:[{workflowRevision:0},{workflowRevision:{$exists:false}}]}:{workflowRevision:req.body.revision})};
-    try{const user=await User.findOneAndUpdate(filter,{$set:{workflowLayout:layout,workflowRevision:req.body.revision+1}},{new:true}).select('_id');if(!user)return res.status(409).json({message:'This workspace changed elsewhere. Reload the saved layout or explicitly save your current version.'});res.json({revision:req.body.revision+1});}
+    try{const user=await User.findOneAndUpdate(filter,{$set:{workflowLayout:layout,workflowRevision:req.body.revision+1,...(library && { workflowProfiles: library })}},{new:true}).select('_id');if(!user)return res.status(409).json({message:'This workspace changed elsewhere. Reload the saved layout or explicitly save your current version.'});res.json({revision:req.body.revision+1});}
     catch{res.status(503).json({message:'Could not save your workspace layout. Your local draft is preserved.'});}
   });
 }
-module.exports={registerWorkspaceSettings};
+module.exports={registerWorkspaceSettings,NAVIGATION_PAGES};
