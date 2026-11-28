@@ -15,19 +15,32 @@ test('workspace context whitelists profile and records without credentials or do
   assert.equal(context.timeZone,'Asia/Tokyo');assert.equal(context.tasks[0].description.length,2000);assert.deepEqual(context.calendar[0].documentIds,[documentId]);
   const without=workspaceContext(data,{...base,includeWorkspace:false});assert.equal(without.profile,undefined);assert.equal(without.tasks,undefined);
 });
-test('provider input is read-only, stateless, and includes supported files only when explicitly supplied',()=>{
+test('provider input is read-only, stateless, and includes supported files only when supplied',async()=>{
   const request=assistantRequest(base),context=workspaceContext({user:{}},request);
-  const payload=responsePayload(request,context,null,'test-model');assert.equal(payload.store,false);assert.equal(payload.tools,undefined);assert.equal(payload.input[0].content.length,1);
+  const payload=await responsePayload(request,context,null,'test-model');
+  assert.equal(payload.store,false);
+  assert.equal(payload.tools,undefined);
+  assert.match(payload.systemInstruction.parts[0].text,/read-only assistant/i);
+  assert.equal(payload.contents[0].role,'user');
+  assert.equal(payload.contents[0].parts.length,2);
+  assert.equal(payload.contents[0].parts.at(-1).text,base.messages[0].content);
   const pdf={_id:documentId,name:'Notes',originalName:'notes.pdf',mimeType:'application/pdf',pdfData:Buffer.from('pdf')};
-  assert.equal(documentInput(pdf).content.type,'input_file');
-  assert.equal(documentInput({...pdf,originalName:'image.png',mimeType:'image/png'}).content.type,'input_image');
-  assert.equal(documentInput({...pdf,originalName:'audio.mp3',mimeType:'audio/mpeg'}).content,undefined);
-  assert.equal(documentInput({...pdf,pdfData:Buffer.alloc(10*1024*1024+1)}).content,undefined);
-  assert.equal(responsePayload(request,context,pdf,'test-model').input[0].content.length,2);assert.equal(context.openDocument.contentIncluded,true);
+  assert.equal((await documentInput(pdf)).content.inlineData.mimeType,'application/pdf');
+  assert.equal((await documentInput({...pdf,originalName:'image.png',mimeType:'image/png'})).content.inlineData.mimeType,'image/png');
+  assert.equal((await documentInput({...pdf,originalName:'audio.mp3',mimeType:'audio/mpeg'})).content.inlineData.mimeType,'audio/mpeg');
+  assert.equal((await documentInput({...pdf,originalName:'unsupported.zip',mimeType:'application/zip'})).content,undefined);
+  assert.equal((await documentInput({...pdf,pdfData:Buffer.alloc(10*1024*1024+1)})).content,undefined);
+  const attached=await responsePayload(request,context,pdf,'test-model');
+  assert.equal(attached.contents[0].parts.length,4);
+  assert.equal(context.openDocument.contentIncluded,true);
 });
-test('answers extract text/refusals and link only supplied owner-scoped sources',()=>{
-  const text=responseText({output:[{type:'reasoning',content:[{type:'output_text',text:'hidden'}]},{type:'message',content:[{type:'output_text',text:`Essay [[task:${taskId}]] and [[document:${documentId}]] and [[calendar:aaaaaaaaaaaaaaaaaaaaaaaa]]`}]}]});
-  assert.ok(!text.includes('hidden'));
-  const sources=responseSources(text,{tasks:[{id:taskId,title:'Essay'}],openDocument:{id:documentId,name:'Notes'}});assert.equal(sources.length,2);assert.equal(sources[1].type,'document');
-  assert.equal(responseText({output:[{type:'message',content:[{type:'refusal',refusal:'Cannot answer'}]}]}),'Cannot answer');assert.throws(()=>responseText({output:[]}));
+test('answers omit internal thoughts and link only supplied owner-scoped sources',()=>{
+  const reply='Essay [[task:'+taskId+']] and [[document:'+documentId+']] and [[calendar:aaaaaaaaaaaaaaaaaaaaaaaa]]';
+  const text=responseText({candidates:[{content:{parts:[{thought:true,text:'hidden'},{text:reply}]}}]});
+  assert.equal(text,reply);
+  const sources=responseSources(text,{tasks:[{id:taskId,title:'Essay'}],openDocument:{id:documentId,name:'Notes'}});
+  assert.equal(sources.length,2);
+  assert.equal(sources[1].type,'document');
+  assert.throws(()=>responseText({candidates:[{finishReason:'SAFETY'}]}),/blocked/);
+  assert.throws(()=>responseText({candidates:[]}),/no answer/);
 });

@@ -14,6 +14,7 @@ import { AuthProvider, GuestAuthProvider } from './contexts/AuthContext'
 import './mobile.css'
 import './light-mode.css'
 import './checkboxes.css'
+import './lib/download.css'
 
 const fullscreenShortcut=SHORTCUTS.find(shortcut=>shortcut.id==='platform-fullscreen')
 

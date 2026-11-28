@@ -1777,9 +1777,9 @@ function App({onFaviconPage}) {
         {page==='study' && <StudyPage token={token}/>}
         {page==='detective-wall' && <DetectiveWalls token={token} userId={user?.id}/>}
         {page==='whiteboards' && <Whiteboards token={token} documents={pdfs} onDocumentsChange={setPdfs} onOpen={openDocument}/>}
-        {page==='tutorial' && !selectedPDF && !selectedTask && <PlatformTutorial headerAction={sectionNewTab} hiddenFeatures={hiddenFeatures} key={user?.id} userId={user?.id}
+        {page==='tutorial' && !selectedPDF && !selectedTask && <PlatformTutorial headerAction={sectionNewTab} hiddenFeatures={hiddenFeatures} key={'tutorial:'+user?.id} userId={user?.id}
           startWithPDF={window.location.hash === '#/tutorial/pdf'}/>}
-        {page==='bookmarks' && <BookmarksPage showSuggestions={available('bookmark-suggestions')} key={user?.id} userId={user?.id} tasks={available('tasks') ? todos : []} folders={available('tasks') ? folders : []} documentFolders={available('documents') ? pdfFolders : []} documents={available('documents') ? pdfs : []}/>}
+        {page==='bookmarks' && <BookmarksPage showSuggestions={available('bookmark-suggestions')} key={'bookmarks:'+user?.id} userId={user?.id} tasks={available('tasks') ? todos : []} folders={available('tasks') ? folders : []} documentFolders={available('documents') ? pdfFolders : []} documents={available('documents') ? pdfs : []}/>}
         {page==='shortcuts' && <ShortcutsPage hiddenFeatures={hiddenFeatures} initialQuery={searchShortcutsQuery}/>}
         {page==='visualization' && <TaskVisualization token={token} onTasksChange={setTodos} onOpenTask={task => { pendingLibraryTask.current = task; setSelectedFolder('all'); navigate('tasks') }} loading={loading} keyboardEnabled={!selectedPDF&&!assistantOpen} tasks={todos} folders={folders} documents={pdfs} onOpenDocument={openDocument} onStatusChange={updateTodoStatus} onEditTask={task=>{setSelectedFolder('all');navigate('tasks');startEditing(task)}} />}
 
@@ -2763,7 +2763,7 @@ function App({onFaviconPage}) {
 
         <footer className="platform-legal-footer"><a href={`#/suggest-feature/${encodeURIComponent(page)}`}>Suggest a feature</a><span aria-hidden="true"> · </span><a href={`#/report-bug/${encodeURIComponent(page)}`}>Report a bug</a><span aria-hidden="true"> · </span><a href="#/terms">Terms and Conditions</a><span aria-hidden="true"> · </span><a href="#/privacy">Privacy Policy</a></footer>
         <StudyPhone key={'phone:'+user?.id+':'+assistantGeneration} userId={user?.id} token={token} tasks={todos} enabled={user?.studyPhoneEnabled!==false}/>
-        {available('calendar') && available('calendar-reminders') && <CalendarReminderNotifications key={user?.id} userId={user?.id} token={token} onOpen={selectedPDF?undefined:id=>{setAssistantCalendarId(id);navigate('calendar')}}/>}
+        {available('calendar') && available('calendar-reminders') && <CalendarReminderNotifications key={'calendar-reminders:'+user?.id} userId={user?.id} token={token} onOpen={selectedPDF?undefined:id=>{setAssistantCalendarId(id);navigate('calendar')}}/>}
         {/* PDF Editor */}
         {available('documents') && selectedPDF && (
           <DocumentEditor

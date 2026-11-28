@@ -1,5 +1,3 @@
-import './download.css'
-
 let downloading=false
 function filename(value, blob) {
   const name = String(value || 'download').replace(/[<>:"/\\|?*\u0000-\u001f]/g, '-').replace(/[. ]+$/g, '') || 'download'
