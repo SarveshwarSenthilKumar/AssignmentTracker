@@ -1,3 +1,6 @@
+import useAccountBookmarks from '../hooks/useAccountBookmarks'
+import { bookmarkHTML, bookmarkUrl, maxBookmarkImportBytes, mergeBookmarkLibraries, parseBookmarkImport } from '../lib/bookmarkLibrary'
+import { saveDownload } from '../lib/download'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, ArrowUpRight, Bookmark, Folder, Pencil, Plus, Trash2 } from 'lucide-react'
 import { documentRoute } from '../lib/openInTab'
@@ -10,15 +13,6 @@ const quickLinks = [
   ['Tutorial', '#/tutorial'], ['Keyboard shortcuts', '#/shortcuts'],
 ]
 const emptyDraft = { title: '', url: '', folderId: '' }
-
-function bookmarkUrl(input) {
-  const value = input.trim()
-  if (/^#\/[a-z0-9][^\s]*$/i.test(value)) return value
-  const url = new URL(value)
-  if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password) throw new Error()
-  if (url.origin === window.location.origin && url.pathname === window.location.pathname && /^#\/[a-z0-9]/i.test(url.hash)) return url.hash
-  return url.href
-}
 
 function opensInNewTab(url) {
   return !url.startsWith('#/') || /^#\/(?:documents|tasks)\//.test(url)
@@ -92,9 +86,12 @@ function workspaceSuggestions(tasks, folders, documents) {
   return [...results.values()]
 }
 
-export default function BookmarksPage({ userId, tasks, folders, documentFolders, documents, showSuggestions = true }) {
+export default function BookmarksPage({ userId, token, tasks, folders, documentFolders, documents, showSuggestions = true }) {
   const storageKey = 'platform-bookmarks:' + userId
-  const [{ bookmarks, folders: bookmarkFolders }, setLibrary] = useState(() => readBookmarks(storageKey))
+  const { library, loading, saving, syncError, saveLibrary, reload } = useAccountBookmarks(token, storageKey, readBookmarks)
+  const { bookmarks, folders: bookmarkFolders } = library
+  const importField = useRef(null)
+  const canSave = !loading && !saving && !syncError
   const [folderFilter, setFolderFilter] = useState(null)
   const [formOpen, setFormOpen] = useState(false)
   const [folderDraft, setFolderDraft] = useState(null)
@@ -117,20 +114,49 @@ export default function BookmarksPage({ userId, tasks, folders, documentFolders,
   }, [formOpen, editing])
   const shown = bookmarks.filter(item => (folderFilter === 'all' || item.folderId === folderFilter) && (item.title + ' ' + item.url).toLowerCase().includes(query.trim().toLowerCase()))
 
-  const save = (next, message, nextFolders = bookmarkFolders) => {
+  const save = async (next, message, nextFolders = bookmarkFolders) => {
+    if (!canSave) return false
+    setError('')
+    setNotice('')
     try {
-      localStorage.setItem(storageKey, JSON.stringify({ bookmarks: next, folders: nextFolders }))
-    } catch {
-      setError('This browser could not save your bookmarks.')
+      if (!await saveLibrary({ bookmarks: next, folders: nextFolders }, library)) return false
+      setNotice(message)
+      return true
+    } catch (failure) {
+      setError(failure.message)
       return false
     }
-    setLibrary({ bookmarks: next, folders: nextFolders })
-    setError('')
-    setNotice(message)
-    return true
   }
 
-  const submit = event => {
+  const importFile = async event => {
+    const file = event.currentTarget.files?.[0]
+    event.currentTarget.value = ''
+    if (!file || !canSave) return
+    try {
+      if (file.size > maxBookmarkImportBytes) throw new Error('Choose a bookmark export no larger than 8 MB.')
+      const incoming = parseBookmarkImport(file.name, await file.text())
+      const merged = mergeBookmarkLibraries(library, incoming)
+      if (!merged.added && merged.library.folders.length === bookmarkFolders.length) {
+        setError('')
+        setNotice('No new bookmarks or folders to import.')
+        return
+      }
+      const note = 'Imported ' + merged.added + ' bookmarks.' + (merged.skipped ? ' Skipped ' + merged.skipped + ' duplicate or unsupported links.' : '')
+      await save(merged.library.bookmarks, note, merged.library.folders)
+    } catch (failure) { setNotice(''); setError(failure.message) }
+  }
+
+  const exportBookmarks = async (format) => {
+    setError('')
+    try {
+      const source = format === 'html' ? bookmarkHTML(library, window.location.href) : JSON.stringify({ version: 1, ...library }, null, 2)
+      const type = format === 'html' ? 'text/html;charset=utf-8' : 'application/json;charset=utf-8'
+      const blob = new Blob([source], { type })
+      if (await saveDownload(blob, 'assignment-tracker-bookmarks.' + format)) setNotice('Bookmarks exported.')
+    } catch (failure) { setError(failure.message) }
+  }
+
+  const submit = async event => {
     event.preventDefault()
     setNotice('')
     const title = draft.title.trim()
@@ -144,7 +170,7 @@ export default function BookmarksPage({ userId, tasks, folders, documentFolders,
     }
     const record = { id: editing || crypto.randomUUID(), title, url, folderId: draft.folderId }
     const next = editing ? bookmarks.map(item => item.id === editing ? record : item) : [record, ...bookmarks]
-    if (save(next, editing ? 'Bookmark updated.' : 'Bookmark added.')) {
+    if (await save(next, editing ? 'Bookmark updated.' : 'Bookmark added.')) {
       setEditing(null)
       setDraft({ ...emptyDraft, folderId: record.folderId })
       setFormOpen(false)
@@ -163,7 +189,7 @@ export default function BookmarksPage({ userId, tasks, folders, documentFolders,
     setDraft({ ...emptyDraft, folderId: bookmarkFolders.some(folder => folder.id === id) ? id : '' })
   }
 
-  const saveFolder = event => {
+  const saveFolder = async event => {
     event.preventDefault()
     const name = folderDraft.name.trim()
     if (!name) { setError('Enter a folder name.'); return }
@@ -173,22 +199,25 @@ export default function BookmarksPage({ userId, tasks, folders, documentFolders,
     }
     const folder = { id: folderDraft.id || crypto.randomUUID(), name }
     const next = folderDraft.id ? bookmarkFolders.map(item => item.id === folder.id ? folder : item) : [...bookmarkFolders, folder]
-    if (save(bookmarks, folderDraft.id ? 'Folder renamed.' : 'Folder created.', next)) {
+    if (await save(bookmarks, folderDraft.id ? 'Folder renamed.' : 'Folder created.', next)) {
       selectFolder(folder.id)
       setDraft({ ...emptyDraft, folderId: folder.id })
     }
   }
 
-  const removeFolder = () => {
+  const removeFolder = async () => {
     const id = currentFolder.id
     const next = bookmarks.map(item => item.folderId === id ? { ...item, folderId: '' } : item)
-    if (!save(next, 'Folder removed. Its bookmarks are in Unfiled.', bookmarkFolders.filter(folder => folder.id !== id))) return
+    if (!await save(next, 'Folder removed. Its bookmarks are in Unfiled.', bookmarkFolders.filter(folder => folder.id !== id))) return
     selectFolder(null)
   }
 
   return <section className="bookmarks-page" aria-label="Bookmarks">
     <section className="bookmark-folders" aria-labelledby="bookmark-folders-title">
       <h2 id="bookmark-folders-title">{folderFilter === null ? 'Folders' : currentFolder?.name ?? ({ all: 'All bookmarks', '': 'Unfiled', suggestions: 'Suggested links', quick: 'Quick links' })[folderFilter]}</h2>
+      {loading && <p role="status">Loading account bookmarks…</p>}
+      {saving && <p role="status">Saving bookmarks…</p>}
+      {syncError && <div className="bookmark-actions"><p role="alert">{syncError}</p><button type="button" onClick={() => { selectFolder(null); reload() }}>Reload bookmarks</button></div>}
       {folderFilter === null ? <>
         <ul className="bookmark-folder-grid">
           {[['all', 'All bookmarks', Bookmark], ['', 'Unfiled', Folder], ...bookmarkFolders.map(folder => [folder.id, folder.name, Folder])].map(([id, name, Icon]) =>
@@ -197,10 +226,17 @@ export default function BookmarksPage({ userId, tasks, folders, documentFolders,
           {showSuggestions && <li><button type="button" onClick={() => selectFolder('suggestions')}>Suggested links</button></li>}
           <li><button type="button" onClick={() => selectFolder('quick')}>Quick links</button></li>
         </ul>
-        <div className="bookmark-actions"><button type="button" onClick={() => { setFolderDraft({ name: '' }); setError('') }}>New folder</button></div>
+        <div className="bookmark-actions"><button type="button" disabled={!canSave} onClick={() => { setFolderDraft({ name: '' }); setError('') }}>New folder</button></div>
+        <div className="bookmark-actions bookmark-transfer" aria-label="Import or export bookmarks">
+          <input ref={importField} type="file" accept=".json,.html,.htm" hidden onChange={importFile}/>
+          <button type="button" disabled={!canSave} onClick={() => importField.current?.click()}>Import bookmarks</button>
+          <button type="button" disabled={loading} onClick={() => exportBookmarks('html')}>Export for browser (HTML)</button>
+          <button type="button" disabled={loading} onClick={() => exportBookmarks('json')}>Export JSON</button>
+        </div>
+        <p className="bookmark-note">Import a browser HTML export or an Assignment Tracker JSON file. Imported links are merged with your account bookmarks.</p>
       </> : <div className="bookmark-actions">
         <button type="button" onClick={() => { setNotice(''); selectFolder(null) }}><ArrowLeft size={16} aria-hidden="true"/>Back to folders</button>
-        {savedView && !formOpen && <button type="button" onClick={() => {
+        {savedView && !formOpen && <button type="button" disabled={!canSave} onClick={() => {
           setDraft({ ...emptyDraft, folderId: defaultFolderId }); setError(''); setNotice(''); setFormOpen(true)
         }}><Plus size={16} aria-hidden="true"/>Add bookmark</button>}
         {currentFolder && <>
@@ -211,14 +247,14 @@ export default function BookmarksPage({ userId, tasks, folders, documentFolders,
       {folderDraft && <form onSubmit={saveFolder}>
         <label>Folder name<input value={folderDraft.name} onChange={event => setFolderDraft({ ...folderDraft, name: event.target.value })} maxLength={100} required /></label>
         <div className="bookmark-actions">
-          <button type="submit">{folderDraft.id ? 'Save name' : 'Create folder'}</button>
+          <button type="submit" disabled={!canSave}>{folderDraft.id ? 'Save name' : 'Create folder'}</button>
           <button type="button" onClick={() => { setFolderDraft(null); setError('') }}>Cancel</button>
         </div>
       </form>}
       {confirmDelete && currentFolder && <>
         <p>Remove {currentFolder.name} and move its bookmarks to Unfiled?</p>
         <div className="bookmark-actions">
-          <button type="button" onClick={removeFolder}>Move bookmarks and remove folder</button>
+          <button type="button" disabled={!canSave} onClick={removeFolder}>Move bookmarks and remove folder</button>
           <button type="button" onClick={() => setConfirmDelete(false)}>Cancel</button>
         </div>
       </>}
@@ -237,7 +273,7 @@ export default function BookmarksPage({ userId, tasks, folders, documentFolders,
         </select>
       </label>}
       <div className="bookmark-actions">
-        <button type="submit"><Plus size={16} aria-hidden="true" />{editing ? 'Save changes' : 'Add bookmark'}</button>
+        <button type="submit" disabled={!canSave}><Plus size={16} aria-hidden="true" />{editing ? 'Save changes' : 'Add bookmark'}</button>
         <button type="button" onClick={() => { setFormOpen(false); setEditing(null); setDraft({ ...emptyDraft, folderId: defaultFolderId }); setError('') }}>Cancel</button>
       </div>
     </form>}
@@ -256,15 +292,15 @@ export default function BookmarksPage({ userId, tasks, folders, documentFolders,
             <button type="button" aria-label={'Edit ' + item.title} onClick={() => {
               setEditing(item.id); setDraft({ title: item.title, url: item.url, folderId: item.folderId }); setError(''); setNotice(''); setFormOpen(true)
             }}><Pencil size={15} aria-hidden="true" /></button>
-            <button type="button" aria-label={'Remove ' + item.title} onClick={() => {
-              if (save(bookmarks.filter(entry => entry.id !== item.id), 'Bookmark removed.') && editing === item.id) {
+            <button type="button" aria-label={'Remove ' + item.title} disabled={!canSave} onClick={async () => {
+              if (await save(bookmarks.filter(entry => entry.id !== item.id), 'Bookmark removed.') && editing === item.id) {
                 setFormOpen(false); setEditing(null); setDraft({ ...emptyDraft, folderId: defaultFolderId })
               }
             }}><Trash2 size={15} aria-hidden="true" /></button>
           </div>
         </li>
       })}</ul> : <p>{query.trim() ? 'No bookmarks match your search.' : folderFilter !== 'all' ? 'This folder is empty.' : 'Add a link to keep it handy.'}</p>}
-      <p className="bookmark-note">Bookmarks are saved for your account in this browser.</p>
+      <p className="bookmark-note">Bookmarks and folders sync with your account.</p>
     </section>}
 
     {showSuggestions && folderFilter === 'suggestions' && <section className="bookmark-list bookmark-suggestions" aria-labelledby="bookmark-suggestions-title">
@@ -284,9 +320,9 @@ export default function BookmarksPage({ userId, tasks, folders, documentFolders,
             {newTab && <ArrowUpRight size={15} aria-label="Opens in a new tab" />}
           </a>
           <div className="bookmark-actions">
-            <button type="button" aria-label={'Save bookmark for ' + item.url} onClick={() => {
+            <button type="button" aria-label={'Save bookmark for ' + item.url} disabled={!canSave} onClick={async () => {
               setNotice('')
-              if (save([{ id: crypto.randomUUID(), title: item.title, url: item.url, folderId: draft.folderId }, ...bookmarks], 'Bookmark added.')) setQuery('')
+              if (await save([{ id: crypto.randomUUID(), title: item.title, url: item.url, folderId: draft.folderId }, ...bookmarks], 'Bookmark added.')) setQuery('')
             }}><Bookmark size={15} aria-hidden="true" />Save</button>
           </div>
         </li>

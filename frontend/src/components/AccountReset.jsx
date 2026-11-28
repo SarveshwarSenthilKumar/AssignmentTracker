@@ -24,7 +24,7 @@ export default function AccountReset({ token, onReset, disabled = false }) {
     <p className="text-xs text-slate-400 mt-2">Your username, email, password, and login remain. This cannot be undone.</p>
     {done && <p role="status" className="mt-3 text-sm text-slate-200">Reset complete. Your workspace is empty and Canvas is disconnected.</p>}
     {!open ? <button type="button" disabled={disabled} onClick={() => { setDone(false); setOpen(true) }} className="mt-4 px-3 py-2 rounded-lg border border-slate-500 text-sm text-slate-200 hover:bg-slate-700 disabled:opacity-50">Reset account data…</button> : <form onSubmit={submit} className="mt-4 space-y-3" aria-busy={busy}>
-      <p className="text-sm text-amber-200/80">Confirm permanent deletion of all workspace data for this account.</p>
+      <p className="text-sm text-amber-200/80">Confirm permanent deletion of all workspace data, including saved bookmarks, for this account.</p>
       <label className="block text-sm text-slate-300">Current password<input type="password" autoComplete="current-password" required value={password} disabled={busy} onChange={event => setPassword(event.target.value)} className="block w-full mt-1 px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-slate-400"/></label>
       <label className="block text-sm text-slate-300">Type RESET to confirm<input value={confirmation} autoComplete="off" spellCheck={false} disabled={busy} onChange={event => setConfirmation(event.target.value)} className="block w-full mt-1 px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-slate-400"/></label>
       {error && <p role="alert" className="text-sm text-red-300">{error}</p>}

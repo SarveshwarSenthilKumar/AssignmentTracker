@@ -1796,7 +1796,7 @@ function App({onFaviconPage}) {
         {page==='whiteboards' && <Whiteboards token={token} documents={pdfs} onDocumentsChange={setPdfs} onOpen={openDocument}/>}
         {page==='tutorial' && !selectedPDF && !selectedTask && <PlatformTutorial headerAction={sectionNewTab} hiddenFeatures={hiddenFeatures} key={'tutorial:'+user?.id} userId={user?.id}
           startWithPDF={window.location.hash === '#/tutorial/pdf'}/>}
-        {page==='bookmarks' && <BookmarksPage showSuggestions={available('bookmark-suggestions')} key={'bookmarks:'+user?.id} userId={user?.id} tasks={available('tasks') ? todos : []} folders={available('tasks') ? folders : []} documentFolders={available('documents') ? pdfFolders : []} documents={available('documents') ? pdfs : []}/>}
+        {page==='bookmarks' && <BookmarksPage token={token} showSuggestions={available('bookmark-suggestions')} key={'bookmarks:'+user?.id} userId={user?.id} tasks={available('tasks') ? todos : []} folders={available('tasks') ? folders : []} documentFolders={available('documents') ? pdfFolders : []} documents={available('documents') ? pdfs : []}/>}
         {page==='shortcuts' && <ShortcutsPage hiddenFeatures={hiddenFeatures} initialQuery={searchShortcutsQuery}/>}
         {page==='visualization' && <TaskVisualization statusLabels={columnNames} token={token} onTasksChange={setTodos} onOpenTask={task => { pendingLibraryTask.current = task; setSelectedFolder('all'); navigate('tasks') }} loading={loading} keyboardEnabled={!selectedPDF&&!assistantOpen} tasks={todos} folders={folders} documents={pdfs} onOpenDocument={openDocument} onStatusChange={updateTodoStatus} onEditTask={task=>{setSelectedFolder('all');navigate('tasks');startEditing(task)}} />}
 
@@ -2396,6 +2396,7 @@ function App({onFaviconPage}) {
               <SectionLockSettings isAdmin={isAdmin}/>
               <TaskCleanupSettings/>
               <AccountReset token={token} disabled={syncing || testing || !!selectedPDF} onReset={() => {
+                try { localStorage.removeItem('platform-bookmarks:' + user?.id) } catch {}
                 window.dispatchEvent(new CustomEvent('workspace-reset',{detail:user?.id}));setAssistantOpen(false);setAssistantGeneration(previous=>previous+1);setAssistantCalendarId(null)
                 try { pdfs.forEach(file => sessionStorage.removeItem(`document-draft:${file._id}`)) } catch { /* Storage may be unavailable. */ }
                 setScheduledDay('');setTaskSearch('');setTaskSearchAll(true);setSortBy('dueDate');setSortOrder('asc');updatePreferences({taskSortBy:'dueDate',taskSortOrder:'asc'});setTodos([]); setFolders([]); setPdfs([]); setPdfFolders([])
