@@ -1,3 +1,4 @@
+import { StudySourceLinks } from './StudySources'
 import { useEffect, useRef, useState } from 'react'
 import { ArrowRight, RotateCcw } from 'lucide-react'
 import AssistantMarkdown from './AssistantMarkdown'
@@ -16,7 +17,7 @@ export const reviewTime = value => new Date(value).toLocaleString(undefined, {
 })
 const attempt = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), byte => byte.toString(16).padStart(2, '0')).join('')
 
-export default function StudyReviewQueue({ token, items, now, onRated, onClose }) {
+export default function StudyReviewQueue({ token, items, now, onRated, onClose, documents, notes }) {
   const [revealedId, setRevealedId] = useState(null)
   const [deferred, setDeferred] = useState([])
   const [busy, setBusy] = useState(false)
@@ -97,6 +98,7 @@ export default function StudyReviewQueue({ token, items, now, onRated, onClose }
             <AssistantMarkdown content={answer}/>
           </section>) : <p>No saved answer. Rate how well you recalled it.</p>}
           {current.notes && <p className="study-notes">{current.notes}</p>}
+          <StudySourceLinks sources={current.sources} documents={documents} notes={notes}/>
         </div>
         <fieldset className="study-review-ratings" disabled={busy}>
           <legend>How confidently did you answer?</legend>

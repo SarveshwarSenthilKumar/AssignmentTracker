@@ -27,3 +27,12 @@
 .study-review-ratings button { display: grid; flex: 1 1 130px; text-align: left; justify-content: start; }
 .study-review-ratings small { color: var(--text-secondary); font-size: 11px; }
 .study-card .study-review-meta { margin-top: 10px; }
+
+.study-source-links, .study-source-picker { margin-top: 12px; }
+.study-source-links h4, .study-source-links a, .study-source-picker li {
+  display: flex; align-items: center; gap: 7px; overflow-wrap: anywhere;
+}
+.study-source-links a { color: var(--accent); text-decoration: underline; }
+.study-source-links ul, .study-source-picker ul { list-style: none; padding: 0; }
+.study-source-links li, .study-source-picker li { margin-block: 6px; }
+.study-source-picker li { justify-content: space-between; }

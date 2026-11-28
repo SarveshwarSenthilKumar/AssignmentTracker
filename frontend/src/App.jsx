@@ -1,3 +1,5 @@
+import { studyNoteRoute, studyPdfPageRoute } from './lib/studySources'
+import { StudyNoteSource } from './components/StudySources'
 import useWorkspaceLayout from './hooks/useWorkspaceLayout'
 import BoardPinWhiteboard from './components/BoardPinWhiteboard'
 import { boardPinRoute } from './lib/boardPinRoute'
@@ -331,13 +333,21 @@ function App({onFaviconPage}) {
   const [handoffFile, setHandoffFile] = useState(null)
   const [showPDFUploadModal, setShowPDFUploadModal] = useState(false)
   const [pinRoute, setPinRoute] = useState(() => boardPinRoute(window.location.hash))
-  const [selectedPDF, setSelectedPDF] = useState(() => available('documents') && (available('whiteboards') && pinRoute?.page === 'documents' ? pinRoute.boardId : window.location.hash.match(/^#\/documents\/([a-f\d]{24})$/i)?.[1]) || null)
+  const [sourcePdf, setSourcePdf] = useState(() => studyPdfPageRoute(window.location.hash))
+  const [sourceNote, setSourceNote] = useState(() => studyNoteRoute(window.location.hash))
+  const [selectedPDF, setSelectedPDF] = useState(() => available('documents') &&
+    (available('whiteboards') && pinRoute?.page === 'documents' ? pinRoute.boardId
+      : sourcePdf?.documentId || window.location.hash.match(/^#\/documents\/([a-f\d]{24})$/i)?.[1]) || null)
   useEffect(() => {
     const change = () => {
+      setSourceNote(studyNoteRoute(window.location.hash))
       const target = boardPinRoute(window.location.hash)
-      if (target?.page !== 'documents' || !available('whiteboards')) return
-      const open = () => { setPinRoute(target); setSelectedPDF(target.boardId) }
-      if (selectedPDF && (selectedPDF !== target.boardId || pinRoute?.boardId !== selectedPDF)) {
+      const pdf = studyPdfPageRoute(window.location.hash)
+      const pin = target?.page === 'documents' && available('whiteboards') ? target : null
+      if (!available('documents') || (!pin && !pdf)) return
+      const id = pin?.boardId || pdf.documentId
+      const open = () => { setPinRoute(pin); setSourcePdf(pdf); setSelectedPDF(id) }
+      if (selectedPDF && (selectedPDF !== id || Boolean(pinRoute?.boardId === selectedPDF) !== Boolean(pin))) {
         closeEditorForNavigation(selectedPDF, open).catch(failure => setError(failure.message))
       } else open()
     }
@@ -346,8 +356,9 @@ function App({onFaviconPage}) {
   }, [selectedPDF, pinRoute?.boardId, hiddenFeatures])
   const registerPinTask = task => setTodos(previous => [task, ...previous.filter(item => item._id !== task._id)])
   useEffect(() => {
-    if (selectedPDF || !(/^#\/documents\/[a-f\d]{24}$/i.test(window.location.hash) || boardPinRoute(window.location.hash)?.page === 'documents')) return
+    if (selectedPDF || !(/^#\/documents\/[a-f\d]{24}$/i.test(window.location.hash) || boardPinRoute(window.location.hash)?.page === 'documents' || studyPdfPageRoute(window.location.hash))) return
     setPinRoute(null)
+    setSourcePdf(null)
     window.history.replaceState(window.history.state, '', '#/documents')
   }, [selectedPDF])
   useEffect(() => {
@@ -1803,7 +1814,7 @@ function App({onFaviconPage}) {
         </div></div><p>{page==='tutorial'?'Guided lessons for your workspace, documents and study tools.':page==='document-activity'?'Review shares, access changes, and comments.':page==='document-discussion'?'Open the file or read and post comments.':page==='friend-invite'?'Review and accept an invitation.':page==='shared-calendar-event'?'Review the event before adding it to your calendar.':page==='bookmarks'?'Save the pages and links you use often.':page==='admin'?'Review bug reports and feature suggestions from users.':page==='suggest-feature'?'Share ideas for improving the platform and follow their progress.':page==='report-bug'?'Report section-specific issues and follow their status.':page==='roadmap'?'Explore ideas, planned improvements and features in progress.':page==='analytics'?'Storage, activity, progress and your complete account inventory.':page==='handbook'?'Feature instructions and technical reference.':page==='logbook'?'Numbered platform changes, fixes and implementation history.':page==='prep'?'Prepare your resumes, cover letters and interview answers in one place.':page==='study'?'Save questions and topics, review answers, and track what you have studied.':page==='cover-letters'?'Store cover letters for your applications and keep versions ready to edit or download.':page==='jobs'?'Save job links and details alongside your resumes.':page==='resumes'?'Upload and keep your resumes ready for your next opportunity.':page==='workspace'?'Build a personal workflow with tabs, tools, and movable windows.':page==='tasks'?'Plan your work and track progress.':page==='calendar'?'Plan deadlines, assignments, and personal events in one place.':page==='detective-wall'?'Pin ideas, collect evidence and connect the threads.':page==='whiteboards'?'Draw, brainstorm and plan together on a live shared canvas.':page==='documents'?'Organize and edit your files.':page==='visualization'?'Explore relationships, deadlines, and progress across your workspace.':page==='canvas'?'Manage your course connection and imports.':page==='account'?'Review your profile and workspace activity.':page==='assistant'?'Think, write, learn, and work with your files in a dedicated conversation workspace.':'A searchable reference for navigation and actions.'}</p></div>}
         <InlineConfirmation {...taskConfirmation} reveal />
         {page==='home'&&<HomePage statusLabels={columnNames} headerAction={sectionNewTab} hiddenFeatures={hiddenFeatures} user={user} token={token} tasks={available('tasks') ? todos : []} documents={available('documents') ? pdfs : []} folders={folders} loading={loading} canvasStatus={canvasStatus} onNavigate={navigate} onOpenTask={(task,event)=>{if(!openInTab(event, `tasks/${task._id}`))setSelectedTask(task)}} onOpenDocument={openDocument} onOpenCalendar={(entry,event)=>{if(openInTab(event,`calendar/?event=${encodeURIComponent(entry._id)}`))return;setAssistantCalendarId(entry._id);navigate('calendar')}} onNewTask={()=>{setSelectedFolder('all');navigate('tasks');setTimeout(()=>inputRef.current?.focus(),0)}} onUpload={()=>{setSelectedPDFFolder('all');setShowPDFUploadModal(true)}} onRefresh={()=>Promise.all([fetchTodos(false),fetchPDFs()])}/>}
-        {available('workspace') && <WorkflowWorkspace store={workspaceStore} navigationPins={user?.navigationPins} statusLabels={columnNames} canvasStatus={canvasStatus} syncing={syncing} onSyncCanvas={syncCanvas} hiddenFeatures={hiddenFeatures} key={'workspace:'+user?.id+':'+assistantGeneration} open={page==='workspace'} token={token} tasks={available('tasks') ? todos : []} folders={folders} documents={available('documents') ? pdfs : []} documentFolders={pdfFolders} onTasksChange={setTodos} onOpenTask={(task,event)=>{if(!openInTab(event, `tasks/${task._id}`))setSelectedTask(task)}} onStatusChange={updateTodoStatus} onOpenDocument={openDocument} onUpload={()=>{setSelectedPDFFolder('all');setShowPDFUploadModal(true)}} onNavigate={navigate} onOpenCalendarEntry={entry=>{setAssistantCalendarId(entry._id);navigate('calendar')}} onOpenAssistant={()=>setAssistantOpen(true)} keyboardEnabled={!selectedPDF&&!assistantOpen&&!selectedTask&&!showPDFUploadModal&&!showCommandMenu}/>}
+        {available('workspace') && <WorkflowWorkspace store={workspaceStore} navigationPins={user?.navigationPins} statusLabels={columnNames} canvasStatus={canvasStatus} syncing={syncing} onSyncCanvas={syncCanvas} hiddenFeatures={hiddenFeatures} key={'workspace:'+user?.id+':'+assistantGeneration} open={page==='workspace' && !sourceNote} token={token} tasks={available('tasks') ? todos : []} folders={folders} documents={available('documents') ? pdfs : []} documentFolders={pdfFolders} onTasksChange={setTodos} onOpenTask={(task,event)=>{if(!openInTab(event, `tasks/${task._id}`))setSelectedTask(task)}} onStatusChange={updateTodoStatus} onOpenDocument={openDocument} onUpload={()=>{setSelectedPDFFolder('all');setShowPDFUploadModal(true)}} onNavigate={navigate} onOpenCalendarEntry={entry=>{setAssistantCalendarId(entry._id);navigate('calendar')}} onOpenAssistant={()=>setAssistantOpen(true)} keyboardEnabled={!selectedPDF&&!assistantOpen&&!selectedTask&&!showPDFUploadModal&&!showCommandMenu}/>}
         {page==='document-activity' && <DocumentActivityInbox token={token}/>}
         {page==='document-discussion' && (() => {
           const id = /^#\/document-discussion\/([a-f\d]{24})$/i.exec(window.location.hash)?.[1]
@@ -1836,9 +1847,10 @@ function App({onFaviconPage}) {
         {page==='analytics' && <AnalyticsPage token={token} onOpenDocument={openDocument}/>}
         {page==='handbook' && <HandbookPage token={token}/>}
         {page==='logbook' && <UpdateLogbookPage token={token}/>}
-        {page==='prep' && <PrepPage hiddenFeatures={hiddenFeatures} token={token} documents={pdfs} onDocumentsChange={setPdfs} onOpen={openDocument}/>}
+        {page==='prep' && <PrepPage workspaceLibrary={workspaceStore.library} hiddenFeatures={hiddenFeatures} token={token} documents={pdfs} onDocumentsChange={setPdfs} onOpen={openDocument}/>}
         {page==='resumes' && <ResumesPage hiddenFeatures={hiddenFeatures} token={token} documents={pdfs} onDocumentsChange={setPdfs} onOpen={openDocument}/>}
-        {page==='study' && <StudyPage token={token}/>}
+        {page==='workspace' && sourceNote && <StudyNoteSource target={sourceNote} library={workspaceStore.library} ready={workspaceStore.ready}/>}
+        {page==='study' && <StudyPage token={token} documents={available('documents') ? pdfs : []} workspaceLibrary={workspaceStore.library}/>}
         {page==='detective-wall' && <DetectiveWalls token={token} userId={user?.id} onTaskCreated={available('tasks') ? registerPinTask : undefined}/>}
         {page==='whiteboards' && <Whiteboards token={token} documents={pdfs} onDocumentsChange={setPdfs} onOpen={openDocument}/>}
         {page==='tutorial' && !selectedPDF && !selectedTask && <PlatformTutorial headerAction={sectionNewTab} hiddenFeatures={hiddenFeatures} key={'tutorial:'+user?.id} userId={user?.id}
@@ -2818,6 +2830,7 @@ function App({onFaviconPage}) {
             )}
             pdfId={selectedPDF}
             focusPin={focusPin}
+            focusPage={sourcePdf?.documentId === selectedPDF ? sourcePdf.page : null}
             onClose={() => { setSelectedPDF(null); fetchPDFs() }}
             token={token}
           />

@@ -561,7 +561,7 @@ const PagePreview=memo(function PagePreview({ pageNumber, items=[], whiteboard=f
 /* ------------------------------------------------------------------ */
 /* Main editor                                                         */
 /* ------------------------------------------------------------------ */
-export default function PDFEditor({ pdfId, onClose, token, initialDocument = null, shareToken = null, shareRevision = null, shareMessage, exportImage = false, onCleanCopy, assistantOpen=false, onToggleAssistant, onAssistantHost, renderFolderNavigation, onTaskCreated, onOpenTutorial, hiddenFeatures, focusPin }) {
+export default function PDFEditor({ pdfId, onClose, token, initialDocument = null, shareToken = null, shareRevision = null, shareMessage, exportImage = false, onCleanCopy, assistantOpen=false, onToggleAssistant, onAssistantHost, renderFolderNavigation, onTaskCreated, onOpenTutorial, hiddenFeatures, focusPin, focusPage }) {
   const [showCleanup,setShowCleanup]=useState(false)
   const [copyParagraphs,setCopyParagraphs]=useState(()=>{try{return localStorage.getItem('pdf-copy-paragraphs')!=='false'}catch{return true}})
   useEffect(()=>{try{localStorage.setItem('pdf-copy-paragraphs',String(copyParagraphs))}catch{}},[copyParagraphs])
@@ -2618,6 +2618,28 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     })
     return () => cancelAnimationFrame(frame)
   }, [focusPin, loading, pdfData, numPages, drawingPaths, isWhiteboard, bookView, pageNumber, ready])
+
+  const openedSourcePage = useRef(null)
+  useEffect(() => {
+    if (!focusPage) { openedSourcePage.current = null; return }
+    if (openedSourcePage.current === focusPage || loading || !numPages) return
+    if (focusPage > numPages) {
+      openedSourcePage.current = focusPage
+      setActionError('The linked PDF page is no longer available.')
+      return
+    }
+    if (bookView) { setBookView(false); return }
+    if (pageNumber !== focusPage) { goToPage(focusPage); return }
+    if (!ready) return
+    const frame = requestAnimationFrame(() => {
+      const viewer = viewerRef.current
+      const page = viewer?.querySelector('[data-continuous-page="' + focusPage + '"]')
+      if (page) page.scrollIntoView({ block: 'start' })
+      else viewer?.scrollTo({ top: 0, left: 0 })
+      openedSourcePage.current = focusPage
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [focusPage, loading, numPages, bookView, pageNumber, ready])
 
   const captureStop = () => {
     const viewer = viewerRef.current

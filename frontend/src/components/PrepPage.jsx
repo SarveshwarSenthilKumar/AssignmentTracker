@@ -12,7 +12,7 @@ import './PrepPage.css'
 
 const tabs=[['coach','Interview coach','Chat about your target interview, answer adaptive questions, and cross-check against your resume.'],['emails','Cold emails','Draft personalized outreach with an editable subject and message.'],['practice','Interview practice','Quiz yourself on a resume or project with hints and answer feedback.'],['questions','Question bank','Save your own questions, answers and notes by subject.'],['resumes','Resumes & templates','Choose a layout, build a resume, or tailor an existing version.'],['letters','Cover letters','Prepare and refine letters using your existing documents.'],['jobs','Saved jobs','Keep target roles and job requirements ready for preparation.']]
 
-export default function PrepPage({token,documents,onDocumentsChange,onOpen,hiddenFeatures}){
+export default function PrepPage({token,documents,onDocumentsChange,onOpen,hiddenFeatures,workspaceLibrary}){
   const [active,setActive]=useState('coach'),[visited,setVisited]=useState(['coach'])
   const routes = { coach: 'interview-coach', emails: 'cold-emails', practice: 'interview-practice', questions: 'study', letters: 'cover-letters' }
   const enabled = tabs.filter(([id]) => featureVisible(hiddenFeatures, routes[id] || id))
@@ -29,7 +29,7 @@ export default function PrepPage({token,documents,onDocumentsChange,onOpen,hidde
       {id==='resumes'&&<ResumesPage hiddenFeatures={hiddenFeatures} token={token} documents={documents} onDocumentsChange={onDocumentsChange} onOpen={onOpen}/>}
       {id==='letters'&&<CoverLettersPage token={token} documents={documents} onDocumentsChange={onDocumentsChange} onOpen={onOpen}/>}
       {id==='jobs'&&<JobsPage token={token}/>}
-      {id==='questions'&&<StudyPage token={token} questionsOnly/>}
+      {id==='questions'&&<StudyPage token={token} documents={featureVisible(hiddenFeatures, 'documents') ? documents : []} workspaceLibrary={workspaceLibrary} questionsOnly/>}
     </section>)}
   </section>
 }

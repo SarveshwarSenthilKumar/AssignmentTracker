@@ -617,7 +617,7 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 // Routes
-const StudyItem=require('./study')(app,authenticateToken,{mongoose,AssistantConversation});
+const StudyItem=require('./study')(app,authenticateToken,{mongoose,AssistantConversation,PDF});
 const SavedJob=require('./jobs')(app,authenticateToken,mongoose);
 const DetectiveWall=require('./detectiveWalls')(app,authenticateToken,{mongoose});
 require('./globalSearch')(app,authenticateToken,{mongoose,User,Todo,PDF,Folder,PDFFolder,CalendarEntry,SavedJob,AssistantConversation,StudyItem});

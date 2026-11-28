@@ -1,7 +1,8 @@
+const validateStudySources = require('./studySources');
 const { ratings, nextReview } = require('./studyReview');
 
-module.exports=function(app,authenticateToken,{mongoose,AssistantConversation}){
-  const schema=new mongoose.Schema({user:{type:mongoose.Schema.Types.ObjectId,required:true,index:true},kind:{type:String,enum:['question','topic'],default:'question'},title:{type:String,required:true,maxlength:500},answer:{type:String,default:'',maxlength:24000},answers:{type:[String],default:undefined},notes:{type:String,default:'',maxlength:12000},topic:{type:String,default:'',maxlength:120},studied:{type:Boolean,default:false},reviewedAt:Date,review: new mongoose.Schema({
+module.exports=function(app,authenticateToken,{mongoose,AssistantConversation,PDF}){
+  const schema=new mongoose.Schema({user:{type:mongoose.Schema.Types.ObjectId,required:true,index:true},kind:{type:String,enum:['question','topic'],default:'question'},title:{type:String,required:true,maxlength:500},answer:{type:String,default:'',maxlength:24000},answers:{type:[String],default:undefined},notes:{type:String,default:'',maxlength:12000},topic:{type:String,default:'',maxlength:120},studied:{type:Boolean,default:false},reviewedAt:Date,sources:{type:[mongoose.Schema.Types.Mixed],default:undefined},review: new mongoose.Schema({
     dueAt: Date, intervalMinutes: Number, count: Number, rating: { type: String, enum: ratings }, attemptId: String,
   }, { _id: false }),sourceKey:String,conversationId:String,messageId:String},{timestamps:true});
   schema.index({user:1,sourceKey:1},{unique:true,partialFilterExpression:{sourceKey:{$type:'string'}}});
@@ -30,6 +31,10 @@ module.exports=function(app,authenticateToken,{mongoose,AssistantConversation}){
       data={...data,kind:'question',title:question.content.slice(0,500),notes:question.content.length>500?question.content.slice(0,12000):'',answer:next?.role==='assistant'?next.content.slice(0,24000):'',conversationId,messageId,sourceKey:`${conversationId}:${messageId}`};
       data.answers=data.answer?[data.answer]:[];
       const existing=await StudyItem.findOne({user:req.user.userId,sourceKey:data.sourceKey});if(existing)return res.json(existing);
+    }
+    if (req.body?.sources !== undefined) {
+      data.sources = await validateStudySources(req.body.sources, req.user.userId, PDF);
+      if (!data.sources) return res.status(400).json({ message: 'Choose up to five available PDFs or workspace note sections.' });
     }
     if(!data.title)return res.status(400).json({message:'Enter a question or topic.'});
     res.status(201).json(await StudyItem.create({...data,user:req.user.userId}));
@@ -60,6 +65,12 @@ module.exports=function(app,authenticateToken,{mongoose,AssistantConversation}){
   }));
   app.patch('/api/study/:id',authenticateToken,route(async(req,res)=>{
     if(!valid(req.params.id))return res.status(400).json({message:'Invalid study item.'});let data;try{data=fields(req.body||{})}catch{return res.status(400).json({message:'Check the title and field lengths. Use up to 20 answers of 24,000 characters each.'})}
+    if (req.body?.sources !== undefined) {
+      const current = await StudyItem.findOne({ _id: req.params.id, user: req.user.userId }).select('sources').lean();
+      if (!current) return res.status(404).json({ message: 'Study item not found.' });
+      data.sources = await validateStudySources(req.body.sources, req.user.userId, PDF, current.sources);
+      if (!data.sources) return res.status(400).json({ message: 'Choose up to five available PDFs or workspace note sections.' });
+    }
     const item=await StudyItem.findOneAndUpdate({_id:req.params.id,user:req.user.userId},{$set:data},{new:true,runValidators:true});if(!item)return res.status(404).json({message:'Study item not found.'});res.json(item);
   }));
   app.delete('/api/study/:id',authenticateToken,route(async(req,res)=>{if(!valid(req.params.id))return res.status(400).json({message:'Invalid study item.'});const item=await StudyItem.findOneAndDelete({_id:req.params.id,user:req.user.userId});if(!item)return res.status(404).json({message:'Study item not found.'});res.json({deleted:true})}));
