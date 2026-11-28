@@ -1,0 +1,57 @@
+:root{--app-default-accent:#8fa5b9;--app-default-accent-solid:#526c83;--app-text-scale:1;--app-ui-padding:10px;--app-ui-gap:12px}
+html[data-app-theme=light]{--app-default-accent:#3d6288;--app-default-accent-solid:#466b91}
+:is(html,.appearance-preview)[data-app-accent=custom]{
+  --accent:color-mix(in srgb,var(--app-custom-accent) 48%,#fff);
+  --accent-solid:color-mix(in srgb,var(--app-custom-accent) 59%,#000);
+  --accent-hover:color-mix(in srgb,var(--app-custom-accent) 38%,#000);
+}
+html[data-app-theme=light][data-app-accent=custom],html[data-app-theme=light] .appearance-preview[data-app-accent=custom]{
+  --accent:color-mix(in srgb,var(--app-custom-accent) 62%,#000);
+  --accent-hover:color-mix(in srgb,var(--app-custom-accent) 16%,#fff);
+}
+html[data-app-accent=custom] .app-navigation .an-link[aria-current=page]{color:var(--accent)}
+:is(html,.appearance-preview)[data-app-text-size=small]{--app-text-scale:.9375}
+:is(html,.appearance-preview)[data-app-text-size=standard]{--app-text-scale:1}
+:is(html,.appearance-preview)[data-app-text-size=large]{--app-text-scale:1.125}
+:is(html,.appearance-preview)[data-app-text-size=extra-large]{--app-text-scale:1.25}
+html[data-app-text-size]:not([data-app-text-size=standard]){font-size:calc(100% * var(--app-text-scale))}
+html[data-app-text-size]:not([data-app-text-size=standard]) .platform-page-title h1{font-size:calc(26px * var(--app-text-scale))}
+html[data-app-text-size]:not([data-app-text-size=standard]) .app-navigation :is(.an-link,.an-group-trigger){font-size:calc(12px * var(--app-text-scale))}
+:is(html,.appearance-preview)[data-app-density=compact]{--app-ui-padding:6px;--app-ui-gap:8px}
+:is(html,.appearance-preview)[data-app-density=standard]{--app-ui-padding:10px;--app-ui-gap:12px}
+:is(html,.appearance-preview)[data-app-density=comfortable]{--app-ui-padding:15px;--app-ui-gap:18px}
+html[data-app-density]:not([data-app-density=standard]) .app-navigation.platform-header{padding-block:var(--app-ui-padding);gap:var(--app-ui-gap)}
+html[data-app-density]:not([data-app-density=standard]) :is(.app-navigation .an-link,.library-table tbody td,.calendar-day-list > button,.home-task-row){padding-block:var(--app-ui-padding)}
+html[data-app-density]:not([data-app-density=standard]) :is(.home-main-grid,.home-stats,.bookmarks-page){gap:var(--app-ui-gap)}
+:is(html,.appearance-preview)[data-app-corners=square]{--radius-control:2px;--radius-panel:3px}
+:is(html,.appearance-preview)[data-app-corners=round]{--radius-control:14px;--radius-panel:22px}
+html[data-app-corners]:not([data-app-corners=standard]) :is(.app-navigation.platform-header,.home-panel,.confirmation-settings,.bookmarks-page > section,.bookmarks-page > form){border-radius:var(--radius-panel)}
+html[data-app-corners]:not([data-app-corners=standard]) :is(.app-navigation .an-link,.app-navigation .an-group-trigger,.confirmation-settings select){border-radius:var(--radius-control)}
+:is(html,.appearance-preview)[data-app-contrast=high]{--text-primary:#fff;--text-secondary:#ebf1f7;--text-muted:#d2deea;--border:#8e9fb2;--border-strong:#c1ccd9}
+html[data-app-theme=light][data-app-contrast=high],html[data-app-theme=light] .appearance-preview[data-app-contrast=high]{--text-primary:#101828;--text-secondary:#202b39;--text-muted:#394455;--border:#64748b;--border-strong:#334155}
+html[data-app-motion=reduced] *,html[data-app-motion=reduced] *::before,html[data-app-motion=reduced] *::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}
+.appearance-customizer{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);align-items:start;gap:16px}
+.appearance-options fieldset{min-width:0;margin-bottom:8px}
+.appearance-options legend{font-weight:650;margin-bottom:8px}
+.appearance-swatches,.appearance-settings-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.appearance-swatches button,.appearance-settings-actions button{padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius-control);background:var(--surface-input)}
+.appearance-swatches .appearance-swatch{width:32px;height:32px;padding:0;background:var(--swatch)}
+.appearance-swatches button[aria-pressed=true],.appearance-customizer :focus-visible,.appearance-settings-actions :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.appearance-options input[type=color]{width:42px;height:32px}
+.appearance-preview{--radius-panel:10px;--radius-control:6px;display:grid;gap:var(--app-ui-gap);padding:16px;border:1px solid var(--border);border-radius:var(--radius-panel);background:var(--surface-panel);color:var(--text-primary);font-size:calc(14px * var(--app-text-scale))}
+.appearance-preview[data-app-corners=square]{--radius-control:2px;--radius-panel:3px}
+.appearance-preview[data-app-corners=round]{--radius-control:14px;--radius-panel:22px}
+.appearance-preview h4{margin:0;font-size:1.2em;font-weight:650}
+.appearance-preview p,.appearance-preview-label{color:var(--text-secondary)}
+.appearance-preview-row{display:flex;align-items:center;gap:8px;padding:var(--app-ui-padding);background:var(--surface-input);border:1px solid var(--border);border-radius:var(--radius-control)}
+.appearance-preview-dot{width:8px;height:8px;flex:none;border-radius:50%;background:var(--accent)}
+.appearance-preview-action{justify-self:start;padding:var(--app-ui-padding);border-radius:var(--radius-control);background:var(--accent-solid);color:#fff}
+.appearance-settings-actions{margin-top:14px}
+.appearance-settings-actions button:disabled{opacity:.5}
+@media(max-width:740px){.appearance-customizer{grid-template-columns:minmax(0,1fr)}}
+
+.appearance-preview[data-app-contrast=standard]{--text-primary:#e9edf1;--text-secondary:#b1bdc9;--text-muted:#8997a7;--border:#354253}
+html[data-app-theme=light] .appearance-preview[data-app-contrast=standard]{--text-primary:#192b3e;--text-secondary:#40556b;--text-muted:#596c81;--border:#d2dbe5}
+@media(prefers-reduced-motion:reduce){
+  html[data-app-motion=system] *,html[data-app-motion=system] *::before,html[data-app-motion=system] *::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}
+}

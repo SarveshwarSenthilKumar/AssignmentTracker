@@ -1,3 +1,6 @@
+import TaskColumnSettings from './components/TaskColumnSettings'
+import { taskColumnNames } from './lib/taskColumnNames'
+import InterfaceAppearanceSettings from './components/InterfaceAppearanceSettings'
 import SectionNewTabSettings, { SectionNewTabButton } from './components/SectionNewTabSettings'
 import NavigationSettings from './components/NavigationSettings'
 import FeatureVisibilitySettings from './components/FeatureVisibilitySettings'
@@ -111,6 +114,7 @@ function App({onFaviconPage}) {
     window.addEventListener('focus', check)
     return () => { controller.abort(); window.removeEventListener('focus', check) }
   }, [token])
+  const columnNames = taskColumnNames(user?.taskColumnNames)
   const showInProgressColumn=user?.showInProgressColumn!==false
   const taskConfirmation = useInlineConfirm('tasks')
   const deletingTaskIds=useRef(new Set())
@@ -1751,8 +1755,8 @@ function App({onFaviconPage}) {
         <OfflineWorkspaceStatus token={token}/>
         {page!=='home'&&page!=='tutorial'&&<div className="platform-page-title"><div className="platform-page-title-row"><h1>{page==='tutorial'?'Platform tutorial':page==='shared-calendar-event'?'Shared calendar event':page==='bookmarks'?'Bookmarks':page==='admin'?'Admin portal':page==='suggest-feature'?'Feature suggestions':page==='report-bug'?'Report a bug':page==='roadmap'?'Site roadmap':page==='analytics'?'Analytics':page==='handbook'?'Product handbook':page==='logbook'?'Update logbook':page==='prep'?'Prep':page==='study'?'Question bank':page==='workspace'?'Workspace':page==='tasks'?'Tasks':page==='calendar'?'Calendar':page==='detective-wall'?'Detective wall':page==='whiteboards'?'Team whiteboards':page==='documents'?'Document library':page==='jobs'?'Jobs':page==='cover-letters'?'Cover letters':page==='resumes'?'Resumes':page==='visualization'?'Task visualization':page==='canvas'?'Canvas integration':page==='account'?'Account':page==='assistant'?'AI assistant':'Keyboard shortcuts'}</h1>{sectionNewTab}</div><p>{page==='tutorial'?'Guided lessons for your workspace, documents and study tools.':page==='shared-calendar-event'?'Review the event before adding it to your calendar.':page==='bookmarks'?'Save the pages and links you use often.':page==='admin'?'Review bug reports and feature suggestions from users.':page==='suggest-feature'?'Share ideas for improving the platform and follow their progress.':page==='report-bug'?'Report section-specific issues and follow their status.':page==='roadmap'?'Explore ideas, planned improvements and features in progress.':page==='analytics'?'Storage, activity, progress and your complete account inventory.':page==='handbook'?'Feature instructions and technical reference.':page==='logbook'?'Numbered platform changes, fixes and implementation history.':page==='prep'?'Prepare your resumes, cover letters and interview answers in one place.':page==='study'?'Save questions and topics, review answers, and track what you have studied.':page==='cover-letters'?'Store cover letters for your applications and keep versions ready to edit or download.':page==='jobs'?'Save job links and details alongside your resumes.':page==='resumes'?'Upload and keep your resumes ready for your next opportunity.':page==='workspace'?'Build a personal workflow with tabs, tools, and movable windows.':page==='tasks'?'Plan your work and track progress.':page==='calendar'?'Plan deadlines, assignments, and personal events in one place.':page==='detective-wall'?'Pin ideas, collect evidence and connect the threads.':page==='whiteboards'?'Draw, brainstorm and plan together on a live shared canvas.':page==='documents'?'Organize and edit your files.':page==='visualization'?'Explore relationships, deadlines, and progress across your workspace.':page==='canvas'?'Manage your course connection and imports.':page==='account'?'Review your profile and workspace activity.':page==='assistant'?'Think, write, learn, and work with your files in a dedicated conversation workspace.':'A searchable reference for navigation and actions.'}</p></div>}
         <InlineConfirmation {...taskConfirmation} reveal />
-        {page==='home'&&<HomePage headerAction={sectionNewTab} hiddenFeatures={hiddenFeatures} user={user} token={token} tasks={available('tasks') ? todos : []} documents={available('documents') ? pdfs : []} folders={folders} loading={loading} canvasStatus={canvasStatus} onNavigate={navigate} onOpenTask={(task,event)=>{if(!openInTab(event, `tasks/${task._id}`))setSelectedTask(task)}} onOpenDocument={openDocument} onOpenCalendar={(entry,event)=>{if(openInTab(event,`calendar/?event=${encodeURIComponent(entry._id)}`))return;setAssistantCalendarId(entry._id);navigate('calendar')}} onNewTask={()=>{setSelectedFolder('all');navigate('tasks');setTimeout(()=>inputRef.current?.focus(),0)}} onUpload={()=>{setSelectedPDFFolder('all');setShowPDFUploadModal(true)}} onRefresh={()=>Promise.all([fetchTodos(false),fetchPDFs()])}/>}
-        {available('workspace') && <WorkflowWorkspace canvasStatus={canvasStatus} syncing={syncing} onSyncCanvas={syncCanvas} hiddenFeatures={hiddenFeatures} key={'workspace:'+user?.id+':'+assistantGeneration} open={page==='workspace'} token={token} userId={user?.id} tasks={available('tasks') ? todos : []} folders={folders} documents={available('documents') ? pdfs : []} documentFolders={pdfFolders} onTasksChange={setTodos} onOpenTask={(task,event)=>{if(!openInTab(event, `tasks/${task._id}`))setSelectedTask(task)}} onStatusChange={updateTodoStatus} onOpenDocument={openDocument} onUpload={()=>{setSelectedPDFFolder('all');setShowPDFUploadModal(true)}} onNavigate={navigate} onOpenCalendarEntry={entry=>{setAssistantCalendarId(entry._id);navigate('calendar')}} onOpenAssistant={()=>setAssistantOpen(true)} keyboardEnabled={!selectedPDF&&!assistantOpen&&!selectedTask&&!showPDFUploadModal&&!showCommandMenu}/>}
+        {page==='home'&&<HomePage statusLabels={columnNames} headerAction={sectionNewTab} hiddenFeatures={hiddenFeatures} user={user} token={token} tasks={available('tasks') ? todos : []} documents={available('documents') ? pdfs : []} folders={folders} loading={loading} canvasStatus={canvasStatus} onNavigate={navigate} onOpenTask={(task,event)=>{if(!openInTab(event, `tasks/${task._id}`))setSelectedTask(task)}} onOpenDocument={openDocument} onOpenCalendar={(entry,event)=>{if(openInTab(event,`calendar/?event=${encodeURIComponent(entry._id)}`))return;setAssistantCalendarId(entry._id);navigate('calendar')}} onNewTask={()=>{setSelectedFolder('all');navigate('tasks');setTimeout(()=>inputRef.current?.focus(),0)}} onUpload={()=>{setSelectedPDFFolder('all');setShowPDFUploadModal(true)}} onRefresh={()=>Promise.all([fetchTodos(false),fetchPDFs()])}/>}
+        {available('workspace') && <WorkflowWorkspace statusLabels={columnNames} canvasStatus={canvasStatus} syncing={syncing} onSyncCanvas={syncCanvas} hiddenFeatures={hiddenFeatures} key={'workspace:'+user?.id+':'+assistantGeneration} open={page==='workspace'} token={token} userId={user?.id} tasks={available('tasks') ? todos : []} folders={folders} documents={available('documents') ? pdfs : []} documentFolders={pdfFolders} onTasksChange={setTodos} onOpenTask={(task,event)=>{if(!openInTab(event, `tasks/${task._id}`))setSelectedTask(task)}} onStatusChange={updateTodoStatus} onOpenDocument={openDocument} onUpload={()=>{setSelectedPDFFolder('all');setShowPDFUploadModal(true)}} onNavigate={navigate} onOpenCalendarEntry={entry=>{setAssistantCalendarId(entry._id);navigate('calendar')}} onOpenAssistant={()=>setAssistantOpen(true)} keyboardEnabled={!selectedPDF&&!assistantOpen&&!selectedTask&&!showPDFUploadModal&&!showCommandMenu}/>}
         {page==='shared-calendar-event' && (() => {
           const shareToken = /^#\/shared-calendar-event\/([A-Za-z0-9_-]{43})$/.exec(window.location.hash)?.[1]
           return <SharedCalendarEvent key={shareToken ?? 'invalid'} shareToken={shareToken} token={token} onOpenEvent={id => {
@@ -1781,7 +1785,7 @@ function App({onFaviconPage}) {
           startWithPDF={window.location.hash === '#/tutorial/pdf'}/>}
         {page==='bookmarks' && <BookmarksPage showSuggestions={available('bookmark-suggestions')} key={'bookmarks:'+user?.id} userId={user?.id} tasks={available('tasks') ? todos : []} folders={available('tasks') ? folders : []} documentFolders={available('documents') ? pdfFolders : []} documents={available('documents') ? pdfs : []}/>}
         {page==='shortcuts' && <ShortcutsPage hiddenFeatures={hiddenFeatures} initialQuery={searchShortcutsQuery}/>}
-        {page==='visualization' && <TaskVisualization token={token} onTasksChange={setTodos} onOpenTask={task => { pendingLibraryTask.current = task; setSelectedFolder('all'); navigate('tasks') }} loading={loading} keyboardEnabled={!selectedPDF&&!assistantOpen} tasks={todos} folders={folders} documents={pdfs} onOpenDocument={openDocument} onStatusChange={updateTodoStatus} onEditTask={task=>{setSelectedFolder('all');navigate('tasks');startEditing(task)}} />}
+        {page==='visualization' && <TaskVisualization statusLabels={columnNames} token={token} onTasksChange={setTodos} onOpenTask={task => { pendingLibraryTask.current = task; setSelectedFolder('all'); navigate('tasks') }} loading={loading} keyboardEnabled={!selectedPDF&&!assistantOpen} tasks={todos} folders={folders} documents={pdfs} onOpenDocument={openDocument} onStatusChange={updateTodoStatus} onEditTask={task=>{setSelectedFolder('all');navigate('tasks');startEditing(task)}} />}
 
         {error && (
           <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-lg">
@@ -2118,7 +2122,7 @@ function App({onFaviconPage}) {
             >
               <h2 className="text-base font-semibold text-white mb-3 flex items-center gap-2">
                 <span className="w-2 h-2 bg-primary-500 rounded-full "></span>
-                {showInProgressColumn?'To Do':'To Do & In Progress'} ({filteredTodos.filter(t => t.status === 'todo'||(!showInProgressColumn&&t.status === 'in-progress')).length})
+                {columnNames.todo}{!showInProgressColumn && ' & ' + columnNames['in-progress']} ({filteredTodos.filter(t => t.status === 'todo'||(!showInProgressColumn&&t.status === 'in-progress')).length})
               </h2>
               <div className="space-y-2">
                 {filteredTodos.filter(t => t.status === 'todo'||(!showInProgressColumn&&t.status === 'in-progress')).length > 0 ? (
@@ -2148,7 +2152,7 @@ function App({onFaviconPage}) {
             >
               <h2 className="text-base font-semibold text-yellow-400 mb-3 flex items-center gap-2">
                 <span className="w-2 h-2 bg-yellow-500 rounded-full "></span>
-                In Progress ({filteredTodos.filter(t => t.status === 'in-progress').length})
+                {columnNames['in-progress']} ({filteredTodos.filter(t => t.status === 'in-progress').length})
               </h2>
               <div className="space-y-2">
                 {filteredTodos.filter(t => t.status === 'in-progress').length > 0 ? (
@@ -2178,7 +2182,7 @@ function App({onFaviconPage}) {
             >
               <h2 className="text-base font-semibold text-green-400 mb-3 flex items-center gap-2">
                 <span className="w-2 h-2 bg-green-500 rounded-full "></span>
-                Completed ({filteredTodos.filter(t => t.status === 'completed').length})
+                {columnNames.completed} ({filteredTodos.filter(t => t.status === 'completed').length})
               </h2>
               <label className="task-completed-sort">
                 Sort completed:
@@ -2355,6 +2359,7 @@ function App({onFaviconPage}) {
               <h2 id="account-preferences-title">Preferences</h2>
               <div className="account-settings-grid">
                 <AppearanceSettings/>
+                <InterfaceAppearanceSettings/>
                 <NavigationSettings/>
                 <SectionNewTabSettings/>
                 {unavailablePage && <p role="status">That section is turned off. You can restore it below.</p>}
@@ -2364,6 +2369,7 @@ function App({onFaviconPage}) {
                 <TimeZoneSettings/>
                 <StudyPhoneSettings/>
                 <TaskDisplaySettings/>
+                <TaskColumnSettings/>
                 <ConfirmationSettings/>
               </div>
             </section>
@@ -2569,9 +2575,7 @@ function App({onFaviconPage}) {
                           : 'bg-white/10 text-slate-400 hover:bg-white/20'
                       )}
                     >
-                      {status === 'todo' && 'To Do'}
-                      {status === 'in-progress' && 'In Progress'}
-                      {status === 'completed' && 'Completed'}
+                      {columnNames[status]}
                     </button>
                   ))}
                 </div>
@@ -2680,21 +2684,21 @@ function App({onFaviconPage}) {
                   className="w-full px-4 py-2 text-left text-sm text-slate-300 hover:bg-white/10 flex items-center gap-2 transition-colors"
                 >
                   <Trash2 size={14} />
-                  Clear To Do
+                  Clear {columnNames.todo}
                 </button>
                 <button
                   onClick={() => clearInbox('in-progress')}
                   className="w-full px-4 py-2 text-left text-sm text-yellow-400 hover:bg-yellow-500/10 flex items-center gap-2 transition-colors"
                 >
                   <Trash2 size={14} />
-                  Clear In Progress
+                  Clear {columnNames['in-progress']}
                 </button>
                 <button
                   onClick={() => clearInbox('completed')}
                   className="w-full px-4 py-2 text-left text-sm text-green-400 hover:bg-green-500/10 flex items-center gap-2 transition-colors"
                 >
                   <Trash2 size={14} />
-                  Clear Completed
+                  Clear {columnNames.completed}
                 </button>
               </>
             ) : (
@@ -2718,21 +2722,21 @@ function App({onFaviconPage}) {
                   className="w-full px-4 py-2 text-left text-sm text-slate-300 hover:bg-white/10 flex items-center gap-2 transition-colors"
                 >
                   <Trash2 size={14} />
-                  Clear To Do
+                  Clear {columnNames.todo}
                 </button>
                 <button
                   onClick={() => deleteAllTasksInFolder(contextMenu.folder._id, 'in-progress')}
                   className="w-full px-4 py-2 text-left text-sm text-yellow-400 hover:bg-yellow-500/10 flex items-center gap-2 transition-colors"
                 >
                   <Trash2 size={14} />
-                  Clear In Progress
+                  Clear {columnNames['in-progress']}
                 </button>
                 <button
                   onClick={() => deleteAllTasksInFolder(contextMenu.folder._id, 'completed')}
                   className="w-full px-4 py-2 text-left text-sm text-green-400 hover:bg-green-500/10 flex items-center gap-2 transition-colors"
                 >
                   <Trash2 size={14} />
-                  Clear Completed
+                  Clear {columnNames.completed}
                 </button>
                 <button
                   onClick={() => deleteFolder(contextMenu.folder._id)}

@@ -13,6 +13,7 @@ import './responsive.css'
 import { AuthProvider, GuestAuthProvider } from './contexts/AuthContext'
 import './mobile.css'
 import './light-mode.css'
+import './interface-appearance.css'
 import './checkboxes.css'
 import './lib/download.css'
 

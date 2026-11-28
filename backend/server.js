@@ -84,10 +84,20 @@ const userSchema = new mongoose.Schema({
   geminiApiKeyUpdatedAt: { type: Date, select: false },
   timeZone: { type: String, default: '' },
   themeMode: { type: String, enum: ['dark','light','system'], default: 'dark' },
+  appearance: {
+    type: new mongoose.Schema({
+      accent: String, textSize: String, density: String, corners: String, contrast: String, motion: String,
+    }, { _id: false }),
+    default: undefined,
+  },
   confirmTaskDeletion: { type: Boolean, default: true },
   completedTaskRetentionDays: { type: Number, default: 0 },
   deletedTaskRetentionDays: { type: Number, default: 7 },
   confirmOtherActions: { type: Boolean, default: true },
+  taskColumnNames: {
+    type: new mongoose.Schema({ todo: String, 'in-progress': String, completed: String }, { _id: false }),
+    default: undefined,
+  },
   showInProgressColumn: { type: Boolean, default: true },
   showTaskStreaks: { type: Boolean, default: true },
   lockedSections: { type: [String], default: [] },
@@ -524,7 +534,7 @@ app.post('/api/auth/register', async (req, res) => {
         email: user.email,
         timeZone: user.timeZone || '',
         studyPhoneEnabled: user.studyPhoneEnabled!==false, showSetupBanner:user.showSetupBanner!==false,hiddenFeatures:user.hiddenFeatures||[],navigationPins:user.navigationPins??null,navigationNewTabs:user.navigationNewTabs??null,
-        themeMode: ['light','system'].includes(user.themeMode)?user.themeMode:'dark',
+        themeMode: ['light','system'].includes(user.themeMode)?user.themeMode:'dark', appearance:user.appearance??null, taskColumnNames:user.taskColumnNames??null,
       },
     });
   } catch (error) {
@@ -571,7 +581,7 @@ app.post('/api/auth/login', async (req, res) => {
         email: user.email,
         timeZone: user.timeZone || '',
         studyPhoneEnabled: user.studyPhoneEnabled!==false, showSetupBanner:user.showSetupBanner!==false,hiddenFeatures:user.hiddenFeatures||[],navigationPins:user.navigationPins??null,navigationNewTabs:user.navigationNewTabs??null,
-        themeMode: ['light','system'].includes(user.themeMode)?user.themeMode:'dark',
+        themeMode: ['light','system'].includes(user.themeMode)?user.themeMode:'dark', appearance:user.appearance??null, taskColumnNames:user.taskColumnNames??null,
       },
     });
   } catch (error) {
@@ -812,13 +822,13 @@ app.put('/api/account/section-locks', authenticateToken, async (req, res) => {
 
 app.get('/api/account/preferences', authenticateToken, async (req, res) => {
   try {
-    const user = await User.findById(req.user.userId).select('createdAt themeMode timeZone confirmTaskDeletion confirmOtherActions showInProgressColumn showTaskStreaks showTaskContributionGraph studyPhoneEnabled showSetupBanner hiddenFeatures navigationPins navigationNewTabs taskSortBy taskSortOrder completedTaskRetentionDays deletedTaskRetentionDays +birthday');
+    const user = await User.findById(req.user.userId).select('createdAt themeMode appearance timeZone confirmTaskDeletion confirmOtherActions showInProgressColumn taskColumnNames showTaskStreaks showTaskContributionGraph studyPhoneEnabled showSetupBanner hiddenFeatures navigationPins navigationNewTabs taskSortBy taskSortOrder completedTaskRetentionDays deletedTaskRetentionDays +birthday');
     if (!user) return res.status(404).json({ message: 'Account not found.' });
-    res.json({ createdAt:user.createdAt,themeMode:['light','system'].includes(user.themeMode)?user.themeMode:'dark',timeZone: user.timeZone || '', confirmTaskDeletion:user.confirmTaskDeletion!==false, confirmOtherActions:user.confirmOtherActions!==false, showInProgressColumn:user.showInProgressColumn!==false,showTaskStreaks:user.showTaskStreaks!==false,showTaskContributionGraph:user.showTaskContributionGraph!==false,studyPhoneEnabled:user.studyPhoneEnabled!==false,showSetupBanner:user.showSetupBanner!==false,hiddenFeatures:user.hiddenFeatures||[],navigationPins:user.navigationPins??null,navigationNewTabs:user.navigationNewTabs??null,taskSortBy:user.taskSortBy||'dueDate',taskSortOrder:user.taskSortOrder||'asc',birthday:user.birthday||'',completedTaskRetentionDays:user.completedTaskRetentionDays||0,deletedTaskRetentionDays:user.deletedTaskRetentionDays??7 });
+    res.json({ createdAt:user.createdAt,themeMode:['light','system'].includes(user.themeMode)?user.themeMode:'dark',appearance:user.appearance??null,timeZone: user.timeZone || '', confirmTaskDeletion:user.confirmTaskDeletion!==false, confirmOtherActions:user.confirmOtherActions!==false, showInProgressColumn:user.showInProgressColumn!==false,taskColumnNames:user.taskColumnNames??null,showTaskStreaks:user.showTaskStreaks!==false,showTaskContributionGraph:user.showTaskContributionGraph!==false,studyPhoneEnabled:user.studyPhoneEnabled!==false,showSetupBanner:user.showSetupBanner!==false,hiddenFeatures:user.hiddenFeatures||[],navigationPins:user.navigationPins??null,navigationNewTabs:user.navigationNewTabs??null,taskSortBy:user.taskSortBy||'dueDate',taskSortOrder:user.taskSortOrder||'asc',birthday:user.birthday||'',completedTaskRetentionDays:user.completedTaskRetentionDays||0,deletedTaskRetentionDays:user.deletedTaskRetentionDays??7 });
   } catch { res.status(500).json({ message: 'Could not load account preferences.' }); }
 });
 app.put('/api/account/preferences', authenticateToken, async (req, res) => {
-  const { themeMode,timeZone,confirmTaskDeletion,confirmOtherActions,showInProgressColumn,showTaskStreaks,showTaskContributionGraph,studyPhoneEnabled,showSetupBanner,hiddenFeatures,navigationPins,navigationNewTabs,taskSortBy,taskSortOrder,birthday } = req.body;
+  const { themeMode,appearance,timeZone,confirmTaskDeletion,confirmOtherActions,showInProgressColumn,taskColumnNames,showTaskStreaks,showTaskContributionGraph,studyPhoneEnabled,showSetupBanner,hiddenFeatures,navigationPins,navigationNewTabs,taskSortBy,taskSortOrder,birthday } = req.body;
   const update={};
   if (req.body.completedTaskRetentionDays !== undefined) {
     const days = req.body.completedTaskRetentionDays;
@@ -864,6 +874,36 @@ app.put('/api/account/preferences', authenticateToken, async (req, res) => {
     }
     update.hiddenFeatures = [...new Set(hiddenFeatures)];
   }
+  if (taskColumnNames !== undefined) {
+    const keys = ['todo', 'in-progress', 'completed'];
+    if (taskColumnNames !== null && (
+      typeof taskColumnNames !== 'object' || Array.isArray(taskColumnNames) ||
+      Object.keys(taskColumnNames).length !== keys.length ||
+      keys.some(key => typeof taskColumnNames[key] !== 'string' ||
+        !taskColumnNames[key].trim() || taskColumnNames[key].trim().length > 40 || /[\r\n\t]/.test(taskColumnNames[key]))
+    )) return res.status(400).json({ message: 'Enter a name of 1–40 characters for each task column.' });
+    update.taskColumnNames = taskColumnNames === null ? null :
+      Object.fromEntries(keys.map(key => [key, taskColumnNames[key].trim()]));
+  }
+  if (appearance !== undefined) {
+    const choices = {
+      textSize: ['small','standard','large','extra-large'],
+      density: ['compact','standard','comfortable'],
+      corners: ['square','standard','round'],
+      contrast: ['standard','high'],
+      motion: ['system','reduced'],
+    };
+    if (appearance !== null && (
+      typeof appearance !== 'object' || Array.isArray(appearance) ||
+      Object.keys(appearance).length !== Object.keys(choices).length + 1 ||
+      typeof appearance.accent !== 'string' || !/^(?:default|#[a-f\d]{6})$/i.test(appearance.accent) ||
+      !Object.entries(choices).every(([key, values]) => values.includes(appearance[key]))
+    )) return res.status(400).json({ message: 'Choose valid appearance settings.' });
+    update.appearance = appearance === null ? null : {
+      accent: appearance.accent.toLowerCase(),
+      ...Object.fromEntries(Object.keys(choices).map(key => [key, appearance[key]])),
+    };
+  }
   if(themeMode!==undefined){if(!['dark','light','system'].includes(themeMode))return res.status(400).json({message:'Choose light, dark, or match device mode.'});update.themeMode=themeMode;}
   if(timeZone!==undefined){
   if (typeof timeZone !== 'string' || timeZone.length > 100) return res.status(400).json({ message: 'Choose a valid time zone.' });
@@ -880,9 +920,9 @@ app.put('/api/account/preferences', authenticateToken, async (req, res) => {
   if(taskSortOrder!==undefined){if(!['asc','desc'].includes(taskSortOrder))return res.status(400).json({message:'Choose a valid sort direction.'});update.taskSortOrder=taskSortOrder;}
   if(!Object.keys(update).length)return res.status(400).json({message:'Choose a preference to update.'});
   try {
-    const user = await User.findByIdAndUpdate(req.user.userId, { $set: update }, { new: true }).select('createdAt themeMode timeZone confirmTaskDeletion confirmOtherActions showInProgressColumn showTaskStreaks showTaskContributionGraph studyPhoneEnabled showSetupBanner hiddenFeatures navigationPins navigationNewTabs taskSortBy taskSortOrder completedTaskRetentionDays deletedTaskRetentionDays +birthday');
+    const user = await User.findByIdAndUpdate(req.user.userId, { $set: update }, { new: true }).select('createdAt themeMode appearance timeZone confirmTaskDeletion confirmOtherActions showInProgressColumn taskColumnNames showTaskStreaks showTaskContributionGraph studyPhoneEnabled showSetupBanner hiddenFeatures navigationPins navigationNewTabs taskSortBy taskSortOrder completedTaskRetentionDays deletedTaskRetentionDays +birthday');
     if (!user) return res.status(404).json({ message: 'Account not found.' });
-    res.json({ createdAt:user.createdAt,themeMode:['light','system'].includes(user.themeMode)?user.themeMode:'dark',timeZone: user.timeZone || '',confirmTaskDeletion:user.confirmTaskDeletion!==false,confirmOtherActions:user.confirmOtherActions!==false, showInProgressColumn:user.showInProgressColumn!==false,showTaskStreaks:user.showTaskStreaks!==false,showTaskContributionGraph:user.showTaskContributionGraph!==false,studyPhoneEnabled:user.studyPhoneEnabled!==false,showSetupBanner:user.showSetupBanner!==false,hiddenFeatures:user.hiddenFeatures||[],navigationPins:user.navigationPins??null,navigationNewTabs:user.navigationNewTabs??null,taskSortBy:user.taskSortBy||'dueDate',taskSortOrder:user.taskSortOrder||'asc',birthday:user.birthday||'',completedTaskRetentionDays:user.completedTaskRetentionDays||0,deletedTaskRetentionDays:user.deletedTaskRetentionDays??7 });
+    res.json({ createdAt:user.createdAt,themeMode:['light','system'].includes(user.themeMode)?user.themeMode:'dark',appearance:user.appearance??null,timeZone: user.timeZone || '',confirmTaskDeletion:user.confirmTaskDeletion!==false,confirmOtherActions:user.confirmOtherActions!==false, showInProgressColumn:user.showInProgressColumn!==false,taskColumnNames:user.taskColumnNames??null,showTaskStreaks:user.showTaskStreaks!==false,showTaskContributionGraph:user.showTaskContributionGraph!==false,studyPhoneEnabled:user.studyPhoneEnabled!==false,showSetupBanner:user.showSetupBanner!==false,hiddenFeatures:user.hiddenFeatures||[],navigationPins:user.navigationPins??null,navigationNewTabs:user.navigationNewTabs??null,taskSortBy:user.taskSortBy||'dueDate',taskSortOrder:user.taskSortOrder||'asc',birthday:user.birthday||'',completedTaskRetentionDays:user.completedTaskRetentionDays||0,deletedTaskRetentionDays:user.deletedTaskRetentionDays??7 });
   } catch { res.status(500).json({ message: 'Could not save your account preferences.' }); }
 });
 app.post('/api/user/reset', authenticateToken, async (req, res) => {

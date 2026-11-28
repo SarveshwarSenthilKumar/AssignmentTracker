@@ -1,3 +1,4 @@
+import { appearanceAttributes, normalizeAppearance } from '../lib/appearance'
 import { createContext, useContext, useState, useEffect, useLayoutEffect, useRef } from 'react'
 import { setTimeZone } from '../lib/timeZone'
 import PolicyGate from '../components/PolicyGate'
@@ -40,9 +41,24 @@ export const AuthProvider = ({ children }) => {
     if(media.addEventListener){media.addEventListener('change',apply);return()=>media.removeEventListener('change',apply)}
     media.addListener(apply);return()=>media.removeListener(apply)
   },[loading,token,user?.themeMode])
+  useLayoutEffect(() => {
+    if (loading) return
+    const root = document.documentElement
+    const preference = token ? user?.appearance : null
+    const { accent } = normalizeAppearance(preference)
+    const attributes = appearanceAttributes(preference)
+    for (const [key, value] of Object.entries(attributes)) {
+      if (value !== undefined) root.setAttribute(key, value)
+    }
+    if (accent !== 'default') root.style.setProperty('--app-custom-accent', accent)
+    return () => {
+      for (const key of Object.keys(attributes)) root.removeAttribute(key)
+      root.style.removeProperty('--app-custom-accent')
+    }
+  }, [loading, token, user?.appearance])
   setTimeZone(user?.timeZone)
   const updatePreferences = preferences => {
-    if(preferences.themeMode!==undefined)appearanceRevision.current++
+    if(preferences.themeMode!==undefined||preferences.appearance!==undefined)appearanceRevision.current++
     setUser(previous => {
     if (!previous) return previous
     const next = {...previous,...preferences}
@@ -53,7 +69,7 @@ export const AuthProvider = ({ children }) => {
   useEffect(()=>{
     const changed=event=>{
       if(event.key!=='user'||!event.newValue)return
-      try{const updated=JSON.parse(event.newValue);appearanceRevision.current++;setUser(previous=>previous&&updated.id===previous.id?{...previous,themeMode:['light','system'].includes(updated.themeMode)?updated.themeMode:'dark'}:previous)}catch{/* Ignore malformed cache updates. */}
+      try{const updated=JSON.parse(event.newValue);appearanceRevision.current++;setUser(previous=>previous&&updated.id===previous.id?{...previous,themeMode:['light','system'].includes(updated.themeMode)?updated.themeMode:'dark',appearance:updated.appearance??null}:previous)}catch{/* Ignore malformed cache updates. */}
     }
     window.addEventListener('storage',changed)
     return()=>window.removeEventListener('storage',changed)
@@ -62,7 +78,7 @@ export const AuthProvider = ({ children }) => {
     if(!token)return
     const controller=new AbortController()
     const before=appearanceRevision.current
-    fetch('/api/account/preferences',{headers:{Authorization:`Bearer ${token}`},signal:controller.signal}).then(response=>response.ok?response.json():null).then(data=>{if(data&&!controller.signal.aborted){if(before!==appearanceRevision.current)delete data.themeMode;updatePreferences(data)}}).catch(()=>{})
+    fetch('/api/account/preferences',{headers:{Authorization:`Bearer ${token}`},signal:controller.signal}).then(response=>response.ok?response.json():null).then(data=>{if(data&&!controller.signal.aborted){if(before!==appearanceRevision.current){delete data.themeMode;delete data.appearance;}updatePreferences(data)}}).catch(()=>{})
     return()=>controller.abort()
   },[token])
 
