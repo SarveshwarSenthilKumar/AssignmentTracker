@@ -1,3 +1,5 @@
+const { cleanPresentationStops } = require('./boardPresentation');
+
 module.exports=function registerDetectiveWalls(app,auth,{mongoose}){
   const Wall=mongoose.models.DetectiveWall||mongoose.model('DetectiveWall',new mongoose.Schema({
     user:{type:mongoose.Schema.Types.ObjectId,ref:'User',required:true,index:true},
@@ -57,6 +59,7 @@ module.exports=function registerDetectiveWalls(app,auth,{mongoose}){
       dimensions[field]=state[field];
     }
     return {nodes,strings,
+      ...(state.presentationStops !== undefined && { presentationStops: cleanPresentationStops(state.presentationStops) }),
       ...dimensions,
       ...colors,
       ...(state.frameWidth?{frameWidth:state.frameWidth}:{})

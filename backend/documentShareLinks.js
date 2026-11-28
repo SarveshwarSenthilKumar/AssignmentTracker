@@ -1,3 +1,4 @@
+const { cleanPresentationStops, remapPresentationStops, presentationMatch } = require('./boardPresentation');
 const { createHash, randomBytes } = require('node:crypto');
 const { insertPDFPages, deletePDFPage } = require('./pdfPages');
 const { mergeText } = require('./liveText');
@@ -265,12 +266,41 @@ module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDF
   app.put('/api/pdfs/:id/text', auth, publicText(true, true));
 
   // Link capabilities apply only to this document; never impersonate its owner.
+  const whiteboardStops = (shared, write = false) => async (req, res) => {
+    res.set('Cache-Control', 'private, no-store');
+    if (!shared && !validId(req.params.id)) return res.status(404).json({ message: 'Whiteboard unavailable.' });
+    const filter = {
+      documentKind: 'whiteboard', deletedAt: null,
+      ...(shared ? { shareLinkHash: hashToken(req.params.token), shareLinkRole: 'edit', ...sharedAccess(req) }
+        : { _id: req.params.id, user: req.user.userId }),
+    };
+    let stops, revision;
+    if (write) {
+      revision = req.body?.revision;
+      if (!Number.isSafeInteger(revision) || revision < 0 || revision >= Number.MAX_SAFE_INTEGER) return res.status(400).json({ message: 'Reload the stops before saving.' });
+      try { stops = cleanPresentationStops(req.body?.stops, true); }
+      catch (error) { return res.status(400).json({ message: error.message }); }
+    }
+    try {
+      const board = await PDF.findOne(filter).select('user pdfFolder +presentationStops +presentationRevision').lean();
+      if (!board || await isLocked(board)) return res.status(404).json({ message: 'Whiteboard unavailable.' });
+      if (!write) return res.json({ stops: board.presentationStops || [], revision: board.presentationRevision || 0 });
+      const result = await PDF.updateOne({ ...filter, pdfFolder: board.pdfFolder ?? null, ...presentationMatch(revision) },
+        { $set: { presentationStops: stops, presentationRevision: revision + 1 } }, { timestamps: false });
+      if (!result.matchedCount) return res.status(409).json({ message: 'The board or its stops changed. Reload the stops and try again.' });
+      return res.json({ stops, revision: revision + 1 });
+    } catch { return res.status(503).json({ message: 'Could not access the presentation stops.' }); }
+  };
+  app.get('/api/pdfs/:id/presentation-stops', auth, whiteboardStops(false));
+  app.put('/api/pdfs/:id/presentation-stops', auth, whiteboardStops(false, true));
+  app.get('/api/shared-document/:token/presentation-stops', whiteboardStops(true));
+
   const editor = (handler, owner = false,allowView=false) => async (req, res) => {
     res.set({ 'Cache-Control': 'private, no-store', 'Referrer-Policy': 'no-referrer', 'X-Content-Type-Options': 'nosniff' });
     if (owner ? !validId(req.params.id) : !/^[A-Za-z0-9_-]{43}$/.test(req.params.token)) return res.status(404).json({ message: 'This editor link is unavailable.' });
     try {
       const filter = owner ? { _id: req.params.id, user: req.user.userId, deletedAt: null } : { shareLinkHash: hashToken(req.params.token), shareLinkRole:allowView?{$in:['view','edit']}:'edit', deletedAt: null, ...sharedAccess(req) };
-      const file = await PDF.findOne(filter).select(allowView ? '+editHistory +shareLinkRole +shareLinkMessage' : '+editHistory +shareLinkRole');
+      const file = await PDF.findOne(filter).select(allowView ? '+editHistory +shareLinkRole +shareLinkMessage' : '+editHistory +shareLinkRole +presentationStops +presentationRevision');
       if (!file || await isLocked(file)) return res.status(404).json({ message: 'This editor link is unavailable.' });
       const revision = editorRevision(file,normalized(file.annotations));
       const save = async (changes,details={}) => {
@@ -280,7 +310,12 @@ module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDF
         }
         const actor=await collaboratorAccess.identify(req,res,file);
         const action=changes.pdfData?(req.method==='DELETE'?'Deleted a page':req.path.includes('/pages')?(req.body.mode==='reorder'?'Reordered pages':'Added pages'):'Replaced file contents'):undefined;
-        const result = await PDF.updateOne({ ...filter,...(!owner?sharedAccess(req):{}), _id: file._id, updatedAt: file.updatedAt, pdfFolder: file.pdfFolder ?? null, pdfData: file.pdfData, annotations: file.annotations }, { $set: { ...changes, editHistory:appendHistory(file,actor,{...changes,action,pages:req.params.pageNumber?[Number(req.params.pageNumber)]:[],...details}),updatedAt: new Date() } }, { runValidators: true });
+        const presentation = changes.pdfData && file.documentKind === 'whiteboard'
+          ? { presentationRevision: (file.presentationRevision || 0) + 1,
+              presentationStops: details.pageChange ? remapPresentationStops(file.presentationStops, details.pageChange) : [] }
+          : null;
+        const presentationFilter = presentation ? presentationMatch(file.presentationRevision || 0) : {};
+        const result = await PDF.updateOne({ ...filter,...(!owner?sharedAccess(req):{}),...presentationFilter, _id: file._id, updatedAt: file.updatedAt, pdfFolder: file.pdfFolder ?? null, pdfData: file.pdfData, annotations: file.annotations }, {  $set: { ...changes, ...presentation, editHistory:appendHistory(file,actor,{...changes,action,pages:req.params.pageNumber?[Number(req.params.pageNumber)]:[],...details}),updatedAt: new Date() } }, { runValidators: true });
         if (!result.matchedCount) { res.status(409).json({ message: 'This document changed or its link was revoked. Reopen the link.' }); return false; }
         liveInk.saved(file._id);
         const next = editorRevision(file,normalized(changes.annotations || file.annotations),changes.pdfData || file.pdfData);

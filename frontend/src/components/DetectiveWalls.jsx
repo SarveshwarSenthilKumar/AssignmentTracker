@@ -1,3 +1,4 @@
+import BoardPresentation from './BoardPresentation'
 import BoardPinTask from './BoardPinTask'
 import { boardPinRoute } from '../lib/boardPinRoute'
 import {useEffect,useLayoutEffect,useRef,useState} from 'react'
@@ -164,6 +165,8 @@ function DetectiveWallZoom({zoomTo,fit,zoomListener}){
 }
 
 function DetectiveWallEditor({id,token,userId,onGenerateDemo,focusPin,onTaskCreated}){
+  const [showStops, setShowStops] = useState(false)
+  const [presenting, setPresenting] = useState(false)
   const [taskNote, setTaskNote] = useState(null)
   const [pinNotice, setPinNotice] = useState(null)
   const focusedPin = useRef(null)
@@ -767,6 +770,30 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo,focusPin,onTaskCrea
     zoomTo(zoomRef.current, null, { x: note.x + note.width / 2, y: note.y + note.height / 2 })
   }, [doc, focusPin, loading])
 
+  const captureStop = () => {
+    const view = viewport.current
+    if (!view || pendingZoom.current || gesture.current) return null
+    const zoom = zoomRef.current
+    return {
+      x: clamp((view.scrollLeft + view.clientWidth / 2 - BOARD_MARGIN) / zoom, 0, MAX_BOARD_DIMENSION),
+      y: clamp((view.scrollTop + view.clientHeight / 2 - BOARD_MARGIN) / zoom, 0, MAX_BOARD_DIMENSION),
+      zoom,
+    }
+  }
+  const visitStop = stop => {
+    if (!viewport.current || gesture.current) return false
+    cancelConnection()
+    setSelected(null)
+    setTool('pan')
+    zoomTo(stop.zoom, null, { x: stop.x, y: stop.y })
+  }
+  const saveStops = async stops => {
+    const snapshot = current.current
+    apply({ ...snapshot, state: { ...snapshot.state, presentationStops: stops } })
+    clearTimeout(timer.current)
+    if (!await save()) throw new Error('The stops are still open. Retry saving the wall.')
+  }
+
   const openSampleBoards=()=>onGenerateDemo(()=>{clearTimeout(timer.current);return save()})
   const leave=async()=>{clearTimeout(timer.current);if(await save())window.location.hash='/detective-wall'}
   const changeFrameWidth=(width,patch={})=>{
@@ -820,7 +847,9 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo,focusPin,onTaskCrea
   const isSelected=(type,id)=>selected?.type===type&&selected.id===id||!!selectedGroup?.[type==='node'?'nodes':'strings'].includes(id)
   const path=(a,b,slack)=>`M ${a.x} ${a.y} Q ${(a.x+b.x)/2} ${(a.y+b.y)/2+(slack??Math.min(140,Math.abs(a.x-b.x)*.12+35))} ${b.x} ${b.y}`
   const start=connecting&&nodes.get(connecting)?anchor(nodes.get(connecting)):null
-  return <section ref={editorRoot} className={`detective-editor${fullscreen?' is-fullscreen':''}${zenMode?' is-zen':''}${lockedView?' is-locked-view':''}`} aria-label="Interactive detective wall">
+  return <section ref={editorRoot} className={`detective-editor${fullscreen?' is-fullscreen':''}${zenMode?' is-zen':''}${lockedView?' is-locked-view':''}${presenting?' is-presenting-board':''}`} aria-label="Interactive detective wall">
+    {showStops && !lockedView && <BoardPresentation stops={doc.state.presentationStops || []} capture={captureStop}
+      visit={visitStop} onChange={saveStops} onPresent={setPresenting} onClose={() => setShowStops(false)}/>}
     {lockedView&&<button ref={lockedExit} type="button" className="detective-zen-exit" title="Unlock board view (Escape)"
       aria-label="Unlock board view" onClick={exitLockedView}><Lock size={18}/><span>Unlock board</span></button>}
     {zenMode&&<button type="button" className="detective-zen-exit" aria-label="Exit Zen mode" title="Exit Zen mode (Escape)" onClick={()=>setZenMode(false)}><X size={18}/><span>Exit Zen</span></button>}
@@ -831,11 +860,13 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo,focusPin,onTaskCrea
       <button type="button" onClick={save} aria-label="Save wall" title="Save wall"><Save size={17}/></button>
       <button type="button" onClick={enterZenMode} aria-label="Enter Zen mode" title="Zen mode — board and current tool only"><EyeOff size={17}/></button>
       <button type="button" onClick={enterLockedView} aria-label="Lock fullscreen board view" title="Lock fullscreen board view"><Lock size={17}/></button>
+      <button type="button" aria-expanded={showStops} onClick={() => setShowStops(value => !value)}>Stops</button>
       <button type="button" onClick={exitFullscreen} aria-label="Exit fullscreen" title="Exit fullscreen (Escape)"><Minimize size={17}/></button>
     </div>}
     <header className="detective-header"><button type="button" onClick={leave} title="Back to walls"><ArrowLeft size={18}/></button><input aria-label="Wall name" maxLength={120} value={doc.name} onFocus={()=>{historyRef.current={undo:[...historyRef.current.undo.slice(-19),current.current],redo:[]};setHistory(historyRef.current)}} onChange={event=>apply({...current.current,name:event.target.value},false)}/><span role="status">{status==='saving'?'Saving…':status==='saved'?'Saved':status==='error'?'Save failed':'Unsaved changes'}</span><button type="button" onClick={save}><Save size={16}/><span>Save</span></button><button type="button" onClick={exportWall} title="Export wall backup"><Download size={16}/><span>Backup</span></button><button type="button" onClick={fullscreen?exitFullscreen:enterFullscreen} aria-label={fullscreen?'Exit fullscreen':'Enter fullscreen'} title={fullscreen?'Exit fullscreen (Escape)':'Enter fullscreen'}>{fullscreen?<Minimize size={16}/>:<Maximize size={16}/>}<span>Fullscreen</span></button><button type="button" onClick={enterZenMode} title="Hide controls and keep the current tool. Escape exits." aria-label="Enter Zen mode"><EyeOff size={16}/><span>Zen mode</span></button><button type="button" onClick={enterLockedView} title="Show only the board and lock its view"><Lock size={16}/><span>Lock fullscreen</span></button></header>
     <div className="detective-toolbar" role="toolbar" aria-label="Wall tools">
       <button type="button" onClick={openPageFaviconPicker} title="Change this board’s tab icon color" aria-label="Tab icon color"><Palette size={16}/>Tab color</button>
+      <button type="button" aria-expanded={showStops} onClick={() => setShowStops(value => !value)}>Presentation stops</button>
       <button type="button" onClick={openSampleBoards} title="Browse sample boards" aria-label="Browse sample boards"><BookOpen size={16}/>Sample boards</button>
       <div className="detective-wall-colors" role="group" aria-label="Board colors">
         {WALL_COLORS.map(([key,label,fallback])=><label key={key} className="detective-color">{label}

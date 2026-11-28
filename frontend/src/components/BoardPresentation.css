@@ -1,0 +1,38 @@
+.board-stop-panel, .board-stop-player {
+  position: absolute; z-index: 75; color: var(--text-primary); background: var(--surface-panel);
+  border: 1px solid var(--border-strong); border-radius: 12px; box-shadow: 0 10px 35px #0006;
+}
+.board-stop-panel {
+  top: max(82px, env(safe-area-inset-top)); right: 12px; width: min(350px, calc(100% - 24px));
+  max-height: min(65dvh, calc(100% - 88px)); overflow: auto; overscroll-behavior: contain; padding: 12px;
+}
+.board-stop-player {
+  bottom: max(72px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%);
+  width: max-content; max-width: calc(100% - 24px); padding: 8px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+}
+.board-stop-panel header, .board-stop-actions, .board-stop-panel form { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.board-stop-panel header { justify-content: space-between; margin-bottom: 8px; }
+.board-stop-panel h2, .board-stop-player strong { font-size: 14px; font-weight: 650; overflow-wrap: anywhere; }
+.board-stop-panel p, .board-stop-player small, .board-stop-panel small { display: block; color: var(--text-secondary); font-size: 12px; }
+.board-stop-panel p { margin: 8px 0; }
+.board-stop-panel [role=alert], .board-stop-player [role=alert] { color: var(--danger, #f5a3a3); }
+.board-stop-panel button, .board-stop-player button, .board-stop-panel input {
+  display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 34px; padding: 5px 8px;
+  border: 1px solid var(--border-strong); background: var(--surface-input); color: var(--text-primary); border-radius: 6px; font-size: 12px;
+}
+.board-stop-panel button:disabled, .board-stop-player button:disabled { opacity: .45; }
+.board-stop-panel button:hover:not(:disabled), .board-stop-player button:hover:not(:disabled) { background: var(--surface-raised); }
+.board-stop-panel ol { list-style: none; padding: 0; margin: 10px 0 0; }
+.board-stop-panel li { border-top: 1px solid var(--border); padding: 7px 0; }
+.board-stop-panel .board-stop-preview { width: 100%; justify-content: space-between; text-align: left; margin-bottom: 5px; overflow-wrap: anywhere; }
+.board-stop-panel form { margin: 8px 0; }
+.board-stop-panel form label { display: grid; gap: 3px; width: 100%; font-size: 12px; }
+.board-stop-panel [aria-label="Close presentation stops"] { flex: none; }
+.board-stop-player > div { max-width: min(190px, 40vw); margin: 0 4px; }
+.detective-editor.is-presenting-board > :is(.detective-header, .detective-toolbar, .detective-hint, .detective-board-zoom, .detective-focus-controls, .detective-properties),
+.pdf-editor.is-presenting-board > .pdf-chrome {
+  visibility: hidden;
+}
+.pdf-editor.is-presenting-board :is(.pdf-workspace-footer, .pdf-whiteboard-extend, .pdf-continuous-label button) {
+  visibility: hidden;
+}

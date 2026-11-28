@@ -1,3 +1,5 @@
+import BoardPresentation from './BoardPresentation'
+import { useWhiteboardPresentation } from '../lib/useWhiteboardPresentation'
 import BoardPinTask from './BoardPinTask'
 import DocumentShareMessage from './DocumentShareMessage'
 import { featureVisible } from '../lib/featureVisibility'
@@ -588,6 +590,9 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     if (response.ok && (options.method || 'GET') !== 'GET') sharedRevision.current = response.headers.get('X-Share-Revision') || sharedRevision.current
     return response
   }
+  const [showStops, setShowStops] = useState(false)
+  const [presenting, setPresenting] = useState(false)
+  const [presentationTarget, setPresentationTarget] = useState(null)
   const [taskNote, setTaskNote] = useState(null)
   const [pinTaskId, setPinTaskId] = useState(null)
   const focusedPin = useRef(null)
@@ -696,6 +701,9 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   useEffect(()=>{try{localStorage.setItem('pdf-editor-show-clock',String(showClock))}catch{}},[showClock])
   const [continuousPreference,setContinuousView]=useState(()=>{try{return localStorage.getItem('pdf-editor-continuous')!=='false'}catch{return true}})
   const isWhiteboard=pdfData?.documentKind==='whiteboard'
+  const stopUrl = isWhiteboard && (token || shareToken)
+    ? (shareToken ? '/api/shared-document/' + shareToken : '/api/pdfs/' + pdfId) + '/presentation-stops' : null
+  const presentation = useWhiteboardPresentation(stopUrl, token, pdfFile)
   const boardAppearance=pdfData?.whiteboardAppearance??DEFAULT_WHITEBOARD_APPEARANCE
   const mergeWhiteboardAppearance=useCallback(appearance=>{
     if(!appearance)return
@@ -2003,7 +2011,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
 
   const activateContinuousPage=(n,{automatic=false,page:loadedPage=null}={})=>{
     if(n===pageNumber||deletingPageRef.current||insertingRef.current||isDrawingRef.current||isErasingRef.current||calculationDrag.current||annotationPointerRef.current!==null||dragRef.current)return
-    if(automatic&&(inputActivity!=='idle'||activeTextIdRef.current))return
+    if(automatic&&(inputActivity!=='idle'||activeTextIdRef.current||presentationTarget))return
     handleTextDragEnd();commitText();setSelectedInsertId(null);if(loadedPage)onPageLoadSuccess(loadedPage);setPageNumber(n)
   }
 
@@ -2259,7 +2267,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     'nudge-left': () => nudgeSelected(-2,0), 'nudge-right': () => nudgeSelected(2,0), 'nudge-up': () => nudgeSelected(0,-2), 'nudge-down': () => nudgeSelected(0,2),
     'pdf-quick-actions': openQuickActions,
     'pdf-close': () => { if (showSettings) setShowSettings(false); else if(writingNoteId&&writingOnNote(selectedInsertId))setWritingNoteId(null); else handleClose() },
-  }, !loading && !deletingPage && !confirmation.pending && !liveInk.accessRevoked && !accessDenied && !showQuickActions)
+  }, !loading && !deletingPage && !confirmation.pending && !liveInk.accessRevoked && !accessDenied && !showQuickActions && !presenting)
 
   const handleStylusButton=(event,phase)=>{
     if(event.pointerType!=='pen')return
@@ -2609,6 +2617,73 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     return () => cancelAnimationFrame(frame)
   }, [focusPin, loading, pdfData, numPages, drawingPaths, isWhiteboard, bookView, pageNumber, ready])
 
+  const captureStop = () => {
+    const viewer = viewerRef.current
+    if (!viewer || !ready || bookView || pinchZoomRef.current || presentationTarget) return null
+    const bounds = viewer.getBoundingClientRect()
+    const x = bounds.left + viewer.clientWidth / 2
+    const y = bounds.top + viewer.clientHeight / 2
+    let closest
+    for (const surface of viewer.querySelectorAll('.pdf-page-surface[data-presence-page]')) {
+      const rect = surface.getBoundingClientRect()
+      if (!rect.width || !rect.height) continue
+      const distance = Math.hypot(Math.max(rect.left - x, 0, x - rect.right), Math.max(rect.top - y, 0, y - rect.bottom))
+      if (!closest || distance < closest.distance) closest = { surface, rect, distance }
+    }
+    if (!closest) return null
+    const { surface, rect } = closest
+    const unit = value => Math.max(0, Math.min(1, value))
+    return {
+      page: Number(surface.dataset.presencePage), rotation, zoom: scale,
+      u: unit((x - rect.left) / rect.width), v: unit((y - rect.top) / rect.height),
+    }
+  }
+
+  const visitStop = stop => {
+    if (!numPages || stop.page > numPages || deletingPageRef.current || insertingRef.current) return false
+    handleTextDragEnd()
+    commitText()
+    setSelectedInsertId(null)
+    setCurrentTool('read')
+    setPageLocked(false)
+    setBookView(false)
+    whiteboardScrollTarget.current = null
+    setPageNumber(stop.page)
+    setRotation(stop.rotation)
+    setScale(stop.zoom)
+    setPresentationTarget({ ...stop })
+  }
+
+  useLayoutEffect(() => {
+    if (!presentationTarget || bookView) return
+    const deadline = performance.now() + 4000
+    let frame
+    const align = () => {
+      const viewer = viewerRef.current
+      const surface = viewer?.querySelector('.pdf-page-surface[data-presence-page="' + presentationTarget.page + '"]')
+      if (surface && ready) {
+        const rect = viewer.getBoundingClientRect()
+        anchorPinch({ surface, u: presentationTarget.u, v: presentationTarget.v,
+          center: { x: rect.left + viewer.clientWidth / 2, y: rect.top + viewer.clientHeight / 2 } })
+        setPresentationTarget(null)
+      } else if (performance.now() < deadline) frame = requestAnimationFrame(align)
+      else {
+        setPresentationTarget(null)
+        setActionError('This presentation stop could not be positioned. Try again once the section loads.')
+      }
+    }
+    frame = requestAnimationFrame(align)
+    return () => cancelAnimationFrame(frame)
+  }, [presentationTarget, ready, bookView, scale, rotation, continuousView])
+
+  useEffect(() => {
+    if (!stopUrl || accessDenied || liveInk.accessRevoked) {
+      setShowStops(false)
+      setPresenting(false)
+      setPresentationTarget(null)
+    }
+  }, [stopUrl, accessDenied, liveInk.accessRevoked])
+
   const quarterTurn = rotation % 180 !== 0
   const renderW = ready ? (quarterTurn ? pageBase.h : pageBase.w) * scale : 0
   const renderH = ready ? (quarterTurn ? pageBase.w : pageBase.h) * scale : 0
@@ -2802,7 +2877,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   )
 
   return (
-    <div ref={editorRootRef} style={isWhiteboard?whiteboardAppearanceStyle(boardAppearance,scale):undefined} data-hidden-editor={Object.keys(editorVisibility).filter(key=>!editorVisibility[key]).join(' ')} className={cn("pdf-editor fixed inset-0 bg-slate-950 flex flex-col z-50",focusMode&&"pdf-focus-mode",zenMode&&"pdf-zen-mode",isWhiteboard&&"pdf-whiteboard","pdf-touch-tracked",fingerScroll&&"pdf-finger-scroll",currentTool==='read'&&'pdf-reading-mode')} role="region" aria-label="Visual document editor" aria-busy={deletingPage} onPointerDownCapture={e => { if (deletingPage && !e.target.closest('.document-access-notice')) { e.preventDefault(); e.stopPropagation() } }} onKeyDownCapture={e => { if (deletingPage && !e.target.closest('.document-access-notice')) { e.preventDefault(); e.stopPropagation() } }}>
+    <div ref={editorRootRef} style={isWhiteboard?whiteboardAppearanceStyle(boardAppearance,scale):undefined} data-hidden-editor={Object.keys(editorVisibility).filter(key=>!editorVisibility[key]).join(' ')} className={cn("pdf-editor fixed inset-0 bg-slate-950 flex flex-col z-50",focusMode&&"pdf-focus-mode",zenMode&&"pdf-zen-mode",isWhiteboard&&"pdf-whiteboard",presenting&&"is-presenting-board","pdf-touch-tracked",fingerScroll&&"pdf-finger-scroll",currentTool==='read'&&'pdf-reading-mode')} role="region" aria-label="Visual document editor" aria-busy={deletingPage} onPointerDownCapture={e => { if (deletingPage && !e.target.closest('.document-access-notice')) { e.preventDefault(); e.stopPropagation() } }} onKeyDownCapture={e => { if (deletingPage && !e.target.closest('.document-access-notice')) { e.preventDefault(); e.stopPropagation() } }}>
       {deletingPage && <div className="inline-operation-status" role="status"><Loader2 className="animate-spin" size={17} />Updating pages…</div>}
       {taskNote && <BoardPinTask token={token || shareCredential} kind="whiteboard" boardId={pdfId} note={taskNote}
         beforeSave={saveAnnotations} onClose={() => setTaskNote(null)}
@@ -2811,6 +2886,11 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         <a className="underline" href={'#/tasks/' + pinTaskId} target="_blank" rel="noopener noreferrer">Open task</a>
         <button type="button" aria-label="Dismiss task notice" onClick={() => setPinTaskId(null)}><X size={16}/></button>
       </div>}
+      {showStops && stopUrl && !accessDenied && !liveInk.accessRevoked && <BoardPresentation
+        stops={presentation.stops} loading={presentation.loading} loadError={presentation.error} onReload={presentation.reload}
+        onChange={token && !shareToken ? presentation.save : undefined} capture={captureStop} visit={visitStop}
+        disabled={!numPages || deletingPage || inserting || !!presentationTarget}
+        onPresent={setPresenting} onClose={() => setShowStops(false)}/>}
       <InlineConfirmation {...confirmation} />
       {quickActionNotice&&<div className="inline-operation-status" role="status">{quickActionNotice}</div>}
       {canOpenQuickActions&&showQuickActions&&<PDFQuickActions hiddenFeatures={hiddenFeatures} token={token} onSaved={setQuickActionNotice} onTaskCreated={onTaskCreated} onClose={()=>setShowQuickActions(false)}/>}
@@ -2824,6 +2904,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         onBookView={()=>{handleTextDragEnd();commitText();setPageLocked(false);setBookView(previous=>!previous)}}
         searchActions={searchActions}
         showGlobalSearch={available('global-search')}
+        onPresentation={stopUrl && !accessDenied && !liveInk.accessRevoked ? () => setShowStops(value => !value) : undefined}
         whiteboardAppearance={isWhiteboard&&token&&!shareToken?<WhiteboardAppearance value={boardAppearance} onSave={saveWhiteboardAppearance}/>:null}
         onQuickActions={canOpenQuickActions?openQuickActions:undefined}
         onTutorial={available('tutorial') ? () => {
@@ -2866,7 +2947,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         <button type="button" onClick={toggleArrowCopy}>Turn off Arrow copy</button>
       </div>}
       {currentTool==='text'&&!exportImage&&<div className="pdf-existing-text-hint" role="status">Click existing text to replace it, or click blank space to add text. Scanned images need OCR first. Replacements cover the original on a white background; they do not redact the underlying text.</div>}
-      {currentTool==='read'&&!exportImage&&<div className="pdf-select-copy-bar"><span>{copyParagraphs?'Copy joins wrapped lines into paragraphs.':'Copy keeps original line breaks. Change this in View.'}</span><button type="button" disabled={copyAllBusy||!pdfFile} onClick={copyAllText}>{copyAllBusy?'Reading PDF…':'Copy all text'}</button>{copyAllStatus&&<span role="status">{copyAllStatus}</span>}</div>}
+      {currentTool==='read'&&!exportImage&&!presenting&&<div className="pdf-select-copy-bar"><span>{copyParagraphs?'Copy joins wrapped lines into paragraphs.':'Copy keeps original line breaks. Change this in View.'}</span><button type="button" disabled={copyAllBusy||!pdfFile} onClick={copyAllText}>{copyAllBusy?'Reading PDF…':'Copy all text'}</button>{copyAllStatus&&<span role="status">{copyAllStatus}</span>}</div>}
       {missingFont&&<div className="flex items-center gap-3 px-5 py-2 text-sm" role="status"><span>Font: {missingFont.replace(/^[A-Z]{6}\+/, '')}</span><label className="cursor-pointer underline">Use font file<input type="file" hidden accept=".ttf,.otf" onChange={async event=>{const file=event.target.files?.[0];event.target.value='';if(!file)return;try{if(file.size>10*1024*1024)throw new Error('Choose a font smaller than 10 MB.');const bytes=new Uint8Array(await file.arrayBuffer());const {default:fontkit}=await import('@pdf-lib/fontkit');fontkit.create(bytes);let binary='';for(let offset=0;offset<bytes.length;offset+=8192)binary+=String.fromCharCode(...bytes.subarray(offset,offset+8192));const fontData=btoa(binary),family=await replacementFontFace({fontData});updatePaths(previous=>previous.map(item=>item.textStyle?.fontName===missingFont?{...item,textStyle:{...item.textStyle,fontData,replacementFont:undefined,embedded:false,approximate:false,fontFamily:`"${family}"`}}:item));setActionError(null);setMissingFont(null)}catch(error){setActionError('Could not use this font: '+error.message)}}}/></label><button type="button" onClick={()=>setMissingFont(null)} aria-label="Hide font options"><X size={14}/></button></div>}
       {actionError && <div role="alert" className="flex items-center justify-between gap-3 bg-red-950 px-5 py-2 text-sm text-red-200">{actionError}<button onClick={() => setActionError(null)} aria-label="Dismiss error"><X size={16} /></button></div>}
       <div className={cn('pdf-editor-workspace flex flex-1 min-h-0 relative',darkPages&&'pdf-dark-pages')}>

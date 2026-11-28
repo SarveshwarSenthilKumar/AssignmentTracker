@@ -320,6 +320,8 @@ const pdfSchema = new mongoose.Schema({
   copiedFromName: { type: String, default: '' },
   documentKind: { type: String, enum: ['document','whiteboard'], default: 'document' },
   whiteboardAppearance: mongoose.Schema.Types.Mixed,
+  presentationStops: { type: [mongoose.Schema.Types.Mixed], default: undefined, select: false },
+  presentationRevision: { type: Number, default: 0, select: false },
   pdfData: {
     type: Buffer,
     required: true,
