@@ -1,3 +1,7 @@
+const { createHash, randomBytes } = require('node:crypto');
+const inviteHash = secret => createHash('sha256').update(secret).digest('hex');
+const validInvite = value => typeof value === 'string' && /^[A-Za-z0-9_-]{43}$/.test(value);
+
 const validId=value=>typeof value==='string'&&/^[a-f\d]{24}$/i.test(value);
 const pairKey=(a,b)=>[String(a).toLowerCase(),String(b).toLowerCase()].sort().join(':');
 const same=(a,b)=>String(a)===String(b);
@@ -15,7 +19,7 @@ module.exports=function registerFriendSharing(app,auth,{User,PDF,isLocked,collab
   const party=id=>({$or:[{sender:id},{recipient:id}]});
   const route=handler=>[auth,async(req,res)=>{
     res.set('Cache-Control','private, no-store');
-    if(Object.values(req.params).some(value=>!validId(value)))return res.status(404).json({message:'This item is unavailable.'});
+    if(Object.entries(req.params).some(([key,value])=>key==='secret'?!validInvite(value):!validId(value)))return res.status(404).json({message:'This item is unavailable.'});
     try{await handler(req,res);}
     catch{res.status(503).json({message:'Could not complete the sharing request.'});}
   }];
@@ -57,6 +61,72 @@ module.exports=function registerFriendSharing(app,auth,{User,PDF,isLocked,collab
     try{
       await Friendship.updateOne({_id:id},{$setOnInsert:{generation,sender:user,recipient:recipient._id,accepted:false}},{upsert:true});
     }catch(error){if(error.code!==11000)throw error;}
+    res.status(204).end();
+  }));
+
+  const inviteBase = '/api/friend-invites';
+  const inviteFields = { friendInviteHash: '', friendInviteExpiresAt: '' };
+  const activeInvite = secret => ({
+    ...activeAccount, friendInviteHash: inviteHash(secret), friendInviteExpiresAt: { $gt: new Date() },
+  });
+
+  app.get(inviteBase, ...route(async (req, res) => {
+    const account = await User.findById(req.user.userId).select('+friendInviteExpiresAt').lean();
+    const expiresAt = account?.friendInviteExpiresAt;
+    res.json({ expiresAt: expiresAt > new Date() ? expiresAt : null });
+  }));
+
+  app.post(inviteBase, ...route(async (req, res) => {
+    const secret = randomBytes(32).toString('base64url');
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const result = await User.updateOne({ _id: req.user.userId, ...activeAccount }, {
+      $set: { friendInviteHash: inviteHash(secret), friendInviteExpiresAt: expiresAt },
+    });
+    if (!result.matchedCount) return res.status(404).json({ message: 'This account is unavailable.' });
+    res.status(201).json({ path: '/friend-invite/' + secret, expiresAt });
+  }));
+
+  app.delete(inviteBase, ...route(async (req, res) => {
+    await User.updateOne({ _id: req.user.userId }, { $unset: inviteFields });
+    res.status(204).end();
+  }));
+
+  app.get(inviteBase + '/:secret', ...route(async (req, res) => {
+    const inviter = await User.findOne(activeInvite(req.params.secret)).select('username +friendInviteExpiresAt').lean();
+    if (!inviter) return res.status(404).json({ message: 'This invite has expired, been used, or been revoked.' });
+    if (same(inviter._id, req.user.userId)) return res.status(400).json({ message: 'Share this link with someone else to become friends.' });
+    const alreadyFriends = Boolean(await Friendship.exists({ _id: pairKey(inviter._id, req.user.userId), accepted: true }));
+    res.json({ username: inviter.username, expiresAt: inviter.friendInviteExpiresAt, alreadyFriends });
+  }));
+
+  app.post(inviteBase + '/:secret', ...route(async (req, res) => {
+    const recipient = req.user.userId;
+    const session = await User.db.startSession();
+    let outcome;
+    try {
+      await session.withTransaction(async () => {
+        const filter = activeInvite(req.params.secret);
+        const inviter = await User.findOne(filter).select('username').session(session).lean();
+        if (!inviter) { outcome = 'unavailable'; return; }
+        if (same(inviter._id, recipient)) { outcome = 'self'; return; }
+        if (!await User.exists({ _id: recipient, ...activeAccount }).session(session)) {
+          outcome = 'unavailable'; return;
+        }
+        const id = pairKey(inviter._id, recipient);
+        if (await Friendship.exists({ _id: id, accepted: true }).session(session)) {
+          outcome = 'accepted'; return;
+        }
+        const consumed = await User.updateOne({ _id: inviter._id, ...filter }, { $unset: inviteFields }, { session });
+        if (!consumed.matchedCount) { outcome = 'unavailable'; return; }
+        await Friendship.updateOne({ _id: id }, {
+          $setOnInsert: { generation: new Types.ObjectId(), sender: inviter._id, recipient },
+          $set: { accepted: true },
+        }, { upsert: true, session });
+        outcome = 'accepted';
+      });
+    } finally { await session.endSession(); }
+    if (outcome === 'self') return res.status(400).json({ message: 'You cannot accept your own invite.' });
+    if (outcome !== 'accepted') return res.status(404).json({ message: 'This invite has expired, been used, or been revoked.' });
     res.status(204).end();
   }));
 

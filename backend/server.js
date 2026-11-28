@@ -55,6 +55,8 @@ mongoose.connect(process.env.MONGODB_URI)
 const TERMS_VERSION='1.15';
 const PRIVACY_VERSION='1.14';
 const userSchema = new mongoose.Schema({
+  friendInviteHash: { type: String, select: false, index: { sparse: true } },
+  friendInviteExpiresAt: { type: Date, select: false },
   approvalPending: { type: Boolean, default: false },
   deactivatedAt: { type: Date, default: null },
   deactivatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },

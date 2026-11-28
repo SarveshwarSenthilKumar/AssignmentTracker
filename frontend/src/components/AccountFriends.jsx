@@ -1,3 +1,4 @@
+import { FriendInviteLink } from './FriendInvite'
 import {useRef,useState} from 'react'
 import useFriends,{friendRequest,refreshFriends} from '../hooks/useFriends'
 import './FriendSharing.css'
@@ -40,6 +41,7 @@ export default function AccountFriends({token}){
       </label>
       <button type="submit" disabled={busy||!identifier.trim()}>Send request</button>
     </form>
+    <FriendInviteLink token={token}/>
     <button type="button" disabled={loading} onClick={refreshFriends}>Refresh friends</button>
     {loading&&<p role="status">Loading friends…</p>}
     {(actionError||error)&&<p role="alert">{actionError||error}</p>}
