@@ -1,0 +1,21 @@
+.account-customization-tabs{display:flex;gap:5px;overflow-x:auto;margin-block:0 16px;padding:5px;border:1px solid var(--border);border-radius:var(--radius-panel);background:var(--surface-input)}
+.account-customization-tabs button{display:inline-flex;align-items:center;flex:none;gap:7px;padding:8px 12px;border-radius:var(--radius-control);color:var(--text-secondary);white-space:nowrap}
+.account-customization-tabs button[aria-selected=true]{background:var(--surface-raised);color:var(--accent);box-shadow:inset 0 0 0 1px var(--border-strong)}
+.account-customization-tabs button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.menu-customizer .menu-customizer-controls{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-block:12px}
+.menu-customizer .menu-page-search{display:grid;gap:5px}
+.menu-page-search input,.menu-card select{width:100%;min-width:0;padding:7px;border:1px solid var(--border);border-radius:var(--radius-control);background:var(--surface-input);color:var(--text-primary)}
+.menu-customizer-board{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-top:12px}
+.menu-column{display:grid;align-content:start;gap:7px;min-width:0;padding:9px;border:1px solid var(--border);border-radius:var(--radius-panel);background:var(--surface-input)}
+.menu-column h4{display:flex;align-items:center;gap:6px;margin:0;font-weight:650}
+.menu-column>p{font-size:12px;color:var(--text-muted)}
+.menu-card{display:grid;gap:5px;padding:8px;border:1px solid var(--border);border-radius:var(--radius-control);background:var(--surface-panel)}
+.menu-card strong{overflow-wrap:anywhere;font-size:13px}
+.menu-card small{color:var(--text-muted);font-size:11px}
+.menu-preview-pins{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-block:10px}
+.menu-preview-pins span{padding:3px 7px;border-radius:var(--radius-control);border:1px solid var(--border);font-size:12px}
+@media(max-width:670px){.menu-customizer-board{grid-template-columns:minmax(0,1fr)}}
+.menu-card-title{display:flex;align-items:center;gap:5px}
+.menu-card-grip{display:inline-flex;align-items:center;flex:none;color:var(--text-muted);cursor:grab;touch-action:none}
+.menu-card-grip:active{cursor:grabbing}
+.menu-column.is-drop-target{border-color:var(--accent);background:var(--surface-raised)}

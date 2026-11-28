@@ -1,3 +1,4 @@
+import AccountCustomization from './components/AccountCustomization'
 import NavigationMenuSettings from './components/NavigationMenuSettings'
 import TutorialWelcomeBanner from './components/TutorialWelcomeBanner'
 import TaskColumnSettings from './components/TaskColumnSettings'
@@ -2361,22 +2362,20 @@ function App({onFaviconPage}) {
             </section>
             <section className="account-settings-group" aria-labelledby="account-preferences-title">
               <h2 id="account-preferences-title">Preferences</h2>
-              <div className="account-settings-grid">
-                <AppearanceSettings/>
-                <InterfaceAppearanceSettings/>
-                <NavigationSettings/>
-                <NavigationMenuSettings/>
-                <SectionNewTabSettings/>
-                {unavailablePage && <p role="status">That section is turned off. You can restore it below.</p>}
-                <FeatureVisibilitySettings isAdmin={isAdmin} onSaved={unavailablePage ? ()=>navigate('account') : undefined}/>
-                <SetupBannerSettings/>
-                <BirthdaySettings/>
-                <TimeZoneSettings/>
-                <StudyPhoneSettings/>
-                <TaskDisplaySettings/>
-                <TaskColumnSettings/>
-                <ConfirmationSettings/>
-              </div>
+              <AccountCustomization
+                key={unavailablePage ? 'restore-visibility' : 'customization'}
+                initialCategory={unavailablePage ? 'visibility' : 'appearance'}
+                appearance={<><AppearanceSettings/><InterfaceAppearanceSettings/></>}
+                navigation={<><NavigationSettings/><NavigationMenuSettings/><SectionNewTabSettings/></>}
+                visibility={<>
+                  {unavailablePage && <p role="status">That section is turned off. You can restore it below.</p>}
+                  <FeatureVisibilitySettings isAdmin={isAdmin} onSaved={unavailablePage ? ()=>navigate('account') : undefined}/>
+                  <SetupBannerSettings/>
+                  <StudyPhoneSettings/>
+                </>}
+                tasks={<><TaskDisplaySettings/><TaskColumnSettings/></>}
+                general={<><BirthdaySettings/><TimeZoneSettings/><ConfirmationSettings/></>}
+              />
             </section>
             <section className="account-settings-group" aria-labelledby="account-integrations-title">
               <h2 id="account-integrations-title">Connections and AI</h2>
