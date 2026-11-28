@@ -2,7 +2,7 @@ const {createHash,createCipheriv,createDecipheriv,randomBytes}=require('node:cry
 const mongoose=require('mongoose');
 const {expired}=require('./shareLinkExpiry');
 
-module.exports=function registerSharedWithMe(app,auth,{PDF,User,PDFFolder,collaboratorAccess,isLocked,friends}){
+module.exports=function registerSharedWithMe(app,auth,{PDF,User,PDFFolder,collaboratorAccess,isLocked,friends,activity}){
   const schema=new mongoose.Schema({user:{type:mongoose.Schema.Types.ObjectId,required:true,index:true},document:{type:mongoose.Schema.Types.ObjectId,required:true},linkHash:String,link:String,visitedAt:Date});
   schema.index({user:1,document:1},{unique:true});
   const Receipt=PDF.db.models.SharedDocumentReceipt||PDF.db.model('SharedDocumentReceipt',schema);
@@ -13,7 +13,10 @@ module.exports=function registerSharedWithMe(app,auth,{PDF,User,PDFFolder,collab
   const remember=async(identity,file,token)=>{
     if(!identity.accountId||identity.owner)return;
     const filter={user:identity.accountId,document:file._id},update={$set:{linkHash:hash(token),link:encrypt(token),visitedAt:new Date()}};
-    try{await Receipt.updateOne(filter,update,{upsert:true});}catch(error){if(error.code!==11000)throw error;await Receipt.updateOne(filter,update);}
+    try {
+      const result = await Receipt.updateOne(filter, update, { upsert: true });
+      if (result.upsertedCount) await activity.record([identity.accountId], file, file.user, 'share', 'Shared a document link');
+    } catch(error) { if(error.code!==11000)throw error; await Receipt.updateOne(filter,update); }
   };
   app.post('/api/shared-with-me/documents',auth,async(req,res)=>{
     res.set('Cache-Control','no-store');
@@ -75,5 +78,17 @@ module.exports=function registerSharedWithMe(app,auth,{PDF,User,PDFFolder,collab
     for(const receipt of receipts){try{const token=decrypt(receipt.link);if(hash(token)===file.shareLinkHash)return token;}catch{}}
     return null;
   };
-  return {remember,recoverToken};
+  const linkFor = async (file, user) => {
+    if (!file.shareLinkHash || expired(file)) return null;
+    const receipt = await Receipt.findOne({ document: file._id, user, linkHash: file.shareLinkHash }).select('link').lean();
+    if (!receipt) return null;
+    try {
+      const token = decrypt(receipt.link);
+      return hash(token) === file.shareLinkHash ? '#/shared-document/' + token : null;
+    } catch { return null; }
+  };
+  const linkRecipients = file => file.shareLinkHash && !expired(file)
+    ? Receipt.distinct('user', { document: file._id, linkHash: file.shareLinkHash })
+    : Promise.resolve([]);
+  return {remember,recoverToken,linkFor,linkRecipients};
 };

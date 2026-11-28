@@ -4,7 +4,7 @@ const {unexpired,expired}=require('./shareLinkExpiry');
 
 // Pen previews are ephemeral; annotation changes from other tools are merged
 // into the same document before they are pushed to peers.
-module.exports = function registerLiveInk(app, auth, { PDF, isLocked, hashToken, validId, collaboratorAccess }) {
+module.exports = function registerLiveInk(app, auth, { PDF, isLocked, hashToken, validId, collaboratorAccess, activity }) {
   const sessions = new Map(), rooms = new Map();
   const emit = (session, event) => {
     if (session.res.writableEnded) return;
@@ -115,6 +115,9 @@ module.exports = function registerLiveInk(app, auth, { PDF, isLocked, hashToken,
       const result=await PDF.updateOne({_id:file._id,$or:[{user:req.user.userId},{documentAdmins:req.user.userId}],...protectedRoles},{$addToSet:{revokedCollaborators:{$each:blocked}},$pull:{documentAdmins:{$in:removedAdmins}},$set:{updatedAt:new Date()}});
       if(!result.matchedCount)return res.status(403).json({message:'Your document admin role changed. Reopen the collaborator list.'});
       for(const session of peers)if(!session.owner&&(blocked.includes(session.person)||blocked.includes(session.actor.browserPerson))){emit(session,{type:'revoked',message:'The owner revoked your access to this document.'});session.res.end();}
+      if (activity && result.modifiedCount && !(file.revokedCollaborators || []).includes(req.params.person)) {
+        await activity.record([...removedAdmins, ...targets.map(session => session.actor.accountId)], file, req.user.userId, 'access', 'Revoked your document access');
+      }
       sendRoster(String(file._id));
       res.status(204).end();
     } catch {res.status(503).json({message:'Could not revoke access. Please try again.'});}

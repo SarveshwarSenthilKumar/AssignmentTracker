@@ -8,7 +8,7 @@ const validId=value=>typeof value==='string'&&/^[a-f\d]{24}$/i.test(value);
 const pairKey=(a,b)=>[String(a).toLowerCase(),String(b).toLowerCase()].sort().join(':');
 const same=(a,b)=>String(a)===String(b);
 
-module.exports=function registerFriendSharing(app,auth,{User,PDF,isLocked,collaboratorAccess}){
+module.exports=function registerFriendSharing(app,auth,{User,PDF,isLocked,collaboratorAccess,activity}){
   const {Schema,Types}=PDF.db.base;
   const schema=new Schema({
     _id:String, generation:{type:Schema.Types.ObjectId,required:true,index:true},
@@ -179,6 +179,7 @@ module.exports=function registerFriendSharing(app,auth,{User,PDF,isLocked,collab
     if (!result.matchedCount && !await PDF.exists({ ...filter, friendShares: { $elemMatch: grant } })) {
       return res.status(404).json({ message: 'This document is unavailable.' });
     }
+    if (result.modifiedCount) await activity.record([recipient], file, user, 'share', 'Shared a file privately with you');
     res.status(204).end();
   }));
 
@@ -186,6 +187,7 @@ module.exports=function registerFriendSharing(app,auth,{User,PDF,isLocked,collab
     const result=await PDF.updateOne({_id:req.params.id,user:req.user.userId,deletedAt:null},
       {$pull:{friendShares:{recipient:req.params.recipient}}},{timestamps:false});
     if(!result.matchedCount)return res.status(404).json({message:'This document is unavailable.'});
+    if(result.modifiedCount)await activity.record([req.params.recipient],{_id:req.params.id},req.user.userId,'access','Removed your private access');
     res.status(204).end();
   }));
 

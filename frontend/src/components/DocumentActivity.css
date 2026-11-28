@@ -1,0 +1,13 @@
+.document-activity{display:grid;gap:14px;min-width:0;padding:16px;border:1px solid var(--border);border-radius:var(--radius-panel);background:var(--surface-panel);color:var(--text-primary)}
+.document-activity header,.document-activity-actions,.document-activity :is(h2,h3),.document-activity a{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.document-activity header{justify-content:space-between}
+.document-activity h2,.document-activity h3{font-weight:650}
+.document-activity a{color:var(--accent);text-decoration:underline;overflow-wrap:anywhere}
+.document-activity button,.document-activity textarea{padding:7px 9px;border:1px solid var(--border);border-radius:var(--radius-control);background:var(--surface-input);color:inherit}
+.document-activity textarea{display:block;width:100%;margin:5px 0 9px;resize:vertical}
+.document-activity ul{display:grid;gap:6px;list-style:none;padding:0;margin-top:8px}
+.document-activity li{display:flex;justify-content:space-between;align-items:start;gap:8px;min-width:0;padding:8px 0;border-bottom:1px solid var(--border)}
+.document-activity p,.document-activity time{color:var(--text-secondary);overflow-wrap:anywhere}
+.document-activity time{font-size:12px}
+.document-activity .document-comments li{display:block}
+.document-comments p{white-space:pre-wrap}

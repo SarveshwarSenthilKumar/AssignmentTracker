@@ -12,24 +12,26 @@ const editable = file => /\.(md|markdown|txt)$/i.test(file.originalName || '') &
 
 module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDFFolder, Todo, Folder }) {
   const collaboratorAccess = require('./documentCollaboratorAccess')({User});
-  const friends=require('./friendSharing')(app,auth,{User,PDF,collaboratorAccess,isLocked});
-  const received=require('./sharedWithMe')(app,auth,{PDF,User,PDFFolder,collaboratorAccess,isLocked,friends});
+  const activity = require('./documentActivity')(PDF, User);
+  const friends=require('./friendSharing')(app,auth,{User,PDF,collaboratorAccess,isLocked,activity});
+  const received=require('./sharedWithMe')(app,auth,{PDF,User,PDFFolder,collaboratorAccess,isLocked,friends,activity});
+  activity.register(app, auth, { isLocked, collaboratorAccess, friends, received, adminToken: file => expired(file) ? null : existingToken(file) });
   app.use('/api/shared-document/:token',async(req,res,next)=>{
     res.set('Cache-Control','private, no-store');
     if(!/^[A-Za-z0-9_-]{43}$/.test(req.params.token))return res.status(404).json({message:'This document link is unavailable.'});
     try {
-      const file=await PDF.findOne({shareLinkHash:hashToken(req.params.token),deletedAt:null}).select('_id user +revokedCollaborators +shareLinkSecret +shareLinkExpiresAt').lean();
+      const file=await PDF.findOne({shareLinkHash:hashToken(req.params.token),deletedAt:null}).select('_id user name pdfFolder +revokedCollaborators +shareLinkSecret +shareLinkExpiresAt').lean();
       if(!file)return res.status(404).json({message:'This document link is unavailable.'});
       if(expired(file))return res.status(410).json({code:'DOCUMENT_LINK_EXPIRED',message:'This document sharing link has expired. Ask the owner or a document admin to extend it.'});
       const identity=await collaboratorAccess.identify(req,res,file);
       if(collaboratorAccess.blocked(file,identity))return res.status(403).json({code:'DOCUMENT_ACCESS_REVOKED',message:'The owner revoked your access to this document.'});
       if(!file.shareLinkSecret)await PDF.updateOne({_id:file._id,shareLinkHash:hashToken(req.params.token),shareLinkSecret:{$exists:false}},{$set:{shareLinkSecret:seal(req.params.token)}});
-      if(req.method==='GET'&&req.path==='/editor')await received.remember(identity,file,req.params.token).catch(()=>{});
+      if(req.method==='GET'&&req.path==='/editor'&&!(await isLocked(file)))await received.remember(identity,file,req.params.token).catch(()=>{});
       next();
     } catch {res.status(503).json({message:'Could not verify document access.'});}
   });
   const sharedAccess=req=>({...collaboratorAccess.filter(req.documentCollaborator),...unexpired()});
-  const liveInk = require('./liveInk')(app, auth, { PDF, User, isLocked, hashToken, validId, collaboratorAccess });
+  const liveInk = require('./liveInk')(app, auth, { PDF, User, isLocked, hashToken, validId, collaboratorAccess, activity });
   const contentRevision = file => createHash('sha256').update(file.pdfData).digest('hex');
   const editorRevision=(file,annotations,bytes=file.pdfData)=>createHash('sha256').update(bytes)
     .update(JSON.stringify(annotations)).update(file.whiteboardAppearance?JSON.stringify(file.whiteboardAppearance):'').digest('hex');
@@ -143,7 +145,8 @@ module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDF
     const person=createHash('sha256').update(`${file._id}:account:${account._id}`).digest('hex').slice(0,24);
     if(enabled&&(file.revokedCollaborators||[]).includes(person))return res.status(400).json({message:'This account’s document access was revoked.'});
     const update=enabled?{$addToSet:{documentAdmins:account._id}}:{$pull:{documentAdmins:account._id}};
-    await PDF.updateOne({_id:file._id,user:req.user.userId},update);
+    const result = await PDF.updateOne({_id:file._id,user:req.user.userId},update,{timestamps:false});
+    if (result.modifiedCount) await activity.record([account._id], file, req.user.userId, enabled?'share':'access', enabled?'Made you a document admin':'Removed your document admin access');
     await liveInk.refreshRoles(file._id);
     res.json({username:account.username,role:enabled?'Admin':'Editor'});
   }));
@@ -191,14 +194,20 @@ module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDF
       if(!result)continue;
       if(current.shareLinkHash&&(current.shareLinkRole||'view')!==role)liveInk.revokeShared(file._id,role);
       await liveInk.refreshExpiry(file._id);
+      if (current.shareLinkHash && ((current.shareLinkRole || 'view') !== role || String(current.shareLinkExpiresAt || '') !== String(result.shareLinkExpiresAt || ''))) {
+        try {
+          await activity.record(await received.linkRecipients({ ...current, shareLinkExpiresAt: null }), { ...current, _id: file._id }, req.user.userId, 'access', 'Changed the share link permissions or expiration');
+        } catch {}
+      }
       return res.status(current.shareLinkHash?200:201).json({path:`#/shared-document/${token}`,role,expiresAt:result.shareLinkExpiresAt||null,shareMessage:result.shareLinkMessage||'',expired:expired(result)});
     }
     res.status(409).json({message:'Sharing settings changed at the same time. Please retry.'});
   }));
-  app.delete(path, ...ownerRoute(async (res, filter) => {
+  app.delete(path, ...ownerRoute(async (res, filter, file, req) => {
     const result=await PDF.updateOne(filter, { $unset: { shareLinkHash: 1, shareLinkSecret:1,shareLinkRole: 1,shareLinkExpiresAt:1,shareLinkMessage:1 } });
     if(!result.matchedCount)return res.status(403).json({message:'Your document sharing permissions changed.'});
     liveInk.revokeShared(filter._id);
+    try { await activity.record(await received.linkRecipients({ ...file, shareLinkExpiresAt: null }), file, req.user.userId, 'access', 'Revoked the document share link'); } catch {}
     res.status(204).end();
   }));
 
