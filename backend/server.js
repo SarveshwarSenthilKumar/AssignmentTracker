@@ -155,7 +155,10 @@ const User = mongoose.model('User', userSchema);
 const assistantCredentials = createAssistantCredentials(User);
 
 // Folder Schema
+const { stageUpdate, registerTaskStages } = require('./taskStages');
 const folderSchema = new mongoose.Schema({
+  stages: { type: [new mongoose.Schema({ id: String, name: String, complete: Boolean }, { _id: false })], default: [] },
+  stageRevision: { type: Number, default: 0 },
   taskShareHash: { type:String,select:false,index:{sparse:true} },
   taskShareSecret: { type:String,select:false },
   attachmentIds:[{type:mongoose.Schema.Types.ObjectId,ref:'PDF'}],
@@ -184,6 +187,7 @@ const Folder = mongoose.model('Folder', folderSchema);
 
 // Todo Schema
 const todoSchema = new mongoose.Schema({
+  stageId: { type: String, default: null },
   starred: { type: Boolean, default: false },
   progressTarget: { type: Number, default: null },
   restoredAt: { type: Date, default: null },
@@ -1173,11 +1177,12 @@ app.post('/api/task-dependencies', authenticateToken, async (req, res) => {
   } catch (error) { res.status(500).json({ message: 'Could not update the task connection.' }); }
 });
 
+registerTaskStages({ app, auth: authenticateToken, mongoose, Folder, Todo });
+
 app.post('/api/todos/reorder',authenticateToken,async(req,res)=>{
   const {ids,movedId,status}=req.body||{};
-  if(!Array.isArray(ids)||!ids.length||ids.length>10000||new Set(ids).size!==ids.length||ids.some(id=>typeof id!=='string'||!/^[a-f\d]{24}$/i.test(id))||!ids.includes(movedId)||!['todo','in-progress','completed'].includes(status))return res.status(400).json({message:'Choose valid tasks and a destination column.'});
+  if(!Array.isArray(ids)||!ids.length||ids.length>10000||new Set(ids).size!==ids.length||ids.some(id=>typeof id!=='string'||!/^[a-f\d]{24}$/i.test(id))||!ids.includes(movedId)||typeof status!=='string')return res.status(400).json({message:'Choose valid tasks and a destination column.'});
   const session=await mongoose.startSession();
-  const completedAt=status==='completed'?new Date():null;
   try{
     await session.withTransaction(async()=>{
       const count=await Todo.countDocuments({user:req.user.userId,_id:{$in:ids}}).session(session);
@@ -1185,7 +1190,8 @@ app.post('/api/todos/reorder',authenticateToken,async(req,res)=>{
       await User.updateOne({_id:req.user.userId},{$set:{taskSortBy:'manual'}},{session});
       await Todo.bulkWrite(ids.map((id,index)=>({updateOne:{filter:{_id:id,user:req.user.userId},update:{$set:{manualOrder:index}}}})),{session});
       const current=await Todo.findOne({_id:movedId,user:req.user.userId}).session(session);
-      if(current.status!==status)await Todo.updateOne({_id:movedId,user:req.user.userId},{$set:{status,completedAt}},{session});
+      const stage = await stageUpdate(Folder, current, status, session);
+      await Todo.updateOne({_id:movedId,user:req.user.userId},{$set:stage},{session});
     });
     res.json({ids,task:await Todo.findOne({_id:movedId,user:req.user.userId})});
   }catch(error){res.status(409).json({message:error.message||'Could not save task order.'});}finally{await session.endSession();}
@@ -1235,15 +1241,6 @@ app.put('/api/todos/:id', authenticateToken, async (req, res) => {
     const { status, description, links, text, dueDate } = req.body;
     const updateData = {};
     if(req.body.scheduledDate!==undefined){try{updateData.scheduledDate=taskSchedule(req.body.scheduledDate)}catch(error){return res.status(400).json({message:error.message})}}
-    if (status !== undefined) {
-      updateData.status = status;
-      // Set completedAt when status changes to 'completed', clear it otherwise
-      if (status === 'completed') {
-        updateData.completedAt = new Date();
-      } else {
-        updateData.completedAt = null;
-      }
-    }
     if (description !== undefined) updateData.description = description;
     if (links !== undefined) updateData.links = links;
     if (text !== undefined) updateData.text = text;
@@ -1254,17 +1251,26 @@ app.put('/api/todos/:id', authenticateToken, async (req, res) => {
     }
 
     if(req.body.calendarAllDay!==undefined){try{Object.assign(updateData,taskDueDate(req.body))}catch(error){return res.status(400).json({message:error.message})}}
-    const todo = await Todo.findOneAndUpdate(
-      { _id: req.params.id, user: req.user.userId },
-      updateData,
-      { new: true }
-    );
+    const filter = { _id: req.params.id, user: req.user.userId };
+    let todo;
+    if (status === undefined) {
+      todo = await Todo.findOneAndUpdate(filter, updateData, { new: true });
+    } else {
+      const session = await mongoose.startSession();
+      try {
+        await session.withTransaction(async () => {
+          const current = await Todo.findOne(filter).session(session);
+          todo = current && await Todo.findOneAndUpdate(filter,
+            { ...updateData, ...await stageUpdate(Folder, current, status, session) }, { new: true, session });
+        });
+      } finally { await session.endSession(); }
+    }
     if (!todo) {
       return res.status(404).json({ message: 'Todo not found' });
     }
     res.json(todo);
   } catch (error) {
-    res.status(500).json({ message: 'Error updating todo', error: error.message });
+    res.status(error.status || 500).json({ message: error.status ? error.message : 'Error updating todo', error: error.message });
   }
 });
 
@@ -1298,7 +1304,7 @@ app.delete('/api/todos/folder/:folderId', authenticateToken, async (req, res) =>
   try {
     const { status } = req.query;
     const filter = { folder: req.params.folderId, user: req.user.userId };
-    if (status) filter.status = status;
+    if (status) Object.assign(filter, { status, stageId: null });
 
     const result = await deleteTasksAndConnections(filter);
     res.json({ message: `Deleted ${result.deletedCount} tasks from folder`, deletedCount: result.deletedCount, undoId: result.undoId });

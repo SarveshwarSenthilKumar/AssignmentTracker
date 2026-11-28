@@ -36,6 +36,7 @@ function completeReachedGoal() {
   ] };
   return { $set: {
     status: { $cond: [reached, 'completed', '$status'] },
+    stageId: { $cond: [reached, null, '$stageId'] },
     completedAt: { $cond: [reached, '$$NOW', '$completedAt'] }
   } };
 }

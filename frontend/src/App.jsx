@@ -7,6 +7,8 @@ import NavigationMenuSettings from './components/NavigationMenuSettings'
 import TutorialWelcomeBanner from './components/TutorialWelcomeBanner'
 import TaskColumnSettings from './components/TaskColumnSettings'
 import { taskColumnNames } from './lib/taskColumnNames'
+import { nextTaskStage, taskStageId, taskFolder, taskStageLabel, taskStages } from './lib/taskStages'
+import TaskStageSettings from './components/TaskStageSettings'
 import InterfaceAppearanceSettings from './components/InterfaceAppearanceSettings'
 import SectionNewTabSettings, { SectionNewTabButton } from './components/SectionNewTabSettings'
 import NavigationSettings from './components/NavigationSettings'
@@ -693,10 +695,7 @@ function App({onFaviconPage}) {
   const cycleTodoStatus = async (id) => {
     const todo = todos.find(t => t._id === id)
     if(!todo||statusUpdateLocks.current.has(id))return
-    const statusOrder = ['todo', 'in-progress', 'completed']
-    const currentIndex = statusOrder.indexOf(todo.status)
-    const nextStatus = statusOrder[(currentIndex + 1) % statusOrder.length]
-    await updateTodoStatus(id, nextStatus)
+    await updateTodoStatus(id, nextTaskStage(todo, folders, columnNames).id)
   }
 
   const beginTaskPointerDrag=useTaskPointerDrag({
@@ -706,23 +705,27 @@ function App({onFaviconPage}) {
   })
   const reorderTasks=async(moving,target,status,position)=>{
     if(reorderLock.current||sortSaveLock.current||moving._id===target?._id)return
+    const destination = !boardFolder && status === moving.status ? taskStageId(moving) : status
+    const stage = taskStages(taskFolder(moving, folders), columnNames).find(item => item.id === destination)
+    if (!stage) return
+    const canonicalStatus = stage.complete ? 'completed' : status === 'todo' ? 'todo' : 'in-progress'
     reorderLock.current=true;setReordering(true)
     const visibleCompleted=getSortedTodos(todos.filter(task=>task.status==='completed'),...(completedSort==='main'?[]:completedSort.split(':')))
     let completedIndex=0
     const ordered=getSortedTodos(todos).map(task=>task.status==='completed'?visibleCompleted[completedIndex++]:task).filter(task=>task._id!==moving._id)
-    let index=target?ordered.findIndex(task=>task._id===target._id):ordered.reduce((last,task,i)=>task.status===status?i+1:last,ordered.length)
+    let index=target?ordered.findIndex(task=>task._id===target._id):ordered.reduce((last,task,i)=>(boardFolder ? taskStageId(task) : task.status)===status?i+1:last,ordered.length)
     if(target&&position==='after')index++
     ordered.splice(Math.max(0,index),0,moving)
     const ids=ordered.map(task=>task._id)
     const previousSort=sortBy
     const previousCompletedSort=completedSort
-    const previousOrder=new Map(todos.map(task=>[task._id,{manualOrder:task.manualOrder,status:task.status,completedAt:task.completedAt}]))
+    const previousOrder=new Map(todos.map(task=>[task._id,{manualOrder:task.manualOrder,status:task.status,stageId:task.stageId,completedAt:task.completedAt}]))
     const optimisticRanks=new Map(ids.map((id,index)=>[id,index]))
     setSortBy('manual')
-    if(status==='completed')setCompletedSort('manual:asc')
-    setTodos(previous=>previous.map(task=>({...task,manualOrder:optimisticRanks.get(task._id)??task.manualOrder,...(task._id===moving._id&&task.status!==status?{status,completedAt:status==='completed'?new Date().toISOString():null}:{})})))
+    if(stage.complete)setCompletedSort('manual:asc')
+    setTodos(previous=>previous.map(task=>({...task,manualOrder:optimisticRanks.get(task._id)??task.manualOrder,...(task._id===moving._id?{status:canonicalStatus,stageId:destination.startsWith('stage-')?destination:null,completedAt:stage.complete?(task.completedAt||new Date().toISOString()):null}:{})})))
     try{
-      const response=await fetch('/api/todos/reorder',{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({ids,movedId:moving._id,status})})
+      const response=await fetch('/api/todos/reorder',{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({ids,movedId:moving._id,status:destination})})
       const data=await readApiJson(response)
       if(!response.ok)throw new Error(data.message||'Could not save task order. Restart the updated backend.')
       if(!Array.isArray(data.ids)||!data.task)throw new Error('Unexpected task order response. Refresh your tasks.')
@@ -731,7 +734,7 @@ function App({onFaviconPage}) {
       setSortBy('manual');updatePreferences({taskSortBy:'manual'})
     }catch(error){
       setTodos(previous=>previous.map(task=>({...task,...(previousOrder.get(task._id)||{})})))
-      setSortBy(previousSort);if(status==='completed')setCompletedSort(previousCompletedSort);setError(error.message)
+      setSortBy(previousSort);if(stage.complete)setCompletedSort(previousCompletedSort);setError(error.message)
     }finally{reorderLock.current=false;setReordering(false)}
   }
 
@@ -1038,7 +1041,7 @@ function App({onFaviconPage}) {
             type="button"
             disabled={updatingStatusIds.has(todo._id)||bulkDeleting||reordering}
             aria-busy={updatingStatusIds.has(todo._id)}
-            aria-label={`${todo.text}: ${todo.status==='completed'?'mark to do':todo.status==='in-progress'?'mark completed':'mark in progress'}`}
+            aria-label={`${todo.text}: move to ${nextTaskStage(todo, folders, columnNames).name}`}
             onPointerDown={event=>event.stopPropagation()}
             onClick={(e) => { e.stopPropagation(); cycleTodoStatus(todo._id) }}
             className="task-status-hitbox"
@@ -1049,6 +1052,7 @@ function App({onFaviconPage}) {
 
           <div className="flex-1 min-w-0">
             <div className={cn("task-title-row flex items-center gap-2",showFullTaskTitles&&"show-full-titles")}>
+              {!isEditing && todo.stageId && !boardFolder && <span className="rounded bg-white/10 px-2 py-0.5 text-xs text-slate-300">{taskStageLabel(todo, folders, columnNames)}</span>}
               {isEditing ? (
                 <input
                   type="text"
@@ -1353,7 +1357,9 @@ function App({onFaviconPage}) {
       }
       const result=await readApiJson(response),parentId=result.parentId||null
       setFolders(previous=>previous.filter(f => f._id !== id).map(folder=>folder.parentId===id?{...folder,parentId}:folder))
-      setTodos(previous=>previous.map(task=>task.folder===id?{...task,folder:parentId}:task))
+      const moveTask = task => (task?.folder?._id || task?.folder) === id ? { ...task, folder: parentId, stageId: null } : task
+      setTodos(previous=>previous.map(moveTask))
+      setSelectedTask(moveTask)
       if (selectedFolder === id) setSelectedFolder(parentId)
       setContextMenu(null)
     } catch (err) {
@@ -1682,6 +1688,9 @@ function App({onFaviconPage}) {
   }
 
   const taskSearchTerms=normalizeCommandText(taskSearch.trim()).split(/\s+/).filter(Boolean)
+  const stageFolder = !inStarredTasks && folders.find(folder => folder._id === selectedFolder)
+  const boardFolder = stageFolder && !(taskSearchTerms.length && taskSearchAll) ? stageFolder : null
+  const boardStages = taskStages(boardFolder, columnNames).filter(stage => showInProgressColumn || stage.id !== 'in-progress')
   const folderTodos=inStarredTasks?todos.filter(task=>task.starred):selectedFolder==='all'?todos:selectedFolder?todos.filter(task=>(task.folder?._id||task.folder)===selectedFolder):todos.filter(task=>!task.folder)
   const taskSearchPool=taskSearchTerms.length&&taskSearchAll&&!inStarredTasks?todos:folderTodos
   const filteredTodos=getSortedTodos(taskSearchPool.filter(task=>{
@@ -2126,12 +2135,25 @@ function App({onFaviconPage}) {
 
         <p className="task-reorder-hint" role="status">{savingSort?'Saving sort preference…':reordering?'Saving task order…':'Default: earliest due date first, then newest created; tasks without dates come last. Dragging switches to Custom order and saves it to your account. Drag a task above or below another to arrange it. Scroll with your mouse wheel or trackpad, or hold near the top or bottom for automatic scrolling. Drop into another column to change its status.'}</p>
         {!loading&&filteredTodos.length>0&&<div className={cn("task-bulk-actions",filteredTodos.some(task=>selectedTaskIds.has(task._id))&&"has-selection")} role="group" aria-label="Bulk task actions"><label><input type="checkbox" disabled={bulkDeleting} checked={filteredTodos.every(task=>selectedTaskIds.has(task._id))} ref={element=>{if(element)element.indeterminate=filteredTodos.some(task=>selectedTaskIds.has(task._id))&&!filteredTodos.every(task=>selectedTaskIds.has(task._id))}} onChange={event=>setSelectedTaskIds(event.target.checked?new Set(filteredTodos.map(task=>task._id)):new Set())}/>Select all</label><span className="task-selection-count" aria-live="polite">{filteredTodos.filter(task=>selectedTaskIds.has(task._id)).length} selected</span><div className="task-selection-actions"><button className="task-selection-delete" type="button" disabled={bulkDeleting||!filteredTodos.some(task=>selectedTaskIds.has(task._id))} onClick={deleteSelectedTasks}><Trash2 size={15}/>{bulkDeleting?'Deleting…':'Delete selected'}</button><button className="task-selection-clear" type="button" disabled={bulkDeleting||!selectedTaskIds.size} onClick={()=>setSelectedTaskIds(new Set())}><X size={14}/>Clear</button></div></div>}
+        {stageFolder && <TaskStageSettings key={stageFolder._id} folder={stageFolder} token={token} labels={columnNames} onSave={folder => {
+          setFolders(previous => previous.map(item => item._id === folder._id ? folder : item))
+          const stages = new Map(folder.stages.map(stage => [stage.id, stage]))
+          const reconcile = task => {
+            if (!task?.stageId || (task.folder?._id || task.folder) !== folder._id) return task
+            const stage = stages.get(task.stageId)
+            if (!stage) return { ...task, stageId: null }
+            const status = stage.complete ? 'completed' : 'in-progress'
+            return status === task.status ? task : { ...task, status, completedAt: stage.complete ? new Date().toISOString() : null }
+          }
+          setTodos(previous => previous.map(reconcile))
+          setSelectedTask(reconcile)
+        }}/>}
         {!loading && user?.showTaskStreaks !== false && <TaskStreaks tasks={todos} showContributionGraph={user?.showTaskContributionGraph !== false}/>}
         {loading ? (
           <div className="flex justify-center py-12">
             <Loader2 className="animate-spin text-primary-500" size={40} />
           </div>
-        ) : filteredTodos.length === 0 ? (
+        ) : filteredTodos.length === 0 && (!boardFolder?.stages?.length || taskSearchTerms.length > 0) ? (
           <div className="text-center py-12">
             <FileText size={34} className="mx-auto mb-4 text-slate-400"/>
             <p className="text-slate-400 text-lg">
@@ -2139,116 +2161,57 @@ function App({onFaviconPage}) {
             </p>
           </div>
         ) : (
-          <div className={cn("task-board grid grid-cols-1 gap-4",showInProgressColumn?"md:grid-cols-3":"md:grid-cols-2")}>
-            {/* Todo Tasks */}
-            <div
-              data-task-status="todo"
-              className={cn(
-                "rounded-2xl p-3 min-h-[150px]"
-              )}
-            >
-              <h2 className="text-base font-semibold text-white mb-3 flex items-center gap-2">
-                <span className="w-2 h-2 bg-primary-500 rounded-full "></span>
-                {columnNames.todo}{!showInProgressColumn && ' & ' + columnNames['in-progress']} ({filteredTodos.filter(t => t.status === 'todo'||(!showInProgressColumn&&t.status === 'in-progress')).length})
-              </h2>
-              <div className="space-y-2">
-                {filteredTodos.filter(t => t.status === 'todo'||(!showInProgressColumn&&t.status === 'in-progress')).length > 0 ? (
-                  filteredTodos.filter(t => t.status === 'todo'||(!showInProgressColumn&&t.status === 'in-progress')).map((todo) =>
-                    renderTaskCard(todo, {
-                      bg: 'bg-white/10',
-                      border: 'border border-white/10 hover:bg-white/15',
-                      button: 'border-slate-400 hover:border-primary-500',
-                      icon: null,
-                      text: 'text-white'
-                    })
-                  )
-                ) : (
-                  <div className="text-center py-6 text-slate-500 border-2 border-dashed border-slate-700 rounded-xl text-sm">
-                    Drop tasks here
-                  </div>
+          <div className={cn("task-board grid grid-cols-1 gap-4", showInProgressColumn ? "md:grid-cols-3" : "md:grid-cols-2")}>
+            {boardStages.map(stage => {
+              const stageFor = task => boardFolder && boardStages.some(column => column.id === taskStageId(task)) ? taskStageId(task) : task.status
+              const tasks = filteredTodos.filter(task => stageFor(task) === stage.id ||
+                (!showInProgressColumn && stage.id === 'todo' && stageFor(task) === 'in-progress'))
+              const ordered = stage.complete
+                ? getSortedTodos(tasks, ...(completedSort === 'main' ? [] : completedSort.split(':'))) : tasks
+              const color = stage.complete ? 'bg-green-500' : stage.id === 'todo' ? 'bg-primary-500' : stage.id === 'in-progress' ? 'bg-yellow-500' : 'bg-sky-500'
+              const statusColor = stage.complete ? {
+                bg: 'bg-green-500/10', border: 'border border-green-500/20 hover:bg-green-500/15',
+                button: 'bg-green-500 border-green-500 text-white hover:bg-green-600', icon: <Check size={16}/>, text: 'text-slate-400 line-through',
+              } : stage.id === 'in-progress' ? {
+                bg: 'bg-yellow-500/10', border: 'border border-yellow-500/20 hover:bg-yellow-500/15',
+                button: 'border-yellow-500 hover:border-yellow-400', icon: <div className="h-3 w-3 rounded-full bg-yellow-500"/>, text: 'text-white',
+              } : {
+                bg: 'bg-white/10', border: 'border border-white/10 hover:bg-white/15',
+                button: 'border-slate-400 hover:border-primary-500', icon: null, text: 'text-white',
+              }
+              return <div key={stage.id} data-task-status={stage.id} className="min-h-[150px] rounded-2xl p-3">
+                <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-white">
+                  <span className={cn('h-2 w-2 rounded-full', color)}/>
+                  {stage.name}{stage.id === 'todo' && !showInProgressColumn && ' & ' + columnNames['in-progress']} ({tasks.length})
+                  {stage.complete && stage.id !== 'completed' && <Check size={15} aria-label="Counts as complete"/>}
+                </h2>
+                {stage.id === 'completed' && (
+                  <label className="task-completed-sort">
+                    Sort completed:
+                    <select
+                      value={completedSort}
+                      onChange={event=>setCompletedSort(event.target.value)}
+                      className="task-sort-select"
+                    >
+                      <option value="completedAt:desc">Recently completed · default</option>
+                      <option value="main">Follow main sort</option>
+                      <option value="completedAt:asc">Oldest completed</option>
+                      <option value="dueDate:asc">Due date · earliest first</option>
+                      <option value="dueDate:desc">Due date · latest first</option>
+                      <option value="createdAt:desc">Newest created</option>
+                      <option value="createdAt:asc">Oldest created</option>
+                      <option value="text:asc">Name · A–Z</option>
+                      <option value="text:desc">Name · Z–A</option>
+                      <option value="manual:asc">Custom order</option>
+                    </select>
+                  </label>
                 )}
+                <div className="space-y-2">
+                  {ordered.length ? ordered.map(task => renderTaskCard(task, statusColor)) :
+                    <div className="rounded-xl border-2 border-dashed border-slate-700 py-6 text-center text-sm text-slate-500">Drop tasks here</div>}
+                </div>
               </div>
-            </div>
-
-            {/* In Progress Tasks */}
-            {showInProgressColumn&&<div
-              data-task-status="in-progress"
-              className={cn(
-                "rounded-2xl p-3 min-h-[150px]"
-              )}
-            >
-              <h2 className="text-base font-semibold text-yellow-400 mb-3 flex items-center gap-2">
-                <span className="w-2 h-2 bg-yellow-500 rounded-full "></span>
-                {columnNames['in-progress']} ({filteredTodos.filter(t => t.status === 'in-progress').length})
-              </h2>
-              <div className="space-y-2">
-                {filteredTodos.filter(t => t.status === 'in-progress').length > 0 ? (
-                  filteredTodos.filter(t => t.status === 'in-progress').map((todo) =>
-                    renderTaskCard(todo, {
-                      bg: 'bg-yellow-500/10',
-                      border: 'border border-yellow-500/20 hover:bg-yellow-500/15',
-                      button: 'border-yellow-500 hover:border-yellow-400',
-                      icon: <div className="w-3 h-3 bg-yellow-500 rounded-full " />,
-                      text: 'text-white'
-                    })
-                  )
-                ) : (
-                  <div className="text-center py-6 text-slate-500 border-2 border-dashed border-slate-700 rounded-xl text-sm">
-                    Drop tasks here
-                  </div>
-                )}
-              </div>
-            </div>}
-
-            {/* Completed Tasks */}
-            <div
-              data-task-status="completed"
-              className={cn(
-                "rounded-2xl p-3 min-h-[150px]"
-              )}
-            >
-              <h2 className="text-base font-semibold text-green-400 mb-3 flex items-center gap-2">
-                <span className="w-2 h-2 bg-green-500 rounded-full "></span>
-                {columnNames.completed} ({filteredTodos.filter(t => t.status === 'completed').length})
-              </h2>
-              <label className="task-completed-sort">
-                Sort completed:
-                <select
-                  value={completedSort}
-                  onChange={event=>setCompletedSort(event.target.value)}
-                  className="task-sort-select"
-                >
-                  <option value="completedAt:desc">Recently completed · default</option>
-                  <option value="main">Follow main sort</option>
-                  <option value="completedAt:asc">Oldest completed</option>
-                  <option value="dueDate:asc">Due date · earliest first</option>
-                  <option value="dueDate:desc">Due date · latest first</option>
-                  <option value="createdAt:desc">Newest created</option>
-                  <option value="createdAt:asc">Oldest created</option>
-                  <option value="text:asc">Name · A–Z</option>
-                  <option value="text:desc">Name · Z–A</option>
-                  <option value="manual:asc">Custom order</option>
-                </select>
-              </label>
-              <p className="mb-3 text-xs text-slate-400">Drag tasks to arrange them. Dropping here switches completed tasks to Custom order.</p>
-              <div className="space-y-2">
-                {filteredTodos.filter(t => t.status === 'completed').length > 0 ? (
-                  getSortedTodos(filteredTodos.filter(t => t.status === 'completed'),...(completedSort==='main'?[]:completedSort.split(':'))).map((todo) =>
-                    renderTaskCard(todo, {
-                      bg: 'bg-green-500/10',
-                      border: 'border border-green-500/20 hover:bg-green-500/15',
-                      button: 'bg-green-500 border-green-500 text-white hover:bg-green-600',
-                      icon: <Check size={16} />,
-                      text: 'text-slate-400 line-through'
-                    })
-                  )
-                ) : (
-                  <div className="text-center py-6 text-slate-500 border-2 border-dashed border-slate-700 rounded-xl text-sm">
-                    Drop tasks here
-                  </div>
-                )}
-              </div>
-            </div>
+            })}
           </div>
         )}
 
@@ -2533,7 +2496,7 @@ function App({onFaviconPage}) {
                   />
                 </div>
 
-                {commandTaskSearch&&<section aria-label="Task search results" className="rounded-xl border border-white/10 bg-white/5 p-3"><p role="status" className="mb-2 text-xs text-slate-400">{loading?'Loading tasks…':!commandTaskQuery?'Enter a task name, description, folder or ID.':`${commandTaskResults.length} matching tasks across all folders, including completed tasks.`}</p>{!loading&&commandTaskQuery&&<div className="max-h-64 space-y-2 overflow-y-auto">{commandTaskResults.slice(0,50).map(task=>{const folder=folders.find(folder=>folder._id===(task.folder?._id||task.folder));return <button key={task._id} type="button" onClick={()=>openCommandTask(task)} className="block w-full rounded-lg border border-white/10 p-3 text-left hover:bg-white/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-slate-400"><strong className="block break-words text-sm text-slate-200">{task.text}</strong><span className="mt-1 block text-xs text-slate-400">{folder?.name||'Inbox'} · {task.status?.replace(/_/g,' ')||'pending'} · {taskDueLabel(task)}</span></button>})}{!commandTaskResults.length&&<p className="text-sm text-slate-300">No tasks match. Try fewer words or a different name.</p>}{commandTaskResults.length>50&&<p className="text-xs text-slate-400">Showing the first 50 matches. Refine your search to find a specific task.</p>}</div>}</section>}
+                {commandTaskSearch&&<section aria-label="Task search results" className="rounded-xl border border-white/10 bg-white/5 p-3"><p role="status" className="mb-2 text-xs text-slate-400">{loading?'Loading tasks…':!commandTaskQuery?'Enter a task name, description, folder or ID.':`${commandTaskResults.length} matching tasks across all folders, including completed tasks.`}</p>{!loading&&commandTaskQuery&&<div className="max-h-64 space-y-2 overflow-y-auto">{commandTaskResults.slice(0,50).map(task=>{const folder=folders.find(folder=>folder._id===(task.folder?._id||task.folder));return <button key={task._id} type="button" onClick={()=>openCommandTask(task)} className="block w-full rounded-lg border border-white/10 p-3 text-left hover:bg-white/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-slate-400"><strong className="block break-words text-sm text-slate-200">{task.text}</strong><span className="mt-1 block text-xs text-slate-400">{folder?.name||'Inbox'} · {taskStageLabel(task, folders, columnNames)} · {taskDueLabel(task)}</span></button>})}{!commandTaskResults.length&&<p className="text-sm text-slate-300">No tasks match. Try fewer words or a different name.</p>}{commandTaskResults.length>50&&<p className="text-xs text-slate-400">Showing the first 50 matches. Refine your search to find a specific task.</p>}</div>}</section>}
                 <div className="bg-white/5 rounded-xl p-4">
                   <p className="text-slate-400 text-xs mb-2 font-medium">Available Commands:</p>
                   <ul className="text-slate-300 text-xs space-y-1">
@@ -2584,28 +2547,16 @@ function App({onFaviconPage}) {
 
               {/* Status */}
               <div className="mb-6">
-                <label className="block text-slate-400 text-sm mb-2">Status</label>
-                <div className="flex gap-2">
-                  {['todo', 'in-progress', 'completed'].map((status) => (
-                    <button
-                      key={status}
-                      onClick={() => {
-                        updateTodoStatus(selectedTask._id, status)
-                        setSelectedTask({ ...selectedTask, status })
-                      }}
-                      className={cn(
-                        "px-4 py-2 rounded-lg transition-all text-sm font-medium",
-                        selectedTask.status === status
-                          ? status === 'todo' && 'bg-primary-600 text-white'
-                          || status === 'in-progress' && 'bg-yellow-500 text-white'
-                          || status === 'completed' && 'bg-green-500 text-white'
-                          : 'bg-white/10 text-slate-400 hover:bg-white/20'
-                      )}
-                    >
-                      {columnNames[status]}
-                    </button>
-                  ))}
-                </div>
+                <label className="block text-sm text-slate-400">
+                  Stage
+                  <select className="mt-2 block w-full rounded-lg border border-white/10 bg-slate-800 p-2 text-white"
+                    value={taskStageId(selectedTask)} disabled={updatingStatusIds.has(selectedTask._id)}
+                    onChange={event => updateTodoStatus(selectedTask._id, event.target.value)}>
+                    {taskStages(taskFolder(selectedTask, folders), columnNames).map(stage =>
+                      <option key={stage.id} value={stage.id}>{stage.name}{stage.complete && stage.id !== 'completed' ? ' (counts as complete)' : ''}</option>
+                    )}
+                  </select>
+                </label>
               </div>
 
               <TaskProgress key={`progress:${selectedTask._id}`} task={todos.find(task=>task._id===selectedTask._id)||selectedTask} token={token} onSaved={saveProgressTask}/>

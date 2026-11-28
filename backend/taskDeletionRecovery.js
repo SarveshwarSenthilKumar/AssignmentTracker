@@ -1,3 +1,5 @@
+const { stageUpdate } = require('./taskStages');
+
 // Keep deletion snapshots outside the active task collection, so existing task
 // queries and integrations never mistake deleted tasks for active ones.
 module.exports = function createTaskDeletionRecovery({ mongoose, User, Todo, Folder, app, authenticateToken }) {
@@ -86,11 +88,23 @@ module.exports = function createTaskDeletionRecovery({ mongoose, User, Todo, Fol
         const record = await Recovery.findOne({ _id: req.params.id, user: req.user.userId, ...recoverable() }).session(session).lean();
         if (!record) { const error = new Error('This deletion is no longer available to restore.'); error.status = 404; throw error; }
         const folderIds = [...new Set(record.tasks.map(task => task.folder).filter(Boolean).map(String))];
-        const folders = new Set((await Folder.find({ user: req.user.userId, _id: { $in: folderIds } }).select('_id').session(session).lean()).map(folder => String(folder._id)));
+        const folders = new Map((await Folder.find({ user: req.user.userId, _id: { $in: folderIds } }).select('_id stages').session(session).lean()).map(folder => [String(folder._id), folder]));
         const active = await Todo.find({ user: req.user.userId }).select('_id').session(session).lean();
         const activeIds = new Set(active.map(task => String(task._id)));
         const validIds = new Set([...activeIds, ...record.tasks.map(task => String(task._id))]);
-        const tasks = record.tasks.filter(task => !activeIds.has(String(task._id))).map(task => ({ ...task, restoredAt: new Date(), folder: task.folder && folders.has(String(task.folder)) ? task.folder : null, dependsOn: (task.dependsOn || []).filter(id => validIds.has(String(id))) }));
+        const tasks = [];
+        for (const task of record.tasks) {
+          if (activeIds.has(String(task._id))) continue;
+          const folder = folders.get(String(task.folder));
+          const dependsOn = (task.dependsOn || []).filter(id => validIds.has(String(id)));
+          const restored = { ...task, restoredAt: new Date(), folder: folder?._id || null, dependsOn };
+          if (task.stageId) {
+            if (folder?.stages?.some(stage => stage.id === task.stageId)) {
+              Object.assign(restored, await stageUpdate(Folder, restored, task.stageId, session));
+            } else restored.stageId = null;
+          }
+          tasks.push(restored);
+        }
         if (tasks.length) await Todo.insertMany(tasks, { session });
         for (const edge of record.connections) {
           const dependencies = edge.dependsOn.filter(id => validIds.has(String(id)));

@@ -43,7 +43,7 @@ module.exports=function registerFolderHierarchy(app,auth,{mongoose,User,Folder,P
                 files.filter(file => sameFolder(file.pdfFolder, current._id)).map(file => ({ ...file, pdfFolder: parentId })), 'pdfFolder', 'document');
             }
             await Model.updateMany({user:owner,parentId:current._id},{$set:{parentId}},{session});
-            await Items.updateMany({user:owner,[field]:current._id},{$set:{[field]:parentId}},{session});
+            await Items.updateMany({user:owner,[field]:current._id},{$set:{[field]:parentId,...(Items===Todo&&{stageId:null})}},{session});
             await Model.deleteOne({_id:current._id,user:owner},{session});
             result={parentId,message:'Folder removed. Its contents and subfolders were kept and moved up one level.'};
           }
