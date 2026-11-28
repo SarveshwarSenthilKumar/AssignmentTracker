@@ -1,0 +1,17 @@
+.assignment-handoff{width:min(700px,calc(100% - 24px));max-height:calc(100dvh - 32px);overflow:auto;padding:clamp(14px,3vw,24px);border:1px solid var(--border-strong);border-radius:var(--radius-panel);background:var(--surface-panel);color:var(--text-primary)}
+.assignment-handoff::backdrop{background:#0008}
+.assignment-handoff header,.handoff-actions{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.assignment-handoff h2,.handoff-actions button{display:inline-flex;align-items:center;gap:7px}
+.assignment-handoff h2{font-size:19px;font-weight:650}
+.assignment-handoff :is(button,input:not([type=checkbox]),textarea){padding:8px;border:1px solid var(--border-strong);border-radius:var(--radius-control);background:var(--surface-input)}
+.assignment-handoff input:not([type=checkbox]),.assignment-handoff textarea{width:100%;min-width:0;color:inherit}
+.assignment-handoff button.handoff-primary{background:var(--accent-solid);color:#fff}
+.assignment-handoff form>label{display:grid;gap:5px;margin-top:12px}
+.assignment-handoff p{margin-block:10px;color:var(--text-secondary)}
+.handoff-pickers{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px}
+.handoff-selection,.handoff-preview{min-width:0;padding:10px;border:1px solid var(--border);border-radius:var(--radius-control)}
+.handoff-choices{display:grid;gap:5px;margin-top:7px;max-height:175px;overflow:auto}
+.handoff-choices label{display:flex;align-items:start;gap:7px;overflow-wrap:anywhere}
+.handoff-preview pre{white-space:pre-wrap;overflow-wrap:anywhere;margin-block:6px 0;font:inherit}
+.platform-page-title-row .handoff-launch{display:inline-flex;align-items:center;gap:6px;padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius-control);background:var(--surface-input)}
+@media(max-width:560px){.handoff-pickers{grid-template-columns:1fr}}

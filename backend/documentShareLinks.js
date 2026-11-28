@@ -10,7 +10,7 @@ const validId = id => /^[a-f\d]{24}$/i.test(id);
 const editable = file => /\.(md|markdown|txt)$/i.test(file.originalName || '') &&
   /^(text\/plain|text\/markdown|application\/octet-stream)(;|$)/i.test(file.mimeType || '');
 
-module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDFFolder }) {
+module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDFFolder, Todo, Folder }) {
   const collaboratorAccess = require('./documentCollaboratorAccess')({User});
   const friends=require('./friendSharing')(app,auth,{User,PDF,collaboratorAccess,isLocked});
   const received=require('./sharedWithMe')(app,auth,{PDF,User,PDFFolder,collaboratorAccess,isLocked,friends});
@@ -97,6 +97,8 @@ module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDF
     }
     return false;
   }
+
+  require('./assignmentHandoff')(app, auth, { User, PDF, Todo, Folder, isLocked });
 
   const ownerRoute = handler => [auth, async (req, res) => {
     res.set('Cache-Control', 'no-store');
