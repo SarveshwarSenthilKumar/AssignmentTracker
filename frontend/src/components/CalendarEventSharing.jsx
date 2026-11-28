@@ -1,3 +1,4 @@
+import CalendarSharedUpdates from './CalendarSharedUpdates'
 import { useEffect, useRef, useState } from 'react'
 import { Link2 } from 'lucide-react'
 import { calendarDay, calendarTime, dayLabel } from '../lib/calendar'
@@ -106,6 +107,7 @@ export function SharedCalendarEvent({ shareToken, token, onOpenEvent }) {
         <h3>Attachments included</h3>
         <ul>{event.attachments.map((file, index) => <li key={index}>{file.name}</li>)}</ul>
       </section>}
+      {event.isCopy && <CalendarSharedUpdates entryId={event.entryId} token={token} shareToken={shareToken}/>}
       <div className="calendar-detail-actions">
         {event.entryId ? <button type="button" onClick={() => onOpenEvent(event.entryId)}>View in my calendar</button>
           : <button type="button" disabled={busy} onClick={add}>{busy ? 'Adding event…' : 'Add to my calendar'}</button>}

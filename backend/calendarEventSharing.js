@@ -4,6 +4,23 @@ const hash = value => createHash('sha256').update(value).digest('hex');
 const validId = value => /^[a-f\d]{24}$/i.test(value);
 const validToken = value => /^[A-Za-z0-9_-]{43}$/.test(value);
 
+const groups = ['title', 'schedule', 'location', 'notes', 'reminder'];
+const date = value => value ? new Date(value).toISOString() : null;
+const values = entry => ({
+  title: entry.title,
+  schedule: {
+    kind: entry.kind, allDay: entry.allDay,
+    startDate: entry.startDate, endDate: entry.endDate || entry.startDate,
+    startAt: date(entry.startAt), endAt: date(entry.endAt),
+    sports: entry.kind === 'sports'
+      ? Object.fromEntries(['sport', 'league', 'team', 'opponent'].map(key => [key, entry.sports?.[key] || ''])) : null,
+  },
+  location: entry.location || '',
+  notes: entry.notes || '',
+  reminder: entry.reminderMinutes ?? null,
+});
+const digest = value => hash(JSON.stringify(value));
+
 class ShareError extends Error {
   constructor(status, message) {
     super(message);
@@ -30,7 +47,7 @@ module.exports = function registerCalendarEventSharing(app, auth, { User, Calend
   const shared = async (secret, session) => {
     if (!validToken(secret)) throw new ShareError(404, 'This event link is unavailable.');
     const entry = await CalendarEntry.findOne({ eventShareHash: hash(secret) })
-      .select('+eventShareDocumentIds').session(session).lean();
+      .select('+eventShareDocumentIds +eventShareHash').session(session).lean();
     if (!entry) throw new ShareError(404, 'This event link is unavailable.');
     return entry;
   };
@@ -110,7 +127,65 @@ module.exports = function registerCalendarEventSharing(app, auth, { User, Calend
     const files = await attachments(source, source.eventShareDocumentIds || [], null);
     const user = req.user.userId;
     const existing = String(source.user) === String(user) ? source : await existingCopy(source, user, null);
-    res.json({ ...fields(source), attachments: files.map(({ name, mimeType }) => ({ name, mimeType })), entryId: existing?._id });
+    res.json({ ...fields(source), attachments: files.map(({ name, mimeType }) => ({ name, mimeType })),
+      entryId: existing?._id, isCopy: !!existing && String(source.user) !== String(user) });
+  }));
+
+  const updatesPath = '/api/calendar-entries/:id/shared-updates';
+  async function comparison(req, session) {
+    const copy = await CalendarEntry.findOne(owned(req)).session(session).lean();
+    if (!copy?.sharedFromEventId) throw new ShareError(404, 'This event is not a copy of a shared event.');
+    const secret = req.body?.shareToken;
+    const grant = typeof secret === 'string' && validToken(secret) ? hash(secret) : copy.sharedEventSync?.grant;
+    if (!grant) throw new ShareError(409, 'Open the original sharing link to check updates for this copy.');
+    const source = await CalendarEntry.findOne({ _id: copy.sharedFromEventId, eventShareHash: grant }).session(session).lean();
+    if (!source) throw new ShareError(404, 'The original sharing link is unavailable. Ask the sender for an active link.');
+    const owner = await User.findById(source.user).select('lockedSections deactivatedAt approvalPending').session(session).lean();
+    if (!owner || owner.deactivatedAt || owner.approvalPending || owner.lockedSections?.includes('calendar')) {
+      throw new ShareError(403, 'The original event is currently locked or unavailable.');
+    }
+    const current = values(copy), incoming = values(source);
+    const baseline = copy.sharedEventSync?.baseline || {};
+    const matching = {};
+    const changes = groups.flatMap(key => {
+      const localHash = digest(current[key]), sourceHash = digest(incoming[key]);
+      if (sourceHash === localHash) {
+        matching[key] = sourceHash;
+        return [];
+      }
+      if (sourceHash === baseline[key]) return [];
+      return [{ key, current: current[key], incoming: incoming[key], locallyEdited: !!baseline[key] && localHash !== baseline[key] }];
+    });
+    const version = digest([grant, current, incoming, groups.map(key => baseline[key] ?? null)]);
+    return { copy, grant, version, changes, baseline, matching };
+  }
+
+  app.post(updatesPath + '/check', auth, route(async (req, res) => {
+    const { version, changes, baseline } = await comparison(req, null);
+    res.json({ version, changes, hasBaseline: groups.every(key => !!baseline[key]) });
+  }));
+  app.put(updatesPath, auth, route(async (req, res) => {
+    const { version, selected } = req.body || {};
+    if (typeof version !== 'string' || !/^[a-f\d]{64}$/.test(version) || !Array.isArray(selected) ||
+      !selected.length || selected.length > groups.length || new Set(selected).size !== selected.length || selected.some(key => !groups.includes(key))) {
+      throw new ShareError(400, 'Choose at least one change from the comparison.');
+    }
+    const updated = await history.mutate(req.user.userId, 'apply shared event updates', async session => {
+      const state = await comparison(req, session);
+      const changes = state.changes.filter(change => selected.includes(change.key));
+      if (state.version !== version || changes.length !== selected.length) throw new ShareError(409, 'The event changed since your comparison. Check again before applying updates.');
+      const patch = {};
+      const baseline = { ...state.baseline, ...state.matching };
+      for (const { key, incoming } of changes) {
+        if (key === 'schedule') Object.assign(patch, incoming);
+        else patch[key === 'reminder' ? 'reminderMinutes' : key] = incoming;
+        baseline[key] = digest(incoming);
+      }
+      patch.sharedEventSync = { grant: state.grant, baseline };
+      const document = await CalendarEntry.findOneAndUpdate(owned(req), { $set: patch }, { new: true, session, runValidators: true });
+      return { value: document, kind: 'entry', entryId: document._id, before: state.copy, after: document.toObject() };
+    });
+    res.json(updated);
   }));
 
   app.post(recipientPath, auth, route(async (req, res) => {
@@ -147,6 +222,7 @@ module.exports = function registerCalendarEventSharing(app, auth, { User, Calend
         }
         const [created] = await CalendarEntry.create([{
           ...fields(source), user, documentIds, sharedFromEventId: source._id,
+          sharedEventSync: { grant: source.eventShareHash, baseline: Object.fromEntries(Object.entries(values(source)).map(([key, value]) => [key, digest(value)])) },
         }], { session });
         return { value: created, kind: 'entry', entryId: created._id, before: null, after: created.toObject() };
       });

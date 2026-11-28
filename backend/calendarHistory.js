@@ -9,7 +9,7 @@ function createCalendarHistory({ mongoose, User, CalendarEntry }) {
     after: mongoose.Schema.Types.Mixed,
   }, { timestamps: true }));
   const fields = value => {
-    const { _id, user, createdAt, updatedAt, __v, ...data } = value || {};
+    const { _id, user, createdAt, updatedAt, __v, eventShareHash, eventShareDocumentIds, ...data } = value || {};
     return data;
   };
   const same = (a,b) => JSON.stringify(Object.entries(fields(a)).sort()) === JSON.stringify(Object.entries(fields(b)).sort());
@@ -78,10 +78,17 @@ function createCalendarHistory({ mongoose, User, CalendarEntry }) {
             const key=`calendarColors.${id}`;
             await User.updateOne({_id:req.user.userId},change.before.color?{$set:{[key]:change.before.color}}:{$unset:{[key]:1}},{session});
           }else{
-            const current=await CalendarEntry.findOne({_id:change.entryId,user:req.user.userId}).session(session).lean();
-            if(change.after ? !current||!same(current,change.after) : !!current)throw new Error('This event changed elsewhere and cannot safely be undone.');
-            if(change.before)await CalendarEntry.replaceOne({_id:change.entryId,user:req.user.userId},change.before,{session,upsert:true,timestamps:false});
-            else await CalendarEntry.deleteOne({_id:change.entryId,user:req.user.userId},{session});
+            const filter = { _id: change.entryId, user: req.user.userId };
+            const current = await CalendarEntry.findOne(filter).select('+eventShareHash +eventShareDocumentIds').session(session).lean();
+            if (change.after ? !current || !same(current, change.after) : !!current) throw new Error('This event changed elsewhere and cannot safely be undone.');
+            if (change.before) {
+              const previous = { ...change.before };
+              if (current?.eventShareHash) {
+                previous.eventShareHash = current.eventShareHash;
+                previous.eventShareDocumentIds = current.eventShareDocumentIds;
+              }
+              await CalendarEntry.replaceOne(filter, previous, { session, upsert: true, timestamps: false });
+            } else await CalendarEntry.deleteOne(filter, { session });
           }
           await Change.deleteOne({_id:change._id},{session});
           return {message:`Undid ${change.label}.`};

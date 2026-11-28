@@ -270,6 +270,7 @@ const CalendarEntry = mongoose.model('CalendarEntry', new mongoose.Schema({
   eventShareHash: { type: String, index: { sparse: true }, select: false },
   eventShareDocumentIds: { type: [mongoose.Schema.Types.ObjectId], default: undefined, select: false },
   sharedFromEventId: { type: mongoose.Schema.Types.ObjectId },
+  sharedEventSync: { type: mongoose.Schema.Types.Mixed },
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
   title: { type: String, required: true, maxlength: 200 },
   kind: { type: String, enum: ['appointment','marker','sports','class'], required: true },
