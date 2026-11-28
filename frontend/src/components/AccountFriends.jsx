@@ -6,7 +6,9 @@ const sections=[['incoming','Incoming requests'],['outgoing','Sent requests'],['
 
 export default function AccountFriends({token}){
   const {friends,loading,error}=useFriends(token)
-  const [email,setEmail]=useState(''),[busy,setBusy]=useState(false),[message,setMessage]=useState(''),[actionError,setActionError]=useState('')
+  const [lookup, setLookup] = useState('email')
+  const [identifier, setIdentifier] = useState('')
+  const [busy,setBusy]=useState(false),[message,setMessage]=useState(''),[actionError,setActionError]=useState('')
   const lock=useRef(false)
   const run=async (operation,notice)=>{
     if(lock.current)return
@@ -17,19 +19,26 @@ export default function AccountFriends({token}){
   }
   const request=event=>{
     event.preventDefault()
-    const address=email.trim()
-    if(!address)return
+    const value=identifier.trim()
+    if(!value)return
     run(async()=>{
-      await friendRequest(token,'/api/friends',{method:'POST',body:JSON.stringify({email:address})})
-      setEmail('')
+      await friendRequest(token,'/api/friends',{method:'POST',body:JSON.stringify({[lookup]:value})})
+      setIdentifier('')
     },'Friend list updated.')
   }
   return <section className="account-card friend-sharing" aria-labelledby="account-friends-title">
     <h2 id="account-friends-title">Friends</h2>
-    <p>Send a request using someone’s Assignment Tracker account email. Once they accept, you can share documents directly from the Share panel.</p>
+    <p>Send a request using someone’s Assignment Tracker username or account email. Once they accept, you can share documents directly from the Share panel.</p>
     <form onSubmit={request} className="friend-sharing-form">
-      <label>Account email<input type="email" required maxLength={254} value={email} disabled={busy} onChange={event=>setEmail(event.target.value)}/></label>
-      <button type="submit" disabled={busy||!email.trim()}>Send request</button>
+      <label>Find by<select value={lookup} disabled={busy} onChange={event => {
+        setLookup(event.target.value); setIdentifier(''); setActionError(''); setMessage('')
+      }}><option value="email">Account email</option><option value="username">Username</option></select></label>
+      <label>{lookup === 'username' ? 'Exact username' : 'Account email'}
+        <input type={lookup === 'username' ? 'text' : 'email'} required maxLength={lookup === 'username' ? 1024 : 254}
+          value={identifier} disabled={busy} onChange={event => setIdentifier(event.target.value)}
+          autoCapitalize="none" autoCorrect="off" spellCheck={false} autoComplete="off"/>
+      </label>
+      <button type="submit" disabled={busy||!identifier.trim()}>Send request</button>
     </form>
     <button type="button" disabled={loading} onClick={refreshFriends}>Refresh friends</button>
     {loading&&<p role="status">Loading friends…</p>}

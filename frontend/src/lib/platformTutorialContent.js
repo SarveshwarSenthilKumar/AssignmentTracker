@@ -150,7 +150,7 @@ export const tutorialTopics = [
       'Review task cleanup and recovery settings before enabling automatic deletion. Manage GitHub and LinkedIn connections under Connected accounts if you need them.'
     ], 'Confirm your time zone and choose whether to use page-specific tab icons.'],
     ['friends', 'Manage friends and sharing recipients', 'account', 'Account settings', [
-      'Open Friends and enter the recipient’s account email to send a request. Review incoming and outgoing requests, and accept requests from people you recognize.',
+      'Open Friends and choose Username or Account email and enter the recipient’s details to send a request. Review incoming and outgoing requests, and accept requests from people you recognize.',
       'Open a document’s Share panel to select accepted friends. Check Shared with me for documents you received. Manage access from the document’s sharing controls.'
     ], 'Find Friends in Account and inspect incoming and outgoing requests.'],
     ['analytics', 'Review activity and storage', 'analytics', 'Analytics', [

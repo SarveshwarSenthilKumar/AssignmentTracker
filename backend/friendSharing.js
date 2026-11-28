@@ -38,10 +38,19 @@ module.exports=function registerFriendSharing(app,auth,{User,PDF,isLocked,collab
   }));
 
   app.post(friendsBase,...route(async(req,res)=>{
-    const email=typeof req.body?.email==='string'?req.body.email.trim().toLowerCase():'';
-    if(!email||email.length>254)return res.status(400).json({message:'Enter your friend’s account email.'});
+    const { email, username } = req.body || {};
+    if ((email === undefined) === (username === undefined)) {
+      return res.status(400).json({message:'Enter either an account email or a username.'});
+    }
+    const byUsername = username !== undefined;
+    const raw = byUsername ? username : email;
+    const identifier = typeof raw === 'string' ? raw.trim() : '';
+    if (!identifier || identifier.length > (byUsername ? 1024 : 254)) {
+      return res.status(400).json({message:byUsername ? 'Enter your friend’s exact username.' : 'Enter your friend’s account email.'});
+    }
     const user=req.user.userId;
-    const recipient=await User.findOne({email,...activeAccount}).select('username').lean();
+    const lookup = byUsername ? { username: identifier } : { email: identifier.toLowerCase() };
+    const recipient=await User.findOne({...lookup,...activeAccount}).select('username').lean();
     if(!recipient||same(recipient._id,user))return res.status(400).json({message:'Choose another active Assignment Tracker account.'});
     const id=pairKey(user,recipient._id);
     const generation=new Types.ObjectId();
