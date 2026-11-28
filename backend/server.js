@@ -83,6 +83,9 @@ const userSchema = new mongoose.Schema({
   workflowProfiles: { type: mongoose.Schema.Types.Mixed, select: false },
   workflowLayout: { type: mongoose.Schema.Types.Mixed, select: false },
   workflowRevision: { type: Number, default: 0, select: false },
+  savedSearches: { type: [new mongoose.Schema({
+    id: String, name: String, query: String, scope: String, overdue: Boolean, trash: Boolean, pinned: Boolean,
+  }, { _id: false })], select: false },
   annotationKits: { type: [mongoose.Schema.Types.Mixed], default: [], select: false },
   annotationKitRevision: { type: Number, default: 0, select: false },
   bookmarkLibrary: { type: mongoose.Schema.Types.Mixed, select: false },
@@ -657,6 +660,7 @@ assistantCredentials.registerRoutes(app,authenticateToken,userId=>{const state=a
 registerWorkspaceSettings(app,authenticateToken,User);
 require('./bookmarks')(app,authenticateToken,User);
 require('./annotationKits')(app,authenticateToken,User);
+require('./savedSearches')(app,authenticateToken,User);
 require('./phoneReference')(app,authenticateToken);
 async function aiCredential(req,res,state,traceId){
   let credential;

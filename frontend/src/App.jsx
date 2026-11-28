@@ -1731,6 +1731,10 @@ function App({onFaviconPage}) {
     if (result.type === 'study' && openInTab(event, `study/${result.id}`)) return
     if (result.type === 'chats' && openInTab(event, `assistant/${result.id}`)) return
     if (result.route && openInTab(event, result.route)) return
+    if (result.type === 'sharedDocuments' && /^#\/shared-document\/[A-Za-z0-9_-]{43}$/.test(result.path || '')) {
+      window.open(new URL(result.path, window.location.href).href, '_blank', 'noopener,noreferrer')
+      return
+    }
     if(result.type==='campus'){
       const url=new URL(result.url)
       if(!['http:','https:'].includes(url.protocol))throw new Error('The event link is unavailable. Open it from Calendar instead.')
@@ -1744,7 +1748,8 @@ function App({onFaviconPage}) {
       const response=await fetch(`/api/search/tasks/${result.id}`,{headers:{Authorization:`Bearer ${token}`},cache:'no-store'}),task=await readApiJson(response)
       if(!response.ok)throw new Error(task.message||'Could not open this task.')
       setSelectedFolder('all');pendingLibraryTask.current=page==='tasks'?null:task;navigate('tasks');setSelectedTask(task)
-    }else if(result.type==='documents'){
+    }else if(result.type==='sharedDocuments'){navigate('document-discussion/' + result.id, event)}
+    else if(result.type==='documents'){
       if(result.trashed){setSelectedPDFFolder('trash');setSearchLibraryTarget({fileId:result.id});navigate('documents')}else setSelectedPDF(result.id)
     }else if(result.type==='events'){setAssistantCalendarId(result.id);setSearchCategoryId(null);navigate('calendar')}
     else if(result.type==='jobs'){setSearchJobId(result.id);navigate('jobs')}
