@@ -25,11 +25,11 @@ function describeChanges(file,{added,removed,updated,previous,pdfData,action,con
       else add({key:`${item.id}:text`,kind:'text',label:label(item),before:short(item.sourceText?.originalText||''),after:short(item.text)});
       add({key:`${item.id}:position`,kind:'value',label:`${label(item)} position`,before:'Not present',after:location(item)});
       if(item.stickyNote)add({key:`${item.id}:noteColor`,kind:'value',label:`${label(item)} background`,before:'Not present',after:color(item.noteColor)});
-    }else add({key:`${item.id}:added`,kind:'note',label:label(item),text:`Added ${name(item).toLowerCase()} at ${location(item)}${item.points?` with ${item.points.length} points and ${number(item.strokeWidth)||2} pt width`:` (${size(item)})`}${item.color?`, color ${item.color}`:''}.`});
+    }else add({key:`${item.id}:added`,kind:'value',label:label(item),before:'Not present',after:`At ${location(item)}${item.points?` with ${item.points.length} points and ${number(item.strokeWidth)||2} pt width`:` (${size(item)})`}${item.color?`, color ${item.color}`:''}`});
   }
   for(const item of removed){
     if(item.tool==='text')add({key:`${item.id}:removed`,kind:'text',label:`${item.sourceText?'Restored original':'Removed'} ${label(item).toLowerCase()}`,before:short(item.text),after:short(item.sourceText?.originalText||'')});
-    else add({key:`${item.id}:removed`,kind:'note',label:label(item),text:`Removed ${name(item).toLowerCase()} from ${location(item)}${item.points?` (${item.points.length} points)`:''}.`});
+    else add({key:`${item.id}:removed`,kind:'value',label:label(item),before:`At ${location(item)}${item.points?` (${item.points.length} points)`:''}`,after:'Removed'});
   }
   for(const item of updated){
     const old=previous.get(item.id),title=label(item);
@@ -44,6 +44,8 @@ function describeChanges(file,{added,removed,updated,previous,pdfData,action,con
       const styles=['fontName','fontFamily','fontWeight','italic','letterSpacing','horizontalScale'];
       for(const key of styles)if(!same(item.textStyle?.[key],old.textStyle?.[key]))add({key:`${item.id}:style:${key}`,kind:'value',label:`${title} ${key.replace(/([A-Z])/g,' $1').toLowerCase()}`,before:short(old.textStyle?.[key]??'Default'),after:short(item.textStyle?.[key]??'Default')});
     }
+    if(!same(item.rotation,old.rotation))add({key:`${item.id}:rotation`,kind:'value',label:`${title} rotation`,before:`${old.rotation||0}°`,after:`${item.rotation||0}°`});
+    if(!same(item.ink,old.ink))add({key:`${item.id}:ink`,kind:'value',label:`${title} handwriting`,before:`${old.ink?.length||0} strokes`,after:`${item.ink?.length||0} strokes`});
     if(!same(item.points,old.points))add({key:`${item.id}:points`,kind:'value',label:`${title} path`,before:pathDescription(old),after:pathDescription(item)});
     if(item.dataUrl!==old.dataUrl)add({key:`${item.id}:asset`,kind:'note',label:title,text:'Replaced the inserted media content.'});
   }

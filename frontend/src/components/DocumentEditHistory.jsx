@@ -1,11 +1,13 @@
 import {useEffect,useId,useRef,useState} from 'react'
 import {History,X,RefreshCw,ChevronDown} from 'lucide-react'
 import {sharedDocumentRequest} from '../lib/sharedDocumentRequest'
+import DocumentRevisionComparison from './DocumentRevisionComparison'
 import './DocumentEditHistory.css'
 
 export default function DocumentEditHistory({url,token,onClose}) {
   const [items,setItems]=useState([]),[cursor,setCursor]=useState(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[search,setSearch]=useState('')
   const loadRef=useRef(null),close=useRef(null),cursorRef=useRef(null)
+  const [comparing, setComparing] = useState(false)
   const [expanded,setExpanded]=useState(new Set())
   const detailsId=useId()
   cursorRef.current=cursor
@@ -15,6 +17,7 @@ export default function DocumentEditHistory({url,token,onClose}) {
     let loading=false,older=false
     setItems([]);setCursor(null);setError('')
     setExpanded(new Set())
+    setComparing(false)
     const load=async(more,refresh=false)=>{
       if(loading||controller.signal.aborted)return
       if(older&&!more&&!refresh)return
@@ -24,7 +27,7 @@ export default function DocumentEditHistory({url,token,onClose}) {
         const before=more&&cursorRef.current?`&before=${encodeURIComponent(cursorRef.current)}`:''
         const response=await sharedDocumentRequest(`${url}?limit=40${before}`,{signal:controller.signal,cache:'no-store',headers:token?{Authorization:`Bearer ${token}`}:{}})
         const data=await response.json()
-        if(!response.ok){if([401,403,404,410].includes(response.status))setItems([]);throw new Error(data.message||'Could not load edit history.')}
+        if(!response.ok){if([401,403,404,410].includes(response.status)){setItems([]);setComparing(false);}throw new Error(data.message||'Could not load edit history.')}
         if(controller.signal.aborted)return
         setItems(previous=>{
           const merged=new Map((more?previous:[]).map(item=>[item.id,item]))
@@ -42,8 +45,9 @@ export default function DocumentEditHistory({url,token,onClose}) {
   },[url,token])
   const query=search.trim().toLowerCase()
   const visible=items.filter(item=>`${item.actor} ${item.action} ${item.description||''} ${(item.details||[]).map(detail=>`${detail.label} ${detail.text||''} ${detail.before||''} ${detail.after||''}`).join(' ')} ${item.pages.map(page=>`page ${page}`).join(' ')}`.toLowerCase().includes(query))
-  return <aside className="document-edit-history" role="dialog" aria-label="Document edit history" onKeyDown={event=>{event.stopPropagation();if(event.key==='Escape'){event.preventDefault();onClose()}}}>
-    <header><h2><History size={18}/>Edit history</h2><button type="button" ref={close} aria-label="Close edit history" onClick={onClose}><X size={18}/></button></header>
+  return <aside className={comparing ? "document-edit-history is-comparing" : "document-edit-history"} role="dialog" aria-label={comparing ? "Compare document revisions" : "Document edit history"} onKeyDown={event=>{event.stopPropagation();if(event.key==='Escape'){event.preventDefault();onClose()}}}>
+    <header><h2><History size={18}/>{comparing ? 'Compare revisions' : 'Edit history'}</h2><button type="button" ref={close} aria-label="Close edit history" onClick={onClose}><X size={18}/></button></header>
+    {comparing ? <DocumentRevisionComparison items={items} url={url} token={token} onBack={() => setComparing(false)}/> : <>
     <div className="document-history-controls"><input type="search" aria-label="Filter loaded edit history" placeholder="Search loaded edits, people, or text…" value={search} onChange={event=>setSearch(event.target.value)}/><button type="button" disabled={busy} onClick={()=>loadRef.current?.(false,true)} aria-label="Refresh latest edit history"><RefreshCw size={16}/></button></div>
     <p className="document-history-note">Up to 300 saved edit groups are retained. Continuous edits are grouped together, and text excerpts may be shortened. Older entries may contain summaries only.</p>
     {error&&<p className="document-history-error" role="alert">{error}</p>}
@@ -66,6 +70,7 @@ export default function DocumentEditHistory({url,token,onClose}) {
       </div>
     </li>)}</ol>
     {!busy&&!error&&!visible.length&&<p className="document-history-empty">{query?'No matching edits.':'No edits recorded yet. New saved changes will appear here.'}</p>}
-    <footer>{busy&&<span role="status">Loading history…</span>}{cursor&&<button type="button" disabled={busy} onClick={()=>loadRef.current?.(true)}>Load older edits</button>}</footer>
+    </>}
+    <footer>{busy&&<span role="status">Loading history…</span>}{cursor&&<button type="button" disabled={busy} onClick={()=>loadRef.current?.(true)}>Load older edits</button>}{!comparing&&items.length>0&&<button type="button" onClick={() => setComparing(true)}>Compare revisions</button>}</footer>
   </aside>
 }

@@ -4,7 +4,7 @@ const LIMIT=300;
 const normalized=items=>(items||[]).map((item,index)=>item.id?item:{...item,id:`legacy-${index}-${createHash('sha256').update(JSON.stringify(item)).digest('hex').slice(0,16)}`});
 const equal=(a,b)=>a===b||JSON.stringify(a)===JSON.stringify(b);
 
-function appendHistory(file,actor,{annotations,pdfData,action,pages=[],context}={}) {
+function appendHistory(file,actor,{annotations,pdfData,action,pages=[],context,pageChange}={}) {
   const history=[...(file.editHistory||[])];
   const before=normalized(file.annotations),after=annotations===undefined?before:normalized(annotations);
   const previous=new Map(before.map(item=>[item.id,item])),current=new Map(after.map(item=>[item.id,item]));
@@ -32,10 +32,10 @@ function appendHistory(file,actor,{annotations,pdfData,action,pages=[],context}=
   const key=createHash('sha256').update(JSON.stringify([actorKey,action,affectedPages])).digest('hex');
   const now=new Date(),last=history[history.length-1];
   const incoming=describeChanges(file,{added,removed,updated,previous,pdfData,action,context});
-  if(last&&Array.isArray(last.details)&&last.key===key&&now-new Date(last.at)<5000){
+  if(!pageChange&&!last?.pageChange&&last&&Array.isArray(last.details)&&last.key===key&&now-new Date(last.at)<5000){
     const detail=mergeDetails(last.details,incoming);
     history[history.length-1]={...last,...detail,detailsTruncated:last.detailsTruncated||detail.detailsTruncated,description:description(detail.details,action),at:now,updates:(last.updates||1)+1};
-  }else{const detail=mergeDetails([],incoming);history.push({id:randomBytes(12).toString('hex'),key,actor:name,action,...detail,description:description(detail.details,action),pages:affectedPages,startedAt:now,at:now,updates:1});}
+  }else{const detail=mergeDetails([],incoming);history.push({id:randomBytes(12).toString('hex'),key,actor:name,action,...(pageChange&&{pageChange}),...detail,description:description(detail.details,action),pages:affectedPages,startedAt:now,at:now,updates:1});}
   const retained=history.slice(-LIMIT);
   let bytes=Buffer.byteLength(JSON.stringify(retained));
   while(retained.length>1&&bytes>512*1024)bytes-=Buffer.byteLength(JSON.stringify(retained.shift()))+1;

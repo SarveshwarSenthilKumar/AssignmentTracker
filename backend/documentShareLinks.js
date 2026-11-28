@@ -2,6 +2,20 @@ const { createHash, randomBytes } = require('node:crypto');
 const { insertPDFPages, deletePDFPage } = require('./pdfPages');
 const { mergeText } = require('./liveText');
 const {appendHistory,historyPage}=require('./documentEditHistory');
+const { compareRevisions } = require('./documentRevisionComparison');
+
+function sendHistory(res, file, query) {
+  res.set('Cache-Control', 'private, no-store');
+  if (query.from === undefined && query.to === undefined) return res.json(historyPage(file, query));
+  const validRevision = value => typeof value === 'string' && /^[a-f\d]{24}$/i.test(value);
+  if (!(query.from === 'baseline' || validRevision(query.from)) || !validRevision(query.to)) {
+    return res.status(400).json({ message: 'Choose two revisions to compare.' });
+  }
+  const result = compareRevisions(file, query.from, query.to);
+  if (!result) return res.status(404).json({ message: 'One of these revisions is no longer in history. Refresh and choose again.' });
+  if (result.invalidOrder) return res.status(400).json({ message: 'Choose an earlier revision and a later revision.' });
+  return res.json(result);
+}
 const {seal,unseal}=require('./shareLinkSecret');
 const {unexpired,expired}=require('./shareLinkExpiry');
 
@@ -122,13 +136,13 @@ module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDF
     if(await isLocked(file))return res.status(403).json({message:'Unlock the document to view its edit history.'});
     const document=await PDF.findOne({...filter,deletedAt:null}).select('_id +editHistory').lean();
     if(!document)return res.status(404).json({message:'Document unavailable.'});
-    res.json(historyPage(document,req.query));
+    sendHistory(res,document,req.query);
   }));
   app.get('/api/shared-document/:token/history',async(req,res)=>{
     try{
       const file=await PDF.findOne({shareLinkHash:hashToken(req.params.token),shareLinkRole:'edit',deletedAt:null,...sharedAccess(req)}).select('user pdfFolder +editHistory').lean();
       if(!file||await isLocked(file))return res.status(404).json({message:'This document history is unavailable.'});
-      res.json(historyPage(file,req.query));
+      sendHistory(res,file,req.query);
     }catch{res.status(503).json({message:'Could not load edit history.'});}
   });
   app.get(adminsPath,...ownerRoute(async(res,filter,file,req)=>{
@@ -300,7 +314,14 @@ module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDF
     if (!Array.isArray(sources) || sources.some(source => typeof source !== 'string') || sources.reduce((size, source) => size + source.length, 0) > 14 * 1024 * 1024) return res.status(400).json({ message: 'Choose PDFs totaling no more than 10 MB.' });
     const result = remove ? await deletePDFPage(file.pdfData, Number(req.params.pageNumber), options.annotations ?? file.annotations) : await insertPDFPages(file.pdfData, { ...options, sources: sources.map(source => Buffer.from(source, 'base64')), annotations: options.annotations ?? file.annotations });
     const context=remove?`Deleted page ${req.params.pageNumber}. The document now has ${result.numPages} pages.`:options.mode==='reorder'?`Moved page ${options.currentPage} to page ${result.firstInsertedPage}.`:options.mode==='duplicate'?`Duplicated page ${options.currentPage} at page ${result.firstInsertedPage}. The document now has ${result.numPages} pages.`:`Inserted ${result.insertedPages} ${options.mode==='blank'?'blank ':''}page${result.insertedPages===1?'':'s'} starting at page ${result.firstInsertedPage}${sources.length?` from ${sources.length} PDF file${sources.length===1?'':'s'}`:''}. The document now has ${result.numPages} pages.`;
-    if (await save({ pdfData: result.bytes, annotations: result.annotations },{context,pages:[remove?Number(req.params.pageNumber):result.firstInsertedPage].filter(Number.isInteger)})) res.json({ ...result, bytes: undefined, pdfData: result.bytes.toString('base64'), contentRevision: createHash('sha256').update(result.bytes).digest('hex') });
+    const mode = remove ? 'delete' : options.mode || 'files';
+    const count = remove || mode === 'reorder' ? 1 : result.insertedPages;
+    const pageChange = {
+      mode, count, from: remove ? Number(req.params.pageNumber) : ['duplicate', 'reorder'].includes(mode) ? (options.currentPage ?? 1) : null,
+      to: remove ? null : result.firstInsertedPage, beforeCount: result.numPages + (remove ? 1 : -(result.insertedPages || 0)),
+      afterCount: result.numPages,
+    };
+    if (await save({ pdfData: result.bytes, annotations: result.annotations }, { context, pageChange, pages: [pageChange.from, pageChange.to].filter(Number.isInteger) })) res.json({ ...result, bytes: undefined, pdfData: result.bytes.toString('base64'), contentRevision: createHash('sha256').update(result.bytes).digest('hex') });
   }, owner);
   app.post('/api/shared-document/:token/document/pages', pages(false));
   app.delete('/api/shared-document/:token/document/pages/:pageNumber', pages(true));
