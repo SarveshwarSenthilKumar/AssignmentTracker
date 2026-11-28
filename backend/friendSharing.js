@@ -76,9 +76,10 @@ module.exports=function registerFriendSharing(app,auth,{User,PDF,isLocked,collab
   });
 
   app.get(inviteBase, ...route(async (req, res) => {
-    const account = await User.findById(req.user.userId).select('+friendInviteExpiresAt').lean();
+    const account = await User.findById(req.user.userId).select('+friendInviteExpiresAt +friendInviteMessage').lean();
     const expiresAt = account?.friendInviteExpiresAt;
-    res.json({ expiresAt: expiresAt > new Date() ? expiresAt : null });
+    const active = expiresAt > new Date();
+    res.json({ expiresAt: active ? expiresAt : null, message: active ? account.friendInviteMessage || '' : '' });
   }));
 
   app.post(inviteBase, ...route(async (req, res) => {
@@ -90,7 +91,7 @@ module.exports=function registerFriendSharing(app,auth,{User,PDF,isLocked,collab
       $set: { friendInviteHash: inviteHash(secret), friendInviteExpiresAt: expiresAt, friendInviteMessage: message },
     });
     if (!result.matchedCount) return res.status(404).json({ message: 'This account is unavailable.' });
-    res.status(201).json({ path: '/friend-invite/' + secret, expiresAt });
+    res.status(201).json({ path: '/friend-invite/' + secret, expiresAt, message });
   }));
 
   app.delete(inviteBase, ...route(async (req, res) => {

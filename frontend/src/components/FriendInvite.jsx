@@ -6,7 +6,7 @@ import './FriendSharing.css'
 const endpoint = '/api/friend-invites'
 
 export function FriendInviteLink({ token }) {
-  const [invite, setInvite] = useState({ expiresAt: null, url: '' })
+  const [invite, setInvite] = useState({ expiresAt: null, url: '', message: '' })
   const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
@@ -22,9 +22,10 @@ export function FriendInviteLink({ token }) {
       if (locked.current) return
       const started = ++revision.current
       try {
-        const { expiresAt } = await friendRequest(token, endpoint, { signal: controller.signal })
+        const { expiresAt, message } = await friendRequest(token, endpoint, { signal: controller.signal })
         if (!controller.signal.aborted && started === revision.current) setInvite(previous => ({
           expiresAt,
+          message: message || '',
           url: expiresAt && previous.expiresAt === expiresAt ? previous.url : '',
         }))
       } catch (failure) {
@@ -46,12 +47,12 @@ export function FriendInviteLink({ token }) {
     try {
       const data = await friendRequest(token, endpoint, { method, ...(method === 'POST' ? { body: JSON.stringify({ message: message.trim() }) } : {}) })
       if (method === 'DELETE') {
-        setInvite({ expiresAt: null, url: '' })
+        setInvite({ expiresAt: null, url: '', message: '' })
         setNotice('Invite link revoked.')
       } else {
         const url = new URL('#' + data.path, location.href)
         url.search = ''
-        setInvite({ expiresAt: data.expiresAt, url: url.href })
+        setInvite({ expiresAt: data.expiresAt, url: url.href, message: data.message || '' })
         setMessage('')
         setNotice('Invite link ready to copy.')
       }
@@ -64,16 +65,20 @@ export function FriendInviteLink({ token }) {
     <p>Anyone with this link can sign in and accept. Each link works once and expires after seven days.</p>
     {invite.expiresAt && <p>Active until {new Date(invite.expiresAt).toLocaleString()}. Creating a new link replaces it.</p>}
     <div className="friend-sharing-form">
-      <label className="friend-message-field">Message for the next link (optional)
+      <label className="friend-message-field">Invite link message (optional)
         <textarea value={message} onChange={event => setMessage(event.target.value)} maxLength={300}
           disabled={loading || busy} rows={2} placeholder="Add a short note for the recipient"/>
-        <small>{message.length} / 300</small>
+        <small>Recipients see this before accepting. {message.length} / 300</small>
       </label>
       <button type="button" disabled={loading || busy} onClick={() => change('POST')}>
         <Link2 size={15} aria-hidden="true"/> {invite.expiresAt ? 'Replace invite link' : 'Create invite link'}
       </button>
       {invite.expiresAt && <button type="button" disabled={busy} onClick={() => change('DELETE')}>Revoke invite link</button>}
     </div>
+    {invite.expiresAt && invite.message && <div>
+      <strong>Message attached to your active link</strong>
+      <p className="friend-request-note">{invite.message}</p>
+    </div>}
     {invite.url && <div className="friend-sharing-form">
       <label>Invite link<input ref={field} value={invite.url} readOnly onFocus={event => event.target.select()}/></label>
       <button type="button" onClick={async () => {
