@@ -297,6 +297,10 @@ const pdfSchema = new mongoose.Schema({
     },{_id:false})],
     default:[],select:false
   },
+  audienceLinks: { type: [new mongoose.Schema({
+    id: String, label: String, hash: String, secret: String, version: Number,
+    role: { type: String, enum: ['view', 'edit'] }, expiresAt: Date, message: String,
+  }, { _id: false })], select: false },
   shareLinkHash: { type: String, select: false, index: { sparse: true } },
   shareLinkSecret: { type: String, select: false },
   shareLinkMessage: { type: String, maxlength: 300, select: false },
@@ -373,6 +377,7 @@ pdfSchema.pre('save', async function () {
   checkNames(existing, [this], 'pdfFolder', 'document');
 });
 pdfSchema.index({'friendShares.recipient':1,'friendShares.friendship':1},{sparse:true});
+pdfSchema.index({ 'audienceLinks.hash': 1 }, { sparse: true });
 const PDF = mongoose.model('PDF', pdfSchema);
 
 async function copyName(source, suffix) {

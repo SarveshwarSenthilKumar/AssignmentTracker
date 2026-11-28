@@ -2,12 +2,15 @@ import './DocumentShareMessage.css'
 import { useEffect, useState } from 'react'
 import { Link2, Mail, X } from 'lucide-react'
 import RecentShareRecipients from './RecentShareRecipients'
+import DocumentAudienceLinks from './DocumentAudienceLinks'
 import DocumentFriendShares from './DocumentFriendShares'
 import useRecentShareRecipients from '../hooks/useRecentShareRecipients'
 
 const localTime=value=>{if(!value)return '';const date=new Date(value),pad=value=>String(value).padStart(2,'0');return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;}
 
 export default function DocumentShareLink({ file, token, onClose }) {
+  const [mode, setMode] = useState('audiences')
+  const [audienceBusy, setAudienceBusy] = useState(false)
   const [active, setActive] = useState(null)
   const [role, setRole] = useState('view')
   const [canEdit, setCanEdit] = useState(false)
@@ -101,14 +104,19 @@ export default function DocumentShareLink({ file, token, onClose }) {
   }
 
   return <div className="library-modal-backdrop" onKeyDown={event => {
-    if (event.key === 'Escape' && !busy) { event.stopPropagation(); onClose() }
+    if (event.key === 'Escape' && !busy && !audienceBusy) { event.stopPropagation(); onClose() }
   }}>
-    <div className="library-share-link-panel" role="dialog" aria-labelledby="document-share-title" aria-busy={busy}>
+    <div className="library-share-link-panel" role="dialog" aria-labelledby="document-share-title" aria-busy={busy || audienceBusy}>
       <div className="library-modal-heading">
         <h3 id="document-share-title">Share {file.name}</h3>
-        <button type="button" autoFocus disabled={busy} aria-label="Close share link" onClick={onClose}><X size={18}/></button>
+        <button type="button" autoFocus disabled={busy || audienceBusy} aria-label="Close share link" onClick={onClose}><X size={18}/></button>
       </div>
       {token&&!file.canManageLinks&&<DocumentFriendShares key={file._id} file={file} token={token} onClose={onClose}/>}
+      <div className="library-sharing-actions document-link-tabs" aria-label="Link settings">
+        <button type="button" aria-pressed={mode === 'audiences'} disabled={busy || audienceBusy} onClick={() => setMode('audiences')}>Audience links</button>
+        <button type="button" aria-pressed={mode === 'default'} disabled={busy || audienceBusy} onClick={() => setMode('default')}>Default link</button>
+      </div>
+      {mode === 'audiences' ? <DocumentAudienceLinks documentId={file._id} token={token} onBusy={setAudienceBusy}/> : <>
       <label>Link permission
         <select disabled={busy || active === null} value={role} onChange={event => setRole(event.target.value)}>
           <option value="view">Viewer</option>
@@ -151,6 +159,7 @@ export default function DocumentShareLink({ file, token, onClose }) {
       </form>}
       {notice && <p role="status">{notice}</p>}
       {error && <p role="alert" className="library-modal-error">{error}</p>}
+      </>}
     </div>
   </div>
 }

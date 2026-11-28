@@ -44,7 +44,7 @@ module.exports = function createDocumentActivity(PDF, User) {
       .map(user => [String(user._id), user.username]));
     const accessFor = async (documentId, user) => {
       const file = await PDF.findOne({ _id: documentId, deletedAt: null })
-        .select('name originalName mimeType user pdfFolder +documentAdmins +friendShares +revokedCollaborators +shareLinkHash +shareLinkSecret +shareLinkExpiresAt').lean();
+        .select('name originalName mimeType user pdfFolder +documentAdmins +friendShares +revokedCollaborators +shareLinkHash +shareLinkSecret +shareLinkExpiresAt +shareLinkRole +audienceLinks').lean();
       if (!file || await isLocked(file) || collaboratorAccess.blocked(file, collaboratorAccess.forFile({ accountId: user }, file))) return null;
       const owner = same(file.user, user);
       const admin = (file.documentAdmins || []).some(account => same(account, user));

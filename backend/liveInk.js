@@ -1,6 +1,6 @@
 const { randomBytes, createHash } = require('node:crypto');
 const {appendHistory}=require('./documentEditHistory');
-const {unexpired,expired}=require('./shareLinkExpiry');
+const { linkFields, findLink, linkFilter, linkExpired } = require('./documentLinkAccess');
 
 // Pen previews are ephemeral; annotation changes from other tools are merged
 // into the same document before they are pushed to peers.
@@ -35,19 +35,24 @@ module.exports = function registerLiveInk(app, auth, { PDF, isLocked, hashToken,
     if(!session.shared||!expiresAt||session.res.destroyed||session.res.writableEnded)return;
     session.expiryTimer=setTimeout(async()=>{
       try{
-        const file=await PDF.findOne(session.filter).select('+shareLinkExpiresAt').lean();
-        if(!file||expired(file)){emit(session,{type:'expired',message:'This document sharing link has expired. Ask the owner or a document admin to extend it.'});session.res.end();}
-        else scheduleExpiry(session,file.shareLinkExpiresAt);
+        const file=await PDF.findOne(session.filter()).select(linkFields).lean();
+        const link = file && findLink(file, session.linkHash);
+        if(!link||linkExpired(link)){emit(session,{type:'expired',message:'This document sharing link has expired. Ask the owner or a document admin to extend it.'});session.res.end();}
+        else scheduleExpiry(session,link.expiresAt);
       }catch{session.res.end();}
     },Math.max(0,Math.min(2147483647,new Date(expiresAt).getTime()-Date.now())));
   };
   const connect = shared => async (req, res) => {
     if (shared ? !/^[A-Za-z0-9_-]{43}$/.test(req.params.token) : !validId(req.params.id)) return res.status(404).end();
-    const filter = shared ? { shareLinkHash: hashToken(req.params.token), shareLinkRole: 'edit', deletedAt: null } : { _id: req.params.id, user: req.user.userId, deletedAt: null };
+    const linkHash = shared ? hashToken(req.params.token) : null;
     let actor = req.documentCollaborator;
+    const filter = () => shared
+      ? { deletedAt: null, ...linkFilter(linkHash, { edit: true }), ...(actor && collaboratorAccess.filter(actor)) }
+      : { _id: req.params.id, user: req.user.userId, deletedAt: null };
+    const expiresFor = file => shared ? findLink(file, linkHash)?.expiresAt : null;
     try {
       const allowed = async () => {
-        const file = await PDF.findOne({...filter,...(shared?unexpired():{})}).select('_id user pdfFolder +revokedCollaborators +documentAdmins +shareLinkExpiresAt').lean();
+        const file = await PDF.findOne(filter()).select('_id user pdfFolder +revokedCollaborators +documentAdmins ' + linkFields).lean();
         if(!file)return null;
         if(!actor)actor=await collaboratorAccess.identify(req,res,file);
         return !collaboratorAccess.blocked(file,actor) && !await isLocked(file) ? file : null;
@@ -61,7 +66,7 @@ module.exports = function registerLiveInk(app, auth, { PDF, isLocked, hashToken,
       res.set({ 'Content-Type': 'text/event-stream', 'Cache-Control': 'private, no-store, no-transform', 'Connection': 'keep-alive', 'X-Accel-Buffering': 'no', 'Referrer-Policy': 'no-referrer' });
       res.flushHeaders();
       const key = randomBytes(32).toString('base64url');
-      const session = { key, person, actor, owner:actor.owner, peer: randomBytes(9).toString('hex'), color: ['#38bdf8','#a78bfa','#fb923c','#34d399','#f472b6'][parseInt(person.slice(0,4),16) % 5], room, shared, filter:shared?{...filter,...collaboratorAccess.filter(actor)}:filter, res, previews: new Map(), sequence: 0, checkedAt: Date.now(), checking: null, allowed, lastPacket: 0 };
+      const session = { key, person, actor, owner:actor.owner, peer: randomBytes(9).toString('hex'), color: ['#38bdf8','#a78bfa','#fb923c','#34d399','#f472b6'][parseInt(person.slice(0,4),16) % 5], room, shared, filter, linkHash, res, previews: new Map(), sequence: 0, checkedAt: Date.now(), checking: null, allowed, lastPacket: 0 };
       session.admin=!!actor.accountId&&(file.documentAdmins||[]).some(id=>String(id)===actor.accountId);
       session.name = actor.name || `Guest ${person.slice(0,4).toUpperCase()}`;
       sessions.set(key, session); peers.add(session); rooms.set(room, peers);
@@ -75,7 +80,7 @@ module.exports = function registerLiveInk(app, auth, { PDF, isLocked, hashToken,
           if (!current) { emit(session,session.expiresAt&&Date.now()>=new Date(session.expiresAt).getTime()?{type:'expired',message:'This document sharing link has expired.'}:{ type: 'unavailable' }); res.end(); return; }
           const admin=!!actor.accountId&&(current.documentAdmins||[]).some(id=>String(id)===actor.accountId);
           if(admin!==session.admin){session.admin=admin;sendRoster(room);}
-          if(String(current.shareLinkExpiresAt||'')!==String(session.expiresAt||''))scheduleExpiry(session,current.shareLinkExpiresAt);
+          if(String(expiresFor(current)||'')!==String(session.expiresAt||''))scheduleExpiry(session,expiresFor(current));
           session.checkedAt = Date.now();
           for (const [id, preview] of session.previews) if (Date.now() - preview.updated > 10000) { session.previews.delete(id); broadcast(session, { type: 'clear', id }); }
           res.write(': heartbeat\n\n');
@@ -89,7 +94,7 @@ module.exports = function registerLiveInk(app, auth, { PDF, isLocked, hashToken,
         else sendRoster(room);
       });
       sendRoster(room);
-      scheduleExpiry(session,file.shareLinkExpiresAt);
+      scheduleExpiry(session,expiresFor(file));
     } catch { if (!res.headersSent) res.status(503).end(); else res.end(); }
   };
   app.get('/api/pdfs/:id/live/stream', auth, connect(false));
@@ -155,7 +160,7 @@ module.exports = function registerLiveInk(app, auth, { PDF, isLocked, hashToken,
         const validKey = key => !['id', '__proto__', 'constructor', 'prototype'].includes(key);
         if (!Array.isArray(changes) || changes.length > 64 || Buffer.byteLength(JSON.stringify(changes)) > 512 * 1024 || changes.some(change => !change || typeof change.id !== 'string' || change.id.length > 200 || !change.set || typeof change.set !== 'object' || Array.isArray(change.set) || !Array.isArray(change.unset) || !Object.keys(change.set).every(validKey) || !change.unset.every(key => typeof key === 'string' && validKey(key)))) return res.status(400).end();
         for (let attempt = 0; attempt < 6; attempt++) {
-          const file = await PDF.findOne({...session.filter,...(session.shared?unexpired():{})}).select('+editHistory');
+          const file = await PDF.findOne(session.filter()).select('+editHistory');
           if (!file || await isLocked(file)) { session.res.end(); return res.status(404).end(); }
           const hash = createHash('sha256').update(file.pdfData).digest('hex');
           if (contentRevision !== hash) return res.status(409).end();
@@ -171,7 +176,7 @@ module.exports = function registerLiveInk(app, auth, { PDF, isLocked, hashToken,
           }
           const next = [...annotations.values()];
           if (Buffer.byteLength(JSON.stringify(next)) > 12 * 1024 * 1024) return res.status(413).end();
-          const result = await PDF.updateOne({ ...session.filter,...(session.shared?unexpired():{}), _id: file._id, updatedAt: file.updatedAt, annotations: file.annotations, pdfData: file.pdfData }, { $set: { annotations: next,editHistory:appendHistory(file,session.actor,{annotations:next}), updatedAt: new Date() } }, { runValidators: true });
+          const result = await PDF.updateOne({ ...session.filter(), _id: file._id, updatedAt: file.updatedAt, annotations: file.annotations, pdfData: file.pdfData }, { $set: { annotations: next,editHistory:appendHistory(file,session.actor,{annotations:next}), updatedAt: new Date() } }, { runValidators: true });
           if (!result.matchedCount) continue;
           session.sequence = sequence; session.lastPacket = Date.now();
           broadcast(session, { type: 'edit', changes, contentRevision: hash });
@@ -192,16 +197,22 @@ module.exports = function registerLiveInk(app, auth, { PDF, isLocked, hashToken,
       res.status(204).end();
     } catch { res.status(503).end(); }
   });
-  return { async refreshExpiry(documentId) {
-    const file=await PDF.findById(documentId).select('+shareLinkExpiresAt').lean();
-    for(const session of rooms.get(String(documentId))||[])if(session.shared)scheduleExpiry(session,file?.shareLinkExpiresAt);
+  return { async refreshExpiry(documentId, hash) {
+    const peers = [...(rooms.get(String(documentId)) || [])].filter(session => session.linkHash === hash);
+    if (!peers.length) return;
+    const file = await PDF.findById(documentId).select(linkFields).lean();
+    const link = file && findLink(file, hash);
+    for (const session of peers) {
+      if (link) scheduleExpiry(session, link.expiresAt);
+      else { emit(session, { type: 'unavailable' }); session.res.end(); }
+    }
   }, async refreshRoles(documentId) {
     const file=await PDF.findById(documentId).select('+documentAdmins').lean();
     for(const session of rooms.get(String(documentId))||[])session.admin=!!session.actor.accountId&&(file?.documentAdmins||[]).some(id=>String(id)===session.actor.accountId);
     sendRoster(String(documentId));
   }, saved(documentId) {
     for (const session of rooms.get(String(documentId)) || []) emit(session, { type: 'refresh' });
-  }, revokeShared(documentId,role) {
-    for (const session of rooms.get(String(documentId)) || []) if (session.shared) { emit(session, role?{type:'permissions-changed',role}:{ type: 'unavailable' }); session.res.end(); }
+  }, revokeShared(documentId,hash,role) {
+    for (const session of rooms.get(String(documentId)) || []) if (session.linkHash === hash) { emit(session, role?{type:'permissions-changed',role}:{ type: 'unavailable' }); session.res.end(); }
   } };
 };

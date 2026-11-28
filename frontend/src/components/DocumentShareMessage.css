@@ -2,3 +2,13 @@
 .document-share-message p{margin:2px 0 0;white-space:pre-wrap;overflow-wrap:anywhere}
 .library-share-link-panel textarea{width:100%;padding:8px 10px;border:1px solid var(--border-strong);border-radius:var(--radius-control);background:var(--surface-input);color:var(--text-primary);resize:vertical}
 .pdf-editor > .document-share-message{flex:none;max-height:18vh;overflow:auto;margin:4px 12px}
+
+.document-link-tabs { padding-block: 8px; }
+.document-link-tabs button[aria-pressed=true], .document-audience-links button[aria-pressed=true] {
+  border-color: var(--accent);
+  background: var(--surface-raised);
+  color: var(--text-primary);
+}
+.document-audience-links h4 { font-weight: 650; }
+.document-audience-links form > fieldset { display: grid; gap: 9px; min-width: 0; }
+.document-audience-links .library-sharing-actions { flex-wrap: wrap; }

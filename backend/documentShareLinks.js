@@ -18,9 +18,9 @@ function sendHistory(res, file, query) {
   return res.json(result);
 }
 const {seal,unseal}=require('./shareLinkSecret');
-const {unexpired,expired}=require('./shareLinkExpiry');
+const {expired}=require('./shareLinkExpiry');
+const { hashToken, linkFields, findLink, linkFilter, linkExpired } = require('./documentLinkAccess');
 
-const hashToken = token => createHash('sha256').update(token).digest('hex');
 const isPDF = file => file.mimeType === 'application/pdf' || /\.pdf$/i.test(file.originalName);
 const validId = id => /^[a-f\d]{24}$/i.test(id);
 const editable = file => /\.(md|markdown|txt)$/i.test(file.originalName || '') &&
@@ -36,17 +36,20 @@ module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDF
     res.set('Cache-Control','private, no-store');
     if(!/^[A-Za-z0-9_-]{43}$/.test(req.params.token))return res.status(404).json({message:'This document link is unavailable.'});
     try {
-      const file=await PDF.findOne({shareLinkHash:hashToken(req.params.token),deletedAt:null}).select('_id user name pdfFolder +revokedCollaborators +shareLinkSecret +shareLinkExpiresAt').lean();
-      if(!file)return res.status(404).json({message:'This document link is unavailable.'});
-      if(expired(file))return res.status(410).json({code:'DOCUMENT_LINK_EXPIRED',message:'This document sharing link has expired. Ask the owner or a document admin to extend it.'});
+      const hash = hashToken(req.params.token);
+      const file = await PDF.findOne({ ...linkFilter(hash, { active: false }), deletedAt: null })
+        .select('_id user name pdfFolder +revokedCollaborators ' + linkFields).lean();
+      const link = file && findLink(file, hash);
+      if (!link) return res.status(404).json({message:'This document link is unavailable.'});
+      if(linkExpired(link))return res.status(410).json({code:'DOCUMENT_LINK_EXPIRED',message:'This document sharing link has expired. Ask the owner or a document admin to extend it.'});
       const identity=await collaboratorAccess.identify(req,res,file);
       if(collaboratorAccess.blocked(file,identity))return res.status(403).json({code:'DOCUMENT_ACCESS_REVOKED',message:'The owner revoked your access to this document.'});
-      if(!file.shareLinkSecret)await PDF.updateOne({_id:file._id,shareLinkHash:hashToken(req.params.token),shareLinkSecret:{$exists:false}},{$set:{shareLinkSecret:seal(req.params.token)}});
+      if (link.legacy && !link.secret) await PDF.updateOne({_id:file._id,shareLinkHash:hashToken(req.params.token),shareLinkSecret:{$exists:false}},{$set:{shareLinkSecret:seal(req.params.token)}});
       if(req.method==='GET'&&req.path==='/editor'&&!(await isLocked(file)))await received.remember(identity,file,req.params.token).catch(()=>{});
       next();
     } catch {res.status(503).json({message:'Could not verify document access.'});}
   });
-  const sharedAccess=req=>({...collaboratorAccess.filter(req.documentCollaborator),...unexpired()});
+  const sharedAccess = (req, edit = false) => ({ ...linkFilter(hashToken(req.params.token), { edit }), ...collaboratorAccess.filter(req.documentCollaborator) });
   const liveInk = require('./liveInk')(app, auth, { PDF, User, isLocked, hashToken, validId, collaboratorAccess, activity });
   const contentRevision = file => createHash('sha256').update(file.pdfData).digest('hex');
   const editorRevision=(file,annotations,bytes=file.pdfData)=>createHash('sha256').update(bytes)
@@ -55,7 +58,7 @@ module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDF
   const live = shared => async (req, res) => {
     res.set({ 'Cache-Control': 'private, no-store', 'Referrer-Policy': 'no-referrer' });
     if (shared ? !/^[A-Za-z0-9_-]{43}$/.test(req.params.token) : !validId(req.params.id)) return res.status(404).json({ message: 'Document unavailable.' });
-    const filter = shared ? { shareLinkHash: hashToken(req.params.token), shareLinkRole: 'edit', deletedAt: null, ...sharedAccess(req) } : { _id: req.params.id, user: req.user.userId, deletedAt: null };
+    const filter = shared ? { deletedAt: null, ...sharedAccess(req, true) } : { _id: req.params.id, user: req.user.userId, deletedAt: null };
     try {
       for (let attempt = 0; attempt < 6; attempt++) {
         const file = await PDF.findOne(filter).select('+editHistory');
@@ -82,7 +85,7 @@ module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDF
           annotations = [...items.values()];
           if (Buffer.byteLength(JSON.stringify(annotations)) > 12 * 1024 * 1024) return res.status(413).json({ message: 'Annotations exceed the 12 MB limit.' });
           const actor=await collaboratorAccess.identify(req,res,file);
-          const result = await PDF.updateOne({ ...filter,...(shared?sharedAccess(req):{}), _id: file._id, updatedAt: file.updatedAt, pdfData: file.pdfData, annotations: file.annotations }, { $set: { annotations, editHistory:appendHistory(file,actor,{annotations}), updatedAt: new Date() } }, { runValidators: true });
+          const result = await PDF.updateOne({ ...filter,...(shared?sharedAccess(req,true):{}), _id: file._id, updatedAt: file.updatedAt, pdfData: file.pdfData, annotations: file.annotations }, { $set: { annotations, editHistory:appendHistory(file,actor,{annotations}), updatedAt: new Date() } }, { runValidators: true });
           if (!result.matchedCount) continue;
           liveInk.saved(file._id);
         }
@@ -124,7 +127,7 @@ module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDF
     if (!validId(req.params.id)) return res.status(400).json({ message: 'Invalid document ID.' });
     try {
       const filter = { _id: req.params.id, $or:[{user:req.user.userId},{documentAdmins:req.user.userId}] };
-      const file = await PDF.findOne(filter).select('user pdfFolder deletedAt originalName mimeType +shareLinkHash +shareLinkSecret +shareLinkRole +shareLinkExpiresAt +shareLinkMessage +documentAdmins +revokedCollaborators').lean();
+      const file = await PDF.findOne(filter).select('user pdfFolder deletedAt originalName mimeType +shareLinkHash +shareLinkSecret +shareLinkRole +shareLinkExpiresAt +shareLinkMessage +documentAdmins +revokedCollaborators +audienceLinks').lean();
       if (!file) return res.status(404).json({ message: 'Document not found.' });
       const identity=await collaboratorAccess.identify(req,res,file);
       if(collaboratorAccess.blocked(file,identity))return res.status(403).json({message:'Your document access has been revoked.'});
@@ -143,7 +146,7 @@ module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDF
   }));
   app.get('/api/shared-document/:token/history',async(req,res)=>{
     try{
-      const file=await PDF.findOne({shareLinkHash:hashToken(req.params.token),shareLinkRole:'edit',deletedAt:null,...sharedAccess(req)}).select('user pdfFolder +editHistory').lean();
+      const file=await PDF.findOne({deletedAt:null,...sharedAccess(req,true)}).select('user pdfFolder +editHistory').lean();
       if(!file||await isLocked(file))return res.status(404).json({message:'This document history is unavailable.'});
       sendHistory(res,file,req.query);
     }catch{res.status(503).json({message:'Could not load edit history.'});}
@@ -209,11 +212,11 @@ module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDF
       const expirationUpdate=Object.hasOwn(req.body||{},'expiresAt')||!current.shareLinkHash?{shareLinkExpiresAt:expiresAt}:{};
       const result=await PDF.findOneAndUpdate({...filter,...unchanged,deletedAt:null},{$set:{shareLinkHash:hashToken(token),shareLinkSecret:seal(token),shareLinkRole:role,...expirationUpdate,...messageUpdate}},{new:true}).select('_id +shareLinkExpiresAt +shareLinkMessage');
       if(!result)continue;
-      if(current.shareLinkHash&&(current.shareLinkRole||'view')!==role)liveInk.revokeShared(file._id,role);
-      await liveInk.refreshExpiry(file._id);
+      if(current.shareLinkHash&&(current.shareLinkRole||'view')!==role)liveInk.revokeShared(file._id,current.shareLinkHash,role);
+      await liveInk.refreshExpiry(file._id,hashToken(token));
       if (current.shareLinkHash && ((current.shareLinkRole || 'view') !== role || String(current.shareLinkExpiresAt || '') !== String(result.shareLinkExpiresAt || ''))) {
         try {
-          await activity.record(await received.linkRecipients({ ...current, shareLinkExpiresAt: null }), { ...current, _id: file._id }, req.user.userId, 'access', 'Changed the share link permissions or expiration');
+          await activity.record(await received.recipientsFor(file._id, current.shareLinkHash), { ...current, _id: file._id }, req.user.userId, 'access', 'Changed the share link permissions or expiration');
         } catch {}
       }
       return res.status(current.shareLinkHash?200:201).json({path:`#/shared-document/${token}`,role,expiresAt:result.shareLinkExpiresAt||null,shareMessage:result.shareLinkMessage||'',expired:expired(result)});
@@ -221,10 +224,68 @@ module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDF
     res.status(409).json({message:'Sharing settings changed at the same time. Please retry.'});
   }));
   app.delete(path, ...ownerRoute(async (res, filter, file, req) => {
-    const result=await PDF.updateOne(filter, { $unset: { shareLinkHash: 1, shareLinkSecret:1,shareLinkRole: 1,shareLinkExpiresAt:1,shareLinkMessage:1 } });
+    const result=await PDF.updateOne({...filter,shareLinkHash:file.shareLinkHash||null}, { $unset: { shareLinkHash: 1, shareLinkSecret:1,shareLinkRole: 1,shareLinkExpiresAt:1,shareLinkMessage:1 } });
     if(!result.matchedCount)return res.status(403).json({message:'Your document sharing permissions changed.'});
-    liveInk.revokeShared(filter._id);
-    try { await activity.record(await received.linkRecipients({ ...file, shareLinkExpiresAt: null }), file, req.user.userId, 'access', 'Revoked the document share link'); } catch {}
+    if (file.shareLinkHash) liveInk.revokeShared(filter._id,file.shareLinkHash);
+    try { await activity.record(file.shareLinkHash ? await received.recipientsFor(file._id, file.shareLinkHash) : [], file, req.user.userId, 'access', 'Revoked the document share link'); } catch {}
+    res.status(204).end();
+  }));
+
+  const audiences = '/api/pdfs/:id/audience-links';
+  const describeAudience = link => {
+    let token;
+    try {
+      const decoded = unseal(link.secret);
+      if (hashToken(decoded) === link.hash) token = decoded;
+    } catch {}
+    return { id: link.id, label: link.label, role: link.role, expiresAt: link.expiresAt,
+      shareMessage: link.message, expired: linkExpired(link), path: token ? '#/shared-document/' + token : null };
+  };
+  app.get(audiences, ...ownerRoute(async (res, filter, file) => {
+    if (file.deletedAt || await isLocked(file)) return res.status(403).json({ message: 'Unlock or restore the document to manage audience links.' });
+    res.json((file.audienceLinks || []).map(describeAudience));
+  }));
+
+  const saveAudience = create => ownerRoute(async (res, filter, file, req) => {
+    const { label, role, shareMessage = '', expiresAt = null } = req.body || {};
+    if (typeof label !== 'string' || !label.trim() || label.trim().length > 80 || !['view', 'edit'].includes(role) ||
+      typeof shareMessage !== 'string' || shareMessage.trim().length > 300) {
+      return res.status(400).json({ message: 'Enter an audience name, choose an access level, and use up to 300 characters for the message.' });
+    }
+    if (expiresAt !== null && (typeof expiresAt !== 'string' || !/(Z|[+-]\d{2}:\d{2})$/.test(expiresAt) || !(Date.parse(expiresAt) > Date.now()))) {
+      return res.status(400).json({ message: 'Choose a future expiration or turn expiration off.' });
+    }
+    if (file.deletedAt || await isLocked(file)) return res.status(403).json({ message: 'Unlock or restore the document to manage audience links.' });
+    const settings = { label: label.trim(), role, message: shareMessage.trim(), expiresAt: expiresAt && new Date(expiresAt) };
+    if (create) {
+      const token = randomBytes(32).toString('base64url');
+      const link = { ...settings, id: randomBytes(12).toString('hex'), hash: hashToken(token), secret: seal(token), version: 0 };
+      const result = await PDF.updateOne({ ...filter, deletedAt: null, 'audienceLinks.23': { $exists: false } }, { $push: { audienceLinks: link } });
+      if (!result.matchedCount) return res.status(409).json({ message: 'You can save up to 24 audience links per document.' });
+      return res.status(201).json(describeAudience(link));
+    }
+    const current = file.audienceLinks?.find(link => link.id === req.params.linkId);
+    if (!current) return res.status(404).json({ message: 'This audience link is unavailable.' });
+    const link = { ...current, ...settings, version: current.version + 1 };
+    const result = await PDF.updateOne({ ...filter, deletedAt: null, audienceLinks: { $elemMatch: { id: current.id, version: current.version } } },
+      { $set: { 'audienceLinks.$[link]': link } }, { arrayFilters: [{ 'link.id': current.id, 'link.version': current.version }] });
+    if (!result.matchedCount) return res.status(409).json({ message: 'This link changed. Reopen sharing and try again.' });
+    if (current.role !== role) liveInk.revokeShared(file._id, current.hash, role);
+    await liveInk.refreshExpiry(file._id, current.hash).catch(() => {});
+    if (current.role !== role || String(current.expiresAt) !== String(link.expiresAt)) {
+      try { await activity.record(await received.recipientsFor(file._id, current.hash), file, req.user.userId, 'access', 'Changed an audience link’s access or expiration'); } catch {}
+    }
+    res.json(describeAudience(link));
+  });
+  app.post(audiences, ...saveAudience(true));
+  app.put(audiences + '/:linkId', ...saveAudience(false));
+  app.delete(audiences + '/:linkId', ...ownerRoute(async (res, filter, file, req) => {
+    const link = file.audienceLinks?.find(item => item.id === req.params.linkId);
+    if (!link) return res.status(404).json({ message: 'This audience link is unavailable.' });
+    const result = await PDF.updateOne({ ...filter, 'audienceLinks.id': link.id }, { $pull: { audienceLinks: { id: link.id } } });
+    if (!result.matchedCount) return res.status(409).json({ message: 'This link changed. Reopen sharing and try again.' });
+    liveInk.revokeShared(file._id, link.hash);
+    try { await activity.record(await received.recipientsFor(file._id, link.hash), file, req.user.userId, 'access', 'Revoked an audience link'); } catch {}
     res.status(204).end();
   }));
 
@@ -233,7 +294,7 @@ module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDF
     const unavailable = () => res.status(404).json({ message: 'This editor link is unavailable.' });
     if (owner ? !validId(req.params.id) : !/^[A-Za-z0-9_-]{43}$/.test(req.params.token)) return unavailable();
     try {
-      const filter = owner ? { _id: req.params.id, user: req.user.userId, deletedAt: null } : { shareLinkHash: hashToken(req.params.token), shareLinkRole: 'edit', deletedAt: null, ...sharedAccess(req) };
+      const filter = owner ? { _id: req.params.id, user: req.user.userId, deletedAt: null } : { deletedAt: null, ...sharedAccess(req, true) };
       const file = await PDF.findOne(filter).select('name user pdfFolder originalName mimeType pdfData originalBackup +editHistory');
       if (!file || !editable(file) || await isLocked(file)) return unavailable();
       const text = file.pdfData.toString('utf8');
@@ -251,7 +312,7 @@ module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDF
       const merged = baseRevision === version ? draft : typeof baseText === 'string' ? mergeText(baseText, draft, text) : null;
       if (merged !== null && Buffer.byteLength(merged) <= 1024 * 1024) {
         const bytes = Buffer.from(merged);
-        const result = await PDF.updateOne({ ...filter,...(!owner?sharedAccess(req):{}), _id: file._id, pdfFolder: file.pdfFolder ?? null, pdfData: file.pdfData }, {
+        const result = await PDF.updateOne({ ...filter,...(!owner?sharedAccess(req,true):{}), _id: file._id, pdfFolder: file.pdfFolder ?? null, pdfData: file.pdfData }, {
           $set: { pdfData: bytes, originalBackup: file.originalBackup || file.pdfData, editHistory:bytes.equals(file.pdfData)?file.editHistory:appendHistory(file,await collaboratorAccess.identify(req,res,file),{pdfData:bytes,action:'Edited text'}),updatedAt: new Date() }
         });
         if (result.matchedCount) return res.json({ text: merged, revision: revision(bytes) });
@@ -273,7 +334,7 @@ module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDF
     if (!shared && !validId(req.params.id)) return unavailable();
     const filter = {
       documentKind: checkpoints ? { $ne: 'whiteboard' } : 'whiteboard', deletedAt: null,
-      ...(shared ? { shareLinkHash: hashToken(req.params.token), shareLinkRole: 'edit', ...sharedAccess(req) }
+      ...(shared ? sharedAccess(req, true)
         : { _id: req.params.id, user: req.user.userId }),
     };
     let stops, revision;
@@ -303,8 +364,8 @@ module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDF
     res.set({ 'Cache-Control': 'private, no-store', 'Referrer-Policy': 'no-referrer', 'X-Content-Type-Options': 'nosniff' });
     if (owner ? !validId(req.params.id) : !/^[A-Za-z0-9_-]{43}$/.test(req.params.token)) return res.status(404).json({ message: 'This editor link is unavailable.' });
     try {
-      const filter = owner ? { _id: req.params.id, user: req.user.userId, deletedAt: null } : { shareLinkHash: hashToken(req.params.token), shareLinkRole:allowView?{$in:['view','edit']}:'edit', deletedAt: null, ...sharedAccess(req) };
-      const file = await PDF.findOne(filter).select(allowView ? '+editHistory +shareLinkRole +shareLinkMessage' : '+editHistory +shareLinkRole +presentationStops +presentationRevision');
+      const filter = owner ? { _id: req.params.id, user: req.user.userId, deletedAt: null } : { deletedAt: null, ...sharedAccess(req, !allowView) };
+      const file = await PDF.findOne(filter).select(allowView ? '+editHistory ' + linkFields : '+editHistory +shareLinkRole +presentationStops +presentationRevision');
       if (!file || await isLocked(file)) return res.status(404).json({ message: 'This editor link is unavailable.' });
       const revision = editorRevision(file,normalized(file.annotations));
       const save = async (changes,details={}) => {
@@ -319,7 +380,7 @@ module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDF
               presentationStops: details.pageChange ? remapPresentationStops(file.presentationStops, details.pageChange) : [] }
           : null;
         const presentationFilter = presentation ? presentationMatch(file.presentationRevision || 0) : {};
-        const result = await PDF.updateOne({ ...filter,...(!owner?sharedAccess(req):{}),...presentationFilter, _id: file._id, updatedAt: file.updatedAt, pdfFolder: file.pdfFolder ?? null, pdfData: file.pdfData, annotations: file.annotations }, {  $set: { ...changes, ...presentation, editHistory:appendHistory(file,actor,{...changes,action,pages:req.params.pageNumber?[Number(req.params.pageNumber)]:[],...details}),updatedAt: new Date() } }, { runValidators: true });
+        const result = await PDF.updateOne({ ...filter,...(!owner?sharedAccess(req,true):{}),...(presentation && { $and: [presentationFilter] }), _id: file._id, updatedAt: file.updatedAt, pdfFolder: file.pdfFolder ?? null, pdfData: file.pdfData, annotations: file.annotations }, {  $set: { ...changes, ...presentation, editHistory:appendHistory(file,actor,{...changes,action,pages:req.params.pageNumber?[Number(req.params.pageNumber)]:[],...details}),updatedAt: new Date() } }, { runValidators: true });
         if (!result.matchedCount) { res.status(409).json({ message: 'This document changed or its link was revoked. Reopen the link.' }); return false; }
         liveInk.saved(file._id);
         const next = editorRevision(file,normalized(changes.annotations || file.annotations),changes.pdfData || file.pdfData);
@@ -331,8 +392,9 @@ module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDF
     } catch (error) { res.status(400).json({ message: error.message || 'Could not edit this shared file.' }); }
   };
   app.get('/api/shared-document/:token/editor', editor((req, res, file, save, revision) => {
-    res.json({ _id: file._id, name: file.name, documentKind:file.documentKind, copiedFromName:file.copiedFromName, originalName: file.originalName, mimeType: file.mimeType, revision,role:file.shareLinkRole||'view',shareMessage:file.shareLinkMessage||'',
-      editor: file.shareLinkRole!=='edit'?'view':editable(file) && file.pdfData.length <= 1024 * 1024 && Buffer.from(file.pdfData.toString('utf8')).equals(file.pdfData) ? 'text' : file.mimeType === 'application/pdf' || /\.pdf$/i.test(file.originalName) ? 'pdf' : 'file' });
+    const link = findLink(file, hashToken(req.params.token));
+    res.json({ _id: file._id, name: file.name, documentKind:file.documentKind, copiedFromName:file.copiedFromName, originalName: file.originalName, mimeType: file.mimeType, revision,role:link.role,shareMessage:link.message||'',
+      editor: link.role!=='edit'?'view':editable(file) && file.pdfData.length <= 1024 * 1024 && Buffer.from(file.pdfData.toString('utf8')).equals(file.pdfData) ? 'text' : file.mimeType === 'application/pdf' || /\.pdf$/i.test(file.originalName) ? 'pdf' : 'file' });
   },false,true));
   app.get('/api/shared-document/:token/document', editor((req, res, file) => {
     res.json({ _id: file._id, name: file.name, documentKind:file.documentKind, copiedFromName:file.copiedFromName, originalName: file.originalName, mimeType: file.mimeType, pdfData: file.pdfData.toString('base64'), annotations: file.annotations, tags: file.tags, whiteboardAppearance:file.whiteboardAppearance });
@@ -373,7 +435,7 @@ module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDF
     const unavailable = () => res.status(404).type('text/plain').send('This document link is unavailable.');
     if (!/^[A-Za-z0-9_-]{43}$/.test(req.params.token)) return unavailable();
     try {
-      const filter = { shareLinkHash: hashToken(req.params.token), deletedAt: null, ...sharedAccess(req) };
+      const filter = { deletedAt: null, ...sharedAccess(req) };
       const file = await PDF.findOne(filter).select('user pdfFolder').lean();
       if (!file || await isLocked(file)) return unavailable();
       const download = await PDF.findOne({ ...filter, _id: file._id, pdfFolder: file.pdfFolder ?? null }).select('originalName pdfData');

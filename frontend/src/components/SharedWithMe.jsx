@@ -37,7 +37,13 @@ export default function SharedWithMe({token}) {
       {loading&&<p role="status">Loading shared documents…</p>}
       {!loading&&!error&&!visible.length&&<p>{query?'No matching documents.':'No shared documents yet. Files shared by friends appear here. You can also add a sharing link above.'}</p>}
       <ul className="shared-document-list">{visible.map(file=><li key={file._id}>
-        <DocumentFileIcon file={file} size={24}/><div><strong>{file.name}</strong><small>Shared by {file.owner} · {file.role}</small><DocumentShareMessage message={file.friendMessage} label="Private message"/><DocumentShareMessage message={file.shareMessage} label="Link message"/></div>
+        <DocumentFileIcon file={file} size={24}/><div><strong>{file.name}</strong><small>Shared by {file.owner} · {file.role}</small><DocumentShareMessage message={file.friendMessage} label="Private message"/><DocumentShareMessage message={file.shareMessage} label="Link message"/>
+          {!!file.alternateLinks?.length && <details><summary>Other saved links</summary>
+            {file.alternateLinks.map((link, index) => <div className="shared-document-actions" key={link.path}>
+              <a href={link.path} target="_blank" rel="noopener noreferrer">Open {link.role === 'edit' ? 'Editor' : 'Viewer'} link {index + 2}</a>
+              <DocumentShareMessage message={link.shareMessage} label="Link message"/>
+            </div>)}
+          </details>}</div>
         <div className="shared-document-actions"><a href={'#/document-discussion/'+file._id}>Comments</a>{file.friendShare&&<FriendDocumentDownload file={file} token={token}/>} {file.openPath&&<a href={file.openPath} target="_blank" rel="noopener noreferrer"><ExternalLink size={15}/>{file.openPath.startsWith('#')?'Open document':'View / download'}</a>}{file.canManageLinks&&<button type="button" onClick={()=>setShare(file)}>Manage links</button>}</div>
       </li>)}</ul>
     </section>

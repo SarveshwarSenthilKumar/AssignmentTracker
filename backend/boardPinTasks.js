@@ -4,12 +4,12 @@ const pinId = value => typeof value === 'string' && /^[a-z\d_-]{1,80}$/i.test(va
 module.exports = function registerBoardPinTasks(app, auth, { DetectiveWall, PDF, Todo, isLocked, received, collaboratorAccess }) {
   async function whiteboardFor(id, user, includeNotes = false) {
     const board = await PDF.findOne({ _id: id, deletedAt: null, documentKind: 'whiteboard' })
-      .select('user pdfFolder +revokedCollaborators +shareLinkHash +shareLinkRole +shareLinkExpiresAt' + (includeNotes ? ' annotations' : '')).lean();
+      .select('user pdfFolder +revokedCollaborators +shareLinkHash +shareLinkRole +shareLinkExpiresAt +audienceLinks' + (includeNotes ? ' annotations' : '')).lean();
     if (!board) return null;
     if (String(board.user) === String(user)) return includeNotes && await isLocked(board) ? null : { board, owned: true };
-    if (board.shareLinkRole !== 'edit' || collaboratorAccess.blocked(board, collaboratorAccess.forFile({ accountId: user }, board)) ||
+    if (collaboratorAccess.blocked(board, collaboratorAccess.forFile({ accountId: user }, board)) ||
       await isLocked(board)) return null;
-    const path = await received.linkFor(board, user);
+    const path = await received.linkFor(board, user, true);
     return path ? { board, path } : null;
   }
 
