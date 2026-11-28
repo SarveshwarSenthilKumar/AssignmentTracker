@@ -2,6 +2,7 @@ import DocumentFileIcon from './DocumentFileIcon'
 import { useEffect, useRef, useState } from 'react'
 import { Paperclip, Upload, Link2, X, Loader2 } from 'lucide-react'
 import { descriptionParts, documentTaskIds } from '../lib/taskAttachments'
+import { boardPinRoute } from '../lib/boardPinRoute'
 import './TaskAttachments.css'
 
 export function TaskDescription({ text, documents, onOpen }) {
@@ -94,8 +95,9 @@ export default function TaskAttachments({ taskId, links = [], onLinksChange, doc
     {error && <p role="alert" className="task-attachment-error">{error}</p>}{notice && <p role="status">{notice}</p>}
     <div className="task-attachment-grid">{linked.map(file => <article key={file._id}><div className="task-attachment-title"><DocumentFileIcon file={file} size={18}/><button type="button" onClick={event => onOpen(file._id, event)}>{file.name}<small>{file.originalName}</small></button></div><small>{file.mimeType || 'File'} · {folders.find(folder => folder._id === file.pdfFolder)?.name || 'Unfiled'}</small><div className="task-attachment-actions"><button type="button" onClick={event => onOpen(file._id, event)}>Open</button>{['image','audio','video'].includes(file.mimeType?.split('/')[0]) && <button type="button" onClick={() => setPreview(preview === file._id ? null : file._id)}>{preview === file._id ? 'Hide preview' : 'Preview'}</button>}{onInsert && <button type="button" onClick={() => onInsert(`[[document:${file._id}]]`)}>Insert in description</button>}<button type="button" disabled={busy} aria-label={`Unlink ${file.name}`} onClick={() => link(file, false)}><X size={13}/>Unlink</button></div>{preview === file._id && <MediaPreview file={file} token={token}/>}</article>)}</div>
     {links.length > 0 && <div className="task-attachment-grid">{[...new Set(links)].map(address => {
-      const safe = /^https?:\/\//i.test(address)
-      return <article key={address} className="task-web-attachment"><div className="task-attachment-title"><Link2 size={16}/>{safe ? <a href={address} target="_blank" rel="noopener noreferrer">{address}</a> : <span>{address}</span>}</div>
+      const pin = boardPinRoute(address)
+      const safe = pin || /^https?:\/\//i.test(address)
+      return <article key={address} className="task-web-attachment"><div className="task-attachment-title"><Link2 size={16}/>{safe ? <a href={address} target="_blank" rel="noopener noreferrer">{pin ? 'Open source sticky note' : address}</a> : <span>{address}</span>}</div>
         {onLinksChange && <div className="task-attachment-actions"><button type="button" disabled={busy} onClick={() => changeWebLink(address, false)}>Remove link</button></div>}
       </article>
     })}</div>}

@@ -1,3 +1,5 @@
+import BoardPinTask from './BoardPinTask'
+import { boardPinRoute } from '../lib/boardPinRoute'
 import {useEffect,useLayoutEffect,useRef,useState} from 'react'
 import {ArrowLeft,Plus,StickyNote,ImagePlus,Pin,Link2,Hand,Pencil,Move,MousePointer2,Undo2,Redo2,Trash2,ZoomIn,ZoomOut,RotateCw,Maximize,Minimize,EyeOff,Lock,Download,Save,BookOpen,Palette,X} from 'lucide-react'
 import {readApiJson} from '../lib/apiResponse'
@@ -57,7 +59,11 @@ const MIN_ZOOM=.02,MAX_ZOOM=3,INITIAL_ZOOM=.8,LOCKED_MIN_ZOOM=1/MAX_BOARD_DIMENS
 const nodeFontSize=node=>node.fontSize??(node.type==='photo'?14:node.type==='pin'?12:20)
 const clamp=(n,min,max)=>Math.max(min,Math.min(max,n))
 const typing=target=>target.closest('input,textarea,select,[contenteditable="true"]')
-const wallId=()=>/^#\/detective-wall\/([a-f\d]{24})(?:\/overview)?$/i.exec(window.location.hash)?.[1]||null
+const noteRoute = () => {
+  const target = boardPinRoute(window.location.hash)
+  return target?.page === 'detective-wall' ? target : null
+}
+const wallId=()=>noteRoute()?.boardId||/^#\/detective-wall\/([a-f\d]{24})(?:\/overview)?$/i.exec(window.location.hash)?.[1]||null
 async function request(token,path,options={}){
   const response=await fetch(path,{...options,headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json',...options.headers}})
   const data=await readApiJson(response)
@@ -78,14 +84,15 @@ async function photoData(file){
   }finally{image.close()}
 }
 
-export default function DetectiveWalls({token,userId}){
+export default function DetectiveWalls({token,userId,onTaskCreated}){
   const [id,setId]=useState(wallId),[walls,setWalls]=useState([]),[name,setName]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[version,setVersion]=useState(0)
+  const [focusPin, setFocusPin] = useState(() => noteRoute()?.noteId)
   const creating=useRef(false)
   const [generating,setGenerating]=useState(false)
   const [pickerOpen,setPickerOpen]=useState(false)
   const beforeGeneration=useRef(null)
   const [deleting,setDeleting]=useState(null)
-  useEffect(()=>{const change=()=>setId(wallId());window.addEventListener('hashchange',change);return()=>window.removeEventListener('hashchange',change)},[])
+  useEffect(()=>{const change=()=>{setId(wallId());setFocusPin(noteRoute()?.noteId)};window.addEventListener('hashchange',change);return()=>window.removeEventListener('hashchange',change)},[])
   useEffect(()=>{
     if(id)return
     const controller=new AbortController();setBusy(true);setError('')
@@ -123,7 +130,7 @@ export default function DetectiveWalls({token,userId}){
   },[id,token])
   const picker=pickerOpen&&<DetectiveCasePicker busy={generating} error={error} onChoose={generateDemo} onClose={()=>{if(!creating.current){setPickerOpen(false);setError('');beforeGeneration.current=null}}}/>
   if(id)return <>
-    <DetectiveWallEditor key={id} id={id} token={token} userId={userId} onGenerateDemo={openPicker}/>
+    <DetectiveWallEditor key={id} id={id} token={token} userId={userId} onGenerateDemo={openPicker} focusPin={focusPin} onTaskCreated={onTaskCreated}/>
     {picker}
     {generating&&<div className="detective-demo-status" role="status">Assembling the case…</div>}
     {error&&!pickerOpen&&<div className="detective-demo-status" role="alert">{error}<button type="button" onClick={()=>setError('')}>Dismiss</button></div>}
@@ -156,7 +163,10 @@ function DetectiveWallZoom({zoomTo,fit,zoomListener}){
   )
 }
 
-function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
+function DetectiveWallEditor({id,token,userId,onGenerateDemo,focusPin,onTaskCreated}){
+  const [taskNote, setTaskNote] = useState(null)
+  const [pinNotice, setPinNotice] = useState(null)
+  const focusedPin = useRef(null)
   const [doc,setDoc]=useState(null),[loading,setLoading]=useState(true),[error,setError]=useState(''),[status,setStatus]=useState('saved'),[localBackup,setLocalBackup]=useState(null)
   const [selected,setSelected]=useState(null),[tool,setTool]=useState('pan'),[connecting,setConnecting]=useState(null),[stringColor,setStringColor]=useState('#b52b35'),[pointer,setPointer]=useState(null),[photoBusy,setPhotoBusy]=useState(false),[history,setHistory]=useState({undo:[],redo:[]})
   const [stringWidth,setStringWidth]=useState(6)
@@ -744,6 +754,19 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
     }
   },[lockedView])
 
+  useLayoutEffect(() => {
+    if (!focusPin) { focusedPin.current = null; return }
+    if (loading || !doc || !viewport.current || focusedPin.current === focusPin) return
+    focusedPin.current = focusPin
+    const note = doc.state.nodes.find(node => node.id === focusPin && node.type === 'note')
+    if (!note) { setPinNotice({ message: 'This sticky note is no longer on the wall.' }); return }
+    setPinNotice(null)
+    cancelConnection()
+    setTool('select')
+    setSelected({ type: 'node', id: note.id })
+    zoomTo(zoomRef.current, null, { x: note.x + note.width / 2, y: note.y + note.height / 2 })
+  }, [doc, focusPin, loading])
+
   const openSampleBoards=()=>onGenerateDemo(()=>{clearTimeout(timer.current);return save()})
   const leave=async()=>{clearTimeout(timer.current);if(await save())window.location.hash='/detective-wall'}
   const changeFrameWidth=(width,patch={})=>{
@@ -840,6 +863,12 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
       <button type="button" disabled={!history.undo.length} onClick={()=>undo(false)} title="Undo (Ctrl+Z)"><Undo2 size={16}/></button><button type="button" disabled={!history.redo.length} onClick={()=>undo(true)} title="Redo (Ctrl+Shift+Z)"><Redo2 size={16}/></button><button type="button" disabled={!selected} onClick={remove} title="Delete selected item or string"><Trash2 size={16}/></button>
     </div>
     <input ref={fileInput} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={event=>{const file=event.target.files?.[0];event.target.value='';addPhoto(file)}}/>
+    {taskNote && <BoardPinTask token={token} kind="detective-wall" boardId={id} note={taskNote} beforeSave={save}
+      onClose={() => setTaskNote(null)} onCreated={task => { onTaskCreated(task); setPinNotice({ message: 'Task created.', taskId: task._id }) }}/>}
+    {pinNotice && <div className="detective-notice" role="status">{pinNotice.message}
+      {pinNotice.taskId && <a href={'#/tasks/' + pinNotice.taskId} target="_blank" rel="noopener noreferrer">Open task</a>}
+      <button type="button" onClick={() => setPinNotice(null)} aria-label="Dismiss task notice"><X size={15}/></button>
+    </div>}
     {error&&<div className="detective-notice" role="alert">{error}<button type="button" onClick={save}>Retry save</button><button type="button" onClick={()=>setError('')} aria-label="Dismiss error"><X size={15}/></button></div>}
     {localBackup&&<div className="detective-notice">An unsaved local draft is available.<button type="button" onClick={()=>{apply(localBackup,true,false);setLocalBackup(null)}}>Restore draft</button><button type="button" onClick={()=>{setLocalBackup(null);try{localStorage.removeItem(cacheKey)}catch{}}}>Keep server version</button></div>}
     <div className={`detective-hint${connecting?' is-connecting':''}`}>
@@ -976,6 +1005,7 @@ function DetectiveWallEditor({id,token,userId,onGenerateDemo}){
         {activeNode.ink?.length>0&&<button type="button" onClick={()=>changeNode(activeNode.id,{ink:activeNode.ink.slice(0,-1)})}>Remove last stroke</button>}
         {writingNote&&<span>{activeNode.ink?.length>=MAX_NOTE_STROKES?'Stroke limit reached. Remove a stroke to keep writing.':'Write on the note with a pen, finger, or mouse.'}</span>}
       </div>}
+      {activeNode?.type === 'note' && onTaskCreated && <button type="button" onClick={() => setTaskNote(activeNode)}><Plus size={15}/>Create task</button>}
       <DetectiveSelectionSize key={JSON.stringify(selectedIds)} fontSize={commonFontSize} onFontSize={size=>changeSelectedFonts(size)} onFontDelta={delta=>changeSelectedFonts(delta,true)} onScale={scaleSelected}/>
       {selectedGroup&&selectedGroup.nodes.length>1&&<div className="detective-spacing-controls" role="group" aria-label="Selection spacing">
         <span>Spacing</span>

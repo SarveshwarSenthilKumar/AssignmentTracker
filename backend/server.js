@@ -1334,7 +1334,7 @@ app.delete('/api/todos/clear-inbox', authenticateToken, async (req, res) => {
 require('./folderHierarchy')(app,authenticateToken,{mongoose,User,Folder,PDFFolder,Todo,PDF});
 require('./sharedFolders')(app,authenticateToken,{User,PDF,PDFFolder});
 require('./taskFolderShares')(app,authenticateToken,{Folder,Todo,User});
-require('./documentShareLinks')(app,authenticateToken,{User,PDF,PDFFolder,Todo,Folder});
+require('./documentShareLinks')(app,authenticateToken,{User,PDF,PDFFolder,Todo,Folder,DetectiveWall});
 require('./folderAttachments')(app,authenticateToken,{mongoose,User,Folder,PDFFolder,PDF,upload});
 // Get all folders
 app.get('/api/folders', authenticateToken, async (req, res) => {

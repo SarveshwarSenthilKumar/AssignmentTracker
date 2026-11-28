@@ -1,3 +1,4 @@
+import BoardPinTask from './BoardPinTask'
 import DocumentShareMessage from './DocumentShareMessage'
 import { featureVisible } from '../lib/featureVisibility'
 import useDocumentTabTitle from '../hooks/useDocumentTabTitle'
@@ -287,7 +288,7 @@ export async function burnAnnotations(pdfBytes, annotations, usePressure) {
 function TextAnnotation({
   item, scale, isActive, tool, textareaRef,
   onClick, onChange, onCommit, onDelete, onFontDelta, onColorChange, onNoteColorChange,
-  onDragStart, onDragMove, onDragEnd, onResizeStart, selected, onSelect, onSave, onDownload, onRotate, writing, onToggleInk, onStroke, onRemoveStroke
+  onDragStart, onDragMove, onDragEnd, onResizeStart, selected, onSelect, onSave, onDownload, onRotate, writing, onToggleInk, onStroke, onRemoveStroke, onCreateTask
 }) {
   const interactive = tool === 'text' || tool === 'select' || tool==='read'
   const fontSize = item.fontSize || 16
@@ -381,6 +382,8 @@ function TextAnnotation({
               onPointerDown={event=>event.stopPropagation()} onClick={()=>onToggleInk(item.id)}>
               {writing?'Done handwriting':'Handwrite'}
             </button>
+            {onCreateTask && <button type="button" className="pdf-sticky-ink-action" onPointerDown={event => event.stopPropagation()}
+              onClick={() => onCreateTask(item)}>Create task</button>}
             {item.ink?.length>0&&<button type="button" className="pdf-sticky-ink-action" title="Remove last stroke"
               aria-label="Remove last stroke" onPointerDown={event=>event.stopPropagation()} onClick={()=>onRemoveStroke(item.id)}><Undo size={14}/></button>}
             {writing&&item.ink?.length>=MAX_NOTE_STROKES&&<span className="pdf-sticky-ink-action" role="status">Stroke limit reached</span>}
@@ -556,7 +559,7 @@ const PagePreview=memo(function PagePreview({ pageNumber, items=[], whiteboard=f
 /* ------------------------------------------------------------------ */
 /* Main editor                                                         */
 /* ------------------------------------------------------------------ */
-export default function PDFEditor({ pdfId, onClose, token, initialDocument = null, shareToken = null, shareRevision = null, shareMessage, exportImage = false, onCleanCopy, assistantOpen=false, onToggleAssistant, onAssistantHost, renderFolderNavigation, onTaskCreated, onOpenTutorial, hiddenFeatures }) {
+export default function PDFEditor({ pdfId, onClose, token, initialDocument = null, shareToken = null, shareRevision = null, shareMessage, exportImage = false, onCleanCopy, assistantOpen=false, onToggleAssistant, onAssistantHost, renderFolderNavigation, onTaskCreated, onOpenTutorial, hiddenFeatures, focusPin }) {
   const [showCleanup,setShowCleanup]=useState(false)
   const [copyParagraphs,setCopyParagraphs]=useState(()=>{try{return localStorage.getItem('pdf-copy-paragraphs')!=='false'}catch{return true}})
   useEffect(()=>{try{localStorage.setItem('pdf-copy-paragraphs',String(copyParagraphs))}catch{}},[copyParagraphs])
@@ -585,6 +588,9 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
     if (response.ok && (options.method || 'GET') !== 'GET') sharedRevision.current = response.headers.get('X-Share-Revision') || sharedRevision.current
     return response
   }
+  const [taskNote, setTaskNote] = useState(null)
+  const [pinTaskId, setPinTaskId] = useState(null)
+  const focusedPin = useRef(null)
   const [pdfData, setPdfData] = useState(null)
   useDocumentTabTitle(pdfData?.name)
   const [pdfFile, setPdfFile] = useState(null)
@@ -2573,6 +2579,36 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   }
 
   const ready = !!pageBase && pageBase.page === pageNumber
+  useEffect(() => {
+    if (!focusPin) { focusedPin.current = null; return }
+    if (focusedPin.current === focusPin || loading || !pdfData || !numPages) return
+    const note = isWhiteboard && drawingPaths.find(item => item.id === focusPin && item.stickyNote)
+    if (!note) {
+      focusedPin.current = focusPin
+      setActionError('This sticky note is no longer on the whiteboard.')
+      return
+    }
+    if (bookView) { setBookView(false); return }
+    const target = note.page || 1
+    if (target < 1 || target > numPages) {
+      focusedPin.current = focusPin
+      setActionError('The section containing this sticky note is unavailable.')
+      return
+    }
+    if (pageNumber !== target) { goToPage(target); return }
+    if (!ready) return
+    const frame = requestAnimationFrame(() => {
+      const node = viewerRef.current?.querySelector('[data-pdf-annotation-id="' + focusPin + '"]')
+      if (!node) return
+      focusedPin.current = focusPin
+      setActionError(null)
+      setCurrentTool('select')
+      setSelectedInsertId(note.id)
+      node.scrollIntoView({ block: 'center', inline: 'center' })
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [focusPin, loading, pdfData, numPages, drawingPaths, isWhiteboard, bookView, pageNumber, ready])
+
   const quarterTurn = rotation % 180 !== 0
   const renderW = ready ? (quarterTurn ? pageBase.h : pageBase.w) * scale : 0
   const renderH = ready ? (quarterTurn ? pageBase.w : pageBase.h) * scale : 0
@@ -2752,6 +2788,10 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
                       onResizeStart={handleResizeStart}
                       selected={selectedInsertId === item.id}
                       onSelect={setSelectedInsertId}
+                      onCreateTask={isWhiteboard && (token || shareCredential) && !accessDenied && !liveInk.accessRevoked && available('tasks') ? note => {
+                        commitText()
+                        setTaskNote(pathsRef.current.find(item => item.id === note.id) || note)
+                      } : undefined}
                       onSave={handleSave}
                       onDownload={handleDownload}
                     />
@@ -2764,6 +2804,13 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
   return (
     <div ref={editorRootRef} style={isWhiteboard?whiteboardAppearanceStyle(boardAppearance,scale):undefined} data-hidden-editor={Object.keys(editorVisibility).filter(key=>!editorVisibility[key]).join(' ')} className={cn("pdf-editor fixed inset-0 bg-slate-950 flex flex-col z-50",focusMode&&"pdf-focus-mode",zenMode&&"pdf-zen-mode",isWhiteboard&&"pdf-whiteboard","pdf-touch-tracked",fingerScroll&&"pdf-finger-scroll",currentTool==='read'&&'pdf-reading-mode')} role="region" aria-label="Visual document editor" aria-busy={deletingPage} onPointerDownCapture={e => { if (deletingPage && !e.target.closest('.document-access-notice')) { e.preventDefault(); e.stopPropagation() } }} onKeyDownCapture={e => { if (deletingPage && !e.target.closest('.document-access-notice')) { e.preventDefault(); e.stopPropagation() } }}>
       {deletingPage && <div className="inline-operation-status" role="status"><Loader2 className="animate-spin" size={17} />Updating pages…</div>}
+      {taskNote && <BoardPinTask token={token || shareCredential} kind="whiteboard" boardId={pdfId} note={taskNote}
+        beforeSave={saveAnnotations} onClose={() => setTaskNote(null)}
+        onCreated={task => { onTaskCreated?.(task); setPinTaskId(task._id) }}/>}
+      {pinTaskId && <div className="inline-operation-status" role="status">Task created.
+        <a className="underline" href={'#/tasks/' + pinTaskId} target="_blank" rel="noopener noreferrer">Open task</a>
+        <button type="button" aria-label="Dismiss task notice" onClick={() => setPinTaskId(null)}><X size={16}/></button>
+      </div>}
       <InlineConfirmation {...confirmation} />
       {quickActionNotice&&<div className="inline-operation-status" role="status">{quickActionNotice}</div>}
       {canOpenQuickActions&&showQuickActions&&<PDFQuickActions hiddenFeatures={hiddenFeatures} token={token} onSaved={setQuickActionNotice} onTaskCreated={onTaskCreated} onClose={()=>setShowQuickActions(false)}/>}

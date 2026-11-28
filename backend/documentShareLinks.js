@@ -24,7 +24,7 @@ const validId = id => /^[a-f\d]{24}$/i.test(id);
 const editable = file => /\.(md|markdown|txt)$/i.test(file.originalName || '') &&
   /^(text\/plain|text\/markdown|application\/octet-stream)(;|$)/i.test(file.mimeType || '');
 
-module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDFFolder, Todo, Folder }) {
+module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDFFolder, Todo, Folder, DetectiveWall }) {
   const collaboratorAccess = require('./documentCollaboratorAccess')({User});
   const activity = require('./documentActivity')(PDF, User);
   const friends=require('./friendSharing')(app,auth,{User,PDF,collaboratorAccess,isLocked,activity});
@@ -114,6 +114,7 @@ module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDF
     return false;
   }
 
+  require('./boardPinTasks')(app, auth, { DetectiveWall, PDF, Todo, isLocked, received, collaboratorAccess });
   require('./assignmentHandoff')(app, auth, { User, PDF, Todo, Folder, isLocked });
 
   const ownerRoute = handler => [auth, async (req, res) => {

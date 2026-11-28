@@ -1,3 +1,5 @@
+import BoardPinWhiteboard from './components/BoardPinWhiteboard'
+import { boardPinRoute } from './lib/boardPinRoute'
 import { DocumentActivityInbox, DocumentDiscussion } from './components/DocumentActivity'
 import AssignmentHandoff from './components/AssignmentHandoff'
 import DocumentShareLink from './components/DocumentShareLink'
@@ -326,9 +328,24 @@ function App({onFaviconPage}) {
   const [handoffPage, setHandoffPage] = useState(null)
   const [handoffFile, setHandoffFile] = useState(null)
   const [showPDFUploadModal, setShowPDFUploadModal] = useState(false)
-  const [selectedPDF, setSelectedPDF] = useState(() => available('documents') && window.location.hash.match(/^#\/documents\/([a-f\d]{24})$/i)?.[1] || null)
+  const [pinRoute, setPinRoute] = useState(() => boardPinRoute(window.location.hash))
+  const [selectedPDF, setSelectedPDF] = useState(() => available('documents') && (available('whiteboards') && pinRoute?.page === 'documents' ? pinRoute.boardId : window.location.hash.match(/^#\/documents\/([a-f\d]{24})$/i)?.[1]) || null)
   useEffect(() => {
-    if (selectedPDF || !/^#\/documents\/[a-f\d]{24}$/i.test(window.location.hash)) return
+    const change = () => {
+      const target = boardPinRoute(window.location.hash)
+      if (target?.page !== 'documents' || !available('whiteboards')) return
+      const open = () => { setPinRoute(target); setSelectedPDF(target.boardId) }
+      if (selectedPDF && (selectedPDF !== target.boardId || pinRoute?.boardId !== selectedPDF)) {
+        closeEditorForNavigation(selectedPDF, open).catch(failure => setError(failure.message))
+      } else open()
+    }
+    window.addEventListener('hashchange', change)
+    return () => window.removeEventListener('hashchange', change)
+  }, [selectedPDF, pinRoute?.boardId, hiddenFeatures])
+  const registerPinTask = task => setTodos(previous => [task, ...previous.filter(item => item._id !== task._id)])
+  useEffect(() => {
+    if (selectedPDF || !(/^#\/documents\/[a-f\d]{24}$/i.test(window.location.hash) || boardPinRoute(window.location.hash)?.page === 'documents')) return
+    setPinRoute(null)
     window.history.replaceState(window.history.state, '', '#/documents')
   }, [selectedPDF])
   useEffect(() => {
@@ -1815,7 +1832,7 @@ function App({onFaviconPage}) {
         {page==='prep' && <PrepPage hiddenFeatures={hiddenFeatures} token={token} documents={pdfs} onDocumentsChange={setPdfs} onOpen={openDocument}/>}
         {page==='resumes' && <ResumesPage hiddenFeatures={hiddenFeatures} token={token} documents={pdfs} onDocumentsChange={setPdfs} onOpen={openDocument}/>}
         {page==='study' && <StudyPage token={token}/>}
-        {page==='detective-wall' && <DetectiveWalls token={token} userId={user?.id}/>}
+        {page==='detective-wall' && <DetectiveWalls token={token} userId={user?.id} onTaskCreated={available('tasks') ? registerPinTask : undefined}/>}
         {page==='whiteboards' && <Whiteboards token={token} documents={pdfs} onDocumentsChange={setPdfs} onOpen={openDocument}/>}
         {page==='tutorial' && !selectedPDF && !selectedTask && <PlatformTutorial headerAction={sectionNewTab} hiddenFeatures={hiddenFeatures} key={'tutorial:'+user?.id} userId={user?.id}
           startWithPDF={window.location.hash === '#/tutorial/pdf'}/>}
@@ -2754,8 +2771,9 @@ function App({onFaviconPage}) {
         <StudyPhone key={'phone:'+user?.id+':'+assistantGeneration} userId={user?.id} token={token} tasks={todos} enabled={user?.studyPhoneEnabled!==false}/>
         {available('calendar') && available('calendar-reminders') && <CalendarReminderNotifications key={'calendar-reminders:'+user?.id} userId={user?.id} token={token} onOpen={selectedPDF?undefined:id=>{setAssistantCalendarId(id);navigate('calendar')}}/>}
         {/* PDF Editor */}
-        {available('documents') && selectedPDF && (
-          <DocumentEditor
+        {available('documents') && selectedPDF && (() => {
+          const focusPin = available('whiteboards') && pinRoute?.boardId === selectedPDF && pinRoute.page === 'documents' ? pinRoute.noteId : null
+          const editor = <DocumentEditor
             onTaskCreated={task=>setTodos(previous=>[task,...previous.filter(item=>item._id!==task._id)])}
             assistantOpen={assistantOpen}
             onToggleAssistant={available('assistant') ? ()=>setAssistantOpen(previous=>!previous) : undefined}
@@ -2792,10 +2810,13 @@ function App({onFaviconPage}) {
               />
             )}
             pdfId={selectedPDF}
+            focusPin={focusPin}
             onClose={() => { setSelectedPDF(null); fetchPDFs() }}
             token={token}
           />
-        )}
+          return focusPin ? <BoardPinWhiteboard key={selectedPDF} boardId={selectedPDF} focusPin={focusPin} token={token}
+            hiddenFeatures={hiddenFeatures} onTaskCreated={registerPinTask} onClose={() => setSelectedPDF(null)}>{editor}</BoardPinWhiteboard> : editor
+        })()}
 
         </SectionLock>
       </div>

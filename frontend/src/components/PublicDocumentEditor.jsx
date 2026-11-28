@@ -25,7 +25,7 @@ class SharedEditorBoundary extends Component {
   }
 }
 
-export default function PublicDocumentEditor({ shareToken }) {
+export default function PublicDocumentEditor({ shareToken, focusPin, onClose, onTaskCreated, hiddenFeatures }) {
   const endpoint = `/api/shared-document/${shareToken}`
   const [file, setFile] = useState(null)
   const [error, setError] = useState('')
@@ -49,7 +49,7 @@ export default function PublicDocumentEditor({ shareToken }) {
       }).catch(error => { if (!controller.signal.aborted) setError(error.message) })
     return () => controller.abort()
   }, [endpoint])
-  const close = () => { window.location.hash = '/home' }
+  const close = onClose || (() => { window.location.hash = '/home' })
   async function replace(event) {
     const replacement = event.target.files?.[0]
     event.target.value = ''
@@ -76,7 +76,7 @@ export default function PublicDocumentEditor({ shareToken }) {
     } catch (error) { setError(error.message) }
     finally { setBusy(false) }
   }
-  if (file?.editor === 'pdf') return <SharedEditorBoundary downloadUrl={endpoint}><PDFEditor key={shareToken} pdfId={file._id} shareToken={shareToken} shareRevision={file.revision} shareMessage={file.shareMessage} onClose={close}/></SharedEditorBoundary>
+  if (file?.editor === 'pdf') return <SharedEditorBoundary downloadUrl={endpoint}><PDFEditor key={shareToken} focusPin={focusPin} hiddenFeatures={hiddenFeatures} onTaskCreated={onTaskCreated} pdfId={file._id} shareToken={shareToken} shareRevision={file.revision} shareMessage={file.shareMessage} onClose={close}/></SharedEditorBoundary>
   if(denied)return <DocumentAccessNotice message={denied} onClose={close} onRetry={()=>window.location.reload()}/>
   return <main className="platform-viewport min-h-screen px-4 py-8">
     <div className="mx-auto max-w-4xl">
