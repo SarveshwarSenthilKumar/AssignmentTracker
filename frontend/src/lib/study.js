@@ -5,3 +5,5 @@ export async function studyRequest(token,path='',options={}){
   if(options.method)window.dispatchEvent(new Event('study-changed'))
   return data
 }
+
+export const answersFor = item => Array.isArray(item.answers) ? item.answers.filter(Boolean) : (item.answer ? [item.answer] : [])
