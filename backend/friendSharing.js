@@ -161,6 +161,8 @@ module.exports=function registerFriendSharing(app,auth,{User,PDF,isLocked,collab
 
   app.post(sharesBase+'/:id',...route(async(req,res)=>{
     const recipient=req.body?.recipient;
+    const message = readMessage(req.body?.message);
+    if (message === null) return res.status(400).json({ message: 'Use up to 300 characters for the document share message.' });
     if(!validId(recipient))return res.status(400).json({message:'Choose a friend.'});
     const user=req.user.userId;
     const friendship=await Friendship.findOne({_id:pairKey(user,recipient),accepted:true}).select('generation').lean();
@@ -169,10 +171,14 @@ module.exports=function registerFriendSharing(app,auth,{User,PDF,isLocked,collab
     if(!file||await isLocked(file))return res.status(404).json({message:'This document is unavailable for sharing.'});
     const blocked=collaboratorAccess.blocked(file,collaboratorAccess.forFile({accountId:recipient},file));
     if(blocked)return res.status(403).json({message:'This account’s access to the document was revoked.'});
-    const result=await PDF.updateOne({_id:file._id,user,deletedAt:null},{
-      $addToSet:{friendShares:{recipient,friendship:friendship.generation}}
-    },{timestamps:false});
-    if(!result.matchedCount)return res.status(404).json({message:'This document is unavailable.'});
+    const filter = { _id: file._id, user, deletedAt: null };
+    const grant = { recipient, friendship: friendship.generation };
+    const result = await PDF.updateOne({ ...filter, friendShares: { $not: { $elemMatch: grant } } }, {
+      $push: { friendShares: { ...grant, message } },
+    }, { timestamps: false });
+    if (!result.matchedCount && !await PDF.exists({ ...filter, friendShares: { $elemMatch: grant } })) {
+      return res.status(404).json({ message: 'This document is unavailable.' });
+    }
     res.status(204).end();
   }));
 

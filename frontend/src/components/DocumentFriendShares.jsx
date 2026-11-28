@@ -4,6 +4,7 @@ import './FriendSharing.css'
 
 export default function DocumentFriendShares({file,token,onClose}){
   const {friends,loading:loadingFriends,error:friendsError}=useFriends(token)
+  const [shareNote, setShareNote] = useState('')
   const [recipient,setRecipient]=useState(''),[shared,setShared]=useState(null)
   const [busy,setBusy]=useState(false),[error,setError]=useState(''),[message,setMessage]=useState('')
   const lock=useRef(false)
@@ -23,10 +24,10 @@ export default function DocumentFriendShares({file,token,onClose}){
     lock.current=true;setBusy(true);setError('');setMessage('')
     try{
       await friendRequest(token,revoke?endpoint+'/'+friend:endpoint,revoke?{method:'DELETE'}:
-        {method:'POST',body:JSON.stringify({recipient:friend})})
+        {method:'POST',body:JSON.stringify({recipient:friend,message:shareNote.trim()})})
       setShared(previous=>revoke?previous.filter(id=>id!==friend):[...new Set([...previous,friend])])
       setMessage(revoke?'Private access revoked.':'Shared privately. Your friend can find it in Shared with me.')
-      if(!revoke)setRecipient('')
+      if(!revoke){setRecipient('');setShareNote('')}
     }catch(error){setError(error.message)}
     finally{lock.current=false;setBusy(false)}
   }
@@ -42,6 +43,11 @@ export default function DocumentFriendShares({file,token,onClose}){
         <option value="">Choose a friend</option>
         {available.map(friend=><option key={friend.id} value={friend.accountId}>{friend.username}</option>)}
       </select></label>
+      <label className="friend-message-field">Private message (optional)
+        <textarea rows={2} maxLength={300} value={shareNote} disabled={busy}
+          onChange={event => setShareNote(event.target.value)} placeholder="Tell your friend why you’re sharing this file"/>
+        <small>{shareNote.length} / 300</small>
+      </label>
       <button type="button" disabled={busy||!canShare} onClick={()=>update(recipient,false)}>Share privately</button>
     </div>}
     {!loadingFriends&&!friendsError&&!accepted.length&&<p>Send or accept a friend request in Account to share privately.</p>}

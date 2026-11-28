@@ -1,3 +1,4 @@
+import DocumentShareMessage from './DocumentShareMessage'
 import { featureVisible } from '../lib/featureVisibility'
 import useDocumentTabTitle from '../hooks/useDocumentTabTitle'
 import PDFSearch from './PDFSearch'
@@ -554,7 +555,7 @@ const PagePreview=memo(function PagePreview({ pageNumber, items=[], whiteboard=f
 /* ------------------------------------------------------------------ */
 /* Main editor                                                         */
 /* ------------------------------------------------------------------ */
-export default function PDFEditor({ pdfId, onClose, token, initialDocument = null, shareToken = null, shareRevision = null, exportImage = false, onCleanCopy, assistantOpen=false, onToggleAssistant, onAssistantHost, renderFolderNavigation, onTaskCreated, onOpenTutorial, hiddenFeatures }) {
+export default function PDFEditor({ pdfId, onClose, token, initialDocument = null, shareToken = null, shareRevision = null, shareMessage, exportImage = false, onCleanCopy, assistantOpen=false, onToggleAssistant, onAssistantHost, renderFolderNavigation, onTaskCreated, onOpenTutorial, hiddenFeatures }) {
   const [showCleanup,setShowCleanup]=useState(false)
   const [copyParagraphs,setCopyParagraphs]=useState(()=>{try{return localStorage.getItem('pdf-copy-paragraphs')!=='false'}catch{return true}})
   useEffect(()=>{try{localStorage.setItem('pdf-copy-paragraphs',String(copyParagraphs))}catch{}},[copyParagraphs])
@@ -2761,6 +2762,7 @@ export default function PDFEditor({ pdfId, onClose, token, initialDocument = nul
         input={{scroll:fingerScroll,onChange:setFingerInputMode,pageLocked,onPageLock:locked=>{if(locked)setFingerInputMode(false);setPageLocked(locked)},activity:inputActivity,scrollSettings,onScrollSettings:changeScrollSettings}}
         insert={<InsertPanel onPages={exportImage?undefined:handleAddPages} pageNumber={pageNumber} onFiles={insertFiles} onInsert={insertGenerated} color={currentColor} busy={inserting||!pageBase||pageBase.page!==pageNumber||deletingPage}/>}
       />
+      {!zenMode && !liveInk.accessRevoked && !accessDenied && <DocumentShareMessage message={shareMessage}/>}
       {!focusMode && renderFolderNavigation?.(leave, loading || inserting || deletingPage || saveStatus === 'saving' || confirmation.pending)}
       {liveEnabled && <PDFCollaborators hideWhenAlone={!editorVisibility.soloCollaborators} members={liveInk.members} participants={liveInk.participants} self={liveInk.self} connected={liveInk.connected} status={liveStatus} onRevoke={revokeCollaborator} documentId={pdfId} onLoadAdmins={()=>manageDocumentAdmins()} onManageAdmin={manageDocumentAdmins}/>}
       {showHistory&&!liveInk.accessRevoked&&!accessDenied&&<DocumentEditHistory url={shareToken?`/api/shared-document/${shareToken}/history`:`/api/pdfs/${pdfId}/history`} token={token} onClose={()=>setShowHistory(false)}/>}

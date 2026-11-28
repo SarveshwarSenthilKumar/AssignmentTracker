@@ -39,7 +39,7 @@ module.exports=function registerSharedWithMe(app,auth,{PDF,User,PDFFolder,collab
       const files=await PDF.find({deletedAt:null,user:{$ne:user},$or:[
         {_id:{$in:receipts.map(item=>item.document)}},{documentAdmins:user},
         {friendShares:{$elemMatch:{recipient:user,friendship:{$in:relationships.map(relation=>relation.generation)}}}}
-      ]}).select('name originalName mimeType documentKind user pdfFolder updatedAt +shareLinkHash +shareLinkRole +shareLinkExpiresAt +documentAdmins +revokedCollaborators +friendShares').lean();
+      ]}).select('name originalName mimeType documentKind user pdfFolder updatedAt +shareLinkHash +shareLinkRole +shareLinkExpiresAt +shareLinkMessage +documentAdmins +revokedCollaborators +friendShares').lean();
       if(!files.length)return res.json([]);
       const identity=await collaboratorAccess.identify(req,res,files[0]);
       const owners=await User.find({_id:{$in:files.map(file=>file.user)}}).select('username lockedSections deactivatedAt approvalPending').lean();
@@ -62,9 +62,10 @@ module.exports=function registerSharedWithMe(app,auth,{PDF,User,PDFFolder,collab
         const receipt=receiptMap.get(String(file._id));
         let path=null;
         if(!expired(file)&&receipt&&receipt.linkHash===file.shareLinkHash){try{const token=decrypt(receipt.link);if(hash(token)===file.shareLinkHash)path=`#/shared-document/${token}`;}catch{}}
-        const friendShare=(file.friendShares||[]).some(share=>String(share.recipient)===String(user)&&ownersByFriendship.get(String(share.friendship))===String(file.user));
+        const privateGrant=(file.friendShares||[]).find(share=>String(share.recipient)===String(user)&&ownersByFriendship.get(String(share.friendship))===String(file.user));
+        const friendShare = Boolean(privateGrant);
         if(!admin&&!path&&!friendShare)continue;
-        result.push({_id:file._id,name:file.name,documentKind:file.documentKind,originalName:file.originalName,mimeType:file.mimeType,owner:ownerMap.get(String(file.user)).username,role:admin?'Admin':path&&file.shareLinkRole==='edit'?'Editor':'Viewer',updatedAt:file.updatedAt,visitedAt:receipt?.visitedAt,openPath:path,friendShare,canManageLinks:admin});
+        result.push({_id:file._id,name:file.name,documentKind:file.documentKind,originalName:file.originalName,mimeType:file.mimeType,owner:ownerMap.get(String(file.user)).username,role:admin?'Admin':path&&file.shareLinkRole==='edit'?'Editor':'Viewer',updatedAt:file.updatedAt,visitedAt:receipt?.visitedAt,openPath:path,friendShare,friendMessage:privateGrant?.message||'',shareMessage:path?file.shareLinkMessage||'':'',canManageLinks:admin});
       }
       res.json(result.sort((a,b)=>new Date(b.visitedAt||b.updatedAt)-new Date(a.visitedAt||a.updatedAt)));
     }catch{res.status(503).json({message:'Could not load documents shared with you.'});}

@@ -103,7 +103,7 @@ module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDF
     if (!validId(req.params.id)) return res.status(400).json({ message: 'Invalid document ID.' });
     try {
       const filter = { _id: req.params.id, $or:[{user:req.user.userId},{documentAdmins:req.user.userId}] };
-      const file = await PDF.findOne(filter).select('user pdfFolder deletedAt originalName mimeType +shareLinkHash +shareLinkSecret +shareLinkRole +shareLinkExpiresAt +documentAdmins +revokedCollaborators').lean();
+      const file = await PDF.findOne(filter).select('user pdfFolder deletedAt originalName mimeType +shareLinkHash +shareLinkSecret +shareLinkRole +shareLinkExpiresAt +shareLinkMessage +documentAdmins +revokedCollaborators').lean();
       if (!file) return res.status(404).json({ message: 'Document not found.' });
       const identity=await collaboratorAccess.identify(req,res,file);
       if(collaboratorAccess.blocked(file,identity))return res.status(403).json({message:'Your document access has been revoked.'});
@@ -155,10 +155,15 @@ module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDF
   };
   app.get(path, ...ownerRoute(async(res, _filter, file) => {
     const token=await existingToken(file);
-    res.json({ active: !!file.shareLinkHash, role: file.shareLinkRole || 'view',expiresAt:file.shareLinkExpiresAt||null,expired:expired(file),canEdit: true,path:token?`#/shared-document/${token}`:null,requiresExistingLink:!!file.shareLinkHash&&!token });
+    res.json({ active: !!file.shareLinkHash, role: file.shareLinkRole || 'view',expiresAt:file.shareLinkExpiresAt||null,shareMessage:file.shareLinkMessage||'',expired:expired(file),canEdit: true,path:token?`#/shared-document/${token}`:null,requiresExistingLink:!!file.shareLinkHash&&!token });
   }));
   app.post(path, ...ownerRoute(async (res, filter, file, req) => {
     const role = req.body?.role ?? 'view';
+    const message = req.body?.shareMessage;
+    if (message !== undefined && (typeof message !== 'string' || message.trim().length > 300)) {
+      return res.status(400).json({ message: 'Use up to 300 characters for the document share message.' });
+    }
+    const messageUpdate = message === undefined ? {} : { shareLinkMessage: message.trim() };
     let expiresAt=file.shareLinkExpiresAt||null;
     if(Object.hasOwn(req.body||{},'expiresAt')){
       const value=req.body.expiresAt;
@@ -180,16 +185,16 @@ module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDF
       if(!token)return res.status(409).json({requiresExistingLink:true,message:'The existing address has not changed. Paste that link once to recover it without replacing it.'});
       const unchanged=current.shareLinkHash?{shareLinkHash:current.shareLinkHash}:{$and:[{$or:[{shareLinkHash:{$exists:false}},{shareLinkHash:null}]}]};
       const expirationUpdate=Object.hasOwn(req.body||{},'expiresAt')||!current.shareLinkHash?{shareLinkExpiresAt:expiresAt}:{};
-      const result=await PDF.findOneAndUpdate({...filter,...unchanged,deletedAt:null},{$set:{shareLinkHash:hashToken(token),shareLinkSecret:seal(token),shareLinkRole:role,...expirationUpdate}},{new:true}).select('_id +shareLinkExpiresAt');
+      const result=await PDF.findOneAndUpdate({...filter,...unchanged,deletedAt:null},{$set:{shareLinkHash:hashToken(token),shareLinkSecret:seal(token),shareLinkRole:role,...expirationUpdate,...messageUpdate}},{new:true}).select('_id +shareLinkExpiresAt +shareLinkMessage');
       if(!result)continue;
       if(current.shareLinkHash&&(current.shareLinkRole||'view')!==role)liveInk.revokeShared(file._id,role);
       await liveInk.refreshExpiry(file._id);
-      return res.status(current.shareLinkHash?200:201).json({path:`#/shared-document/${token}`,role,expiresAt:result.shareLinkExpiresAt||null,expired:expired(result)});
+      return res.status(current.shareLinkHash?200:201).json({path:`#/shared-document/${token}`,role,expiresAt:result.shareLinkExpiresAt||null,shareMessage:result.shareLinkMessage||'',expired:expired(result)});
     }
     res.status(409).json({message:'Sharing settings changed at the same time. Please retry.'});
   }));
   app.delete(path, ...ownerRoute(async (res, filter) => {
-    const result=await PDF.updateOne(filter, { $unset: { shareLinkHash: 1, shareLinkSecret:1,shareLinkRole: 1,shareLinkExpiresAt:1 } });
+    const result=await PDF.updateOne(filter, { $unset: { shareLinkHash: 1, shareLinkSecret:1,shareLinkRole: 1,shareLinkExpiresAt:1,shareLinkMessage:1 } });
     if(!result.matchedCount)return res.status(403).json({message:'Your document sharing permissions changed.'});
     liveInk.revokeShared(filter._id);
     res.status(204).end();
@@ -239,7 +244,7 @@ module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDF
     if (owner ? !validId(req.params.id) : !/^[A-Za-z0-9_-]{43}$/.test(req.params.token)) return res.status(404).json({ message: 'This editor link is unavailable.' });
     try {
       const filter = owner ? { _id: req.params.id, user: req.user.userId, deletedAt: null } : { shareLinkHash: hashToken(req.params.token), shareLinkRole:allowView?{$in:['view','edit']}:'edit', deletedAt: null, ...sharedAccess(req) };
-      const file = await PDF.findOne(filter).select('+editHistory +shareLinkRole');
+      const file = await PDF.findOne(filter).select(allowView ? '+editHistory +shareLinkRole +shareLinkMessage' : '+editHistory +shareLinkRole');
       if (!file || await isLocked(file)) return res.status(404).json({ message: 'This editor link is unavailable.' });
       const revision = editorRevision(file,normalized(file.annotations));
       const save = async (changes,details={}) => {
@@ -261,7 +266,7 @@ module.exports = function registerDocumentShareLinks(app, auth, { User, PDF, PDF
     } catch (error) { res.status(400).json({ message: error.message || 'Could not edit this shared file.' }); }
   };
   app.get('/api/shared-document/:token/editor', editor((req, res, file, save, revision) => {
-    res.json({ _id: file._id, name: file.name, documentKind:file.documentKind, copiedFromName:file.copiedFromName, originalName: file.originalName, mimeType: file.mimeType, revision,role:file.shareLinkRole||'view',
+    res.json({ _id: file._id, name: file.name, documentKind:file.documentKind, copiedFromName:file.copiedFromName, originalName: file.originalName, mimeType: file.mimeType, revision,role:file.shareLinkRole||'view',shareMessage:file.shareLinkMessage||'',
       editor: file.shareLinkRole!=='edit'?'view':editable(file) && file.pdfData.length <= 1024 * 1024 && Buffer.from(file.pdfData.toString('utf8')).equals(file.pdfData) ? 'text' : file.mimeType === 'application/pdf' || /\.pdf$/i.test(file.originalName) ? 'pdf' : 'file' });
   },false,true));
   app.get('/api/shared-document/:token/document', editor((req, res, file) => {

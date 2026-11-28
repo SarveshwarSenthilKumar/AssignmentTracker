@@ -1,0 +1,4 @@
+.document-share-message{min-width:0;margin-block:6px;padding:8px 11px;border-inline-start:2px solid var(--accent);background:var(--surface-input);color:var(--text-primary);font-size:13px}
+.document-share-message p{margin:2px 0 0;white-space:pre-wrap;overflow-wrap:anywhere}
+.library-share-link-panel textarea{width:100%;padding:8px 10px;border:1px solid var(--border-strong);border-radius:var(--radius-control);background:var(--surface-input);color:var(--text-primary);resize:vertical}
+.pdf-editor > .document-share-message{flex:none;max-height:18vh;overflow:auto;margin:4px 12px}

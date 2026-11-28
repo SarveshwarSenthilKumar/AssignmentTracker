@@ -1,3 +1,4 @@
+import './DocumentShareMessage.css'
 import { useEffect, useState } from 'react'
 import { Link2, Mail, X } from 'lucide-react'
 import RecentShareRecipients from './RecentShareRecipients'
@@ -11,6 +12,8 @@ export default function DocumentShareLink({ file, token, onClose }) {
   const [role, setRole] = useState('view')
   const [canEdit, setCanEdit] = useState(false)
   const [link, setLink] = useState('')
+  const [shareMessage, setShareMessage] = useState('')
+  const [savedShareMessage, setSavedShareMessage] = useState('')
   const [recipient,setRecipient]=useState('')
   const recent=useRecentShareRecipients()
   const [busy, setBusy] = useState(false)
@@ -35,7 +38,7 @@ export default function DocumentShareLink({ file, token, onClose }) {
     const response = await fetch(endpoint, {
       method, signal, cache: 'no-store',
       headers: { Authorization: `Bearer ${token}`, ...(method === 'POST' && { 'Content-Type': 'application/json' }) },
-      ...(method === 'POST' && { body: JSON.stringify({ role,existingToken,expiresAt }) })
+      ...(method === 'POST' && { body: JSON.stringify({ role,existingToken,expiresAt,shareMessage:shareMessage.trim() }) })
     })
     if (response.status === 204) return null
     const data = await response.json().catch(() => ({}))
@@ -55,6 +58,8 @@ export default function DocumentShareLink({ file, token, onClose }) {
         setLink(data.path?new URL(data.path,window.location.href).href:'')
         setExpires(!!data.expiresAt);setExpiry(localTime(data.expiresAt));setSavedExpiry(localTime(data.expiresAt));setExpired(data.expired===true)
         setCanEdit(data.canEdit === true)
+        setShareMessage(data.shareMessage || '')
+        setSavedShareMessage(data.shareMessage || '')
       })
       .catch(error => { if (!controller.signal.aborted) setError(error.message) })
     return () => controller.abort()
@@ -72,6 +77,8 @@ export default function DocumentShareLink({ file, token, onClose }) {
       setActive(method === 'POST')
       setSavedRole(method==='POST'?role:'view')
       setNeedsOriginal(false);setOriginal('')
+      const savedMessage = data?.shareMessage || ''
+      setShareMessage(savedMessage);setSavedShareMessage(savedMessage)
       setExpires(method==='POST'&&!!data.expiresAt);setExpiry(method==='POST'?localTime(data.expiresAt):'');setSavedExpiry(method==='POST'?localTime(data.expiresAt):'');setExpired(method==='POST'&&data.expired===true)
       setNotice(method === 'POST' ? data.expiresAt?`Sharing saved. This link expires ${new Date(data.expiresAt).toLocaleString()}.`:'Sharing saved. This link has no expiration.' : 'Share link revoked. Previous copies no longer grant access.')
     } catch (error) {
@@ -88,7 +95,7 @@ export default function DocumentShareLink({ file, token, onClose }) {
     if(!email)return
     const address=encodeURIComponent(email).replace('%40','@')
     const subject=encodeURIComponent('Shared document: '+file.name)
-    const body=encodeURIComponent('Here is the link to '+file.name+':\n\n'+link)
+    const body=encodeURIComponent([savedShareMessage,'Here is the link to '+file.name+':',link].filter(Boolean).join('\n\n'))
     recent.remember(email)
     window.location.href='mailto:'+address+'?subject='+subject+'&body='+body
   }
@@ -110,13 +117,18 @@ export default function DocumentShareLink({ file, token, onClose }) {
       </label>
       <p>{role === 'edit' ? 'Anyone with an Editor link can edit the original without signing in. PDFs and text open in the editor; other formats can be downloaded, edited, and replaced.' : 'Anyone with a Viewer link can download the saved file without signing in.'}</p>
       {!canEdit && active !== null && <p>Editor links support Markdown and plain-text files.</p>}
+      <label>Link message (optional)
+        <textarea rows={2} maxLength={300} value={shareMessage} disabled={busy || active === null}
+          onChange={event => setShareMessage(event.target.value)} placeholder="Add context for anyone who opens this link"/>
+        <small>{shareMessage.length} / 300 · Anyone with the link can read this message.</small>
+      </label>
       <fieldset className="library-link-expiry"><legend>Link expiration</legend><label className="library-link-expiry-toggle"><input type="checkbox" checked={expires} onChange={event=>setExpires(event.target.checked)} disabled={busy||active===null}/><span>Expire this link</span></label>
         {expires&&<><label>Expiration date and time<input type="datetime-local" value={expiry} onChange={event=>setExpiry(event.target.value)} disabled={busy}/></label><div className="library-sharing-actions">{[[1,'In 1 hour'],[24,'In 1 day'],[168,'In 7 days']].map(([hours,label])=><button key={hours} type="button" disabled={busy} onClick={()=>setExpiry(localTime(Date.now()+hours*3600000))}>{label}</button>)}</div><small>Uses your device’s local time ({Intl.DateTimeFormat().resolvedOptions().timeZone}).</small></>}
         {!expires&&<small>No expiration. Access remains subject to permissions, locks, and revocation.</small>}
       </fieldset>
       <p>Saving permissions or changing expiration keeps the same link address.</p>
       {expired&&<p role="status">This link has expired. Choose a future expiration or turn expiration off, then save to reactivate the same link.</p>}
-      {active&&(role!==savedRole||(expires?expiry:'')!==savedExpiry)&&<p>Save settings to apply these changes to everyone using the link.</p>}
+      {active&&(role!==savedRole||(expires?expiry:'')!==savedExpiry||shareMessage.trim()!==savedShareMessage)&&<p>Save settings to apply these changes to everyone using the link.</p>}
       {needsOriginal&&<label>Recover the original link<input type="text" inputMode="url" value={original} onChange={event=>setOriginal(event.target.value)} placeholder="Paste the link you already shared" disabled={busy}/><small>The original address has not changed. Paste it once so it can be copied again without replacing it.</small></label>}
       {link && <label>Share link
         <input type="url" readOnly value={link} onFocus={event => event.target.select()}/>

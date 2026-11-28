@@ -1,3 +1,4 @@
+import DocumentShareMessage from './DocumentShareMessage'
 import {Palette} from 'lucide-react'
 import {openPageFaviconPicker} from '../lib/pageFavicon'
 import { Component, useEffect, useRef, useState } from 'react'
@@ -75,7 +76,7 @@ export default function PublicDocumentEditor({ shareToken }) {
     } catch (error) { setError(error.message) }
     finally { setBusy(false) }
   }
-  if (file?.editor === 'pdf') return <SharedEditorBoundary downloadUrl={endpoint}><PDFEditor key={shareToken} pdfId={file._id} shareToken={shareToken} shareRevision={file.revision} onClose={close}/></SharedEditorBoundary>
+  if (file?.editor === 'pdf') return <SharedEditorBoundary downloadUrl={endpoint}><PDFEditor key={shareToken} pdfId={file._id} shareToken={shareToken} shareRevision={file.revision} shareMessage={file.shareMessage} onClose={close}/></SharedEditorBoundary>
   if(denied)return <DocumentAccessNotice message={denied} onClose={close} onRetry={()=>window.location.reload()}/>
   return <main className="platform-viewport min-h-screen px-4 py-8">
     <div className="mx-auto max-w-4xl">
@@ -86,6 +87,7 @@ export default function PublicDocumentEditor({ shareToken }) {
       {!file && !error && <p role="status">Opening shared file…</p>}
       {error && <p role="alert">{error}</p>}
       {file && <>
+        <DocumentShareMessage message={file.shareMessage}/>
         <a className="underline" href={endpoint}>Download saved file</a>
         {file.editor!=='text'&&file.editor!=='view'&&<button type="button" onClick={()=>setHistory(true)}>Edit history</button>}
         {history&&<DocumentEditHistory url={`${endpoint}/history`} onClose={()=>setHistory(false)}/>}

@@ -284,12 +284,14 @@ const pdfSchema = new mongoose.Schema({
   friendShares: {
     type:[new mongoose.Schema({
       recipient:{type:mongoose.Schema.Types.ObjectId,required:true},
-      friendship:{type:mongoose.Schema.Types.ObjectId,required:true}
+      friendship:{type:mongoose.Schema.Types.ObjectId,required:true},
+      message:{type:String,maxlength:300,default:''}
     },{_id:false})],
     default:[],select:false
   },
   shareLinkHash: { type: String, select: false, index: { sparse: true } },
   shareLinkSecret: { type: String, select: false },
+  shareLinkMessage: { type: String, maxlength: 300, select: false },
   shareLinkExpiresAt: { type: Date, default: null, select: false },
   shareLinkRole: { type: String, enum: ['view', 'edit'], default: 'view', select: false },
   revokedCollaborators: { type: [String], default: [], select: false },

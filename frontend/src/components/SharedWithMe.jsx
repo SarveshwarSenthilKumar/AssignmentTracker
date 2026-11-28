@@ -1,3 +1,4 @@
+import DocumentShareMessage from './DocumentShareMessage'
 import {useEffect,useState} from 'react'
 import {RefreshCw,ExternalLink,Link2,Search} from 'lucide-react'
 import SharedFolders from './SharedFolders'
@@ -36,7 +37,7 @@ export default function SharedWithMe({token}) {
       {loading&&<p role="status">Loading shared documents…</p>}
       {!loading&&!error&&!visible.length&&<p>{query?'No matching documents.':'No shared documents yet. Files shared by friends appear here. You can also add a sharing link above.'}</p>}
       <ul className="shared-document-list">{visible.map(file=><li key={file._id}>
-        <DocumentFileIcon file={file} size={24}/><div><strong>{file.name}</strong><small>Shared by {file.owner} · {file.role}</small></div>
+        <DocumentFileIcon file={file} size={24}/><div><strong>{file.name}</strong><small>Shared by {file.owner} · {file.role}</small><DocumentShareMessage message={file.friendMessage} label="Private message"/><DocumentShareMessage message={file.shareMessage} label="Link message"/></div>
         <div className="shared-document-actions">{file.friendShare&&<FriendDocumentDownload file={file} token={token}/>} {file.openPath&&<a href={file.openPath} target="_blank" rel="noopener noreferrer"><ExternalLink size={15}/>{file.openPath.startsWith('#')?'Open document':'View / download'}</a>}{file.canManageLinks&&<button type="button" onClick={()=>setShare(file)}>Manage links</button>}</div>
       </li>)}</ul>
     </section>
